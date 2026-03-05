@@ -1806,12 +1806,25 @@
       ];
 
       var aiEnabled = false;
+      var aiModelSelect = document.getElementById('ai-model');
+      var aiModelRow = document.getElementById('ai-model-row');
 
       // Check if AI is available on the server
       if (isCloud) {
         fetch('/api/health').then(function(r) { return r.json(); }).then(function(d) {
           if (d.ai_enabled) {
             aiEnabled = true;
+            // Populate model dropdown
+            if (d.ai_models && d.ai_models.length && aiModelSelect) {
+              d.ai_models.forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                if (m === d.ai_default_model) opt.selected = true;
+                aiModelSelect.appendChild(opt);
+              });
+              aiModelRow.style.display = '';
+            }
             aiFields.forEach(attachAiButton);
           }
         }).catch(function() {});
@@ -1849,7 +1862,7 @@
           fetch('/api/suggest', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text, field: field.label })
+            body: JSON.stringify({ text: text, field: field.label, model: aiModelSelect ? aiModelSelect.value : '' })
           })
           .then(function(r) { return r.json(); })
           .then(function(data) {

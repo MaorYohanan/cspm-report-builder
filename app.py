@@ -358,12 +358,23 @@ def api_delete_output(filename: str):
 @app.route("/api/health")
 def api_health():
     """Health check for container orchestration."""
-    return jsonify({"status": "ok", "ai_enabled": bool(GEMINI_API_KEY)})
+    result = {"status": "ok", "ai_enabled": bool(GEMINI_API_KEY)}
+    if GEMINI_API_KEY:
+        result["ai_models"] = GEMINI_MODELS
+        result["ai_default_model"] = GEMINI_DEFAULT_MODEL
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------------------
 # AI writing assistant (optional – set GEMINI_API_KEY env var)
 # ---------------------------------------------------------------------------
+
+GEMINI_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+]
+GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0]
 
 GEMINI_SYSTEM_PROMPT = (
     "You are a senior cloud security consultant writing a CSPM assessment report. "
@@ -387,12 +398,17 @@ def api_suggest():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     field_hint = (data.get("field") or "").strip()
+    model = (data.get("model") or "").strip()
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
     if len(text) > 5000:
         return jsonify({"error": "Text too long (max 5000 chars)"}), 400
+
+    # Validate model against whitelist
+    if not model or model not in GEMINI_MODELS:
+        model = GEMINI_DEFAULT_MODEL
 
     user_prompt = text
     if field_hint:
@@ -413,7 +429,7 @@ def api_suggest():
 
     url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        f"{model}:generateContent?key={GEMINI_API_KEY}"
     )
 
     req = urllib.request.Request(

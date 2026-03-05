@@ -105,7 +105,7 @@ Your work is automatically saved to the browser's localStorage every 10 seconds 
 | `GET` | `/api/list-outputs` | List output files |
 | `DELETE` | `/api/delete-output/<name>` | Delete output file |
 | `GET` | `/api/health` | Health check (always open) |
-| `POST` | `/api/suggest` | AI phrasing suggestions (requires `GEMINI_API_KEY`) |
+| `POST` | `/api/suggest` | AI phrasing suggestions (requires `GEMINI_API_KEY`). Accepts `model` param to select Gemini model |
 
 ## Project Structure
 
@@ -126,7 +126,7 @@ Your work is automatically saved to the browser's localStorage every 10 seconds 
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
-└── TODO.md
+└── README.md
 ```
 
 ## Development
