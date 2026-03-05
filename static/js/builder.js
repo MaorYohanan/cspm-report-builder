@@ -558,13 +558,13 @@
 
       // Sort findings by severity (critical first)
       document.getElementById('btn-sort-severity').addEventListener('click', function() {
-        var sevOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+        var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
         findings.sort(function(a, b) {
           return (sevOrder[a.severity] || 9) - (sevOrder[b.severity] || 9);
         });
         if (editingIndex !== null) resetEditState();
         renderFindingsTable();
-        statusMsg.textContent = 'ממצאים מוינו לפי חומרה.';
+        statusMsg.textContent = 'ממצאים מוינו לפי חומרה (קריטי ← מידע).';
       });
 
       // Build a dynamic filename from client name + report date
@@ -1045,6 +1045,14 @@
     background: #ffffff;
   }
 
+  .finding-wrap {
+    margin-top: 8px;
+  }
+
+  .finding-wrap:first-child {
+    margin-top: 0;
+  }
+
   .finding-card {
     border-radius: 6px;
     padding: 10px 12px;
@@ -1186,10 +1194,14 @@
     }
 
     .finding-wrap {
-      padding-top: 14mm;
       break-inside: avoid;
       page-break-inside: avoid;
-      
+      margin-top: 10px;
+      padding-top: 18mm;
+    }
+
+    .finding-wrap:first-child {
+      padding-top: 0;
     }
 
     .finding-card {
