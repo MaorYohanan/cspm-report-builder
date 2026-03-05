@@ -567,6 +567,16 @@
         statusMsg.textContent = 'ממצאים מוינו לפי חומרה.';
       });
 
+      // Build a dynamic filename from client name + report date
+      function buildFilename(ext) {
+        var client = (document.getElementById('report-client').value || '').trim().replace(/[^\w\u0590-\u05FF\s-]/g, '').replace(/\s+/g, '_');
+        var date = getDateAsDDMMYYYY().replace(/\//g, '-');
+        var parts = ['cspm_report'];
+        if (client) parts.push(client);
+        if (date) parts.push(date);
+        return parts.join('_') + '.' + ext;
+      }
+
       function countSeverity(key) {
         return findings.filter(f => f.severity === key).length;
       }
@@ -1391,7 +1401,7 @@
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
         a.href     = url;
-        a.download = 'cspm_report.html';
+        a.download = buildFilename('html');
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1408,7 +1418,7 @@
         const url = URL.createObjectURL(blob);
         const a   = document.createElement('a');
         a.href = url;
-        a.download = 'cspm_report_state.json';
+        a.download = buildFilename('json');
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1621,7 +1631,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'cspm_report.pdf';
+            a.download = buildFilename('pdf');
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
