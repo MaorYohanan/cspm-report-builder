@@ -567,14 +567,27 @@ query IssuesTable($first: Int, $after: String, $filterBy: IssueFilters) {
     }
     nodes {
       id
-      sourceRule {
+      sourceRules {
+        id
         name
         description
-        remediationInstructions
-        externalReferences
       }
       severity
       status
+      description
+      remediationRecommendationV2 {
+        recommendation
+      }
+      projects {
+        id
+        name
+      }
+      cloudAccounts {
+        id
+        name
+        cloudProvider
+        externalId
+      }
       entitySnapshot {
         name
         type

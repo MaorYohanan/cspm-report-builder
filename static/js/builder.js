@@ -2853,10 +2853,12 @@
           var sev = (issue.severity || 'MEDIUM').toUpperCase();
           var sevClass = 'sev-' + mapWiziSeverity(sev);
           var entity = issue.entitySnapshot || {};
-          var rule = issue.sourceRule || {};
+          var rules = issue.sourceRules || [];
+          var ruleName = rules.length ? rules[0].name : (issue.description || 'N/A');
+          var ruleDesc = rules.length ? rules[0].description : '';
           html += '<tr>' +
             '<td><input type="checkbox" class="wizi-check" data-idx="' + idx + '" checked></td>' +
-            '<td title="' + (rule.description || '').replace(/"/g, '&quot;') + '">' + (rule.name || 'N/A') + '</td>' +
+            '<td title="' + (ruleDesc).replace(/"/g, '&quot;') + '">' + ruleName + '</td>' +
             '<td><span class="severity-chip ' + sevClass + '">' + sev + '</span></td>' +
             '<td>' + (entity.name || 'N/A') + '<br><span class="muted">' + (entity.nativeType || entity.type || '') + '</span></td>' +
             '<td>' + (entity.subscriptionName || '') + '</td>' +
@@ -2972,7 +2974,8 @@
 
         var imported = 0;
         selected.forEach(function(issue) {
-          var rule = issue.sourceRule || {};
+          var rules = issue.sourceRules || [];
+          var rule = rules.length ? rules[0] : {};
           var entity = issue.entitySnapshot || {};
           var sev = mapWiziSeverity(issue.severity);
           var cat = mapWiziCategory(entity);
@@ -2985,24 +2988,21 @@
           if (entity.name) technical.push('Entity: ' + entity.name);
           if (entity.nativeType) technical.push('Type: ' + entity.nativeType);
 
-          var refs = [];
-          if (rule.externalReferences) {
-            try {
-              var parsed = typeof rule.externalReferences === 'string' ? JSON.parse(rule.externalReferences) : rule.externalReferences;
-              if (Array.isArray(parsed)) refs = parsed.map(function(r) { return r.url || r.name || String(r); });
-            } catch(e) {}
+          var recs = '';
+          if (issue.remediationRecommendationV2 && issue.remediationRecommendationV2.recommendation) {
+            recs = issue.remediationRecommendationV2.recommendation;
           }
 
           findings.push({
             id: id,
             category: cat,
-            title: rule.name || 'Wizi Issue ' + issue.id,
+            title: rule.name || issue.description || 'Wizi Issue ' + issue.id,
             severity: sev,
-            description: splitLines(rule.description || ''),
+            description: splitLines(rule.description || issue.description || ''),
             impact: [],
             technical: splitLines(technical.join('\n')),
-            policies: refs.length ? refs : [],
-            recs: splitLines(rule.remediationInstructions || ''),
+            policies: [],
+            recs: splitLines(recs),
             priority: '',
             evidence: []
           });
