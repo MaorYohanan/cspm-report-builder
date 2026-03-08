@@ -2186,11 +2186,23 @@
 
       // --- Auto-save to localStorage ---
       const AUTOSAVE_KEY = 'cspm_report_autosave';
+      const autosaveIndicator = document.getElementById('autosave-indicator');
+
+      function showAutosaveStatus(text, saving) {
+        autosaveIndicator.textContent = text;
+        autosaveIndicator.classList.toggle('saving', !!saving);
+        autosaveIndicator.classList.add('visible');
+      }
 
       function autoSave() {
         try {
           const snapshot = buildSnapshot();
           localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot));
+          var now = new Date();
+          var hh = String(now.getHours()).padStart(2, '0');
+          var mm = String(now.getMinutes()).padStart(2, '0');
+          var ss = String(now.getSeconds()).padStart(2, '0');
+          showAutosaveStatus('💾 נשמר ' + hh + ':' + mm + ':' + ss);
         } catch (e) { /* quota exceeded or private mode — ignore */ }
       }
 

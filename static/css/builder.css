@@ -54,6 +54,31 @@ h1 {
   letter-spacing: -0.3px;
 }
 
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.app-header h1 { margin-bottom: 0; }
+
+.autosave-indicator {
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  white-space: nowrap;
+}
+
+.autosave-indicator.visible {
+  opacity: 1;
+}
+
+.autosave-indicator.saving {
+  color: var(--accent);
+}
+
 h2 {
   font-size: 16px;
   margin: 0 0 12px;
