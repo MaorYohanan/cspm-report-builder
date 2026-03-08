@@ -9,11 +9,18 @@ A self-hosted web tool for building, managing, and exporting Cloud Security Post
 ## What it does
 
 - **Report builder UI** — fill in client details, add findings with severity, evidence screenshots, recommendations, and policy mappings
+- **Finding categories** — CSPM, KSPM, DSPM, VULN, NEXP, EAPM, HSPM, SECR, EOLM with auto-prefixed IDs
+- **Finding templates** — pre-built common findings (S3 public bucket, open security groups, MFA, etc.) for quick entry
+- **Risk score** — auto-calculated risk score based on severity distribution, shown in the executive summary
 - **PDF export** — server-side rendering via Playwright/Chromium with proper Hebrew RTL layout, headers, footers, and page breaks
+- **Dynamic table of contents** — clickable links to each finding with severity badges
 - **AI writing assistant** — optional Gemini integration to improve phrasing of report fields, with a selectable model (gemini-2.0-flash, 2.5-flash, 2.5-pro)
+- **Custom cover image** — upload your own cover image from the UI, or use the default
 - **State management** — save/load report configurations as JSON, both locally and on the server
 - **CSV import** — bulk import findings from CSV exports (auto-maps common column names)
 - **File manager** — upload, download, and manage state files and output reports on the server
+- **Keyboard navigation** — J/K to navigate findings, E to edit, D to delete
+- **Rate limiting** — configurable per-IP rate limiting on mutating API endpoints
 
 ## Quick Start
 
@@ -63,6 +70,8 @@ Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apike
 | `APP_TOKEN` | _(empty)_ | Bearer token for auth (empty = open access) |
 | `CLEANUP_DAYS` | `30` | Auto-delete output files older than N days (0 = disabled) |
 | `GEMINI_API_KEY` | _(empty)_ | Google Gemini API key for AI writing assistant (empty = disabled) |
+| `RATE_LIMIT_MAX` | `30` | Max POST/DELETE requests per IP per window (0 = disabled) |
+| `RATE_LIMIT_WINDOW` | `60` | Rate limit window in seconds |
 | `FLASK_DEBUG` | `0` | Enable Flask debug mode |
 
 ## Usage
@@ -78,6 +87,8 @@ Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apike
 4. Use **Ctrl+Enter** to quickly add a finding and start the next one
 5. Sort findings by severity using the sort button
 6. Duplicate similar findings with the "שכפל" button
+7. Use **J/K** keys to navigate the findings table, **E** to edit, **D** to delete
+8. Use **finding templates** dropdown to quickly add common CSPM/KSPM/NEXP findings
 
 ### Exporting
 

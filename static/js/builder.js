@@ -101,6 +101,44 @@
         'EOLM': 'End of Life'
       };
 
+      // --- Finding templates ---
+      var findingTemplates = [
+        { category: 'CSPM', title: 'S3 Bucket ציבורי עם נתונים רגישים', severity: 'critical', description: 'זוהה S3 Bucket עם הרשאות גישה ציבוריות המכיל נתונים רגישים.', impact: 'חשיפת נתונים רגישים לגורמים לא מורשים, סיכון לדליפת מידע ופגיעה רגולטורית.', recs: 'לבטל גישה ציבורית ל-Bucket\nלהפעיל הצפנה Server-Side (SSE-S3/SSE-KMS)\nלהגדיר Bucket Policy מגביל\nלהפעיל S3 Block Public Access' },
+        { category: 'CSPM', title: 'Security Group פתוח לכל העולם (0.0.0.0/0)', severity: 'high', description: 'זוהה Security Group המאפשר תעבורה נכנסת מכל כתובת IP.', impact: 'חשיפת שירותים פנימיים לתקיפות מהאינטרנט, סיכון לגישה לא מורשית.', recs: 'להגביל את ה-Security Group לטווחי IP ספציפיים\nלהסיר כללי Inbound עם 0.0.0.0/0\nלהשתמש ב-VPN או Bastion Host לגישה מרחוק' },
+        { category: 'CSPM', title: 'MFA לא מופעל למשתמשי Root/Admin', severity: 'critical', description: 'חשבונות Root או Admin ללא אימות דו-שלבי (MFA).', impact: 'סיכון גבוה לגניבת חשבון ניהולי, גישה מלאה לכל משאבי הענן.', recs: 'להפעיל MFA לכל חשבונות Root ו-Admin\nלהשתמש ב-Hardware MFA Token לחשבון Root\nלהגדיר מדיניות ארגונית המחייבת MFA' },
+        { category: 'CSPM', title: 'הצפנה לא מופעלת על אחסון (EBS/Disk)', severity: 'medium', description: 'זוהו דיסקים (EBS Volumes / Managed Disks) ללא הצפנה.', impact: 'נתונים בדיסק חשופים במקרה של גישה פיזית או גניבת Snapshot.', recs: 'להפעיל הצפנת ברירת מחדל לכל הדיסקים החדשים\nלהצפין דיסקים קיימים באמצעות Snapshot + Copy with encryption\nלהשתמש ב-KMS Keys מנוהלים' },
+        { category: 'CSPM', title: 'IAM Policy עם הרשאות Admin מלאות (*:*)', severity: 'high', description: 'זוהתה מדיניות IAM המעניקה הרשאות מלאות (AdministratorAccess או *:*).', impact: 'הרשאות יתר מאפשרות גישה בלתי מוגבלת לכל המשאבים, עקרון Least Privilege מופר.', recs: 'להחליף ב-IAM Policies ממוקדות לפי תפקיד\nליישם עקרון Least Privilege\nלבצע IAM Access Analyzer לזיהוי הרשאות לא בשימוש' },
+        { category: 'CSPM', title: 'CloudTrail / Audit Logging לא מופעל', severity: 'high', description: 'שירות רישום פעולות (CloudTrail / Activity Log) לא מופעל או מוגדר חלקית.', impact: 'חוסר יכולת לזהות פעילות חשודה, קושי בחקירת אירועים ועמידה ברגולציה.', recs: 'להפעיל CloudTrail / Audit Logging בכל האזורים\nלהגדיר שמירה ב-S3 Bucket מוצפן עם Lifecycle Policy\nלהפעיל Log File Validation' },
+        { category: 'KSPM', title: 'Pod רץ עם הרשאות Root', severity: 'high', description: 'זוהו Pods הרצים עם SecurityContext של root (runAsUser: 0).', impact: 'פריצה ל-Pod עם הרשאות root מאפשרת Container Escape ופגיעה ב-Node.', recs: 'להגדיר runAsNonRoot: true ב-SecurityContext\nלהשתמש ב-PodSecurityPolicy / PodSecurityStandards\nלהגביל capabilities עם drop: ALL' },
+        { category: 'NEXP', title: 'Database חשוף לאינטרנט', severity: 'critical', description: 'שירות Database (RDS/SQL/CosmosDB) נגיש ישירות מהאינטרנט.', impact: 'חשיפה ישירה של בסיס הנתונים לתקיפות Brute Force, SQL Injection ודליפת מידע.', recs: 'להעביר את ה-Database ל-Private Subnet\nלבטל Public Accessibility\nלהגדיר גישה דרך VPN או Private Endpoint בלבד' },
+        { category: 'VULN', title: 'ספריות עם פגיעויות ידועות (CVE)', severity: 'high', description: 'זוהו ספריות / חבילות תוכנה עם פגיעויות ידועות ברמת חומרה גבוהה.', impact: 'ניצול פגיעויות ידועות עלול לאפשר הרצת קוד מרחוק, דליפת מידע או השבתת שירות.', recs: 'לעדכן את הספריות לגרסאות מתוקנות\nלהפעיל סריקת פגיעויות אוטומטית ב-CI/CD\nלהגדיר מדיניות חסימה לפגיעויות Critical/High' },
+        { category: 'DSPM', title: 'נתונים רגישים ללא סיווג או הגנה', severity: 'medium', description: 'זוהו מאגרי נתונים המכילים מידע רגיש (PII/PHI/PCI) ללא סיווג או בקרות הגנה מתאימות.', impact: 'חוסר סיווג מקשה על אכיפת מדיניות הגנת מידע ועמידה ברגולציה.', recs: 'לבצע סריקת Data Discovery וסיווג אוטומטי\nלהגדיר תגיות סיווג (Classification Tags)\nליישם בקרות גישה מבוססות סיווג' },
+      ];
+
+      // Populate template dropdown
+      var templateSelect = document.getElementById('f-template');
+      findingTemplates.forEach(function(t, idx) {
+        var opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = '[' + t.category + '] ' + t.title;
+        templateSelect.appendChild(opt);
+      });
+
+      templateSelect.addEventListener('change', function() {
+        if (this.value === '') return;
+        var t = findingTemplates[parseInt(this.value)];
+        if (!t) return;
+        document.getElementById('f-category').value = t.category;
+        prefillId();
+        document.getElementById('f-title').value = t.title;
+        document.getElementById('f-severity').value = t.severity;
+        document.getElementById('f-description').value = t.description || '';
+        document.getElementById('f-impact').value = t.impact || '';
+        document.getElementById('f-recs').value = t.recs || '';
+        this.value = '';
+        document.getElementById('f-title').focus();
+      });
+
       // --- Auto-generate finding ID per category ---
       function generateNextId(prefix) {
         prefix = prefix || 'CSPM';
@@ -182,6 +220,46 @@
         }
       });
 
+      // --- Keyboard navigation for findings table (J/K/E/D) ---
+      var kbSelectedIdx = -1;
+
+      function highlightFindingRow(idx) {
+        var rows = tableWrapper.querySelectorAll('tbody tr');
+        rows.forEach(function(r, i) {
+          r.style.outline = i === idx ? '2px solid var(--accent)' : '';
+          r.style.outlineOffset = i === idx ? '-2px' : '';
+        });
+        if (rows[idx]) rows[idx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      document.addEventListener('keydown', function(e) {
+        // Only when not focused on an input/textarea/select
+        var tag = (document.activeElement || {}).tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        if (!findings.length) return;
+
+        if (e.key === 'j' || e.key === 'J') {
+          e.preventDefault();
+          kbSelectedIdx = Math.min(kbSelectedIdx + 1, findings.length - 1);
+          highlightFindingRow(kbSelectedIdx);
+        } else if (e.key === 'k' || e.key === 'K') {
+          e.preventDefault();
+          kbSelectedIdx = Math.max(kbSelectedIdx - 1, 0);
+          highlightFindingRow(kbSelectedIdx);
+        } else if ((e.key === 'e' || e.key === 'E') && kbSelectedIdx >= 0) {
+          e.preventDefault();
+          startEditFinding(kbSelectedIdx);
+        } else if ((e.key === 'd' || e.key === 'D') && kbSelectedIdx >= 0) {
+          e.preventDefault();
+          if (confirm('למחוק ממצא ' + (findings[kbSelectedIdx].id || '') + '?')) {
+            findings.splice(kbSelectedIdx, 1);
+            if (kbSelectedIdx >= findings.length) kbSelectedIdx = findings.length - 1;
+            renderFindingsTable();
+            highlightFindingRow(kbSelectedIdx);
+          }
+        }
+      });
+
       // בניית Snapshot של כל הדו"ח (meta + findings)
       function buildSnapshot() {
         const snapshot = {
@@ -198,7 +276,8 @@
             teamName:    document.getElementById('report-team-name').value,
             orgName:     document.getElementById('report-org-name').value,
             footerText:  document.getElementById('report-footer-text').value,
-            coverNote:   document.getElementById('report-cover-note').value
+            coverNote:   document.getElementById('report-cover-note').value,
+            coverImage:  (coverImageDataUrl !== defaultCoverImageDataUrl) ? coverImageDataUrl : null
           },
           findings: findings  // JSON.stringify יעשה deep copy
         };
@@ -230,6 +309,15 @@
         document.getElementById('report-org-name').value    = m.orgName     || '';
         document.getElementById('report-footer-text').value = m.footerText  || '';
         document.getElementById('report-cover-note').value  = m.coverNote   || '';
+
+        // Restore custom cover image if present
+        if (m.coverImage) {
+          showCoverPreview(m.coverImage);
+        } else {
+          coverImageDataUrl = defaultCoverImageDataUrl;
+          coverImagePreview.innerHTML = '';
+          coverImageInput.value = '';
+        }
 
         // ניקוי רשימת הממצאים והזנתם מחדש
         findings.length = 0;
@@ -606,8 +694,10 @@
         return parts.join('_') + '.' + ext;
       }
 
-      // --- Cover image: preload as base64 for embedding in report ---
+      // --- Cover image: preload default + custom upload ---
       var coverImageDataUrl = '';
+      var defaultCoverImageDataUrl = '';
+
       fetch('/assets/cover.png')
         .then(function(r) { if (r.ok) return r.blob(); throw new Error('no cover'); })
         .then(function(blob) {
@@ -617,11 +707,58 @@
             reader.readAsDataURL(blob);
           });
         })
-        .then(function(dataUrl) { coverImageDataUrl = dataUrl; })
+        .then(function(dataUrl) {
+          defaultCoverImageDataUrl = dataUrl;
+          if (!coverImageDataUrl) coverImageDataUrl = dataUrl;
+        })
         .catch(function() { /* no cover image — that's fine */ });
+
+      // Custom cover image upload
+      var coverImageInput = document.getElementById('report-cover-image');
+      var coverImagePreview = document.getElementById('cover-image-preview');
+
+      function showCoverPreview(dataUrl) {
+        coverImageDataUrl = dataUrl;
+        coverImagePreview.innerHTML =
+          '<img src="' + dataUrl + '" alt="תצוגה מקדימה של תמונת שער" style="max-width:300px;max-height:180px;border-radius:8px;border:1px solid var(--border);">' +
+          '<span class="clear-btn" id="clear-cover-image">✕ חזור לברירת מחדל</span>';
+        document.getElementById('clear-cover-image').addEventListener('click', function() {
+          coverImageDataUrl = defaultCoverImageDataUrl;
+          coverImagePreview.innerHTML = '';
+          coverImageInput.value = '';
+        });
+      }
+
+      coverImageInput.addEventListener('change', function() {
+        var file = this.files[0];
+        if (!file || !file.type.startsWith('image/')) return;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          showCoverPreview(ev.target.result);
+        };
+        reader.readAsDataURL(file);
+      });
 
       function countSeverity(key) {
         return findings.filter(f => f.severity === key).length;
+      }
+
+      // --- Risk score calculation ---
+      function calcRiskScore() {
+        var weights = { critical: 10, high: 7, medium: 4, low: 1, info: 0 };
+        var total = 0;
+        var maxPossible = findings.length * 10;
+        findings.forEach(function(f) {
+          total += weights[f.severity] || 0;
+        });
+        if (!findings.length) return { score: 0, percent: 0, label: '—', level: '' };
+        var percent = Math.round((total / maxPossible) * 100);
+        var label, level;
+        if (percent >= 75) { label = 'קריטית'; level = 'critical'; }
+        else if (percent >= 50) { label = 'גבוהה'; level = 'high'; }
+        else if (percent >= 25) { label = 'בינונית'; level = 'medium'; }
+        else { label = 'נמוכה'; level = 'low'; }
+        return { score: total, percent: percent, label: label, level: level };
       }
 
       function escapeHtml(str) {
@@ -702,6 +839,7 @@
         const medCount   = countSeverity('medium');
         const lowCount   = countSeverity('low');
         const infoCount  = countSeverity('info');
+        const riskScore  = calcRiskScore();
 
         // Group findings by category
         var findingsByCategory = {};
@@ -1065,6 +1203,11 @@
     display: inline-block;
   }
 
+  .toc-finding {
+    padding-right: 20px;
+    font-size: 12px;
+  }
+
   table {
     width: 100%;
     border-collapse: collapse;
@@ -1296,26 +1439,29 @@
 
     <section class="page-section">
       <h1>תוכן עניינים</h1>
-      <p class="muted">הערה: מספרי העמודים להלן הם אינדיקטיביים ויכולים להשתנות לפי אורך הדו"ח.</p>
 
         <ul class="toc-list">
         <li class="toc-item">
-            <span><a href="#exec-summary">1. תקציר מנהלים</a></span><span>עמוד 2</span>
+            <span><a href="#exec-summary">1. תקציר מנהלים</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#scope-method">2. תחום הבדיקה ומתודולוגיה</a></span><span>עמוד 2</span>
+            <span><a href="#scope-method">2. תחום הבדיקה ומתודולוגיה</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#findings-summary">3. סיכום ממצאים לפי רמת חומרה</a></span><span>עמוד 3</span>
+            <span><a href="#findings-summary">3. סיכום ממצאים לפי רמת חומרה</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#detailed-findings">4. ממצאים עיקריים</a></span><span>עמוד 4</span>
+            <span><a href="#detailed-findings">4. ממצאים עיקריים</a></span>
+        </li>
+        ${findings.map(function(f) {
+          var sev = severityMap[f.severity] || severityMap.medium;
+          return '<li class="toc-item toc-finding"><span><a href="#' + makeFindingAnchorId(f.id) + '">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</a></span><span class="severity-badge ' + sev.class + '" style="font-size:9px;padding:1px 6px;">' + sev.text + '</span></li>';
+        }).join('\\n')}
+        <li class="toc-item">
+            <span><a href="#recommendations">5. המלצות ותכנית טיפול</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#recommendations">5. המלצות ותכנית טיפול</a></span><span>עמוד 5</span>
-        </li>
-        <li class="toc-item">
-            <span><a href="#appendix-a">נספח א' – מיפוי ממצאים למדיניות / תקנים</a></span><span>עמוד 6</span>
+            <span><a href="#appendix-a">נספח א' – מיפוי ממצאים למדיניות / תקנים</a></span>
         </li>
         </ul>
 
@@ -1324,7 +1470,8 @@
     <section class="page-section">
       <h1 id="exec-summary">1. תקציר מנהלים</h1>
       ${execSummaryHtml}
-      <p><strong>הערכת סיכון כללית:</strong> ${escapeHtml(reportRisk || 'נמוכה / בינונית / גבוהה')}.</p>
+      <p><strong>הערכת סיכון כללית:</strong> ${escapeHtml(reportRisk || riskScore.label)}.</p>
+      ${findings.length ? '<p><strong>ציון סיכון מחושב:</strong> ' + riskScore.percent + '% (' + riskScore.label + ') — מבוסס על התפלגות חומרת הממצאים.</p>' : ''}
 
       <div class="section-divider"></div>
 

@@ -21,7 +21,9 @@ import json
 import os
 import secrets
 import tempfile
+import time
 import uuid
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict
 
@@ -63,6 +65,33 @@ import urllib.error
 APP_TOKEN = os.environ.get("APP_TOKEN", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
+# ---------------------------------------------------------------------------
+# Simple in-memory rate limiter
+# ---------------------------------------------------------------------------
+
+RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))  # seconds
+RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "30"))  # requests per window
+
+_rate_store: Dict[str, list] = defaultdict(list)
+
+
+def _get_client_key() -> str:
+    return request.remote_addr or "unknown"
+
+
+def check_rate_limit() -> bool:
+    """Return True if request is within rate limit."""
+    if RATE_LIMIT_MAX <= 0:
+        return True
+    key = _get_client_key()
+    now = time.time()
+    # Prune old entries
+    _rate_store[key] = [t for t in _rate_store[key] if t > now - RATE_LIMIT_WINDOW]
+    if len(_rate_store[key]) >= RATE_LIMIT_MAX:
+        return False
+    _rate_store[key].append(now)
+    return True
+
 
 def check_auth() -> bool:
     """Return True if auth passes (no token set = open access)."""
@@ -77,14 +106,18 @@ def check_auth() -> bool:
 
 @app.before_request
 def enforce_auth():
-    """Block unauthenticated requests when APP_TOKEN is set."""
-    if not APP_TOKEN:
-        return None
-    # Health check is always open
+    """Block unauthenticated requests when APP_TOKEN is set, and enforce rate limits."""
+    # Health check is always open and exempt from rate limiting
     if request.path == "/api/health":
         return None
-    if not check_auth():
+    if not APP_TOKEN:
+        pass
+    elif not check_auth():
         return Response("Unauthorized", 401, {"WWW-Authenticate": "Bearer"})
+    # Rate limiting on mutating endpoints
+    if request.method == "POST" or request.method == "DELETE":
+        if not check_rate_limit():
+            return Response("Rate limit exceeded", 429)
 
 
 # ---------------------------------------------------------------------------

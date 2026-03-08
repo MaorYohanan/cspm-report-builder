@@ -85,6 +85,13 @@
             <input type="text" id="report-cover-note" placeholder="לדוגמה: ממצאי CSPM כפי שאותרו באמצעות כלי הסריקה">
           </div>
         </div>
+        <div class="row">
+          <div class="col">
+            <label for="report-cover-image">תמונת שער (אופציונלי)</label>
+            <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער לדו"ח">
+            <div id="cover-image-preview" class="evidence-preview"></div>
+          </div>
+        </div>
         <h3>הגדרות AI</h3>
         <div class="row" id="ai-model-row" style="display:none;">
           <div class="col">
@@ -102,6 +109,15 @@
         <p class="muted small-text">
           שדות חובה: קטגוריה, כותרת. כל השאר אופציונליים. ניתן להעלות תמונה כהוכחת ממצא.
         </p>
+
+        <div class="row">
+          <div class="col">
+            <label for="f-template">תבנית ממצא מוכנה (אופציונלי)</label>
+            <select id="f-template">
+              <option value="">-- בחר תבנית --</option>
+            </select>
+          </div>
+        </div>
 
         <div class="row">
           <div class="col">
@@ -207,6 +223,7 @@
           ניתן לערוך, למחוק ולהזיז כל ממצא. הסדר כאן הוא הסדר שיופיע בדו"ח. עמודה תציין אם יש הוכחת תמונה.
         </p>
         <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין לפי חומרה ↓</button>
+        <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
         <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
       </div>
     </details>
