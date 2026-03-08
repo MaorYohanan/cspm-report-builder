@@ -2759,33 +2759,41 @@
       });
 
       function loadWiziFilters() {
-        fetch('/api/wizi/projects')
+        // Try to load projects via raw GraphQL
+        fetch('/api/wizi/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: '{ projects(first: 500) { nodes { id name slug } } }' })
+        })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            if (data.error) {
-              console.warn('Wizi projects error:', data.error);
-              return;
-            }
-            if (data.projects) {
-              wiziProjects = data.projects.map(function(p) {
+            var nodes = (data.data || {}).projects ? data.data.projects.nodes || [] : [];
+            if (nodes.length) {
+              wiziProjects = nodes.map(function(p) {
                 return { id: p.id, label: p.name, sub: p.slug || '' };
               });
               console.log('Wizi: loaded ' + wiziProjects.length + ' projects');
+            } else {
+              console.warn('Wizi projects: no data or unsupported query', data);
             }
           }).catch(function(e) { console.warn('Wizi projects fetch failed:', e); });
 
-        fetch('/api/wizi/subscriptions')
+        // Try to load subscriptions via raw GraphQL
+        fetch('/api/wizi/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: '{ subscriptions(first: 500) { nodes { id name externalId cloudProvider } } }' })
+        })
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            if (data.error) {
-              console.warn('Wizi subscriptions error:', data.error);
-              return;
-            }
-            if (data.subscriptions) {
-              wiziSubscriptions = data.subscriptions.map(function(s) {
-                return { id: s.id, label: s.name, sub: s.cloudProvider || '' };
+            var nodes = (data.data || {}).subscriptions ? data.data.subscriptions.nodes || [] : [];
+            if (nodes.length) {
+              wiziSubscriptions = nodes.map(function(s) {
+                return { id: s.id, label: s.name, sub: s.cloudProvider || s.externalId || '' };
               });
               console.log('Wizi: loaded ' + wiziSubscriptions.length + ' subscriptions');
+            } else {
+              console.warn('Wizi subscriptions: no data or unsupported query', data);
             }
           }).catch(function(e) { console.warn('Wizi subscriptions fetch failed:', e); });
       }
@@ -2914,6 +2922,11 @@
         var limit = parseInt(document.getElementById('wizi-limit').value) || 10;
         var project = wiziProjectId.value || null;
         var subscription = wiziSubId.value || null;
+        // If user typed text but didn't pick from autocomplete, use text as filter
+        var projectText = wiziProjectInput.value.trim();
+        var subText = wiziSubInput.value.trim();
+        if (!project && projectText) project = projectText;
+        if (!subscription && subText) subscription = subText;
 
         wiziFetchBtn.disabled = true;
         wiziStatusMsg.textContent = 'שולף ממצאים מ-Wizi...';

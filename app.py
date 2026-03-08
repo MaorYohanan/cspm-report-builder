@@ -678,6 +678,36 @@ def api_wizi_graphql_proxy():
         return jsonify({"error": str(e)}), 502
 
 
+@app.route("/api/wizi/discover")
+def api_wizi_discover():
+    """Discover available root query fields via introspection."""
+    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+        return jsonify({"error": "Wizi integration not configured"}), 501
+    try:
+        result = _wizi_graphql("""
+            query {
+              __schema {
+                queryType {
+                  fields {
+                    name
+                    description
+                    args { name type { name kind ofType { name kind } } }
+                  }
+                }
+              }
+            }
+        """)
+        if "errors" in result:
+            return jsonify({"error": result["errors"][0].get("message", ""), "details": result["errors"]}), 502
+        fields = result.get("data", {}).get("__schema", {}).get("queryType", {}).get("fields", [])
+        # Return just names and descriptions for quick overview
+        summary = [{"name": f["name"], "description": f.get("description", ""),
+                     "args": [a["name"] for a in f.get("args", [])]} for f in fields]
+        return jsonify({"fields": summary})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
 @app.route("/api/wizi/issues", methods=["POST"])
 def api_wizi_issues():
     """Fetch issues from Wizi with optional filters and pagination."""
