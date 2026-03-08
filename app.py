@@ -848,6 +848,21 @@ def api_wizi_issues():
     def eq_wrap(v):
         return {"equals": as_list(v)}
 
+    # Resolve subscription search text → cloud account IDs for non-issues queries
+    resolved_sub_ids: list = []
+    resolved_sub_ext_ids: list = []
+    if subscription_id and query_type != "issues":
+        try:
+            sub_result = _wizi_graphql(
+                'query($filterBy: CloudAccountFilters) { cloudAccounts(first: 100, filterBy: $filterBy) { nodes { id name externalId } } }',
+                {"filterBy": {"search": subscription_id}}
+            )
+            nodes = sub_result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+            resolved_sub_ids = [n["id"] for n in nodes if n.get("id")]
+            resolved_sub_ext_ids = [n["externalId"] for n in nodes if n.get("externalId")]
+        except Exception:
+            pass  # Fall through — client-side filter will still apply
+
     filter_by: Dict[str, Any] = {}
 
     if query_type == "configurationFindings":
@@ -855,6 +870,8 @@ def api_wizi_issues():
             filter_by["severity"] = as_list(severity)
         if status:
             filter_by["result"] = as_list(status)
+        if resolved_sub_ids:
+            filter_by["resource"] = {"subscriptionId": resolved_sub_ids}
         gql = WIZI_CONFIG_FINDINGS_QUERY
         root_key = "configurationFindings"
 
@@ -863,6 +880,8 @@ def api_wizi_issues():
             filter_by["severity"] = as_list(severity)
         if status:
             filter_by["status"] = as_list(status)
+        if resolved_sub_ext_ids:
+            filter_by["subscriptionExternalId"] = resolved_sub_ext_ids
         gql = WIZI_VULN_FINDINGS_QUERY
         root_key = "vulnerabilityFindings"
 
@@ -871,6 +890,8 @@ def api_wizi_issues():
             filter_by["severity"] = as_list(severity)
         if status:
             filter_by["status"] = as_list(status)
+        if resolved_sub_ids:
+            filter_by["resource"] = {"subscriptionId": resolved_sub_ids}
         gql = WIZI_HOST_CONFIG_QUERY
         root_key = "hostConfigurationRuleAssessments"
 
@@ -879,6 +900,8 @@ def api_wizi_issues():
             filter_by["severity"] = eq_wrap(severity)
         if status:
             filter_by["status"] = eq_wrap(status)
+        if resolved_sub_ext_ids:
+            filter_by["graphEntityCloudAccount"] = {"equals": resolved_sub_ext_ids}
         gql = WIZI_DATA_FINDINGS_QUERY
         root_key = "dataFindingsV2"
 
@@ -887,6 +910,8 @@ def api_wizi_issues():
             filter_by["severity"] = eq_wrap(severity)
         if status:
             filter_by["status"] = eq_wrap(status)
+        if resolved_sub_ext_ids:
+            filter_by["cloudAccount"] = {"equals": resolved_sub_ext_ids}
         gql = WIZI_SECRET_INSTANCES_QUERY
         root_key = "secretInstances"
 
@@ -895,11 +920,13 @@ def api_wizi_issues():
             filter_by["severity"] = eq_wrap(severity)
         if status:
             filter_by["status"] = eq_wrap(status)
+        # No subscription filter available for excessive access
         gql = WIZI_EXCESSIVE_ACCESS_QUERY
         root_key = "excessiveAccessFindings"
 
     elif query_type == "networkExposures":
-        # Network exposures have no severity/status filters
+        if resolved_sub_ext_ids:
+            filter_by["cloudAccount"] = resolved_sub_ext_ids
         gql = WIZI_NETWORK_EXPOSURE_QUERY
         root_key = "networkExposures"
 
@@ -908,6 +935,8 @@ def api_wizi_issues():
             filter_by["severity"] = eq_wrap(severity)
         if status:
             filter_by["status"] = eq_wrap(status)
+        if resolved_sub_ids:
+            filter_by["resource"] = {"subscriptionId": {"equals": resolved_sub_ids}}
         gql = WIZI_INVENTORY_FINDINGS_QUERY
         root_key = "inventoryFindings"
 
