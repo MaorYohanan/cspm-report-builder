@@ -9,6 +9,9 @@ venv/
 .env
 .env.*
 
+# Wiz reports
+Report_*.csv
+
 # Runtime data
 output/
 uploads/

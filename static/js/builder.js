@@ -1500,29 +1500,54 @@
       });
 
       function parseCSV(text) {
-        // Simple CSV parser that handles quoted fields
-        var lines = text.split(/\r?\n/);
-        var result = [];
-        for (var i = 0; i < lines.length; i++) {
-          var row = [];
-          var field = '';
-          var inQuotes = false;
-          for (var j = 0; j < lines[i].length; j++) {
-            var ch = lines[i][j];
-            if (inQuotes) {
-              if (ch === '"' && lines[i][j + 1] === '"') { field += '"'; j++; }
-              else if (ch === '"') { inQuotes = false; }
-              else { field += ch; }
+        // RFC 4180 compliant CSV parser — handles multiline quoted fields
+        var rows = [];
+        var row = [];
+        var field = '';
+        var inQuotes = false;
+        var i = 0;
+        while (i < text.length) {
+          var ch = text[i];
+          if (inQuotes) {
+            if (ch === '"') {
+              if (i + 1 < text.length && text[i + 1] === '"') {
+                field += '"';
+                i += 2;
+              } else {
+                inQuotes = false;
+                i++;
+              }
             } else {
-              if (ch === '"') { inQuotes = true; }
-              else if (ch === ',') { row.push(field.trim()); field = ''; }
-              else { field += ch; }
+              field += ch;
+              i++;
+            }
+          } else {
+            if (ch === '"') {
+              inQuotes = true;
+              i++;
+            } else if (ch === ',') {
+              row.push(field);
+              field = '';
+              i++;
+            } else if (ch === '\r') {
+              // skip \r, handle \r\n
+              i++;
+            } else if (ch === '\n') {
+              row.push(field);
+              field = '';
+              if (row.some(function(c) { return c.trim() !== ''; })) rows.push(row);
+              row = [];
+              i++;
+            } else {
+              field += ch;
+              i++;
             }
           }
-          row.push(field.trim());
-          if (row.some(function(c) { return c !== ''; })) result.push(row);
         }
-        return result;
+        // Last field/row
+        row.push(field);
+        if (row.some(function(c) { return c.trim() !== ''; })) rows.push(row);
+        return rows;
       }
 
       function mapSeverity(val) {
@@ -1545,41 +1570,123 @@
             if (rows.length < 2) { alert('קובץ CSV ריק או ללא שורות נתונים.'); return; }
             var headers = rows[0].map(function(h) { return h.toLowerCase().trim(); });
 
-            // Map common column names
-            var colId = headers.findIndex(function(h) { return h === 'id' || h === 'finding id' || h === 'מזהה'; });
-            var colTitle = headers.findIndex(function(h) { return h === 'title' || h === 'name' || h === 'כותרת' || h === 'issue'; });
-            var colSev = headers.findIndex(function(h) { return h === 'severity' || h === 'חומרה' || h === 'risk'; });
-            var colDesc = headers.findIndex(function(h) { return h === 'description' || h === 'תיאור' || h === 'details'; });
-            var colImpact = headers.findIndex(function(h) { return h === 'impact' || h === 'השפעה'; });
-            var colRec = headers.findIndex(function(h) { return h === 'recommendation' || h === 'remediation' || h === 'המלצה' || h === 'fix'; });
-
-            if (colTitle === -1) {
-              alert('לא נמצאה עמודת כותרת (title/name/issue) ב-CSV.');
-              return;
-            }
+            // Detect Wiz cloud configuration format
+            var isWiz = headers.indexOf('rule.shortid') >= 0 || headers.indexOf('rule.name') >= 0;
 
             var count = 0;
-            for (var i = 1; i < rows.length; i++) {
-              var r = rows[i];
-              var title = r[colTitle] || '';
-              if (!title) continue;
-              findings.push({
-                id: (colId >= 0 && r[colId]) ? r[colId] : generateNextId(),
-                title: title,
-                severity: colSev >= 0 ? mapSeverity(r[colSev]) : 'medium',
-                description: colDesc >= 0 ? (r[colDesc] || '') : '',
-                impact: colImpact >= 0 ? (r[colImpact] || '') : '',
-                technical: [],
-                policies: [],
-                recs: colRec >= 0 ? splitLines(r[colRec] || '') : [],
-                priority: '',
-                evidence: null
+
+            if (isWiz) {
+              // --- Wiz cloud configuration CSV ---
+              var col = {};
+              ['rule.shortid', 'rule.name', 'rule.severity', 'rule.description',
+               'rule.remediationinstructions', 'rule.cloudprovider', 'rule.servicetype',
+               'rule.targetnativetype', 'rule.risks', 'rule.externalreferences',
+               'rule.securitysubcategories', 'analytics.totalfindingcount',
+               'analytics.resourcecount', 'analytics.criticalseverityfindingcount',
+               'analytics.highseverityfindingcount'].forEach(function(key) {
+                col[key] = headers.indexOf(key);
               });
-              count++;
+
+              for (var i = 1; i < rows.length; i++) {
+                var r = rows[i];
+                var name = col['rule.name'] >= 0 ? (r[col['rule.name']] || '') : '';
+                if (!name) continue;
+
+                var shortId = col['rule.shortid'] >= 0 ? (r[col['rule.shortid']] || '') : '';
+                var sev = col['rule.severity'] >= 0 ? mapSeverity(r[col['rule.severity']]) : 'medium';
+                var desc = col['rule.description'] >= 0 ? (r[col['rule.description']] || '') : '';
+                var remediation = col['rule.remediationinstructions'] >= 0 ? (r[col['rule.remediationinstructions']] || '') : '';
+                var cloud = col['rule.cloudprovider'] >= 0 ? (r[col['rule.cloudprovider']] || '') : '';
+                var service = col['rule.servicetype'] >= 0 ? (r[col['rule.servicetype']] || '') : '';
+                var targetType = col['rule.targetnativetype'] >= 0 ? (r[col['rule.targetnativetype']] || '') : '';
+                var totalFindings = col['analytics.totalfindingcount'] >= 0 ? (r[col['analytics.totalfindingcount']] || '') : '';
+                var resourceCount = col['analytics.resourcecount'] >= 0 ? (r[col['analytics.resourcecount']] || '') : '';
+                var risksRaw = col['rule.risks'] >= 0 ? (r[col['rule.risks']] || '') : '';
+                var refsRaw = col['rule.externalreferences'] >= 0 ? (r[col['rule.externalreferences']] || '') : '';
+
+                // Build technical details
+                var technical = [];
+                if (cloud) technical.push('Cloud Provider: ' + cloud);
+                if (service) technical.push('Service: ' + service);
+                if (targetType) technical.push('Resource Type: ' + targetType);
+                if (totalFindings) technical.push('Total Findings: ' + totalFindings);
+                if (resourceCount) technical.push('Affected Resources: ' + resourceCount);
+
+                // Parse risks JSON array for impact
+                var impact = '';
+                try {
+                  var risks = JSON.parse(risksRaw);
+                  if (Array.isArray(risks) && risks.length) impact = risks.join(', ');
+                } catch(e) { impact = risksRaw; }
+
+                // Parse external references for policies
+                var policies = [];
+                try {
+                  var refs = JSON.parse(refsRaw);
+                  if (Array.isArray(refs)) {
+                    refs.forEach(function(ref) {
+                      var label = '';
+                      if (ref.id) label += ref.id;
+                      if (ref.name && ref.name !== ref.id) label += (label ? ' – ' : '') + ref.name;
+                      if (label) policies.push(label);
+                    });
+                  }
+                } catch(e) {}
+
+                // Parse remediation into lines
+                var recs = remediation ? splitLines(remediation) : [];
+
+                findings.push({
+                  id: shortId || generateNextId(),
+                  title: name,
+                  severity: sev,
+                  description: desc,
+                  impact: impact,
+                  technical: technical,
+                  policies: policies,
+                  recs: recs,
+                  priority: '',
+                  evidence: null
+                });
+                count++;
+              }
+            } else {
+              // --- Generic CSV format ---
+              var colId = headers.findIndex(function(h) { return h === 'id' || h === 'finding id' || h === 'מזהה'; });
+              var colTitle = headers.findIndex(function(h) { return h === 'title' || h === 'name' || h === 'כותרת' || h === 'issue'; });
+              var colSev = headers.findIndex(function(h) { return h === 'severity' || h === 'חומרה' || h === 'risk'; });
+              var colDesc = headers.findIndex(function(h) { return h === 'description' || h === 'תיאור' || h === 'details'; });
+              var colImpact = headers.findIndex(function(h) { return h === 'impact' || h === 'השפעה'; });
+              var colRec = headers.findIndex(function(h) { return h === 'recommendation' || h === 'remediation' || h === 'המלצה' || h === 'fix'; });
+
+              if (colTitle === -1) {
+                alert('לא נמצאה עמודת כותרת (title/name/issue) ב-CSV.');
+                return;
+              }
+
+              for (var i = 1; i < rows.length; i++) {
+                var r = rows[i];
+                var title = r[colTitle] || '';
+                if (!title) continue;
+                findings.push({
+                  id: (colId >= 0 && r[colId]) ? r[colId] : generateNextId(),
+                  title: title,
+                  severity: colSev >= 0 ? mapSeverity(r[colSev]) : 'medium',
+                  description: colDesc >= 0 ? (r[colDesc] || '') : '',
+                  impact: colImpact >= 0 ? (r[colImpact] || '') : '',
+                  technical: [],
+                  policies: [],
+                  recs: colRec >= 0 ? splitLines(r[colRec] || '') : [],
+                  priority: '',
+                  evidence: null
+                });
+                count++;
+              }
             }
+
             renderFindingsTable();
             prefillId();
-            statusMsg.textContent = 'יובאו ' + count + ' ממצאים מ-CSV. סה״כ: ' + findings.length;
+            statusMsg.textContent = 'יובאו ' + count + ' ממצאים מ-CSV' + (isWiz ? ' (Wiz format)' : '') + '. סה״כ: ' + findings.length;
           } catch (e) {
             console.error(e);
             alert('שגיאה בקריאת CSV.');

@@ -87,7 +87,27 @@ Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apike
 
 ### CSV Import
 
-Click "ייבוא ממצאים מ-CSV" to bulk import findings. The importer auto-maps common column names:
+Click "ייבוא ממצאים מ-CSV" to bulk import findings. The importer supports two formats:
+
+#### Wiz Cloud Configuration Findings (auto-detected)
+
+Export from Wiz: Cloud Configuration Findings → Group by Rule → Export CSV. The importer auto-detects the Wiz format and maps:
+
+| Wiz CSV column | → Report field |
+|---|---|
+| `rule.shortId` | Finding ID |
+| `rule.name` | Title |
+| `rule.severity` | Severity |
+| `rule.description` | Description |
+| `rule.risks` | Impact |
+| `rule.remediationInstructions` | Recommendations |
+| `rule.cloudProvider`, `serviceType`, `targetNativeType` | Technical details |
+| `analytics.totalFindingCount`, `resourceCount` | Technical details (counts) |
+| `rule.externalReferences` | Policies / standards |
+
+#### Generic CSV
+
+For other CSV sources, the importer auto-maps common column names:
 
 | Expected columns | Mapped from |
 |---|---|
