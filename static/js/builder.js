@@ -2989,9 +2989,8 @@
           if (entity.nativeType) technical.push('Type: ' + entity.nativeType);
 
           var recs = '';
-          if (issue.remediationRecommendationV2 && issue.remediationRecommendationV2.recommendation) {
-            recs = issue.remediationRecommendationV2.recommendation;
-          }
+          var notes = (issue.notes || []).map(function(n) { return n.text || ''; }).filter(Boolean);
+          if (notes.length) recs = notes.join('\n');
 
           findings.push({
             id: id,

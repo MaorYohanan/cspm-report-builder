@@ -575,9 +575,6 @@ query IssuesTable($first: Int, $after: String, $filterBy: IssueFilters) {
       severity
       status
       description
-      remediationRecommendationV2(format: CLI) {
-        recommendation
-      }
       projects {
         id
         name
