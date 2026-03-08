@@ -735,8 +735,14 @@ def api_wizi_issues():
         filter_by["status"] = status if isinstance(status, list) else [status]
     if project_id:
         filter_by["project"] = project_id if isinstance(project_id, list) else [project_id]
+
+    # Subscription filter goes through relatedEntity
+    entity_filter: Dict[str, Any] = {}
     if subscription_id:
-        filter_by["subscriptionId"] = subscription_id if isinstance(subscription_id, list) else [subscription_id]
+        entity_filter["subscriptionSearch"] = subscription_id
+    if entity_filter:
+        filter_by["relatedEntity"] = entity_filter
+
     if filter_by:
         variables["filterBy"] = filter_by
 

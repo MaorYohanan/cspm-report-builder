@@ -2658,7 +2658,6 @@
       var wiziProjectList = document.getElementById('wizi-project-list');
       var wiziSubInput = document.getElementById('wizi-subscription');
       var wiziSubId = document.getElementById('wizi-subscription-id');
-      var wiziSubList = document.getElementById('wizi-subscription-list');
       var wiziIssues = [];
       var wiziEndCursor = null;
       var wiziHasNextPage = false;
@@ -2754,10 +2753,6 @@
         return wiziProjects;
       });
 
-      setupAutocomplete(wiziSubInput, wiziSubId, wiziSubList, function() {
-        return wiziSubscriptions;
-      });
-
       function loadWiziFilters() {
         // Try to load projects via raw GraphQL
         fetch('/api/wizi/graphql', {
@@ -2778,24 +2773,9 @@
             }
           }).catch(function(e) { console.warn('Wizi projects fetch failed:', e); });
 
-        // Try to load subscriptions via raw GraphQL
-        fetch('/api/wizi/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: '{ subscriptions(first: 500) { nodes { id name externalId cloudProvider } } }' })
-        })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            var nodes = (data.data || {}).subscriptions ? data.data.subscriptions.nodes || [] : [];
-            if (nodes.length) {
-              wiziSubscriptions = nodes.map(function(s) {
-                return { id: s.id, label: s.name, sub: s.cloudProvider || s.externalId || '' };
-              });
-              console.log('Wizi: loaded ' + wiziSubscriptions.length + ' subscriptions');
-            } else {
-              console.warn('Wizi subscriptions: no data or unsupported query', data);
-            }
-          }).catch(function(e) { console.warn('Wizi subscriptions fetch failed:', e); });
+        // Try to load subscriptions — no root query available, use free text search
+        // Subscriptions are filtered via relatedEntity.subscriptionSearch in the issues query
+        console.log('Wizi: subscription filter uses free-text search (no root query available)');
       }
 
       // Check if Wizi is enabled on load
@@ -2812,7 +2792,6 @@
                 var parts = ['✓ Wizi מחובר'];
                 parts.push(data.totalIssues + ' issues');
                 if (wiziProjects.length) parts.push(wiziProjects.length + ' projects');
-                if (wiziSubscriptions.length) parts.push(wiziSubscriptions.length + ' subscriptions');
                 wiziStatusMsg.textContent = parts.join(' · ');
               }, 3000);
             } else {
@@ -2920,13 +2899,8 @@
         var sevFilter = getSelectedValues(document.getElementById('wizi-severity'));
         var statusFilter = getSelectedValues(document.getElementById('wizi-status'));
         var limit = parseInt(document.getElementById('wizi-limit').value) || 10;
-        var project = wiziProjectId.value || null;
-        var subscription = wiziSubId.value || null;
-        // If user typed text but didn't pick from autocomplete, use text as filter
-        var projectText = wiziProjectInput.value.trim();
-        var subText = wiziSubInput.value.trim();
-        if (!project && projectText) project = projectText;
-        if (!subscription && subText) subscription = subText;
+        var project = wiziProjectId.value || wiziProjectInput.value.trim() || null;
+        var subscription = wiziSubInput.value.trim() || null;
 
         wiziFetchBtn.disabled = true;
         wiziStatusMsg.textContent = 'שולף ממצאים מ-Wizi...';
