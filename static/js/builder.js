@@ -278,7 +278,8 @@
             footerText:  document.getElementById('report-footer-text').value,
             coverNote:   document.getElementById('report-cover-note').value,
             coverImage:  (coverImageDataUrl !== defaultCoverImageDataUrl) ? coverImageDataUrl : null,
-            reportVersion: document.getElementById('report-version').value
+            reportVersion: document.getElementById('report-version').value,
+            reportLang: document.getElementById('report-lang').value
           },
           findings: findings  // JSON.stringify יעשה deep copy
         };
@@ -311,6 +312,7 @@
         document.getElementById('report-footer-text').value = m.footerText  || '';
         document.getElementById('report-cover-note').value  = m.coverNote   || '';
         document.getElementById('report-version').value    = m.reportVersion || '1.0';
+        document.getElementById('report-lang').value       = m.reportLang || 'he';
 
         // Restore custom cover image if present
         if (m.coverImage) {
@@ -817,10 +819,10 @@
         return '<ul>' + lines.map(l => '<li>' + escapeHtml(l) + '</li>').join('') + '</ul>';
       }
 
-      function buildSeverityChartSvg(counts) {
+      function buildSeverityChartSvg(counts, labelOverrides) {
         // counts = { critical: N, high: N, medium: N, low: N, info: N }
         var colors = { critical: '#b91c1c', high: '#ef4444', medium: '#f97316', low: '#22c55e', info: '#6b7280' };
-        var labels = { critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', info: 'מידע' };
+        var labels = labelOverrides || { critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', info: 'מידע' };
         var total = 0;
         var slices = [];
         ['critical', 'high', 'medium', 'low', 'info'].forEach(function(k) {
@@ -856,14 +858,124 @@
             '</div>';
         });
 
-        return '<div style="display:flex;align-items:center;justify-content:center;gap:30px;margin:16px 0;direction:rtl;">' +
+        return '<div style="display:flex;align-items:center;justify-content:center;gap:30px;margin:16px 0;">' +
           '<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">' +
           paths + '</svg>' +
           '<div style="display:flex;flex-direction:column;">' + legendItems + '</div>' +
           '</div>';
       }
 
+      // --- i18n for report output ---
+      var i18n = {
+        he: {
+          dir: 'rtl', lang: 'he',
+          toc: 'תוכן עניינים',
+          execSummary: '1. תקציר מנהלים',
+          riskLabel: 'הערכת סיכון כללית',
+          riskScoreLabel: 'ציון סיכון מחושב',
+          riskScoreSuffix: '— מבוסס על התפלגות חומרת הממצאים.',
+          scopeMethod: '2. תחום הבדיקה ומתודולוגיה',
+          scopeTitle: '2.1 תחום בדיקה',
+          scopeText: 'הבדיקה בוצעה על גבי חשבונות הענן / מנויים / פרויקטים כפי שסוכם עם הלקוח. נכללו שירותי IaaS / PaaS רלוונטיים, לרבות סביבת Prod ו/או Non-Prod בהתאם להיקף שסוכם.',
+          toolsTitle: '2.2 כלי בדיקה',
+          toolsText: 'הבדיקה התבססה על כלי CSPM / CNAPP של הארגון, בשילוב בדיקות ידניות והצלבת מידע עם מסמכי מדיניות ותצורה קיימים.',
+          methodTitle: '2.3 מתודולוגיית עבודה',
+          methodItems: ['איסוף ממצאים מהמערכת (Alerts / Issues / Misconfigurations).','קיבוץ ממצאים לפי חומרה, שירות וסביבה.','וולידציה של ממצאים קריטיים ואיתור False Positive.','גיבוש המלצות לתיקון, הגדרת עדיפויות ותכנית טיפול.'],
+          findingsSummary: '3. סיכום ממצאים לפי רמת חומרה',
+          findingsSummaryText: 'הטבלה להלן מסכמת את כמות הממצאים שנמצאו לפי רמת חומרה.',
+          sevHeader: 'רמת חומרה', countHeader: 'מספר ממצאים', notesHeader: 'הערות',
+          critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', info: 'מידע',
+          critNote: 'חשיפה ישירה, הרשאות יתר, פגיעה חמורה זמינות/סודיות.',
+          highNote: 'תצורות לא מאובטחות משמעותית, סיכון מוגבר לדליפה/השבתה.',
+          medNote: 'Best Practices לא מיושמים במלואם, פוטנציאל להחמרת סיכון.',
+          lowNote: 'שיפורי הקשחה ותפעול שאינם דחופים.',
+          infoNote: 'מידע לתכנון עתידי (End of Support, המלצות לשדרוג וכד\').',
+          keyTopics: '3.1 נושאי מפתח',
+          catBreakdown: '3.2 פילוח לפי קטגוריה',
+          catHeader: 'קטגוריה', totalHeader: 'סה"כ',
+          detailedFindings: '4. ממצאים עיקריים',
+          detailedFindingsText: 'להלן כרטיסי הממצאים שנכללים בדו"ח זה, כפי שנאספו במערכת ואושרו לאחר בדיקה ידנית.',
+          noFindings: 'לא נוספו ממצאים.',
+          findingDesc: 'תיאור הממצא', findingImpact: 'השפעה עסקית / סיכון',
+          findingTech: 'פרטים טכניים', findingPolicies: 'חוקים / מדיניות רלוונטיים',
+          findingRecs: 'המלצות', findingPriority: 'עדיפות טיפול',
+          findingEvidence: 'הוכחות ממצא',
+          evidenceText: 'צילומי מסך / הוכחות טכניות כפי שצורפו בבדיקה. לחץ על תמונה להגדלה.',
+          noTech: 'לא סופקו פרטים טכניים.', noPolicies: 'לא סומנו מדיניות / תקנים.',
+          noRecs: 'לא סופקו המלצות.', noPriority: 'לא הוגדרה עדיפות טיפול.',
+          recommendations: '5. המלצות ותכנית טיפול',
+          recsText: 'סעיף זה מרכז את הממצאים בטבלת עבודה, לצורך מעקב אחר סטטוס סגירה ובעלות.',
+          colId: 'מזהה ממצא', colDesc: 'תיאור קצר', colSev: 'חומרה', colOwner: 'בעלים', colDue: 'יעד סגירה', colStatus: 'סטטוס',
+          ownerPlaceholder: 'Owner / Team', statusOpen: 'פתוח',
+          appendix: 'נספח א\' – מיפוי ממצאים למדיניות / תקנים',
+          appendixText: 'הנספח ממפה כל ממצא למרכיבים רלוונטיים במדיניות הארגונית ו/או תקנים חיצוניים.',
+          colPolicy: 'מדיניות ארגונית / סעיף', colFramework: 'תקן / Framework', colNotes: 'הערות',
+          findingIdLabel: 'מזהה ממצא',
+          coverSubtitle: 'בדיקת מצב אבטחה, תצורה ועמידה במדיניות בסביבת הענן הארגונית',
+          clientLabel: 'שם הלקוח', envLabel: 'סביבת בדיקה / ענן', rangeLabel: 'טווח הבדיקה',
+          consultantLabel: 'יועץ / גורם מבצע', dateLabel: 'תאריך דו"ח', versionLabel: 'גרסה',
+          reportDateFooter: 'תאריך הדו"ח',
+          defaultExecSummary: 'הדו"ח מסכם את מצב ה-POSTURE בסביבת הענן שנבדקה, לרבות ממצאים קריטיים, תרחישי סיכון מרכזיים והערכת סיכון כללית.',
+          defaultKeyTopics: 'ניתן להרחיב נושאי מפתח כגון IAM, חשיפה לאינטרנט, הצפנה, רשתות, Kubernetes ועוד.',
+          image: 'תמונה', images: 'תמונות',
+        },
+        en: {
+          dir: 'ltr', lang: 'en',
+          toc: 'Table of Contents',
+          execSummary: '1. Executive Summary',
+          riskLabel: 'Overall Risk Assessment',
+          riskScoreLabel: 'Calculated Risk Score',
+          riskScoreSuffix: '— based on severity distribution of findings.',
+          scopeMethod: '2. Scope & Methodology',
+          scopeTitle: '2.1 Scope',
+          scopeText: 'The assessment was performed on cloud accounts / subscriptions / projects as agreed with the client. Relevant IaaS / PaaS services were included, covering Prod and/or Non-Prod environments per the agreed scope.',
+          toolsTitle: '2.2 Assessment Tools',
+          toolsText: 'The assessment leveraged the organization\'s CSPM / CNAPP tools, combined with manual checks and cross-referencing with existing policy and configuration documents.',
+          methodTitle: '2.3 Methodology',
+          methodItems: ['Collect findings from the platform (Alerts / Issues / Misconfigurations).','Group findings by severity, service, and environment.','Validate critical findings and identify False Positives.','Formulate remediation recommendations, set priorities, and build a treatment plan.'],
+          findingsSummary: '3. Findings Summary by Severity',
+          findingsSummaryText: 'The table below summarizes the number of findings by severity level.',
+          sevHeader: 'Severity', countHeader: 'Count', notesHeader: 'Notes',
+          critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info',
+          critNote: 'Direct exposure, excessive permissions, severe impact on availability/confidentiality.',
+          highNote: 'Significantly insecure configurations, increased risk of breach/outage.',
+          medNote: 'Best practices not fully implemented, potential for risk escalation.',
+          lowNote: 'Hardening and operational improvements, not urgent.',
+          infoNote: 'Informational for future planning (End of Support, upgrade recommendations, etc.).',
+          keyTopics: '3.1 Key Topics',
+          catBreakdown: '3.2 Category Breakdown',
+          catHeader: 'Category', totalHeader: 'Total',
+          detailedFindings: '4. Detailed Findings',
+          detailedFindingsText: 'Below are the finding cards included in this report, as collected and validated.',
+          noFindings: 'No findings added.',
+          findingDesc: 'Description', findingImpact: 'Business Impact / Risk',
+          findingTech: 'Technical Details', findingPolicies: 'Policies / Standards',
+          findingRecs: 'Recommendations', findingPriority: 'Remediation Priority',
+          findingEvidence: 'Evidence',
+          evidenceText: 'Screenshots / technical evidence as attached during the assessment. Click to enlarge.',
+          noTech: 'No technical details provided.', noPolicies: 'No policies / standards tagged.',
+          noRecs: 'No recommendations provided.', noPriority: 'No remediation priority set.',
+          recommendations: '5. Recommendations & Treatment Plan',
+          recsText: 'This section consolidates findings into a work table for tracking closure status and ownership.',
+          colId: 'Finding ID', colDesc: 'Description', colSev: 'Severity', colOwner: 'Owner', colDue: 'Target Date', colStatus: 'Status',
+          ownerPlaceholder: 'Owner / Team', statusOpen: 'Open',
+          appendix: 'Appendix A – Findings to Policy Mapping',
+          appendixText: 'This appendix maps each finding to relevant organizational policy and/or external standards.',
+          colPolicy: 'Organizational Policy', colFramework: 'Standard / Framework', colNotes: 'Notes',
+          findingIdLabel: 'Finding ID',
+          coverSubtitle: 'Cloud Security Posture Assessment – Configuration, Compliance & Risk Analysis',
+          clientLabel: 'Client', envLabel: 'Environment / Cloud', rangeLabel: 'Assessment Period',
+          consultantLabel: 'Consultant', dateLabel: 'Report Date', versionLabel: 'Version',
+          reportDateFooter: 'Report Date',
+          defaultExecSummary: 'This report summarizes the security posture of the assessed cloud environment, including critical findings, key risk scenarios, and an overall risk assessment.',
+          defaultKeyTopics: 'Key topics may include IAM, internet exposure, encryption, networking, Kubernetes, and more.',
+          image: 'image', images: 'images',
+        }
+      };
+
       function buildReportHtml() {
+        const lang = document.getElementById('report-lang').value || 'he';
+        const t = i18n[lang] || i18n.he;
         const client      = document.getElementById('report-client').value.trim();
         const env         = document.getElementById('report-env').value.trim();
         const range       = document.getElementById('report-range').value.trim();
@@ -897,7 +1009,7 @@
         var catKeys = Object.keys(findingsByCategory);
         var catMatrixHtml = '';
         if (catKeys.length > 0) {
-          catMatrixHtml = '<table><thead><tr><th>קטגוריה</th><th>קריטי</th><th>גבוה</th><th>בינוני</th><th>נמוך</th><th>מידע</th><th>סה"כ</th></tr></thead><tbody>';
+          catMatrixHtml = '<table><thead><tr><th>' + t.catHeader + '</th><th>' + t.critical + '</th><th>' + t.high + '</th><th>' + t.medium + '</th><th>' + t.low + '</th><th>' + t.info + '</th><th>' + t.totalHeader + '</th></tr></thead><tbody>';
           catKeys.forEach(function(cat) {
             var items = findingsByCategory[cat];
             var c = items.filter(function(f){return f.severity==='critical';}).length;
@@ -908,6 +1020,11 @@
             catMatrixHtml += '<tr><td>' + escapeHtml(cat + ' – ' + (categoryMap[cat]||cat)) + '</td><td>' + c + '</td><td>' + h + '</td><td>' + m + '</td><td>' + l + '</td><td>' + inf + '</td><td>' + items.length + '</td></tr>';
           });
           catMatrixHtml += '</tbody></table>';
+        }
+
+        // Severity text in current report language
+        function sevText(key) {
+          return t[key] || (severityMap[key] || {}).text || key;
         }
 
         var findingsCardsHtml = '';
@@ -922,27 +1039,27 @@
           const anchorId = makeFindingAnchorId(f.id);
 
           const technicalHtml = f.technical.length
-            ? `<ul>${f.technical.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>`
-            : `<p class="muted">לא סופקו פרטים טכניים.</p>`;
+            ? `<ul>${f.technical.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+            : `<p class="muted">${t.noTech}</p>`;
 
           const policyHtml = f.policies.length
             ? `<ul class="tag-list">${f.policies.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
-            : `<p class="muted">לא סומנו מדיניות / תקנים.</p>`;
+            : `<p class="muted">${t.noPolicies}</p>`;
 
           const recHtml = f.recs.length
             ? `<ul>${f.recs.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
-            : `<p class="muted">לא סופקו המלצות.</p>`;
+            : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
             ? `<p><strong>${escapeHtml(f.priority)}</strong></p>`
-            : `<p class="muted">לא הוגדרה עדיפות טיפול.</p>`;
+            : `<p class="muted">${t.noPriority}</p>`;
 
           var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
           const evidenceHtml = evidenceArr.length
             ? `
-               <div class="finding-section-title">הוכחות ממצא (${evidenceArr.length} תמונ${evidenceArr.length === 1 ? 'ה' : 'ות'})</div>
-               <p class="muted">צילומי מסך / הוכחות טכניות כפי שצורפו בבדיקה. לחץ על תמונה להגדלה.</p>
-               ${evidenceArr.map(function(ev, ei) { return '<div style="width:800px; max-width:100%; margin-top:8px;"><img src="' + ev + '" alt="הוכחה ' + (ei+1) + '" class="evidence-img" style="width:100%; height:auto; border:1px solid #ccc; border-radius:4px; display:block; cursor:pointer;" onclick="document.getElementById(\'lightbox-overlay\').style.display=\'flex\'; document.getElementById(\'lightbox-img\').src=this.src;"></div>'; }).join('')}
+               <div class="finding-section-title">${t.findingEvidence} (${evidenceArr.length} ${evidenceArr.length === 1 ? t.image : t.images})</div>
+               <p class="muted">${t.evidenceText}</p>
+               ${evidenceArr.map(function(ev, ei) { return '<div style="width:800px; max-width:100%; margin-top:8px;"><img src="' + ev + '" alt="Evidence ' + (ei+1) + '" class="evidence-img" style="width:100%; height:auto; border:1px solid #ccc; border-radius:4px; display:block; cursor:pointer;" onclick="document.getElementById(\'lightbox-overlay\').style.display=\'flex\'; document.getElementById(\'lightbox-img\').src=this.src;"></div>'; }).join('')}
               `
             : '';
 
@@ -952,32 +1069,32 @@
             <div class="finding-header">
               <div>
                 <div class="finding-title">${escapeHtml(f.title)}</div>
-                <div class="finding-id">מזהה ממצא: ${escapeHtml(f.id)}</div>
+                <div class="finding-id">${t.findingIdLabel}: ${escapeHtml(f.id)}</div>
               </div>
-              <div class="severity-badge ${sev.class}">${sev.text}</div>
+              <div class="severity-badge ${sev.class}">${sevText(f.severity)}</div>
             </div>
 
-            <div class="finding-section-title">תיאור הממצא</div>
+            <div class="finding-section-title">${t.findingDesc}</div>
             <p>${escapeHtml(f.description)}</p>
 
-            <div class="finding-section-title">השפעה עסקית / סיכון</div>
+            <div class="finding-section-title">${t.findingImpact}</div>
             <p>${escapeHtml(f.impact)}</p>
 
             <div class="two-column">
               <div>
-                <div class="finding-section-title">פרטים טכניים</div>
+                <div class="finding-section-title">${t.findingTech}</div>
                 ${technicalHtml}
               </div>
               <div>
-                <div class="finding-section-title">חוקים / מדיניות רלוונטיים</div>
+                <div class="finding-section-title">${t.findingPolicies}</div>
                 ${policyHtml}
               </div>
             </div>
 
-            <div class="finding-section-title">המלצות</div>
+            <div class="finding-section-title">${t.findingRecs}</div>
             ${recHtml}
 
-            <div class="finding-section-title">עדיפות טיפול</div>
+            <div class="finding-section-title">${t.findingPriority}</div>
             ${priorityHtml}
             ${evidenceHtml}
           </div>
@@ -1004,10 +1121,10 @@
             '<tr>' +
               '<td>' + linkOpen + escapeHtml(f.id)   + linkClose + '</td>' +
               '<td>' + linkOpen + escapeHtml(f.title)+ linkClose + '</td>' +
-              '<td>' + sev.text + '</td>' +
-              '<td>Owner / Team</td>' +
+              '<td>' + sevText(f.severity) + '</td>' +
+              '<td>' + t.ownerPlaceholder + '</td>' +
               '<td>' + dueDate + '</td>' +
-              '<td>פתוח</td>' +
+              '<td>' + t.statusOpen + '</td>' +
             '</tr>'
           );
         }).join('\n');
@@ -1018,20 +1135,20 @@
             <tr>
               <td>${escapeHtml(f.id)}</td>
               <td>${firstPolicy ? escapeHtml(firstPolicy) : '—'}</td>
-              <td>${firstPolicy ? 'ISO / NIST (לפי הצורך)' : '—'}</td>
+              <td>${firstPolicy ? 'ISO / NIST' : '—'}</td>
               <td></td>
             </tr>`;
         }).join('\n');
 
         const execSummaryHtml = execSummary
           ? `<p>${escapeHtml(execSummary)}</p>`
-          : `<p>הדו"ח מסכם את מצב ה-POSTURE בסביבת הענן שנבדקה, לרבות ממצאים קריטיים, תרחישי סיכון מרכזיים והערכת סיכון כללית.</p>`;
+          : `<p>${t.defaultExecSummary}</p>`;
 
         const keyTopicsHtml = linesToListHtml(keyTopics) ||
-          `<p class="muted">ניתן להרחיב נושאי מפתח כגון IAM, חשיפה לאינטרנט, הצפנה, רשתות, Kubernetes ועוד.</p>`;
+          `<p class="muted">${t.defaultKeyTopics}</p>`;
 
         const html = `<!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="${t.lang}" dir="${t.dir}">
 <head>
   <meta charset="UTF-8">
   <title>${escapeHtml(teamName)}</title>
@@ -1469,7 +1586,7 @@
 
   <div class="print-footer">
     ${footerText ? '<div>' + escapeHtml(footerText) + '</div>' : '<div></div>'}
-    <div>תאריך הדו"ח: ${escapeHtml(reportDate || 'DD/MM/YYYY')}</div>
+    <div>${t.reportDateFooter}: ${escapeHtml(reportDate || 'DD/MM/YYYY')}</div>
   </div>
 
   <main class="report-content">
@@ -1477,16 +1594,16 @@
     <section class="page-section cover">
       <div class="cover-page-inner">
         <div class="cover-main-title">${escapeHtml(teamName)}</div>
-        <div class="cover-subtitle">בדיקת מצב אבטחה, תצורה ועמידה במדיניות בסביבת הענן הארגונית</div>
+        <div class="cover-subtitle">${t.coverSubtitle}</div>
         ${coverImageDataUrl ? '<div class="cover-image"><img src="' + coverImageDataUrl + '" alt="CSPM Report Cover" style="width:100%;max-height:280px;object-fit:contain;border-radius:8px;"></div>' : ''}
 
         <div class="cover-meta">
-          <p><strong>שם הלקוח:</strong> ${escapeHtml(client || '__________')}</p>
-          <p><strong>סביבת בדיקה / ענן:</strong> ${escapeHtml(env || '__________')}</p>
-          <p><strong>טווח הבדיקה:</strong> ${escapeHtml(range || '__________')}</p>
-          <p><strong>יועץ / גורם מבצע:</strong> ${escapeHtml(consultant || '__________')}</p>
-          <p><strong>תאריך דו"ח:</strong> ${escapeHtml(reportDate || '__________')}</p>
-          <p><strong>גרסה:</strong> ${escapeHtml(reportVersion)}</p>
+          <p><strong>${t.clientLabel}:</strong> ${escapeHtml(client || '__________')}</p>
+          <p><strong>${t.envLabel}:</strong> ${escapeHtml(env || '__________')}</p>
+          <p><strong>${t.rangeLabel}:</strong> ${escapeHtml(range || '__________')}</p>
+          <p><strong>${t.consultantLabel}:</strong> ${escapeHtml(consultant || '__________')}</p>
+          <p><strong>${t.dateLabel}:</strong> ${escapeHtml(reportDate || '__________')}</p>
+          <p><strong>${t.versionLabel}:</strong> ${escapeHtml(reportVersion)}</p>
         </div>
 
         <div class="cover-badge">
@@ -1496,162 +1613,149 @@
     </section>
 
     <section class="page-section">
-      <h1>תוכן עניינים</h1>
+      <h1>${t.toc}</h1>
 
         <ul class="toc-list">
         <li class="toc-item">
-            <span><a href="#exec-summary">1. תקציר מנהלים</a></span>
+            <span><a href="#exec-summary">${t.execSummary}</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#scope-method">2. תחום הבדיקה ומתודולוגיה</a></span>
+            <span><a href="#scope-method">${t.scopeMethod}</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#findings-summary">3. סיכום ממצאים לפי רמת חומרה</a></span>
+            <span><a href="#findings-summary">${t.findingsSummary}</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#detailed-findings">4. ממצאים עיקריים</a></span>
+            <span><a href="#detailed-findings">${t.detailedFindings}</a></span>
         </li>
         ${findings.map(function(f) {
           var sev = severityMap[f.severity] || severityMap.medium;
-          return '<li class="toc-item toc-finding"><span><a href="#' + makeFindingAnchorId(f.id) + '">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</a></span><span class="severity-badge ' + sev.class + '" style="font-size:9px;padding:1px 6px;">' + sev.text + '</span></li>';
-        }).join('\\n')}
+          return '<li class="toc-item toc-finding"><span><a href="#' + makeFindingAnchorId(f.id) + '">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</a></span><span class="severity-badge ' + sev.class + '" style="font-size:9px;padding:1px 6px;">' + sevText(f.severity) + '</span></li>';
+        }).join('\n')}
         <li class="toc-item">
-            <span><a href="#recommendations">5. המלצות ותכנית טיפול</a></span>
+            <span><a href="#recommendations">${t.recommendations}</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#appendix-a">נספח א' – מיפוי ממצאים למדיניות / תקנים</a></span>
+            <span><a href="#appendix-a">${t.appendix}</a></span>
         </li>
         </ul>
 
     </section>
 
     <section class="page-section">
-      <h1 id="exec-summary">1. תקציר מנהלים</h1>
+      <h1 id="exec-summary">${t.execSummary}</h1>
       ${execSummaryHtml}
-      <p><strong>הערכת סיכון כללית:</strong> ${escapeHtml(reportRisk || riskScore.label)}.</p>
-      ${findings.length ? '<p><strong>ציון סיכון מחושב:</strong> ' + riskScore.percent + '% (' + riskScore.label + ') — מבוסס על התפלגות חומרת הממצאים.</p>' : ''}
+      <p><strong>${t.riskLabel}:</strong> ${escapeHtml(reportRisk || (t[riskScore.level] || riskScore.label))}.</p>
+      ${findings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
 
       <div class="section-divider"></div>
 
-      <h2 id="scope-method">2. תחום הבדיקה ומתודולוגיה</h2>
-      <h3>2.1 תחום בדיקה</h3>
-      <p>
-        הבדיקה בוצעה על גבי חשבונות הענן / מנויים / פרויקטים כפי שסוכם עם הלקוח.
-        נכללו שירותי IaaS / PaaS רלוונטיים, לרבות סביבת Prod ו/או Non-Prod בהתאם להיקף שסוכם.
-      </p>
+      <h2 id="scope-method">${t.scopeMethod}</h2>
+      <h3>${t.scopeTitle}</h3>
+      <p>${t.scopeText}</p>
 
-      <h3>2.2 כלי בדיקה</h3>
-      <p>
-        הבדיקה התבססה על כלי CSPM / CNAPP של הארגון, בשילוב בדיקות ידניות והצלבת מידע
-        עם מסמכי מדיניות ותצורה קיימים.
-      </p>
+      <h3>${t.toolsTitle}</h3>
+      <p>${t.toolsText}</p>
 
-      <h3>2.3 מתודולוגיית עבודה</h3>
+      <h3>${t.methodTitle}</h3>
       <ul>
-        <li>איסוף ממצאים מהמערכת (Alerts / Issues / Misconfigurations).</li>
-        <li>קיבוץ ממצאים לפי חומרה, שירות וסביבה.</li>
-        <li>וולידציה של ממצאים קריטיים ואיתור False Positive.</li>
-        <li>גיבוש המלצות לתיקון, הגדרת עדיפויות ותכנית טיפול.</li>
+        ${t.methodItems.map(function(item) { return '<li>' + item + '</li>'; }).join('\n        ')}
       </ul>
     </section>
 
     <section class="page-section">
-      <h1 id="findings-summary">3. סיכום ממצאים לפי רמת חומרה</h1>
-      <p>הטבלה להלן מסכמת את כמות הממצאים שנמצאו לפי רמת חומרה.</p>
+      <h1 id="findings-summary">${t.findingsSummary}</h1>
+      <p>${t.findingsSummaryText}</p>
 
-      ${buildSeverityChartSvg({ critical: critCount, high: highCount, medium: medCount, low: lowCount, info: infoCount })}
+      ${buildSeverityChartSvg({ critical: critCount, high: highCount, medium: medCount, low: lowCount, info: infoCount }, { critical: t.critical, high: t.high, medium: t.medium, low: t.low, info: t.info })}
 
       <table>
         <thead>
           <tr>
-            <th>רמת חומרה</th>
-            <th>מספר ממצאים</th>
-            <th>הערות</th>
+            <th>${t.sevHeader}</th>
+            <th>${t.countHeader}</th>
+            <th>${t.notesHeader}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>קריטי</td>
+            <td>${t.critical}</td>
             <td>${critCount}</td>
-            <td>חשיפה ישירה, הרשאות יתר, פגיעה חמורה זמינות/סודיות.</td>
+            <td>${t.critNote}</td>
           </tr>
           <tr>
-            <td>גבוה</td>
+            <td>${t.high}</td>
             <td>${highCount}</td>
-            <td>תצורות לא מאובטחות משמעותית, סיכון מוגבר לדליפה/השבתה.</td>
+            <td>${t.highNote}</td>
           </tr>
           <tr>
-            <td>בינוני</td>
+            <td>${t.medium}</td>
             <td>${medCount}</td>
-            <td>Best Practices לא מיושמים במלואם, פוטנציאל להחמרת סיכון.</td>
+            <td>${t.medNote}</td>
           </tr>
           <tr>
-            <td>נמוך</td>
+            <td>${t.low}</td>
             <td>${lowCount}</td>
-            <td>שיפורי הקשחה ותפעול שאינם דחופים.</td>
+            <td>${t.lowNote}</td>
           </tr>
           <tr>
-            <td>מידע</td>
+            <td>${t.info}</td>
             <td>${infoCount}</td>
-            <td>מידע לתכנון עתידי (End of Support, המלצות לשדרוג וכד').</td>
+            <td>${t.infoNote}</td>
           </tr>
         </tbody>
       </table>
 
-      <h2>3.1 נושאי מפתח</h2>
+      <h2>${t.keyTopics}</h2>
       ${keyTopicsHtml}
 
-      ${catKeys.length > 1 ? '<h2>3.2 פילוח לפי קטגוריה</h2>' + catMatrixHtml : ''}
+      ${catKeys.length > 1 ? '<h2>' + t.catBreakdown + '</h2>' + catMatrixHtml : ''}
     </section>
 
     <section class="page-section">
-      <h1 id="detailed-findings">4. ממצאים עיקריים</h1>
+      <h1 id="detailed-findings">${t.detailedFindings}</h1>
       <p>
-        להלן כרטיסי הממצאים שנכללים בדו"ח זה, כפי שנאספו במערכת ואושרו לאחר בדיקה ידנית.
+        ${t.detailedFindingsText}
       </p>
-      ${findingsCardsHtml || '<p class="muted">לא נוספו ממצאים.</p>'}
+      ${findingsCardsHtml || '<p class="muted">' + t.noFindings + '</p>'}
     </section>
 
     <section class="page-section">
-      <h1 id="recommendations">5. המלצות ותכנית טיפול</h1>
-      <p>
-        סעיף זה מרכז את הממצאים בטבלת עבודה, לצורך מעקב אחר סטטוס סגירה ובעלות.
-      </p>
+      <h1 id="recommendations">${t.recommendations}</h1>
+      <p>${t.recsText}</p>
 
       <table>
         <thead>
           <tr>
-            <th>מזהה ממצא</th>
-            <th>תיאור קצר</th>
-            <th>חומרה</th>
-            <th>בעלים</th>
-            <th>יעד סגירה</th>
-            <th>סטטוס</th>
+            <th>${t.colId}</th>
+            <th>${t.colDesc}</th>
+            <th>${t.colSev}</th>
+            <th>${t.colOwner}</th>
+            <th>${t.colDue}</th>
+            <th>${t.colStatus}</th>
           </tr>
         </thead>
         <tbody>
-          ${treatmentTableHtml || '<tr><td colspan="6">לא נוספו ממצאים.</td></tr>'}
+          ${treatmentTableHtml || '<tr><td colspan="6">' + t.noFindings + '</td></tr>'}
         </tbody>
       </table>
     </section>
 
     <section class="page-section">
-      <h1 id="appendix-a">נספח א' – מיפוי ממצאים למדיניות / תקנים</h1>
-      <p>
-        הנספח ממפה כל ממצא למרכיבים רלוונטיים במדיניות הארגונית ו/או תקנים חיצוניים.
-      </p>
+      <h1 id="appendix-a">${t.appendix}</h1>
+      <p>${t.appendixText}</p>
 
       <table>
         <thead>
           <tr>
-            <th>מזהה ממצא</th>
-            <th>מדיניות ארגונית / סעיף</th>
-            <th>תקן / Framework</th>
-            <th>הערות</th>
+            <th>${t.colId}</th>
+            <th>${t.colPolicy}</th>
+            <th>${t.colFramework}</th>
+            <th>${t.colNotes}</th>
           </tr>
         </thead>
         <tbody>
-          ${appendixHtml || '<tr><td colspan="4">לא נוספו ממצאים.</td></tr>'}
+          ${appendixHtml || '<tr><td colspan="4">' + t.noFindings + '</td></tr>'}
         </tbody>
       </table>
     </section>

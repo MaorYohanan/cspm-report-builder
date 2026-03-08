@@ -23,6 +23,7 @@ A self-hosted web tool for building, managing, and exporting Cloud Security Post
 - **Trend comparison** — import a previous JSON snapshot to see new, resolved, and severity-changed findings
 - **Report versioning** — track report version number across revisions
 - **Multiple evidence images** — attach multiple screenshots per finding
+- **Multi-language reports** — toggle between Hebrew and English report output
 - **Rate limiting** — configurable per-IP rate limiting on mutating API endpoints
 
 ## Quick Start
