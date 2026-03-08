@@ -86,6 +86,12 @@
           </div>
         </div>
         <div class="row">
+          <div class="col" style="max-width:200px;">
+            <label for="report-version">גרסת דו"ח</label>
+            <input type="text" id="report-version" value="1.0" placeholder="1.0">
+          </div>
+        </div>
+        <div class="row">
           <div class="col">
             <label for="report-cover-image">תמונת שער (אופציונלי)</label>
             <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער לדו"ח">
@@ -210,6 +216,7 @@
 
         <button class="btn btn-primary" id="btn-add-finding">הוסף ממצא לרשימה</button>
         <button class="btn btn-secondary" id="btn-cancel-edit" style="display:none;">בטל עריכה</button>
+        <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
         <span class="kbd-hint">Ctrl+Enter להוספה מהירה</span>
         <span id="edit-state" class="muted small-text"></span>
       </div>
@@ -223,6 +230,7 @@
           ניתן לערוך, למחוק ולהזיז כל ממצא. הסדר כאן הוא הסדר שיופיע בדו"ח. עמודה תציין אם יש הוכחת תמונה.
         </p>
         <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין לפי חומרה ↓</button>
+        <button class="btn btn-danger btn-sm" id="btn-clear-all-findings">מחק את כל הממצאים</button>
         <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
         <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
       </div>
@@ -240,11 +248,14 @@
         <button class="btn btn-secondary" id="btn-export-json">הורד תצורה</button>
         <button class="btn btn-secondary" id="btn-import-json">טען תצורה</button>
         <button class="btn btn-secondary" id="btn-import-csv">ייבוא ממצאים מ-CSV</button>
+        <button class="btn btn-secondary" id="btn-import-baseline">השוואה לדו"ח קודם</button>
         <input type="file" id="input-import-json" accept="application/json" style="display:none;" aria-label="בחירת קובץ תצורה לטעינה">
         <input type="file" id="input-import-csv" accept=".csv,text/csv" style="display:none;" aria-label="בחירת קובץ CSV לייבוא ממצאים">
+        <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת קובץ JSON להשוואה">
         <button class="btn btn-primary" id="btn-render-pdf" disabled>ייצא PDF</button>
         <button class="btn btn-secondary" id="btn-save-state-cloud">שמור תצורה בשרת</button>
         <span id="status-msg" class="muted small-text" role="status" aria-live="polite"></span>
+        <div id="trend-comparison" style="display:none;margin-top:14px;"></div>
       </div>
     </details>
 

@@ -20,6 +20,9 @@ A self-hosted web tool for building, managing, and exporting Cloud Security Post
 - **CSV import** — bulk import findings from CSV exports (auto-maps common column names)
 - **File manager** — upload, download, and manage state files and output reports on the server
 - **Keyboard navigation** — J/K to navigate findings, E to edit, D to delete
+- **Trend comparison** — import a previous JSON snapshot to see new, resolved, and severity-changed findings
+- **Report versioning** — track report version number across revisions
+- **Multiple evidence images** — attach multiple screenshots per finding
 - **Rate limiting** — configurable per-IP rate limiting on mutating API endpoints
 
 ## Quick Start

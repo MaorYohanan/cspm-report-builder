@@ -277,7 +277,8 @@
             orgName:     document.getElementById('report-org-name').value,
             footerText:  document.getElementById('report-footer-text').value,
             coverNote:   document.getElementById('report-cover-note').value,
-            coverImage:  (coverImageDataUrl !== defaultCoverImageDataUrl) ? coverImageDataUrl : null
+            coverImage:  (coverImageDataUrl !== defaultCoverImageDataUrl) ? coverImageDataUrl : null,
+            reportVersion: document.getElementById('report-version').value
           },
           findings: findings  // JSON.stringify יעשה deep copy
         };
@@ -309,6 +310,7 @@
         document.getElementById('report-org-name').value    = m.orgName     || '';
         document.getElementById('report-footer-text').value = m.footerText  || '';
         document.getElementById('report-cover-note').value  = m.coverNote   || '';
+        document.getElementById('report-version').value    = m.reportVersion || '1.0';
 
         // Restore custom cover image if present
         if (m.coverImage) {
@@ -340,7 +342,7 @@
               ? f.recs
               : splitLines(f.recs || ''),
             priority: f.priority || '',
-            evidence: f.evidence || null   // Data URL אם היה
+            evidence: Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : [])
           });
         });
 
@@ -371,7 +373,8 @@
             ? f.policies.map(p => '<span class="tag-inline">' + p + '</span>').join(' ')
             : '<span class="muted">—</span>';
 
-          const evidenceText = f.evidence ? '✓ יש תמונה' : '<span class="muted">אין</span>';
+          var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
+          const evidenceText = evidenceArr.length ? '✓ ' + evidenceArr.length + ' תמונ' + (evidenceArr.length === 1 ? 'ה' : 'ות') : '<span class="muted">אין</span>';
 
           html += '<tr>' +
             '<td>' + (idx + 1) + '</td>' +
@@ -495,8 +498,13 @@
 
         updatePriorityCustomVisibility();
         evidenceInput.value = '';
-        if (f.evidence) {
-          showEvidencePreview(f.evidence);
+        var prevEvidence = f.evidence;
+        if (Array.isArray(prevEvidence) && prevEvidence.length) {
+          pendingEvidenceList = prevEvidence.slice();
+          renderEvidencePreviews();
+        } else if (prevEvidence && typeof prevEvidence === 'string') {
+          pendingEvidenceList = [prevEvidence];
+          renderEvidencePreviews();
         } else {
           clearEvidencePreview();
         }
@@ -547,21 +555,35 @@
         });
       }
 
-      // --- Evidence: drag-drop, paste, preview ---
-      let pendingEvidenceDataUrl = null;
+      // --- Evidence: drag-drop, paste, preview (multiple images) ---
+      let pendingEvidenceList = [];
       const dropZone = document.getElementById('evidence-drop-zone');
       const evidencePreview = document.getElementById('evidence-preview');
 
-      function showEvidencePreview(dataUrl) {
-        pendingEvidenceDataUrl = dataUrl;
-        evidencePreview.innerHTML =
-          '<img src="' + dataUrl + '" alt="תצוגה מקדימה">' +
-          '<span class="clear-btn" id="clear-evidence">✕ הסר</span>';
-        document.getElementById('clear-evidence').addEventListener('click', clearEvidencePreview);
+      function renderEvidencePreviews() {
+        if (!pendingEvidenceList.length) {
+          evidencePreview.innerHTML = '';
+          return;
+        }
+        var html = '';
+        pendingEvidenceList.forEach(function(dataUrl, idx) {
+          html += '<span class="evidence-thumb" style="display:inline-block;position:relative;margin-left:8px;margin-bottom:6px;">' +
+            '<img src="' + dataUrl + '" alt="הוכחה ' + (idx + 1) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);vertical-align:middle;">' +
+            '<span class="clear-btn" data-evidence-idx="' + idx + '" style="position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;cursor:pointer;">✕</span>' +
+            '</span>';
+        });
+        evidencePreview.innerHTML = html;
+        evidencePreview.querySelectorAll('.clear-btn[data-evidence-idx]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var idx = parseInt(this.getAttribute('data-evidence-idx'));
+            pendingEvidenceList.splice(idx, 1);
+            renderEvidencePreviews();
+          });
+        });
       }
 
       function clearEvidencePreview() {
-        pendingEvidenceDataUrl = null;
+        pendingEvidenceList = [];
         evidencePreview.innerHTML = '';
         evidenceInput.value = '';
       }
@@ -570,7 +592,10 @@
         if (!file || !file.type.startsWith('image/')) return;
         var reader = new FileReader();
         reader.onload = function(ev) {
-          resizeImage(ev.target.result).then(showEvidencePreview);
+          resizeImage(ev.target.result).then(function(resized) {
+            pendingEvidenceList.push(resized);
+            renderEvidencePreviews();
+          });
         };
         reader.readAsDataURL(file);
       }
@@ -625,13 +650,14 @@
           return;
         }
 
-        const readerNeeded = pendingEvidenceDataUrl;
+        const readerNeeded = pendingEvidenceList.length;
 
-        const applyFinding = (evidenceDataUrl) => {
-          let evidence = evidenceDataUrl || null;
+        const applyFinding = () => {
+          let evidence = pendingEvidenceList.length ? pendingEvidenceList.slice() : [];
 
-          if (!evidence && editingIndex !== null) {
-            evidence = findings[editingIndex].evidence || null;
+          if (!evidence.length && editingIndex !== null) {
+            var prev = findings[editingIndex].evidence;
+            evidence = Array.isArray(prev) ? prev : (prev ? [prev] : []);
           }
 
           const newFinding = {
@@ -664,7 +690,7 @@
           setTimeout(() => document.getElementById('f-title').focus(), 100);
         };
 
-        applyFinding(pendingEvidenceDataUrl);
+        applyFinding();
       }
 
       addBtn.addEventListener('click', handleAddOrUpdateFinding);
@@ -682,6 +708,23 @@
         if (editingIndex !== null) resetEditState();
         renderFindingsTable();
         statusMsg.textContent = 'ממצאים מוינו לפי חומרה (קריטי ← מידע).';
+      });
+
+      // Clear all findings
+      document.getElementById('btn-clear-all-findings').addEventListener('click', function() {
+        if (!findings.length) return;
+        if (!confirm('למחוק את כל ' + findings.length + ' הממצאים?')) return;
+        findings.length = 0;
+        resetEditState();
+        renderFindingsTable();
+        prefillId();
+        statusMsg.textContent = 'כל הממצאים נמחקו.';
+      });
+
+      // Clear form
+      document.getElementById('btn-clear-form').addEventListener('click', function() {
+        resetEditState();
+        statusMsg.textContent = 'הטופס נוקה.';
       });
 
       // Build a dynamic filename from client name + report date
@@ -833,6 +876,7 @@
         const orgName     = document.getElementById('report-org-name').value.trim();
         const footerText  = document.getElementById('report-footer-text').value.trim();
         const coverNote   = document.getElementById('report-cover-note').value.trim() || 'מסמך זה מסכם את ממצאי בדיקת האבטחה כפי שאותרו, כולל ניתוח סיכונים והמלצות לטיפול.';
+        const reportVersion = document.getElementById('report-version').value.trim() || '1.0';
 
         const critCount  = countSeverity('critical');
         const highCount  = countSeverity('high');
@@ -849,8 +893,24 @@
           findingsByCategory[cat].push(f);
         });
 
-        var findingsCardsHtml = '';
+        // Build category-severity matrix for dashboard
         var catKeys = Object.keys(findingsByCategory);
+        var catMatrixHtml = '';
+        if (catKeys.length > 0) {
+          catMatrixHtml = '<table><thead><tr><th>קטגוריה</th><th>קריטי</th><th>גבוה</th><th>בינוני</th><th>נמוך</th><th>מידע</th><th>סה"כ</th></tr></thead><tbody>';
+          catKeys.forEach(function(cat) {
+            var items = findingsByCategory[cat];
+            var c = items.filter(function(f){return f.severity==='critical';}).length;
+            var h = items.filter(function(f){return f.severity==='high';}).length;
+            var m = items.filter(function(f){return f.severity==='medium';}).length;
+            var l = items.filter(function(f){return f.severity==='low';}).length;
+            var inf = items.filter(function(f){return f.severity==='info';}).length;
+            catMatrixHtml += '<tr><td>' + escapeHtml(cat + ' – ' + (categoryMap[cat]||cat)) + '</td><td>' + c + '</td><td>' + h + '</td><td>' + m + '</td><td>' + l + '</td><td>' + inf + '</td><td>' + items.length + '</td></tr>';
+          });
+          catMatrixHtml += '</tbody></table>';
+        }
+
+        var findingsCardsHtml = '';
         catKeys.forEach(function(cat) {
           var catLabel = categoryMap[cat] || cat;
           if (catKeys.length > 1) {
@@ -877,15 +937,12 @@
             ? `<p><strong>${escapeHtml(f.priority)}</strong></p>`
             : `<p class="muted">לא הוגדרה עדיפות טיפול.</p>`;
 
-          const evidenceHtml = f.evidence
+          var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
+          const evidenceHtml = evidenceArr.length
             ? `
-               <div class="finding-section-title">הוכחת ממצא (תמונה)</div>
-               <p class="muted">צילום מסך / הוכחה טכנית כפי שצורפה בבדיקה. לחץ על התמונה להגדלה.</p>
-               <div style="width:800px; max-width:100%; margin-top:4px;">
-                 <img src="${f.evidence}" alt="הוכחת ממצא" class="evidence-img"
-                      style="width:100%; height:auto; border:1px solid #ccc; border-radius:4px; display:block; cursor:pointer;"
-                      onclick="document.getElementById('lightbox-overlay').style.display='flex'; document.getElementById('lightbox-img').src=this.src;">
-               </div>
+               <div class="finding-section-title">הוכחות ממצא (${evidenceArr.length} תמונ${evidenceArr.length === 1 ? 'ה' : 'ות'})</div>
+               <p class="muted">צילומי מסך / הוכחות טכניות כפי שצורפו בבדיקה. לחץ על תמונה להגדלה.</p>
+               ${evidenceArr.map(function(ev, ei) { return '<div style="width:800px; max-width:100%; margin-top:8px;"><img src="' + ev + '" alt="הוכחה ' + (ei+1) + '" class="evidence-img" style="width:100%; height:auto; border:1px solid #ccc; border-radius:4px; display:block; cursor:pointer;" onclick="document.getElementById(\'lightbox-overlay\').style.display=\'flex\'; document.getElementById(\'lightbox-img\').src=this.src;"></div>'; }).join('')}
               `
             : '';
 
@@ -1429,6 +1486,7 @@
           <p><strong>טווח הבדיקה:</strong> ${escapeHtml(range || '__________')}</p>
           <p><strong>יועץ / גורם מבצע:</strong> ${escapeHtml(consultant || '__________')}</p>
           <p><strong>תאריך דו"ח:</strong> ${escapeHtml(reportDate || '__________')}</p>
+          <p><strong>גרסה:</strong> ${escapeHtml(reportVersion)}</p>
         </div>
 
         <div class="cover-badge">
@@ -1542,6 +1600,8 @@
 
       <h2>3.1 נושאי מפתח</h2>
       ${keyTopicsHtml}
+
+      ${catKeys.length > 1 ? '<h2>3.2 פילוח לפי קטגוריה</h2>' + catMatrixHtml : ''}
     </section>
 
     <section class="page-section">
@@ -1849,7 +1909,7 @@
                   policies: policies,
                   recs: recs,
                   priority: '',
-                  evidence: null
+                  evidence: []
                 });
                 count++;
               }
@@ -1882,7 +1942,7 @@
                   policies: [],
                   recs: colRec >= 0 ? splitLines(r[colRec] || '') : [],
                   priority: '',
-                  evidence: null
+                  evidence: []
                 });
                 count++;
               }
@@ -1900,6 +1960,82 @@
         };
         reader.readAsText(file, 'utf-8');
       });
+
+      // --- Trend comparison (import previous JSON, show delta) ---
+      var baselineBtn = document.getElementById('btn-import-baseline');
+      var baselineInput = document.getElementById('input-import-baseline');
+      var trendContainer = document.getElementById('trend-comparison');
+
+      baselineBtn.addEventListener('click', function() { baselineInput.click(); });
+
+      baselineInput.addEventListener('change', function() {
+        var file = this.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          try {
+            var baseline = JSON.parse(ev.target.result);
+            if (!baseline.findings || !Array.isArray(baseline.findings)) {
+              alert('קובץ JSON לא תואם לפורמט המחולל.'); return;
+            }
+            showTrendComparison(baseline.findings);
+          } catch(e) { alert('שגיאה בקריאת קובץ JSON.'); }
+          finally { baselineInput.value = ''; }
+        };
+        reader.readAsText(file, 'utf-8');
+      });
+
+      function showTrendComparison(baselineFindings) {
+        var prevIds = {};
+        baselineFindings.forEach(function(f) { prevIds[f.id] = f; });
+        var currIds = {};
+        findings.forEach(function(f) { currIds[f.id] = f; });
+
+        var newFindings = findings.filter(function(f) { return !prevIds[f.id]; });
+        var resolvedFindings = baselineFindings.filter(function(f) { return !currIds[f.id]; });
+        var sevChanged = findings.filter(function(f) {
+          return prevIds[f.id] && prevIds[f.id].severity !== f.severity;
+        });
+
+        var html = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:8px;">';
+        html += '<h3 style="margin-top:0;">📊 השוואה לדו"ח קודם</h3>';
+        html += '<p class="muted small-text">בסיס: ' + baselineFindings.length + ' ממצאים | נוכחי: ' + findings.length + ' ממצאים</p>';
+
+        // Summary chips
+        html += '<div style="display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;">';
+        html += '<span class="severity-chip sev-high">חדשים: ' + newFindings.length + '</span>';
+        html += '<span class="severity-chip sev-low">נסגרו: ' + resolvedFindings.length + '</span>';
+        html += '<span class="severity-chip sev-medium">שינוי חומרה: ' + sevChanged.length + '</span>';
+        html += '</div>';
+
+        if (newFindings.length) {
+          html += '<h3>ממצאים חדשים</h3><ul class="small-text">';
+          newFindings.forEach(function(f) {
+            var sev = severityMap[f.severity] || severityMap.medium;
+            html += '<li><span class="severity-chip ' + sev.class + '" style="font-size:10px;padding:1px 6px;">' + sev.text + '</span> ' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</li>';
+          });
+          html += '</ul>';
+        }
+        if (resolvedFindings.length) {
+          html += '<h3>ממצאים שנסגרו</h3><ul class="small-text">';
+          resolvedFindings.forEach(function(f) {
+            html += '<li style="text-decoration:line-through;color:var(--text-muted);">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</li>';
+          });
+          html += '</ul>';
+        }
+        if (sevChanged.length) {
+          html += '<h3>שינויי חומרה</h3><ul class="small-text">';
+          sevChanged.forEach(function(f) {
+            var prev = severityMap[prevIds[f.id].severity] || severityMap.medium;
+            var curr = severityMap[f.severity] || severityMap.medium;
+            html += '<li>' + escapeHtml(f.id) + ': <span class="severity-chip ' + prev.class + '" style="font-size:10px;padding:1px 6px;">' + prev.text + '</span> → <span class="severity-chip ' + curr.class + '" style="font-size:10px;padding:1px 6px;">' + curr.text + '</span></li>';
+          });
+          html += '</ul>';
+        }
+        html += '</div>';
+        trendContainer.innerHTML = html;
+        trendContainer.style.display = 'block';
+      }
 
       // --- Auto-save to localStorage ---
       const AUTOSAVE_KEY = 'cspm_report_autosave';
