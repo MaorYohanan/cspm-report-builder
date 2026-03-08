@@ -2653,11 +2653,16 @@
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (data.enabled) {
-              wiziTab.style.display = '';
-              wiziStatusMsg.textContent = 'Wizi מחובר — ' + (data.totalIssues || 0) + ' issues בסה"כ';
+              wiziStatusMsg.textContent = '✓ Wizi מחובר — ' + (data.totalIssues || 0) + ' issues בסה"כ';
+            } else {
+              wiziStatusMsg.textContent = 'Wizi לא מוגדר — הגדר WIZI_CLIENT_ID ו-WIZI_CLIENT_SECRET ב-.env';
             }
           })
-          .catch(function() {});
+          .catch(function() {
+            wiziStatusMsg.textContent = 'לא ניתן להתחבר לשרת.';
+          });
+      } else {
+        wiziStatusMsg.textContent = 'Wizi זמין רק בהרצה דרך Docker.';
       }
 
       function getSelectedValues(selectEl) {
