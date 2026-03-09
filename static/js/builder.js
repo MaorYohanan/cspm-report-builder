@@ -4391,10 +4391,19 @@
         }
 
         // Policies: extract unique framework/standard names from securitySubCategories
-        // The API returns dozens of individual control references — we only need the framework names
         var policySet = {};
         (item.securitySubCategories || []).forEach(function(sc) {
           var catName = (sc.category && sc.category.name) ? sc.category.name.trim() : '';
+          // Fallback: if no category name, use the title up to the first " — " as framework name
+          if (!catName && sc.title) {
+            var dashIdx = sc.title.indexOf(' — ');
+            catName = dashIdx > 0 ? sc.title.substring(0, dashIdx).trim() : sc.title.trim();
+          }
+          // Truncate very long names (some are full regulatory text)
+          if (catName.length > 60) {
+            var sp = catName.lastIndexOf(' ', 60);
+            catName = catName.substring(0, sp > 20 ? sp : 60) + '…';
+          }
           if (catName && !policySet[catName]) policySet[catName] = true;
         });
         var policies = Object.keys(policySet);
