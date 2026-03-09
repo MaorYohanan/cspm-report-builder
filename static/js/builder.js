@@ -529,6 +529,8 @@
                 '</div>';
                 genBtn.disabled = true;
                 dlBtn.disabled  = true;
+                var _pdfBtn = document.getElementById('btn-render-pdf');
+                if (_pdfBtn) _pdfBtn.disabled = true;
                 if (batchActions) batchActions.style.display = 'none';
                 return;
               }
@@ -588,6 +590,8 @@
               tableWrapper.innerHTML = html;
               genBtn.disabled = false;
               dlBtn.disabled  = false;
+              var _pdfBtn = document.getElementById('btn-render-pdf');
+              if (_pdfBtn) _pdfBtn.disabled = false;
 
               // Wire action buttons
               tableWrapper.querySelectorAll('button[data-action]').forEach(btn => {
@@ -956,11 +960,11 @@
         document.getElementById('f-title').value = f.title;
         document.getElementById('f-severity').value = f.severity;
         document.getElementById('f-category').value = f.category || 'CSPM';
-        document.getElementById('f-description').value = f.description;
-        document.getElementById('f-impact').value = f.impact;
-        document.getElementById('f-technical').value = f.technical.join('\\n');
-        document.getElementById('f-policies').value = f.policies.join('\\n');
-        document.getElementById('f-recs').value = f.recs.join('\\n');
+        document.getElementById('f-description').value = Array.isArray(f.description) ? f.description.join('\n') : f.description;
+        document.getElementById('f-impact').value = Array.isArray(f.impact) ? f.impact.join('\n') : f.impact;
+        document.getElementById('f-technical').value = Array.isArray(f.technical) ? f.technical.join('\n') : f.technical;
+        document.getElementById('f-policies').value = Array.isArray(f.policies) ? f.policies.join('\n') : f.policies;
+        document.getElementById('f-recs').value = Array.isArray(f.recs) ? f.recs.join('\n') : f.recs;
         document.getElementById('f-owner').value = f.owner || '';
 
         const knownPriorities = ['', 'מיידי (0–7 ימים)', 'גבוהה (עד 30 ימים)', 'בינונית (30–60 ימים)', 'נמוכה (60–120 ימים)', 'למעקב'];
@@ -1284,7 +1288,9 @@
       }
 
       function escapeHtml(str) {
-        return (str || '')
+        if (str === null || str === undefined) return '';
+        if (typeof str !== 'string') str = String(str);
+        return str
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
@@ -1552,10 +1558,14 @@
             </div>
 
             <div class="finding-section-title">${t.findingDesc}</div>
-            <p>${escapeHtml(f.description)}</p>
+            ${Array.isArray(f.description)
+              ? (f.description.length ? '<ul>' + f.description.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
+              : '<p>' + escapeHtml(f.description) + '</p>'}
 
             <div class="finding-section-title">${t.findingImpact}</div>
-            <p>${escapeHtml(f.impact)}</p>
+            ${Array.isArray(f.impact)
+              ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
+              : '<p>' + escapeHtml(f.impact) + '</p>'}
 
             <div class="two-column">
               <div>
@@ -3909,38 +3919,105 @@
       var wiziFindIdSubInput = document.getElementById('wizi-find-id-sub');
       var wiziFindIdBtn = document.getElementById('btn-wizi-find-by-id');
       var wiziFindIdStatus = document.getElementById('wizi-find-id-status');
+      var wiziFindIdResults = document.getElementById('wizi-find-id-results');
+      var findIdLastPayload = null; // remember last search for pagination
 
-      if (wiziFindIdBtn) {
-        wiziFindIdBtn.addEventListener('click', function() {
-          var findingId = (wiziFindIdInput.value || '').trim();
-          if (!findingId) {
-            wiziFindIdStatus.textContent = 'הזן מזהה ממצא.';
-            return;
-          }
+      function renderFindIdResults(data) {
+        var qt = data.queryType;
+        var nodes = data.nodes || [];
+        var total = data.total || 0;
+        var pg = data.page || 0;
+        var hasMore = data.hasMore || false;
+        var typeLabels = {
+          issues: 'Issue', configurationFindings: 'CSPM',
+          vulnerabilityFindings: 'VULN', hostConfigurationRuleAssessments: 'HSPM',
+          dataFindingsV2: 'DSPM', secretInstances: 'SECR',
+          excessiveAccessFindings: 'EAPM', networkExposures: 'NEXP',
+          inventoryFindings: 'EOLM'
+        };
 
-          var subFilter = (wiziFindIdSubInput.value || '').trim();
+        if (!nodes.length) {
+          wiziFindIdResults.innerHTML = '';
+          return;
+        }
 
-          wiziFindIdBtn.disabled = true;
-          wiziFindIdStatus.textContent = 'מחפש ממצא...';
+        // If only 1 result, auto-import like before
+        if (total === 1) {
+          var importers = {
+            issues: importIssueFinding,
+            configurationFindings: importConfigFinding,
+            vulnerabilityFindings: importVulnFinding,
+            hostConfigurationRuleAssessments: importHostConfigFinding,
+            dataFindingsV2: importDataFinding,
+            secretInstances: importSecretFinding,
+            excessiveAccessFindings: importExcessiveAccessFinding,
+            networkExposures: importNetworkExposureFinding,
+            inventoryFindings: importInventoryFinding
+          };
+          var fn = importers[qt] || importIssueFinding;
+          fn(nodes[0]);
+          renderFindingsTable();
+          prefillId();
+          autoSave();
+          wiziFindIdInput.value = '';
+          wiziFindIdResults.innerHTML = '';
+          var label = typeLabels[qt] || qt;
+          wiziFindIdStatus.textContent = '✓ יובא ממצא ' + label + ' — ' + (nodes[0].name || nodes[0].id || '');
+          showToast('ממצא ' + label + ' יובא בהצלחה', 'success');
+          return;
+        }
 
-          var payload = { id: findingId };
-          if (subFilter) payload.subscription = subFilter;
+        // Multiple results — show selection table
+        var startIdx = pg * (data.pageSize || 5);
+        var html = '<div style="margin-bottom:6px;color:var(--text-muted);font-size:12px;">נמצאו <strong>' + total + '</strong> תוצאות (' + (typeLabels[qt] || qt) + ') — עמוד ' + (pg + 1) + '</div>';
+        html += '<table><thead><tr>';
+        html += '<th style="width:40px;"></th>';
+        html += '<th>שם / כותרת</th>';
+        html += '<th>חומרה</th>';
+        html += '<th>Subscription</th>';
+        html += '<th>סטטוס</th>';
+        html += '</tr></thead><tbody>';
 
-          fetch('/api/wizi/find-by-id', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          })
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data.error) {
-              wiziFindIdStatus.textContent = 'לא נמצא: ' + data.error;
-              showToast('ממצא לא נמצא', 'warning');
-              return;
-            }
+        nodes.forEach(function(node, i) {
+          var title = getWiziItemTitle(node, qt);
+          var sev = (node.severity || '').toLowerCase();
+          if (!sev && qt === 'issues') sev = (node.severity || '').toLowerCase();
+          var sevLabel = { critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', informational: 'מידע' };
+          var sevDisplay = sevLabel[sev] || sev || '-';
+          var sevClass = sev === 'informational' ? 'info' : sev;
+          var subName = getNodeSubscriptionName(node, qt);
+          var status = node.status || (node.result || '') || '-';
 
-            var qt = data.queryType;
-            var node = data.node;
+          html += '<tr>';
+          html += '<td><button class="btn btn-primary btn-sm find-id-import-btn" data-idx="' + i + '" style="margin:0;padding:3px 8px;font-size:11px;">ייבא</button></td>';
+          html += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title || node.id || '-') + '</td>';
+          html += '<td><span class="severity-chip sev-' + sevClass + '">' + escapeHtml(sevDisplay) + '</span></td>';
+          html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '-') + '</td>';
+          html += '<td>' + escapeHtml(status) + '</td>';
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+
+        // Pagination buttons
+        html += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">';
+        if (pg > 0) {
+          html += '<button class="btn btn-secondary btn-sm" id="find-id-prev-page" style="margin:0;">← הקודם</button>';
+        }
+        if (hasMore) {
+          html += '<button class="btn btn-secondary btn-sm" id="find-id-next-page" style="margin:0;">הבא →</button>';
+        }
+        html += '<button class="btn btn-danger btn-sm" id="find-id-clear" style="margin:0;">✕ סגור</button>';
+        html += '</div>';
+
+        wiziFindIdResults.innerHTML = html;
+
+        // Wire import buttons
+        wiziFindIdResults.querySelectorAll('.find-id-import-btn').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            var idx = parseInt(btn.getAttribute('data-idx'));
+            var node = nodes[idx];
+            if (!node) return;
             var importers = {
               issues: importIssueFinding,
               configurationFindings: importConfigFinding,
@@ -3954,39 +4031,94 @@
             };
             var fn = importers[qt] || importIssueFinding;
             fn(node);
-
             renderFindingsTable();
             prefillId();
             autoSave();
-            wiziFindIdInput.value = '';
-            var typeLabels = {
-              issues: 'Issue', configurationFindings: 'CSPM',
-              vulnerabilityFindings: 'VULN', hostConfigurationRuleAssessments: 'HSPM',
-              dataFindingsV2: 'DSPM', secretInstances: 'SECR',
-              excessiveAccessFindings: 'EAPM', networkExposures: 'NEXP',
-              inventoryFindings: 'EOLM'
-            };
+            btn.disabled = true;
+            btn.textContent = '✓';
             var label = typeLabels[qt] || qt;
-            var statusText = '✓ יובא ממצא ' + label + ' — ' + (node.name || node.id || findingId);
-            if (data.totalMatches && data.totalMatches > 1) {
-              statusText += ' (נמצאו ' + data.totalMatches + ' תוצאות, יובא הראשון)';
-            }
-            wiziFindIdStatus.textContent = statusText;
             showToast('ממצא ' + label + ' יובא בהצלחה', 'success');
-          })
-          .catch(function(e) {
-            wiziFindIdStatus.textContent = 'שגיאת רשת: ' + e.message;
-            showToast('שגיאה בשליפת ממצא', 'error');
-          })
-          .finally(function() {
-            wiziFindIdBtn.disabled = false;
           });
         });
 
-        // Enter key in the ID input
+        // Wire pagination
+        var prevBtn = document.getElementById('find-id-prev-page');
+        var nextBtn = document.getElementById('find-id-next-page');
+        var clearBtn = document.getElementById('find-id-clear');
+
+        if (prevBtn) {
+          prevBtn.addEventListener('click', function() {
+            fetchFindById(pg - 1);
+          });
+        }
+        if (nextBtn) {
+          nextBtn.addEventListener('click', function() {
+            fetchFindById(pg + 1);
+          });
+        }
+        if (clearBtn) {
+          clearBtn.addEventListener('click', function() {
+            wiziFindIdResults.innerHTML = '';
+            wiziFindIdStatus.textContent = '';
+          });
+        }
+      }
+
+      function fetchFindById(page) {
+        var findingId = (wiziFindIdInput.value || '').trim();
+        var subFilter = (wiziFindIdSubInput.value || '').trim();
+        if (!findingId) {
+          wiziFindIdStatus.textContent = 'הזן מזהה ממצא.';
+          return;
+        }
+
+        wiziFindIdBtn.disabled = true;
+        wiziFindIdStatus.textContent = 'מחפש ממצאים...';
+
+        var payload = { id: findingId, page: page || 0, pageSize: 5 };
+        if (subFilter) payload.subscription = subFilter;
+        findIdLastPayload = payload;
+
+        fetch('/api/wizi/find-by-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.error) {
+            wiziFindIdStatus.textContent = 'לא נמצא: ' + data.error;
+            wiziFindIdResults.innerHTML = '';
+            showToast('ממצא לא נמצא', 'warning');
+            return;
+          }
+          wiziFindIdStatus.textContent = '';
+          renderFindIdResults(data);
+        })
+        .catch(function(e) {
+          wiziFindIdStatus.textContent = 'שגיאת רשת: ' + e.message;
+          wiziFindIdResults.innerHTML = '';
+          showToast('שגיאה בשליפת ממצא', 'error');
+        })
+        .finally(function() {
+          wiziFindIdBtn.disabled = false;
+        });
+      }
+
+      if (wiziFindIdBtn) {
+        wiziFindIdBtn.addEventListener('click', function() {
+          fetchFindById(0);
+        });
+
+        // Enter key in the ID input or subscription input
         wiziFindIdInput.addEventListener('keydown', function(e) {
           if (e.key === 'Enter') { e.preventDefault(); wiziFindIdBtn.click(); }
         });
+        if (wiziFindIdSubInput) {
+          wiziFindIdSubInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); wiziFindIdBtn.click(); }
+          });
+        }
       }
 
       // ── Helper: get title from a Wizi item for dedup ──

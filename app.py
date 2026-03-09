@@ -975,13 +975,15 @@ def api_wizi_issues():
 
 @app.route("/api/wizi/find-by-id", methods=["POST"])
 def api_wizi_find_by_id():
-    """Fetch a single finding from Wizi by its ID or rule ID. Tries multiple query types and filter strategies."""
+    """Fetch findings from Wizi by ID or rule ID. Returns paginated results for user selection."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(silent=True) or {}
     finding_id = (data.get("id") or "").strip()
     subscription_filter = (data.get("subscription") or "").strip()
+    page_size = int(data.get("pageSize") or 5)
+    page = int(data.get("page") or 0)
     if not finding_id:
         return jsonify({"error": "No finding ID provided"}), 400
 
@@ -989,11 +991,8 @@ def api_wizi_find_by_id():
     resolved_sub_ids: list = []
     resolved_sub_ext_ids: list = []
     if subscription_filter:
-        # Try multiple search terms: full text, then individual segments
         search_terms = [subscription_filter]
-        # Split by common separators and try significant parts (3+ chars)
         parts = [p for p in subscription_filter.replace("_", "-").split("-") if len(p) >= 3]
-        # Try the most specific parts first (longer parts)
         parts.sort(key=len, reverse=True)
         for part in parts[:3]:
             if part.lower() not in ("aws", "dev", "prod", "stg", "test"):
@@ -1013,7 +1012,6 @@ def api_wizi_find_by_id():
             except Exception:
                 continue
 
-    # Query types to try with direct ID filter
     queries = [
         ("issues", "issues", WIZI_ISSUES_QUERY),
         ("configurationFindings", "configurationFindings", WIZI_CONFIG_FINDINGS_QUERY),
@@ -1027,7 +1025,6 @@ def api_wizi_find_by_id():
     ]
 
     def _add_sub_filter(filter_by: dict, qt: str) -> dict:
-        """Add subscription filter to filterBy based on query type."""
         if not subscription_filter:
             return filter_by
         if qt == "issues":
@@ -1049,39 +1046,43 @@ def api_wizi_find_by_id():
         return filter_by
 
     def _client_side_sub_filter(nodes: list) -> list:
-        """Fallback: filter nodes client-side by subscription name if server-side filter wasn't applied."""
         if not subscription_filter or not nodes:
             return nodes
         needle = subscription_filter.lower()
-        # Build search tokens: full text + significant parts
         tokens = [needle]
         parts = [p.lower() for p in subscription_filter.replace("_", "-").split("-") if len(p) >= 3]
         skip = {"aws", "dev", "prod", "stg", "test", "gcp", "azure"}
         tokens.extend([p for p in parts if p not in skip])
 
         def matches(node: dict) -> bool:
-            # Collect all subscription/account name candidates from the node
             names = []
-            # issues: entitySnapshot.subscriptionName
             names.append((node.get("entitySnapshot") or {}).get("subscriptionName", ""))
-            # config/host config: resource.subscription.name
             res = node.get("resource") or {}
             res_sub = res.get("subscription") or {}
             names.append(res_sub.get("name", ""))
-            # data/secret/inventory: cloudAccount.name or resource.cloudAccount.name
             ca = node.get("cloudAccount") or res.get("cloudAccount") or {}
             names.append(ca.get("name", ""))
-            # excessive access: principal.cloudAccount.name
             principal_ca = (node.get("principal") or {}).get("cloudAccount") or {}
             names.append(principal_ca.get("name", ""))
-
             combined = " ".join(n.lower() for n in names if n)
             if not combined:
                 return False
-            # Match if any significant token appears in the name
             return any(t in combined for t in tokens)
 
         return [n for n in nodes if matches(n)]
+
+    def _paginate(all_nodes: list, qt: str, total: int) -> dict:
+        """Return a page of results with metadata."""
+        start = page * page_size
+        page_nodes = all_nodes[start:start + page_size]
+        return {
+            "queryType": qt,
+            "nodes": page_nodes,
+            "total": total,
+            "page": page,
+            "pageSize": page_size,
+            "hasMore": (start + page_size) < total,
+        }
 
     # Strategy 1: Direct ID filter (works for finding UUIDs)
     for qt, root_key, gql in queries:
@@ -1094,14 +1095,14 @@ def api_wizi_find_by_id():
                 continue
             nodes = result.get("data", {}).get(root_key, {}).get("nodes", [])
             if nodes:
-                return jsonify({"queryType": qt, "node": nodes[0]})
+                return jsonify({"queryType": qt, "nodes": nodes, "total": 1, "page": 0, "pageSize": page_size, "hasMore": False})
         except Exception:
             continue
 
     # For rule-based strategies, fetch more results and filter
-    fetch_limit = 50 if subscription_filter else 5
+    fetch_limit = max(50, (page + 1) * page_size + page_size)
 
-    # Strategy 2: Search by rule ID (e.g. wc-id-493) — issues use sourceRule filter
+    # Strategy 2: Search by rule ID — issues use sourceRule filter
     try:
         filter_by = {"sourceRule": [finding_id]}
         filter_by = _add_sub_filter(filter_by, "issues")
@@ -1111,7 +1112,7 @@ def api_wizi_find_by_id():
         if nodes:
             filtered = _client_side_sub_filter(nodes) if subscription_filter else nodes
             if filtered:
-                return jsonify({"queryType": "issues", "node": filtered[0], "totalMatches": len(filtered)})
+                return jsonify(_paginate(filtered, "issues", len(filtered)))
     except Exception:
         pass
 
@@ -1125,7 +1126,7 @@ def api_wizi_find_by_id():
         if nodes:
             filtered = _client_side_sub_filter(nodes) if subscription_filter else nodes
             if filtered:
-                return jsonify({"queryType": "configurationFindings", "node": filtered[0], "totalMatches": len(filtered)})
+                return jsonify(_paginate(filtered, "configurationFindings", len(filtered)))
     except Exception:
         pass
 
@@ -1139,7 +1140,7 @@ def api_wizi_find_by_id():
         if nodes:
             filtered = _client_side_sub_filter(nodes) if subscription_filter else nodes
             if filtered:
-                return jsonify({"queryType": "hostConfigurationRuleAssessments", "node": filtered[0], "totalMatches": len(filtered)})
+                return jsonify(_paginate(filtered, "hostConfigurationRuleAssessments", len(filtered)))
     except Exception:
         pass
 
@@ -1153,7 +1154,7 @@ def api_wizi_find_by_id():
         if nodes:
             filtered = _client_side_sub_filter(nodes) if subscription_filter else nodes
             if filtered:
-                return jsonify({"queryType": "issues", "node": filtered[0], "totalMatches": len(filtered)})
+                return jsonify(_paginate(filtered, "issues", len(filtered)))
     except Exception:
         pass
 
