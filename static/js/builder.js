@@ -4390,12 +4390,22 @@
           if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
         }
 
-        // Policies: from securitySubCategories
+        // Policies: from securitySubCategories — extract short reference, not full regulatory text
         var policies = [];
         (item.securitySubCategories || []).forEach(function(sc) {
-          var label = '';
-          if (sc.category && sc.category.name) label += sc.category.name;
-          if (sc.title) label += (label ? ' — ' : '') + sc.title;
+          var catName = (sc.category && sc.category.name) ? sc.category.name : '';
+          var scTitle = sc.title || '';
+          // Many titles contain full regulatory text after a dash or number pattern
+          // e.g. "7.1 In order to address and manage ICT risk, financial entities shall..."
+          // We want just the reference: "7.1" or "PSS-01 Guidelines..." (first ~80 chars)
+          if (scTitle.length > 80) {
+            // Try to cut at first sentence boundary within 80 chars
+            var cut = scTitle.substring(0, 80);
+            var lastSpace = cut.lastIndexOf(' ');
+            if (lastSpace > 30) cut = cut.substring(0, lastSpace);
+            scTitle = cut + '…';
+          }
+          var label = catName ? catName + ' — ' + scTitle : scTitle;
           if (label) policies.push(label);
         });
 
