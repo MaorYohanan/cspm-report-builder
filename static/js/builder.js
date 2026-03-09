@@ -4307,16 +4307,34 @@
         var cat = mapWiziCategory(entity);
         var id = generateNextId(cat);
 
+        // Title: rule name or issue description
+        var title = rule.name || issue.description || 'Wizi Issue ' + issue.id;
+
+        // Description: concise finding summary
+        var description = issue.description || rule.name || '';
+
+        // Impact: severity-based context
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'חשיפת משאב לסיכון ברמת ' + sevLabel;
+        if (entity.name) impact += ' — ' + entity.name;
+
+        // Technical: resource details + rule description excerpt
         var technical = [];
         if (entity.cloudPlatform) technical.push('Cloud: ' + entity.cloudPlatform);
         if (entity.subscriptionName) technical.push('Subscription: ' + entity.subscriptionName);
         if (entity.region) technical.push('Region: ' + entity.region);
         if (entity.name) technical.push('Entity: ' + entity.name);
         if (entity.nativeType) technical.push('Type: ' + entity.nativeType);
+        if (rule.description) {
+          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          if (ruleLines.length) technical.push('Rule: ' + ruleLines[0]);
+        }
 
-        var recs = '';
+        // Recommendations: from issue notes
+        var recs = [];
         var notes = (issue.notes || []).map(function(n) { return n.text || ''; }).filter(Boolean);
-        if (notes.length) recs = notes.join('\n');
+        if (notes.length) recs = notes;
+        if (!recs.length) recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
 
         var owner = '';
         var projects = (issue.projects || []).map(function(p) { return p.name; }).filter(Boolean);
@@ -4326,13 +4344,13 @@
         findings.push({
           id: id,
           category: cat,
-          title: rule.name || issue.description || 'Wizi Issue ' + issue.id,
+          title: title,
           severity: sev,
-          description: splitLines(rule.description || issue.description || ''),
-          impact: [],
-          technical: splitLines(technical.join('\n')),
+          description: description,
+          impact: impact,
+          technical: technical,
           policies: [],
-          recs: splitLines(recs),
+          recs: recs,
           priority: '',
           owner: owner,
           evidence: []
@@ -4347,6 +4365,18 @@
         var cat = 'CSPM';
         var id = generateNextId(cat);
 
+        // Title: rule name (what the rule checks for)
+        var title = rule.name || item.name || 'Config Finding ' + item.id;
+
+        // Description: item.name is the actual finding (e.g. "Launch Template is using IMDSv1")
+        var description = item.name || rule.name || '';
+
+        // Impact: severity-based + resource context
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'חשיפת משאב לסיכון ברמת ' + sevLabel;
+        if (resource.name) impact += ' — ' + resource.name;
+
+        // Technical: resource details + first paragraph of rule description
         var technical = [];
         if (sub.cloudProvider) technical.push('Cloud: ' + sub.cloudProvider);
         if (sub.name) technical.push('Subscription: ' + sub.name);
@@ -4354,26 +4384,43 @@
         if (resource.name) technical.push('Resource: ' + resource.name);
         if (resource.nativeType || resource.type) technical.push('Type: ' + (resource.nativeType || resource.type));
         if (item.result) technical.push('Result: ' + item.result);
+        if (rule.description) {
+          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
+        }
 
+        // Policies: from securitySubCategories
         var policies = [];
         (item.securitySubCategories || []).forEach(function(sc) {
           var label = '';
           if (sc.category && sc.category.name) label += sc.category.name;
           if (sc.title) label += (label ? ' — ' : '') + sc.title;
-          if (sc.framework && sc.framework.name) label += ' (' + sc.framework.name + ')';
           if (label) policies.push(label);
         });
+
+        // Recommendations: extract from rule description or generic
+        var recs = [];
+        if (rule.description) {
+          var sentences = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          // Look for actionable sentences (contain should/must/recommend/enable/disable/configure)
+          sentences.forEach(function(s) {
+            if (/should|must|recommend|enable|disable|configure|ensure|verify|set|use|implement|restrict|remove|update|apply/i.test(s) && s.length > 15 && s.length < 300) {
+              recs.push(s);
+            }
+          });
+        }
+        if (!recs.length) recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
 
         findings.push({
           id: id,
           category: cat,
-          title: rule.name || item.name || 'Config Finding ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines(rule.description || ''),
-          impact: [],
-          technical: splitLines(technical.join('\n')),
+          description: description,
+          impact: impact,
+          technical: technical,
           policies: policies,
-          recs: [],
+          recs: recs,
           priority: '',
           owner: sub.name || '',
           evidence: []
@@ -4385,6 +4432,19 @@
         var cat = 'VULN';
         var id = generateNextId(cat);
 
+        // Title: CVE name or detailed name
+        var title = item.name || item.detailedName || 'Vuln Finding ' + item.id;
+
+        // Description: CVE description or general vuln description
+        var description = item.CVEDescription || item.description || title;
+
+        // Impact: severity + exploit context
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'פגיעות ברמת ' + sevLabel;
+        if (item.score != null) impact += ' (CVSS: ' + item.score + ')';
+        if (item.hasExploit) impact += ' — קיים Exploit ידוע';
+
+        // Technical details
         var technical = [];
         if (item.score != null) technical.push('CVSS Score: ' + item.score);
         if (item.version) technical.push('Affected Version: ' + item.version);
@@ -4395,20 +4455,22 @@
         if (projects.length) technical.push('Projects: ' + projects.join(', '));
         if (item.firstDetectedAt) technical.push('First Detected: ' + item.firstDetectedAt.split('T')[0]);
 
+        // Recommendations
         var recs = [];
         if (item.remediation) recs.push(item.remediation);
         if (item.fixedVersion) recs.push('עדכון לגרסה: ' + item.fixedVersion);
+        if (!recs.length) recs.push('לטפל בפגיעות בהתאם לרמת החומרה (' + sevLabel + ')');
 
         findings.push({
           id: id,
           category: cat,
-          title: item.name || item.detailedName || 'Vuln Finding ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines(item.CVEDescription || item.description || ''),
-          impact: [],
-          technical: splitLines(technical.join('\n')),
+          description: description,
+          impact: impact,
+          technical: technical,
           policies: [],
-          recs: splitLines(recs.join('\n')),
+          recs: recs,
           priority: '',
           owner: projects.length ? projects.join(', ') : '',
           evidence: []
@@ -4422,6 +4484,19 @@
         var rule = item.rule || {};
         var res = item.resource || {};
         var sub = res.subscription || {};
+
+        // Title: rule name
+        var title = rule.name || 'Host Config Finding ' + item.id;
+
+        // Description: item name (actual finding) or rule name
+        var description = item.name || rule.name || '';
+
+        // Impact
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'חשיפת Host לסיכון ברמת ' + sevLabel;
+        if (res.name) impact += ' — ' + res.name;
+
+        // Technical
         var technical = [];
         if (res.cloudPlatform) technical.push('Cloud: ' + res.cloudPlatform);
         if (sub.name) technical.push('Subscription: ' + sub.name);
@@ -4429,13 +4504,30 @@
         if (res.name) technical.push('Resource: ' + res.name);
         if (res.nativeType) technical.push('Type: ' + res.nativeType);
         if (item.result) technical.push('Result: ' + item.result);
+        if (rule.description) {
+          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
+        }
+
+        // Recommendations
+        var recs = [];
+        if (rule.description) {
+          rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean).forEach(function(s) {
+            if (/should|must|recommend|enable|disable|configure|ensure|verify|set|use/i.test(s) && s.length > 15 && s.length < 300) {
+              recs.push(s);
+            }
+          });
+        }
+        if (!recs.length) recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
+
         findings.push({
           id: id, category: cat,
-          title: rule.name || 'Host Config Finding ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines(rule.description || ''),
-          impact: [], technical: splitLines(technical.join('\n')),
-          policies: [], recs: [], priority: '',
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
           owner: sub.name || '',
           evidence: []
         });
@@ -4448,19 +4540,38 @@
         var classifier = item.dataClassifier || {};
         var entity = item.graphEntity || {};
         var account = item.cloudAccount || {};
+
+        // Title
+        var title = item.name || classifier.name || 'Data Finding ' + item.id;
+
+        // Description
+        var description = 'זוהה מידע רגיש מסוג ' + (classifier.name || item.name || 'לא ידוע');
+        if (entity.name) description += ' במשאב ' + entity.name;
+
+        // Impact
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'חשיפת נתונים רגישים ברמת ' + sevLabel;
+        if (classifier.category) impact += ' (קטגוריה: ' + classifier.category + ')';
+
+        // Technical
         var technical = [];
         if (account.cloudProvider) technical.push('Cloud: ' + account.cloudProvider);
         if (account.name) technical.push('Account: ' + account.name);
         if (entity.name) technical.push('Entity: ' + entity.name);
         if (entity.type) technical.push('Type: ' + entity.type);
         if (classifier.category) technical.push('Category: ' + classifier.category);
+
+        // Recommendations
+        var recs = ['לבצע סיווג נתונים ולהגדיר בקרות גישה מתאימות', 'לוודא הצפנת נתונים רגישים'];
+
         findings.push({
           id: id, category: cat,
-          title: item.name || classifier.name || 'Data Finding ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines('זוהה מידע רגיש מסוג ' + (classifier.name || item.name || 'לא ידוע')),
-          impact: [], technical: splitLines(technical.join('\n')),
-          policies: [], recs: [], priority: '',
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
           owner: account.name || '',
           evidence: []
         });
@@ -4472,6 +4583,20 @@
         var id = generateNextId(cat);
         var res = item.resource || {};
         var rule = item.rule || {};
+
+        // Title
+        var title = item.name || rule.name || 'Secret Finding ' + item.id;
+
+        // Description
+        var description = 'זוהה סוד חשוף מסוג ' + (item.type || 'לא ידוע');
+        if (res.name) description += ' במשאב ' + res.name;
+        if (item.path) description += ' (נתיב: ' + item.path + ')';
+
+        // Impact
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'חשיפת סוד ברמת ' + sevLabel + ' — עלול לאפשר גישה לא מורשית למשאבים';
+
+        // Technical
         var technical = [];
         if (res.cloudPlatform) technical.push('Cloud: ' + res.cloudPlatform);
         if (res.name) technical.push('Resource: ' + res.name);
@@ -4479,13 +4604,18 @@
         if (res.region) technical.push('Region: ' + res.region);
         if (item.type) technical.push('Secret Type: ' + item.type);
         if (item.path) technical.push('Path: ' + item.path);
+
+        // Recommendations
+        var recs = ['לבצע רוטציה מיידית של הסוד החשוף', 'להעביר סודות ל-Secrets Manager / Key Vault'];
+
         findings.push({
           id: id, category: cat,
-          title: item.name || rule.name || 'Secret Finding ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines('זוהה סוד חשוף מסוג ' + (item.type || 'לא ידוע')),
-          impact: [], technical: splitLines(technical.join('\n')),
-          policies: [], recs: [], priority: '',
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
           owner: res.name || res.cloudPlatform || '',
           evidence: []
         });
@@ -4498,21 +4628,40 @@
         var principal = item.principal || {};
         var ge = principal.graphEntity || {};
         var ca = principal.cloudAccount || {};
+
+        // Title
+        var title = item.name || 'Excessive Access ' + item.id;
+
+        // Description
+        var description = item.description || title;
+
+        // Impact
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'הרשאות יתר ברמת ' + sevLabel;
+        if (ge.name) impact += ' — ' + ge.name;
+        if (ge.type) impact += ' (' + ge.type + ')';
+
+        // Technical
         var technical = [];
         if (item.cloudPlatform) technical.push('Cloud: ' + item.cloudPlatform);
         if (ca.name) technical.push('Account: ' + ca.name);
         if (ge.name) technical.push('Principal: ' + ge.name);
         if (ge.type) technical.push('Principal Type: ' + ge.type);
         if (item.remediationType) technical.push('Remediation Type: ' + item.remediationType);
+
+        // Recommendations
         var recs = [];
         if (item.remediationInstructions) recs.push(item.remediationInstructions);
+        if (!recs.length) recs.push('לצמצם הרשאות בהתאם לעקרון Least Privilege');
+
         findings.push({
           id: id, category: cat,
-          title: item.name || 'Excessive Access ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines(item.description || ''),
-          impact: [], technical: splitLines(technical.join('\n')),
-          policies: [], recs: splitLines(recs.join('\n')),
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs,
           priority: '',
           owner: ca.name || '',
           evidence: []
@@ -4523,20 +4672,43 @@
         var cat = 'NEXP';
         var id = generateNextId(cat);
         var entity = item.exposedEntity || {};
+        var isPublic = (item.sourceIpRange || '').indexOf('0.0.0.0') >= 0;
+        var sev = isPublic ? 'high' : 'medium';
+
+        // Title
+        var title = 'Network Exposure — ' + (entity.name || item.id);
+
+        // Description
+        var description = 'חשיפת רשת של ' + (entity.name || 'משאב') + ' מ-' + (item.sourceIpRange || 'unknown');
+        if (item.portRange) description += ' בפורטים ' + item.portRange;
+
+        // Impact
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'חשיפת רשת ברמת ' + sevLabel;
+        if (isPublic) impact += ' — המשאב נגיש מהאינטרנט (0.0.0.0/0)';
+
+        // Technical
         var technical = [];
         if (entity.name) technical.push('Entity: ' + entity.name);
         if (entity.type) technical.push('Type: ' + entity.type);
         if (item.sourceIpRange) technical.push('Source IP: ' + item.sourceIpRange);
         if (item.portRange) technical.push('Port Range: ' + item.portRange);
         if (item.type) technical.push('Exposure Type: ' + item.type);
-        var isPublic = (item.sourceIpRange || '').indexOf('0.0.0.0') >= 0;
+
+        // Recommendations
+        var recs = [];
+        if (isPublic) recs.push('להגביל גישה מ-0.0.0.0/0 לטווחי IP ספציפיים');
+        recs.push('לוודא שרק פורטים נדרשים פתוחים');
+        recs.push('להשתמש ב-Private Endpoint / VPN במידת האפשר');
+
         findings.push({
           id: id, category: cat,
-          title: 'Network Exposure — ' + (entity.name || item.id),
-          severity: isPublic ? 'high' : 'medium',
-          description: splitLines('חשיפת רשת של ' + (entity.name || 'משאב') + ' מ-' + (item.sourceIpRange || 'unknown')),
-          impact: [], technical: splitLines(technical.join('\n')),
-          policies: [], recs: [], priority: '',
+          title: title,
+          severity: sev,
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
           owner: entity.name || '',
           evidence: []
         });
@@ -4549,19 +4721,41 @@
         var rule = item.rule || {};
         var res = item.resource || {};
         var ca = res.cloudAccount || {};
+
+        // Title
+        var title = rule.name || 'Inventory Finding ' + item.id;
+
+        // Description
+        var description = item.name || rule.name || '';
+
+        // Impact
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var impact = 'משאב בסוף חיים (EOL) ברמת ' + sevLabel;
+        if (res.name) impact += ' — ' + res.name;
+
+        // Technical
         var technical = [];
         if (res.cloudPlatform) technical.push('Cloud: ' + res.cloudPlatform);
         if (ca.name) technical.push('Account: ' + ca.name);
         if (res.region) technical.push('Region: ' + res.region);
         if (res.name) technical.push('Resource: ' + res.name);
         if (res.nativeType) technical.push('Type: ' + res.nativeType);
+        if (rule.description) {
+          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
+        }
+
+        // Recommendations
+        var recs = ['לעדכן או להחליף את המשאב לגרסה נתמכת', 'לתכנן מיגרציה בהתאם ללוח הזמנים של הספק'];
+
         findings.push({
           id: id, category: cat,
-          title: rule.name || 'Inventory Finding ' + item.id,
+          title: title,
           severity: sev,
-          description: splitLines(rule.description || ''),
-          impact: [], technical: splitLines(technical.join('\n')),
-          policies: [], recs: [], priority: '',
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
           owner: ca.name || '',
           evidence: []
         });
