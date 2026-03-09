@@ -1527,7 +1527,7 @@
             : `<p class="muted">${t.noTech}</p>`;
 
           const policyHtml = f.policies.length
-            ? `<ul class="tag-list">${f.policies.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
+            ? `<ul class="tag-list">${f.policies.slice(0, 4).map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noPolicies}</p>`;
 
           const recHtml = f.recs.length
@@ -4391,7 +4391,12 @@
         }
 
         // Policies: map securitySubCategories to known framework names (deduplicated)
-        // The API returns dozens of individual controls — we map them to their parent framework
+        // Priority order: most recognized/relevant frameworks first, cap at 4
+        var frameworkPriority = [
+          'ISO 27001', 'NIST CSF', 'CIS Controls', 'PCI-DSS', 'SOC 2',
+          'NIST 800-53', 'NIST CSF 2.0', 'DORA', 'NIS2', 'CSA CCM',
+          'AWS Security Best Practices', 'CIS AWS Benchmark', 'C5', 'IT Security Standards'
+        ];
         var frameworkPatterns = [
           { re: /^(?:Organizational|Technological|People) controls/i, name: 'ISO 27001' },
           { re: /^\d+ (?:Inventory and Control|Secure Configuration|Account Management|Access Control Management|Malware Defenses|Network Infrastructure|Network Monitoring|Penetration Testing|Reduce Attack|Prevent Compromise|Restrict Internet)/i, name: 'CIS Controls' },
@@ -4415,18 +4420,15 @@
           var catName = (sc.category && sc.category.name) ? sc.category.name.trim() : '';
           var scTitle = sc.title || '';
           var fullText = catName ? catName + ' ' + scTitle : scTitle;
-          var matched = false;
           for (var i = 0; i < frameworkPatterns.length; i++) {
             if (frameworkPatterns[i].re.test(fullText) || frameworkPatterns[i].re.test(catName)) {
               policySet[frameworkPatterns[i].name] = true;
-              matched = true;
               break;
             }
           }
-          // Fallback: use category name if available, otherwise skip
-          if (!matched && catName) policySet[catName] = true;
         });
-        var policies = Object.keys(policySet);
+        // Sort by priority and take top 4
+        var policies = frameworkPriority.filter(function(f) { return policySet[f]; }).slice(0, 4);
 
         // Recommendations: extract from rule description or generic
         var recs = [];
