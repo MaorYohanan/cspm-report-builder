@@ -4390,21 +4390,41 @@
           if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
         }
 
-        // Policies: extract unique framework/standard names from securitySubCategories
+        // Policies: map securitySubCategories to known framework names (deduplicated)
+        // The API returns dozens of individual controls — we map them to their parent framework
+        var frameworkPatterns = [
+          { re: /^(?:Organizational|Technological|People) controls/i, name: 'ISO 27001' },
+          { re: /^\d+ (?:Inventory and Control|Secure Configuration|Account Management|Access Control Management|Malware Defenses|Network Infrastructure|Network Monitoring|Penetration Testing|Reduce Attack|Prevent Compromise|Restrict Internet)/i, name: 'CIS Controls' },
+          { re: /^Data and Infrastructure Security|^Access control of cloud service|^Technical vulnerability management|^Security in development/i, name: 'CSA CCM' },
+          { re: /^\d+(?:\.\d+)? Application Software Security/i, name: 'CIS Controls' },
+          { re: /^(?:SI|AC|AU|CA|CM|CP|IA|IR|MA|MP|PE|PL|PM|PS|RA|SA|SC|SE) /i, name: 'NIST 800-53' },
+          { re: /^Art \d+.*CHAPTER/i, name: 'DORA' },
+          { re: /^Article \d+.*Cybersecurity/i, name: 'NIS2' },
+          { re: /^\d+\.\d+ Product Safety and Security/i, name: 'C5' },
+          { re: /^Protection of data and network functions/i, name: 'C5' },
+          { re: /^(?:ID|PR|DE|RS|RC|GV)\.[A-Z]{2}/i, name: 'NIST CSF' },
+          { re: /^PROTECT -|^IDENTIFY -|^DETECT -|^RESPOND -|^RECOVER -|^GOVERN -/i, name: 'NIST CSF 2.0' },
+          { re: /^Elastic Compute Cloud|^Amazon |^AWS /i, name: 'AWS Security Best Practices' },
+          { re: /^A\d+ /i, name: 'CIS AWS Benchmark' },
+          { re: /^\d+\.\d+ (?:System components|Malicious software|Restrict physical|Maintain a policy|Build and maintain|Protect stored|Encrypt transmission|Track and monitor|Regularly test)/i, name: 'PCI-DSS' },
+          { re: /^CC\d+/i, name: 'SOC 2' },
+          { re: /^Patch Management|^Software & Application Management/i, name: 'IT Security Standards' },
+        ];
         var policySet = {};
         (item.securitySubCategories || []).forEach(function(sc) {
           var catName = (sc.category && sc.category.name) ? sc.category.name.trim() : '';
-          // Fallback: if no category name, use the title up to the first " — " as framework name
-          if (!catName && sc.title) {
-            var dashIdx = sc.title.indexOf(' — ');
-            catName = dashIdx > 0 ? sc.title.substring(0, dashIdx).trim() : sc.title.trim();
+          var scTitle = sc.title || '';
+          var fullText = catName ? catName + ' ' + scTitle : scTitle;
+          var matched = false;
+          for (var i = 0; i < frameworkPatterns.length; i++) {
+            if (frameworkPatterns[i].re.test(fullText) || frameworkPatterns[i].re.test(catName)) {
+              policySet[frameworkPatterns[i].name] = true;
+              matched = true;
+              break;
+            }
           }
-          // Truncate very long names (some are full regulatory text)
-          if (catName.length > 60) {
-            var sp = catName.lastIndexOf(' ', 60);
-            catName = catName.substring(0, sp > 20 ? sp : 60) + '…';
-          }
-          if (catName && !policySet[catName]) policySet[catName] = true;
+          // Fallback: use category name if available, otherwise skip
+          if (!matched && catName) policySet[catName] = true;
         });
         var policies = Object.keys(policySet);
 
