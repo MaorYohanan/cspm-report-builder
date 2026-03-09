@@ -560,7 +560,8 @@
                 var idx = item.idx;
                 const sev = severityMap[f.severity] || severityMap.medium;
                 const policiesInline = f.policies.length
-                  ? f.policies.map(p => '<span class="tag-inline">' + p + '</span>').join(' ')
+                  ? '<span class="tag-inline">' + f.policies[0].substring(0, 40) + (f.policies[0].length > 40 ? '…' : '') + '</span>' +
+                    (f.policies.length > 1 ? ' <span class="muted small-text">+' + (f.policies.length - 1) + '</span>' : '')
                   : '<span class="muted">—</span>';
 
                 var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);

@@ -460,6 +460,31 @@ table caption {
   -webkit-overflow-scrolling: touch;
 }
 
+#findings-table-wrapper table {
+  table-layout: fixed;
+  width: 100%;
+}
+#findings-table-wrapper th:nth-child(1),
+#findings-table-wrapper td:nth-child(1) { width: 32px; }  /* checkbox */
+#findings-table-wrapper th:nth-child(2),
+#findings-table-wrapper td:nth-child(2) { width: 32px; }  /* # */
+#findings-table-wrapper th:nth-child(3),
+#findings-table-wrapper td:nth-child(3) { width: 80px; }  /* ID */
+#findings-table-wrapper th:nth-child(4),
+#findings-table-wrapper td:nth-child(4) { width: 60px; }  /* category */
+#findings-table-wrapper th:nth-child(5),
+#findings-table-wrapper td:nth-child(5) { width: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }  /* title — takes remaining */
+#findings-table-wrapper th:nth-child(6),
+#findings-table-wrapper td:nth-child(6) { width: 72px; }  /* severity */
+#findings-table-wrapper th:nth-child(7),
+#findings-table-wrapper td:nth-child(7) { width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* owner */
+#findings-table-wrapper th:nth-child(8),
+#findings-table-wrapper td:nth-child(8) { width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } /* policies */
+#findings-table-wrapper th:nth-child(9),
+#findings-table-wrapper td:nth-child(9) { width: 60px; }  /* evidence */
+#findings-table-wrapper th:nth-child(10),
+#findings-table-wrapper td:nth-child(10) { width: 180px; } /* actions */
+
 /* ── Severity chips ── */
 .severity-chip {
   display: inline-block;
