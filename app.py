@@ -102,6 +102,11 @@ def check_rate_limit() -> bool:
     if len(_rate_store[key]) >= RATE_LIMIT_MAX:
         return False
     _rate_store[key].append(now)
+    # Periodic cleanup: remove stale keys to prevent memory growth
+    if len(_rate_store) > 1000:
+        stale = [k for k, v in _rate_store.items() if not v or v[-1] < now - RATE_LIMIT_WINDOW * 2]
+        for k in stale:
+            del _rate_store[k]
     return True
 
 
@@ -126,10 +131,23 @@ def enforce_auth():
         pass
     elif not check_auth():
         return Response("Unauthorized", 401, {"WWW-Authenticate": "Bearer"})
-    # Rate limiting on mutating endpoints
-    if request.method == "POST" or request.method == "DELETE":
+    # Rate limiting on mutating endpoints only
+    if request.method in ("POST", "DELETE"):
         if not check_rate_limit():
-            return Response("Rate limit exceeded", 429)
+            return jsonify({"error": "Rate limit exceeded"}), 429
+
+
+@app.after_request
+def set_security_headers(response):
+    """Add security headers to all responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Cache control for API responses
+    if request.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -345,9 +363,9 @@ def api_upload_html():
         content = request.get_data()
         original_name = "report.html"
 
+    # Only allow .html suffix for safety
     stem = Path(original_name).stem
-    suffix = Path(original_name).suffix or ".html"
-    out_name = f"{stem}_{uuid.uuid4().hex[:8]}{suffix}"
+    out_name = f"{stem}_{uuid.uuid4().hex[:8]}.html"
     out_path = OUTPUT_DIR / out_name
     out_path.write_bytes(content)
 
@@ -626,7 +644,7 @@ query HostConfigFindings($first: Int, $after: String, $filterBy: HostConfigurati
     pageInfo { hasNextPage endCursor }
     nodes {
       id severity result status
-      rule { id name shortId description remediationInstructions }
+      rule { id name description remediationInstructions }
       resource {
         name nativeType region cloudPlatform
         subscription { name cloudProvider }
@@ -699,7 +717,7 @@ query InventoryFindings($first: Int, $after: String, $filterBy: InventoryFinding
     pageInfo { hasNextPage endCursor }
     nodes {
       id severity status
-      rule { id name shortId description }
+      rule { id name description }
       resource {
         name nativeType region cloudPlatform
         cloudAccount { name }
@@ -782,6 +800,13 @@ def api_wizi_graphql_proxy():
     variables = data.get("variables", {})
     if not query:
         return jsonify({"error": "No query provided"}), 400
+    # Block mutations — this is a read-only proxy
+    query_stripped = query.strip().lower()
+    if query_stripped.startswith("mutation"):
+        return jsonify({"error": "Mutations are not allowed"}), 403
+    # Limit query size to prevent abuse
+    if len(query) > 10000:
+        return jsonify({"error": "Query too large (max 10000 chars)"}), 400
     try:
         result = _wizi_graphql(query, variables)
         return jsonify(result)

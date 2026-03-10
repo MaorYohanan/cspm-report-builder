@@ -431,7 +431,24 @@
             reportVersion: document.getElementById('report-version').value,
             reportLang: document.getElementById('report-lang').value
           },
-          findings: findings  // JSON.stringify יעשה deep copy
+          findings: findings,  // JSON.stringify יעשה deep copy
+          // Save in-progress form draft so refresh doesn't lose work
+          formDraft: {
+            editingIndex: editingIndex,
+            id:          document.getElementById('f-id').value,
+            title:       document.getElementById('f-title').value,
+            severity:    document.getElementById('f-severity').value,
+            category:    document.getElementById('f-category').value,
+            description: document.getElementById('f-description').value,
+            impact:      document.getElementById('f-impact').value,
+            technical:   document.getElementById('f-technical').value,
+            policies:    document.getElementById('f-policies').value,
+            recs:        document.getElementById('f-recs').value,
+            owner:       document.getElementById('f-owner').value,
+            prioritySelect: prioritySelect.value,
+            priorityCustom: priorityCustom.value,
+            evidence:    pendingEvidenceList.slice()
+          }
         };
         return snapshot;
       }
@@ -501,6 +518,39 @@
 
         resetEditState();
         renderFindingsTable();
+
+        // Restore in-progress form draft if present
+        if (snapshot.formDraft) {
+          const d = snapshot.formDraft;
+          const hasContent = d.title || d.description || d.impact || d.technical || d.policies || d.recs;
+          if (hasContent || d.editingIndex !== null) {
+            document.getElementById('f-id').value = d.id || '';
+            document.getElementById('f-title').value = d.title || '';
+            document.getElementById('f-severity').value = d.severity || 'medium';
+            document.getElementById('f-category').value = d.category || 'CSPM';
+            document.getElementById('f-description').value = d.description || '';
+            document.getElementById('f-impact').value = d.impact || '';
+            document.getElementById('f-technical').value = d.technical || '';
+            document.getElementById('f-policies').value = d.policies || '';
+            document.getElementById('f-recs').value = d.recs || '';
+            document.getElementById('f-owner').value = d.owner || '';
+            prioritySelect.value = d.prioritySelect || '';
+            priorityCustom.value = d.priorityCustom || '';
+            updatePriorityCustomVisibility();
+
+            if (Array.isArray(d.evidence) && d.evidence.length) {
+              pendingEvidenceList = d.evidence.slice();
+              renderEvidencePreviews();
+            }
+
+            if (d.editingIndex !== null && d.editingIndex >= 0 && d.editingIndex < findings.length) {
+              editingIndex = d.editingIndex;
+              addBtn.textContent = 'עדכן ממצא';
+              cancelEditBtn.style.display = 'inline-block';
+              editState.textContent = 'מצב: עריכת ממצא #' + (editingIndex + 1);
+            }
+          }
+        }
 
         statusMsg.textContent =
           'נטען דו"ח קיים' +
@@ -2661,7 +2711,11 @@
           const raw = localStorage.getItem(AUTOSAVE_KEY);
           if (!raw) return false;
           const snapshot = JSON.parse(raw);
-          if (snapshot && snapshot.meta && Array.isArray(snapshot.findings) && snapshot.findings.length > 0) {
+          const hasDraft = snapshot && snapshot.formDraft &&
+            (snapshot.formDraft.title || snapshot.formDraft.description || snapshot.formDraft.editingIndex !== null);
+          if (snapshot && snapshot.meta && (
+            (Array.isArray(snapshot.findings) && snapshot.findings.length > 0) || hasDraft
+          )) {
             applySnapshot(snapshot);
             statusMsg.textContent = 'שוחזר אוטומטית מהשמירה האחרונה.';
             return true;
@@ -4376,13 +4430,13 @@
           if (ruleLines.length) technical.push('Rule: ' + ruleLines[0]);
         }
 
-        // Recommendations: from issue notes, then from rule description
-        var recs = [];
+        // Recommendations: from rule description (not notes — those are user comments)
+        var recs = extractRecommendations(rule, sevLabel);
+
+        // Add issue notes to technical details if present
         var notes = (issue.notes || []).map(function(n) { return n.text || ''; }).filter(Boolean);
         if (notes.length) {
-          recs = notes;
-        } else {
-          recs = extractRecommendations(rule, sevLabel);
+          notes.forEach(function(n) { technical.push('Note: ' + n); });
         }
 
         var owner = '';
@@ -4558,8 +4612,8 @@
         // Title: rule name
         var title = rule.name || 'Host Config Finding ' + item.id;
 
-        // Description: item name (actual finding) or rule name
-        var description = item.name || rule.name || '';
+        // Description: rule description excerpt (node has no name field)
+        var description = rule.name || '';
 
         // Impact
         var sevLabel = (severityMap[sev] || {}).text || sev;
@@ -4711,10 +4765,11 @@
         if (ge.type) technical.push('Principal Type: ' + ge.type);
         if (item.remediationType) technical.push('Remediation Type: ' + item.remediationType);
 
-        // Recommendations
-        var recs = [];
-        if (item.remediationInstructions) recs.push(item.remediationInstructions);
-        if (!recs.length) recs.push('לצמצם הרשאות בהתאם לעקרון Least Privilege');
+        // Recommendations — remediationInstructions is on the node itself (not rule)
+        var recs = extractRecommendations(
+          { remediationInstructions: item.remediationInstructions || '', description: item.description || '' },
+          sevLabel
+        );
 
         findings.push({
           id: id, category: cat,
