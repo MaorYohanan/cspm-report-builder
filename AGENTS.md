@@ -106,9 +106,9 @@ Each query type uses a different field for project filtering:
 | Query Type | Filter Field | Format |
 |---|---|---|
 | `issues` | `project` | `[id]` |
-| `configurationFindings` | _(no project ID filter, only `projectTag`)_ | — |
+| `configurationFindings` | `resource.projectId` | `[id]` |
 | `vulnerabilityFindings` | `projectIdV2` | `{equals: [id]}` |
-| `hostConfigurationRuleAssessments` | _(no project filter available)_ | — |
+| `hostConfigurationRuleAssessments` | `resource.projectId` | `[id]` |
 | `dataFindingsV2` | `projectId` | `[id]` |
 | `secretInstances` | `projectId` | `[id]` |
 | `excessiveAccessFindings` | `project` | `[id]` |
