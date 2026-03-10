@@ -589,7 +589,7 @@ query ConfigFindings($first: Int, $after: String, $filterBy: ConfigurationFindin
     pageInfo { hasNextPage endCursor }
     nodes {
       id name severity result status
-      rule { id name shortId description }
+      rule { id name shortId description remediationInstructions }
       resource {
         name type region nativeType
         subscription { name cloudProvider externalId }
@@ -626,7 +626,7 @@ query HostConfigFindings($first: Int, $after: String, $filterBy: HostConfigurati
     pageInfo { hasNextPage endCursor }
     nodes {
       id severity result status
-      rule { id name shortId description }
+      rule { id name shortId description remediationInstructions }
       resource {
         name nativeType region cloudPlatform
         subscription { name cloudProvider }

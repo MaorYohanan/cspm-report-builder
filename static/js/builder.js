@@ -4303,6 +4303,48 @@
 
       loadWiziPresets();
 
+      // ── Helper: extract recommendations from rule data ──
+      // Prefers remediationInstructions (actual steps), falls back to description parsing
+      function extractRecommendations(rule, sevLabel) {
+        var recs = [];
+
+        // 1. Use remediationInstructions if available (actual remediation steps)
+        var ri = (rule.remediationInstructions || '').trim();
+        if (ri) {
+          // Clean up markdown code blocks and split into meaningful lines
+          var cleaned = ri
+            .replace(/```[\s\S]*?```/g, '')  // remove code blocks
+            .replace(/\s*\n\s*/g, '\n');     // normalize whitespace
+          var lines = cleaned.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+          lines.forEach(function(line) {
+            // Skip very short lines, pure formatting, or "Note:" disclaimers
+            if (line.length < 15) return;
+            if (/^note:/i.test(line)) return;
+            recs.push(line);
+          });
+        }
+
+        // 2. Fallback: extract from description — but ONLY "It is recommended" sentences
+        if (!recs.length && rule.description) {
+          var sentences = rule.description.split(/(?:\.\s+|\n)/).map(function(s) { return s.trim().replace(/\s+/g, ' '); }).filter(Boolean);
+          sentences.forEach(function(s) {
+            // Only take explicit recommendation sentences, skip rule-check/fail/skip descriptions
+            if (/^this rule (checks|fails|skips|is)/i.test(s)) return;
+            if (/^this rule$/i.test(s)) return;
+            if (/it is recommended|you should|we recommend|consider /i.test(s) && s.length > 20 && s.length < 400) {
+              recs.push(s.replace(/\.$/, ''));
+            }
+          });
+        }
+
+        // 3. Last resort: generic Hebrew recommendation
+        if (!recs.length) {
+          recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
+        }
+
+        return recs;
+      }
+
       function importIssueFinding(issue) {
         var rules = issue.sourceRules || [];
         var rule = rules.length ? rules[0] : {};
@@ -4334,11 +4376,14 @@
           if (ruleLines.length) technical.push('Rule: ' + ruleLines[0]);
         }
 
-        // Recommendations: from issue notes
+        // Recommendations: from issue notes, then from rule description
         var recs = [];
         var notes = (issue.notes || []).map(function(n) { return n.text || ''; }).filter(Boolean);
-        if (notes.length) recs = notes;
-        if (!recs.length) recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
+        if (notes.length) {
+          recs = notes;
+        } else {
+          recs = extractRecommendations(rule, sevLabel);
+        }
 
         var owner = '';
         var projects = (issue.projects || []).map(function(p) { return p.name; }).filter(Boolean);
@@ -4433,18 +4478,8 @@
         // Sort by priority and take top 4
         var policies = frameworkPriority.filter(function(f) { return policySet[f]; }).slice(0, 4);
 
-        // Recommendations: extract from rule description or generic
-        var recs = [];
-        if (rule.description) {
-          var sentences = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
-          // Look for actionable sentences (contain should/must/recommend/enable/disable/configure)
-          sentences.forEach(function(s) {
-            if (/should|must|recommend|enable|disable|configure|ensure|verify|set|use|implement|restrict|remove|update|apply/i.test(s) && s.length > 15 && s.length < 300) {
-              recs.push(s);
-            }
-          });
-        }
-        if (!recs.length) recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
+        // Recommendations: use remediationInstructions or extract from description
+        var recs = extractRecommendations(rule, sevLabel);
 
         findings.push({
           id: id,
@@ -4545,15 +4580,7 @@
         }
 
         // Recommendations
-        var recs = [];
-        if (rule.description) {
-          rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean).forEach(function(s) {
-            if (/should|must|recommend|enable|disable|configure|ensure|verify|set|use/i.test(s) && s.length > 15 && s.length < 300) {
-              recs.push(s);
-            }
-          });
-        }
-        if (!recs.length) recs.push('לטפל בממצא בהתאם לרמת החומרה (' + sevLabel + ')');
+        var recs = extractRecommendations(rule, sevLabel);
 
         findings.push({
           id: id, category: cat,
