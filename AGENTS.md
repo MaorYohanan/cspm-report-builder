@@ -99,6 +99,22 @@ Each query type uses a different field for subscription filtering:
 | `networkExposures` | `cloudAccount` | externalId |
 | `inventoryFindings` | `resource.subscriptionId.equals` | UUID |
 
+### Project Filter Field Mapping
+
+Each query type uses a different field for project filtering:
+
+| Query Type | Filter Field | Format |
+|---|---|---|
+| `issues` | `project` | `[id]` |
+| `configurationFindings` | _(no project ID filter, only `projectTag`)_ | — |
+| `vulnerabilityFindings` | `projectIdV2` | `{equals: [id]}` |
+| `hostConfigurationRuleAssessments` | _(no project filter available)_ | — |
+| `dataFindingsV2` | `projectId` | `[id]` |
+| `secretInstances` | `projectId` | `[id]` |
+| `excessiveAccessFindings` | `project` | `[id]` |
+| `networkExposures` | `projectId` | `id` (scalar) |
+| `inventoryFindings` | `projects` | `{equals: [id]}` |
+
 ### Import Functions
 
 Each query type has a dedicated `import*Finding()` function in `builder.js` that maps API response fields to the finding object shape. Key details:

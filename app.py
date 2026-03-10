@@ -734,7 +734,6 @@ query ProjectsTable($first: Int, $after: String) {
       id
       name
       slug
-      businessImpact
       riskProfile {
         businessImpact
       }
@@ -898,6 +897,7 @@ def api_wizi_issues():
             filter_by["result"] = as_list(status)
         if resolved_sub_ids:
             filter_by["resource"] = {"subscriptionId": resolved_sub_ids}
+        # configurationFindings: no direct project ID filter (only projectTag)
         gql = WIZI_CONFIG_FINDINGS_QUERY
         root_key = "configurationFindings"
 
@@ -908,6 +908,8 @@ def api_wizi_issues():
             filter_by["status"] = as_list(status)
         if resolved_sub_ext_ids:
             filter_by["subscriptionExternalId"] = resolved_sub_ext_ids
+        if project_id:
+            filter_by["projectIdV2"] = {"equals": as_list(project_id)}
         gql = WIZI_VULN_FINDINGS_QUERY
         root_key = "vulnerabilityFindings"
 
@@ -918,6 +920,7 @@ def api_wizi_issues():
             filter_by["status"] = as_list(status)
         if resolved_sub_ids:
             filter_by["resource"] = {"subscriptionId": resolved_sub_ids}
+        # hostConfigurationRuleAssessments: no project filter available
         gql = WIZI_HOST_CONFIG_QUERY
         root_key = "hostConfigurationRuleAssessments"
 
@@ -928,6 +931,8 @@ def api_wizi_issues():
             filter_by["status"] = eq_wrap(status)
         if resolved_sub_ext_ids:
             filter_by["graphEntityCloudAccount"] = {"equals": resolved_sub_ext_ids}
+        if project_id:
+            filter_by["projectId"] = as_list(project_id)
         gql = WIZI_DATA_FINDINGS_QUERY
         root_key = "dataFindingsV2"
 
@@ -938,6 +943,8 @@ def api_wizi_issues():
             filter_by["status"] = eq_wrap(status)
         if resolved_sub_ext_ids:
             filter_by["cloudAccount"] = {"equals": resolved_sub_ext_ids}
+        if project_id:
+            filter_by["projectId"] = as_list(project_id)
         gql = WIZI_SECRET_INSTANCES_QUERY
         root_key = "secretInstances"
 
@@ -946,6 +953,8 @@ def api_wizi_issues():
             filter_by["severity"] = eq_wrap(severity)
         if status:
             filter_by["status"] = eq_wrap(status)
+        if project_id:
+            filter_by["project"] = as_list(project_id)
         # No subscription filter available for excessive access
         gql = WIZI_EXCESSIVE_ACCESS_QUERY
         root_key = "excessiveAccessFindings"
@@ -953,6 +962,10 @@ def api_wizi_issues():
     elif query_type == "networkExposures":
         if resolved_sub_ext_ids:
             filter_by["cloudAccount"] = resolved_sub_ext_ids
+        if project_id:
+            # networkExposures.projectId is a scalar String, not a list
+            pid = project_id if isinstance(project_id, str) else project_id[0]
+            filter_by["projectId"] = pid
         gql = WIZI_NETWORK_EXPOSURE_QUERY
         root_key = "networkExposures"
 
@@ -963,6 +976,8 @@ def api_wizi_issues():
             filter_by["status"] = eq_wrap(status)
         if resolved_sub_ids:
             filter_by["resource"] = {"subscriptionId": {"equals": resolved_sub_ids}}
+        if project_id:
+            filter_by["projects"] = {"equals": as_list(project_id)}
         gql = WIZI_INVENTORY_FINDINGS_QUERY
         root_key = "inventoryFindings"
 
