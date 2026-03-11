@@ -448,18 +448,40 @@
 
       function getDateAsDDMMYYYY() {
         if (!dateInput) return '';
+<<<<<<< HEAD
         return (dateInput.value || '').trim();
+=======
+        const val = dateInput.value; // YYYY-MM-DD from native picker
+        if (!val) return '';
+        const parts = val.split('-');
+        if (parts.length !== 3) return '';
+        const [y, m, d] = parts;
+        if (!y || !m || !d) return '';
+        return d + '/' + m + '/' + y;
+>>>>>>> 7889ed2 (many fixes)
       }
 
       function setDateFromDDMMYYYY(str) {
         if (!dateInput) return;
         if (!str || typeof str !== 'string') { dateInput.value = ''; return; }
+<<<<<<< HEAD
         // Accept DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY and normalize to DD/MM/YYYY
         var parts = str.split(/[.\-\/]/);
         if (parts.length !== 3) { dateInput.value = ''; return; }
         var d = parts[0], m = parts[1], y = parts[2];
         if (!d || !m || !y) { dateInput.value = ''; return; }
         dateInput.value = d.padStart(2, '0') + '/' + m.padStart(2, '0') + '/' + y;
+=======
+        const parts = str.split(/[.\-\/]/);
+        if (parts.length !== 3) { dateInput.value = ''; return; }
+        const [d, m, y] = parts;
+        if (!d || !m || !y) { dateInput.value = ''; return; }
+        try {
+          dateInput.value = y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
+        } catch (e) {
+          dateInput.value = '';
+        }
+>>>>>>> 7889ed2 (many fixes)
       }
 
       // Today buttons

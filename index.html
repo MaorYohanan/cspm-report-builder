@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
@@ -539,4 +540,492 @@
 
   <script src="/static/js/builder.js?v=47"></script>
 </body>
+=======
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wizi — CSPM Report Builder</title>
+  <link rel="stylesheet" href="/static/css/builder.css?v=18">
+</head>
+<body>
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- Keyboard shortcuts overlay -->
+  <div id="kbd-overlay" class="kbd-overlay" style="display:none;" role="dialog" aria-label="קיצורי מקלדת">
+    <div class="kbd-overlay-content">
+      <div class="kbd-overlay-header">
+        <span>⌨️ קיצורי מקלדת</span>
+        <button class="btn btn-secondary btn-sm" id="kbd-overlay-close">✕</button>
+      </div>
+      <div class="kbd-grid">
+        <div><kbd>?</kbd> הצג/הסתר קיצורים</div>
+        <div><kbd>J</kbd> / <kbd>K</kbd> ניווט בטבלת ממצאים</div>
+        <div><kbd>E</kbd> ערוך ממצא נבחר</div>
+        <div><kbd>D</kbd> מחק ממצא נבחר</div>
+        <div><kbd>Ctrl+Enter</kbd> הוסף/עדכן ממצא</div>
+        <div><kbd>Ctrl+V</kbd> הדבק תמונת הוכחה</div>
+        <div><kbd>←</kbd> / <kbd>→</kbd> ניווט בין טאבים</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Finding preview panel -->
+  <div id="finding-preview-panel" class="preview-panel" style="display:none;">
+    <div class="preview-panel-header">
+      <span id="preview-panel-title">תצוגה מקדימה</span>
+      <button class="btn btn-secondary btn-sm" id="preview-panel-close">✕</button>
+    </div>
+    <div id="preview-panel-body" class="preview-panel-body"></div>
+    <div class="preview-panel-actions">
+      <button class="btn btn-primary btn-sm" id="preview-panel-edit">ערוך ממצא</button>
+    </div>
+  </div>
+
+  <!-- Wizi auto-fill banner -->
+  <div id="wizi-autofill-banner" class="autofill-banner" style="display:none;">
+    <span id="wizi-autofill-text"></span>
+    <button class="btn btn-primary btn-sm" id="btn-wizi-autofill-accept">מלא אוטומטית</button>
+    <button class="btn btn-secondary btn-sm" id="btn-wizi-autofill-dismiss">✕</button>
+  </div>
+
+  <div class="app-container">
+    <div class="app-header">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <h1>Wizi — CSPM Report Builder</h1>
+        <button class="btn btn-secondary btn-sm" id="btn-theme-toggle" title="החלף ערכת נושא" style="margin-top:0;padding:4px 8px;">🌙</button>
+        <button class="btn btn-secondary btn-sm" id="btn-kbd-help" title="קיצורי מקלדת (?)" style="margin-top:0;padding:4px 8px;">⌨️</button>
+      </div>
+      <span id="autosave-indicator" class="autosave-indicator"></span>
+    </div>
+
+    <!-- Progress stepper -->
+    <div class="progress-stepper" id="progress-stepper">
+      <div class="step" data-step="details"><span class="step-icon">①</span> פרטי דו"ח</div>
+      <div class="step-arrow">→</div>
+      <div class="step" data-step="findings"><span class="step-icon">②</span> ממצאים <span class="step-badge" id="step-findings-count"></span></div>
+      <div class="step-arrow">→</div>
+      <div class="step" data-step="review"><span class="step-icon">③</span> סקירה</div>
+      <div class="step-arrow">→</div>
+      <div class="step" data-step="export"><span class="step-icon">④</span> ייצוא</div>
+    </div>
+    <p class="muted" style="text-align:center;">
+      ממלאים פרטי דו"ח, מוסיפים ממצאים (כולל הוכחה כתמונה), אפשר לערוך/למחוק/להזיז. בסוף מייצרים דו"ח HTML או PDF.
+    </p>
+
+    <!-- Tab navigation -->
+    <nav class="tab-bar" role="tablist" aria-label="חלקי הטופס">
+      <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-report-details" id="tab-report-details">פרטי דו"ח</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form">הוספת / עריכת ממצא</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list">ממצאים שנוספו</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export">ייצוא דו"ח</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager">ניהול קבצים בשרת</button>
+      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi">🔍 Wizi</button>
+    </nav>
+
+    <!-- Panel: פרטי דו"ח -->
+    <section class="tab-panel active" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
+      <div class="section-body">
+        <div class="row">
+          <div class="col">
+            <label for="report-client">שם הלקוח</label>
+            <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ">
+          </div>
+          <div class="col">
+            <label for="report-env">סביבת בדיקה / ענן</label>
+            <input type="text" id="report-env" placeholder="AWS / Azure / GCP / Multi-Cloud">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="report-range">טווח הבדיקה</label>
+            <input type="text" id="report-range" placeholder="01/01/2025 - 15/01/2025">
+          </div>
+          <div class="col">
+            <label for="report-consultant">יועץ / גוף מבצע</label>
+            <input type="text" id="report-consultant" placeholder="שם היועץ / חברה">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="report-date">תאריך הדו"ח</label>
+            <input type="date" id="report-date">
+          </div>
+          <div class="col">
+            <label for="report-risk">הערכת סיכון כללית</label>
+            <select id="report-risk">
+              <option value="">-- לא נבחר --</option>
+              <option value="נמוכה">נמוכה</option>
+              <option value="בינונית">בינונית</option>
+              <option value="גבוהה">גבוהה</option>
+              <option value="קריטית">קריטית</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="report-exec-summary">תקציר מנהלים</label>
+            <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
+          </div>
+          <div class="col">
+            <label for="report-key-topics">נושאי מפתח</label>
+            <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="report-team-name">שם הצוות / כותרת</label>
+            <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע">
+          </div>
+          <div class="col">
+            <label for="report-org-name">שם הארגון</label>
+            <input type="text" id="report-org-name" placeholder="החברה שלי">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="report-footer-text">טקסט תחתית</label>
+            <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד">
+          </div>
+          <div class="col">
+            <label for="report-cover-note">הערת שער</label>
+            <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו...">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col" style="max-width:120px;">
+            <label for="report-version">גרסה</label>
+            <input type="text" id="report-version" value="1.0" placeholder="1.0">
+          </div>
+          <div class="col" style="max-width:120px;">
+            <label for="report-lang">שפה</label>
+            <select id="report-lang">
+              <option value="he" selected>עברית</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div class="col">
+            <label for="report-cover-image">תמונת שער</label>
+            <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער">
+            <div id="cover-image-preview" class="evidence-preview"></div>
+          </div>
+          <div class="col" id="ai-model-row" style="display:none;">
+            <label for="ai-model">מודל AI</label>
+            <select id="ai-model"></select>
+          </div>
+        </div>
+        <div class="defaults-bar">
+          <button class="btn btn-secondary btn-sm" id="btn-save-defaults">💾 שמור כברירת מחדל</button>
+          <button class="btn btn-secondary btn-sm" id="btn-load-defaults">📋 טען ברירת מחדל</button>
+          <button class="btn btn-danger btn-sm" id="btn-clear-defaults">✕ מחק ברירת מחדל</button>
+          <span id="defaults-status" class="muted small-text"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel: טופס הוספת/עריכת ממצא -->
+    <section class="tab-panel" id="panel-finding-form" role="tabpanel" aria-labelledby="tab-finding-form">
+      <div class="section-body">
+        <div class="row">
+          <div class="col">
+            <label for="f-template">תבנית מוכנה</label>
+            <select id="f-template"><option value="">-- בחר תבנית --</option></select>
+          </div>
+          <div class="col">
+            <label for="f-category">קטגוריה</label>
+            <select id="f-category">
+              <option value="CSPM">CSPM – Cloud Configuration</option>
+              <option value="KSPM">KSPM – Kubernetes</option>
+              <option value="DSPM">DSPM – Data Security</option>
+              <option value="VULN">VULN – Vulnerability</option>
+              <option value="NEXP">NEXP – Network Exposure</option>
+              <option value="EAPM">EAPM – Excessive Access</option>
+              <option value="HSPM">HSPM – Host Configuration</option>
+              <option value="SECR">SECR – Secrets</option>
+              <option value="EOLM">EOLM – End of Life</option>
+            </select>
+          </div>
+          <div class="col" style="max-width:130px;">
+            <label for="f-id">מזהה *</label>
+            <input type="text" id="f-id" placeholder="CSPM-001" required aria-required="true" readonly>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="f-title">כותרת ממצא *</label>
+            <input type="text" id="f-title" placeholder="Bucket ציבורי עם נתונים רגישים" required aria-required="true">
+          </div>
+          <div class="col" style="max-width:140px;">
+            <label for="f-severity">חומרה</label>
+            <select id="f-severity">
+              <option value="critical">קריטי</option>
+              <option value="high">גבוה</option>
+              <option value="medium" selected>בינוני</option>
+              <option value="low">נמוך</option>
+              <option value="info">מידע</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="f-description">תיאור</label>
+            <textarea id="f-description" rows="2" placeholder="מה זוהה בפועל?"></textarea>
+          </div>
+          <div class="col">
+            <label for="f-impact">השפעה / סיכון</label>
+            <textarea id="f-impact" rows="2" placeholder="משמעות עסקית / רגולטורית?"></textarea>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="f-technical">פרטים טכניים</label>
+            <textarea id="f-technical" rows="2" placeholder="ענן: ...&#10;שירות: ..."></textarea>
+          </div>
+          <div class="col">
+            <label for="f-policies">מדיניות / תקנים</label>
+            <textarea id="f-policies" rows="2" placeholder="ISO 27001 A.9&#10;NIST CSF PR.AC"></textarea>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <label for="f-recs">המלצות</label>
+            <textarea id="f-recs" rows="2" placeholder="לבטל גישה ציבורית...&#10;להפעיל הצפנה..."></textarea>
+          </div>
+          <div class="col">
+            <label for="f-owner">בעלים / צוות אחראי</label>
+            <input type="text" id="f-owner" placeholder="שם הצוות / בעל האחריות">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col" style="max-width:280px;">
+            <label for="f-priority-select">עדיפות טיפול</label>
+            <select id="f-priority-select">
+              <option value="">-- לא צוין --</option>
+              <option value="מיידי (0–7 ימים)">מיידי (0–7 ימים)</option>
+              <option value="גבוהה (עד 30 ימים)">גבוהה (עד 30 ימים)</option>
+              <option value="בינונית (30–60 ימים)">בינונית (30–60 ימים)</option>
+              <option value="נמוכה (60–120 ימים)">נמוכה (60–120 ימים)</option>
+              <option value="למעקב">למעקב</option>
+              <option value="custom">אחר (טקסט חופשי)</option>
+            </select>
+            <div class="priority-custom-wrapper hidden" id="priority-custom-wrapper" style="margin-top:6px;">
+              <input type="text" id="f-priority-custom" placeholder="טקסט חופשי...">
+            </div>
+          </div>
+          <div class="col">
+            <label for="f-evidence">הוכחה (תמונה)</label>
+            <div id="evidence-drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="גרור תמונה לכאן או לחץ לבחירה">
+              <input type="file" id="f-evidence" accept="image/*" aria-label="העלאת תמונת הוכחה">
+              <p class="drop-zone-text">גרור / לחץ / <strong>Ctrl+V</strong></p>
+              <div id="evidence-preview" class="evidence-preview"></div>
+            </div>
+          </div>
+        </div>
+        <button class="btn btn-primary" id="btn-add-finding">הוסף ממצא</button>
+        <button class="btn btn-secondary" id="btn-cancel-edit" style="display:none;">בטל עריכה</button>
+        <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
+        <span class="kbd-hint">Ctrl+Enter</span>
+        <span id="edit-state" class="muted small-text"></span>
+      </div>
+    </section>
+
+    <!-- Panel: רשימת הממצאים -->
+    <section class="tab-panel" id="panel-findings-list" role="tabpanel" aria-labelledby="tab-findings-list">
+      <div class="section-body">
+        <!-- Filter bar -->
+        <div class="findings-filter-bar">
+          <input type="text" id="findings-search" placeholder="🔍 חיפוש לפי כותרת / מזהה..." class="filter-input">
+          <select id="findings-filter-category" class="filter-select">
+            <option value="">כל הקטגוריות</option>
+            <option value="CSPM">CSPM</option>
+            <option value="KSPM">KSPM</option>
+            <option value="DSPM">DSPM</option>
+            <option value="VULN">VULN</option>
+            <option value="NEXP">NEXP</option>
+            <option value="EAPM">EAPM</option>
+            <option value="HSPM">HSPM</option>
+            <option value="SECR">SECR</option>
+            <option value="EOLM">EOLM</option>
+          </select>
+          <select id="findings-filter-severity" class="filter-select">
+            <option value="">כל החומרות</option>
+            <option value="critical">קריטי</option>
+            <option value="high">גבוה</option>
+            <option value="medium">בינוני</option>
+            <option value="low">נמוך</option>
+            <option value="info">מידע</option>
+          </select>
+        </div>
+        <!-- Category count badges -->
+        <div id="category-badges" class="category-badges"></div>
+        <!-- Batch actions -->
+        <div class="batch-actions" id="batch-actions" style="display:none;">
+          <span id="batch-count" class="muted small-text"></span>
+          <select id="batch-severity" class="filter-select" style="max-width:120px;">
+            <option value="">שנה חומרה</option>
+            <option value="critical">קריטי</option>
+            <option value="high">גבוה</option>
+            <option value="medium">בינוני</option>
+            <option value="low">נמוך</option>
+            <option value="info">מידע</option>
+          </select>
+          <select id="batch-priority" class="filter-select" style="max-width:160px;">
+            <option value="">שנה עדיפות</option>
+            <option value="מיידי (0–7 ימים)">מיידי</option>
+            <option value="גבוהה (עד 30 ימים)">גבוהה</option>
+            <option value="בינונית (30–60 ימים)">בינונית</option>
+            <option value="נמוכה (60–120 ימים)">נמוכה</option>
+            <option value="למעקב">למעקב</option>
+          </select>
+          <input type="text" id="batch-owner" class="filter-input" placeholder="שנה בעלים..." style="max-width:150px;">
+          <button class="btn btn-danger btn-sm" id="btn-batch-delete">מחק נבחרים</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין לפי חומרה ↓</button>
+        <button class="btn btn-danger btn-sm" id="btn-clear-all-findings">מחק הכל</button>
+        <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
+        <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- Panel: ייצוא דו"ח -->
+    <section class="tab-panel" id="panel-export" role="tabpanel" aria-labelledby="tab-export">
+      <div class="section-body">
+        <button class="btn btn-primary" id="btn-render-pdf" disabled>ייצא PDF</button>
+        <button class="btn btn-secondary" id="btn-generate" disabled>תצוגה מקדימה</button>
+        <button class="btn btn-secondary" id="btn-download" disabled>הורד HTML</button>
+        <button class="btn btn-secondary" id="btn-export-json">הורד תצורה</button>
+        <button class="btn btn-secondary" id="btn-import-json">טען תצורה</button>
+        <button class="btn btn-secondary" id="btn-import-csv">ייבוא CSV</button>
+        <button class="btn btn-secondary" id="btn-import-baseline">השוואה לקודם</button>
+        <button class="btn btn-secondary" id="btn-save-state-cloud">שמור בשרת</button>
+        <input type="file" id="input-import-json" accept="application/json" style="display:none;" aria-label="בחירת קובץ תצורה">
+        <input type="file" id="input-import-csv" accept=".csv,text/csv" style="display:none;" aria-label="בחירת CSV">
+        <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת JSON להשוואה">
+        <span id="status-msg" class="muted small-text" role="status" aria-live="polite"></span>
+        <div id="trend-comparison" style="display:none;margin-top:14px;"></div>
+      </div>
+    </section>
+
+    <!-- Panel: ניהול קבצים בשרת -->
+    <section class="tab-panel" id="panel-cloud-manager" role="tabpanel" aria-labelledby="tab-cloud-manager">
+      <div class="section-body">
+        <div id="states-list" class="small-text"><p class="muted">טוען...</p></div>
+        <div id="outputs-list" class="small-text"><p class="muted">טוען...</p></div>
+        <div style="margin-top:8px;">
+          <label for="cloud-upload-state">העלאת תצורה (JSON)</label>
+          <input type="file" id="cloud-upload-state" accept="application/json" aria-label="העלאת קובץ תצורה לשרת">
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel: Wizi integration -->
+    <section class="tab-panel" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
+      <div class="section-body">
+        <!-- Quick fetch by ID -->
+        <div class="wizi-quick-add">
+          <label for="wizi-find-id">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
+          <div class="row" style="align-items:end;">
+            <div class="col">
+              <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
+            </div>
+            <div class="col">
+              <label for="wizi-find-id-sub" class="muted small-text" style="margin-bottom:4px;">סינון לפי Subscription / פרויקט (אופציונלי)</label>
+              <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
+            </div>
+            <div class="col" style="max-width:140px;">
+              <button class="btn btn-primary btn-sm" id="btn-wizi-find-by-id">שלוף וייבא</button>
+            </div>
+          </div>
+          <span id="wizi-find-id-status" class="muted small-text"></span>
+          <div id="wizi-find-id-results" class="small-text" style="margin-top:8px;"></div>
+        </div>
+        <hr style="border-color:var(--border);margin:16px 0;">
+        <div class="row">
+          <div class="col" style="max-width:220px;">
+            <label for="wizi-query-type">סוג שאילתה</label>
+            <select id="wizi-query-type">
+              <option value="issues">Issues (כללי)</option>
+              <option value="configurationFindings">CSPM — Cloud Configuration</option>
+              <option value="hostConfigurationRuleAssessments">HSPM — Host Configuration</option>
+              <option value="vulnerabilityFindings">VULN — Vulnerabilities</option>
+              <option value="dataFindingsV2">DSPM — Data Findings</option>
+              <option value="secretInstances">SECR — Secrets</option>
+              <option value="excessiveAccessFindings">EAPM — Excessive Access</option>
+              <option value="networkExposures">NEXP — Network Exposure</option>
+              <option value="inventoryFindings">EOLM — Inventory / EOL</option>
+            </select>
+          </div>
+          <div class="col">
+            <label for="wizi-project">פרויקט / Subscription</label>
+            <div class="autocomplete-wrapper">
+              <input type="text" id="wizi-project" placeholder="הקלד שם subscription לסינון..." autocomplete="off">
+              <input type="hidden" id="wizi-project-id">
+              <div class="autocomplete-list" id="wizi-project-list"></div>
+            </div>
+          </div>
+          <div class="col">
+            <label for="wizi-subscription">פרויקט / Subscription בטקסט חופשי</label>
+            <input type="text" id="wizi-subscription" placeholder="הזן שם subscription...">
+            <input type="hidden" id="wizi-subscription-id">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col" style="max-width:180px;">
+            <label for="wizi-severity">חומרה</label>
+            <select id="wizi-severity" multiple size="5">
+              <option value="CRITICAL" selected>Critical</option>
+              <option value="HIGH" selected>High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+              <option value="INFORMATIONAL">Informational</option>
+            </select>
+          </div>
+          <div class="col" style="max-width:180px;">
+            <label for="wizi-status">סטטוס</label>
+            <select id="wizi-status" multiple size="3">
+              <option value="OPEN" selected>Open</option>
+              <option value="IN_PROGRESS" selected>In Progress</option>
+              <option value="RESOLVED">Resolved</option>
+            </select>
+          </div>
+          <div class="col" style="max-width:120px;">
+            <label for="wizi-limit">כמות</label>
+            <select id="wizi-limit">
+              <option value="10" selected>10</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+            </select>
+          </div>
+          <div class="col" style="align-self:end;">
+            <button class="btn btn-primary" id="btn-wizi-fetch">שלוף ממצאים</button>
+            <button class="btn btn-secondary" id="btn-wizi-load-more" style="display:none;">טען עוד</button>
+          </div>
+        </div>
+        <!-- Wizi presets -->
+        <div class="wizi-presets-bar">
+          <select id="wizi-preset-select" class="filter-select" style="max-width:220px;">
+            <option value="">📌 טען פריסט...</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" id="btn-wizi-preset-save">💾 שמור פריסט</button>
+          <button class="btn btn-danger btn-sm" id="btn-wizi-preset-delete" style="display:none;">🗑 מחק</button>
+        </div>
+        <div id="wizi-status-msg" class="muted small-text" role="status" aria-live="polite"></div>
+        <div id="wizi-results" class="small-text"></div>
+        <div id="wizi-actions" style="display:none;margin-top:10px;">
+          <button class="btn btn-primary" id="btn-wizi-import-selected">ייבא נבחרים לדו"ח</button>
+          <button class="btn btn-secondary" id="btn-wizi-select-all">בחר/בטל הכל</button>
+          <span id="wizi-selected-count" class="muted small-text" style="margin-right:10px;"></span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="/static/js/builder.js?v=41"></script>
+</body>
+>>>>>>> 7889ed2 (many fixes)
 </html>
