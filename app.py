@@ -215,38 +215,72 @@ CLEAN_PRINT_CSS = r"""
 
 def render_pdf_from_html(html_content: str, meta: Dict[str, Any]) -> bytes:
     """Render HTML string to PDF bytes using Playwright."""
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import sync_playwright, Error as PlaywrightError
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        html_path = Path(tmpdir) / "report.html"
-        pdf_path = Path(tmpdir) / "report.pdf"
-        html_path.write_text(html_content, encoding="utf-8")
+    browser = None
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            html_path = Path(tmpdir) / "report.html"
+            pdf_path = Path(tmpdir) / "report.pdf"
+            
+            try:
+                html_path.write_text(html_content, encoding="utf-8")
+            except Exception as e:
+                raise RuntimeError(f"Failed to write HTML file: {e}")
 
-        header = build_header(meta)
-        footer = build_footer(meta)
+            header = build_header(meta)
+            footer = build_footer(meta)
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page()
-            page.goto(html_path.as_uri(), wait_until="load")
-            page.add_style_tag(content=CLEAN_PRINT_CSS)
-            page.pdf(
-                path=str(pdf_path),
-                format="A4",
-                print_background=True,
-                display_header_footer=True,
-                header_template=header,
-                footer_template=footer,
-                margin={
-                    "top": "50mm",
-                    "bottom": "28mm",
-                    "left": "15mm",
-                    "right": "15mm",
-                },
-            )
-            browser.close()
+            try:
+                with sync_playwright() as p:
+                    try:
+                        browser = p.chromium.launch()
+                    except PlaywrightError as e:
+                        raise RuntimeError(f"Failed to launch Chromium browser. Ensure Playwright is installed: {e}")
+                    except Exception as e:
+                        raise RuntimeError(f"Browser launch failed: {e}")
+                    
+                    try:
+                        page = browser.new_page()
+                        page.goto(html_path.as_uri(), wait_until="load", timeout=30000)
+                        page.add_style_tag(content=CLEAN_PRINT_CSS)
+                        page.pdf(
+                            path=str(pdf_path),
+                            format="A4",
+                            print_background=True,
+                            display_header_footer=True,
+                            header_template=header,
+                            footer_template=footer,
+                            margin={
+                                "top": "50mm",
+                                "bottom": "28mm",
+                                "left": "15mm",
+                                "right": "15mm",
+                            },
+                        )
+                    except PlaywrightError as e:
+                        raise RuntimeError(f"PDF generation failed: {e}")
+                    except Exception as e:
+                        raise RuntimeError(f"Page rendering failed: {e}")
+                    finally:
+                        if browser:
+                            try:
+                                browser.close()
+                            except Exception:
+                                pass  # Best effort cleanup
+            except RuntimeError:
+                raise  # Re-raise our custom errors
+            except Exception as e:
+                raise RuntimeError(f"Playwright operation failed: {e}")
 
-        return pdf_path.read_bytes()
+            try:
+                return pdf_path.read_bytes()
+            except Exception as e:
+                raise RuntimeError(f"Failed to read generated PDF: {e}")
+    except RuntimeError:
+        raise  # Re-raise with context
+    except Exception as e:
+        raise RuntimeError(f"PDF rendering failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -677,7 +711,7 @@ query SecretInstances($first: Int, $after: String, $filterBy: SecretInstanceFilt
     nodes {
       id name severity status type path
       rule { name }
-      resource { name nativeType region cloudPlatform }
+      resource { name nativeType region cloudPlatform cloudAccount { name } }
     }
   }
 }
@@ -779,10 +813,22 @@ def api_wizi_subscriptions():
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
         return jsonify({"error": "Wizi integration not configured"}), 501
     try:
-        result = _wizi_graphql(WIZI_SUBSCRIPTIONS_QUERY, {"first": 500})
+        # Use cloudAccounts query since subscriptions root query doesn't exist
+        result = _wizi_graphql("""
+            query {
+              cloudAccounts(first: 500) {
+                nodes {
+                  id
+                  name
+                  externalId
+                  cloudProvider
+                }
+              }
+            }
+        """)
         if "errors" in result:
             return jsonify({"error": result["errors"][0].get("message", "GraphQL error")}), 502
-        nodes = result.get("data", {}).get("subscriptions", {}).get("nodes", [])
+        nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
         return jsonify({"subscriptions": nodes})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
@@ -876,17 +922,45 @@ def api_wizi_issues():
     # Resolve subscription search text → cloud account IDs
     resolved_sub_ids: list = []
     resolved_sub_ext_ids: list = []
+    subscription_resolution_failed = False
     if subscription_id:
         try:
+            # Try exact search first
             sub_result = _wizi_graphql(
                 'query($filterBy: CloudAccountFilters) { cloudAccounts(first: 100, filterBy: $filterBy) { nodes { id name externalId } } }',
                 {"filterBy": {"search": subscription_id}}
             )
             nodes = sub_result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+            
+            # If no exact match, try partial search with significant parts
+            if not nodes:
+                # Extract meaningful parts (skip common prefixes/suffixes)
+                parts = subscription_id.replace("_", "-").split("-")
+                significant_parts = [p for p in parts if len(p) >= 4 and p.lower() not in ("aws", "azure", "gcp", "dev", "prod", "test", "stg")]
+                
+                if significant_parts:
+                    # Try searching with the most significant part
+                    for part in significant_parts:
+                        sub_result = _wizi_graphql(
+                            'query($filterBy: CloudAccountFilters) { cloudAccounts(first: 100, filterBy: $filterBy) { nodes { id name externalId } } }',
+                            {"filterBy": {"search": part}}
+                        )
+                        nodes = sub_result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+                        if nodes:
+                            # Filter nodes to only those that contain the original search term
+                            nodes = [n for n in nodes if subscription_id.lower() in n.get("name", "").lower()]
+                            if nodes:
+                                break
+            
             resolved_sub_ids = [n["id"] for n in nodes if n.get("id")]
             resolved_sub_ext_ids = [n["externalId"] for n in nodes if n.get("externalId")]
-        except Exception:
-            pass  # Fall through — client-side filter will still apply
+            
+            # If still no results, mark as failed for user feedback
+            if not resolved_sub_ids and not resolved_sub_ext_ids:
+                subscription_resolution_failed = True
+        except Exception as e:
+            subscription_resolution_failed = True
+            # Log error but continue - client-side filter will still apply
 
     filter_by: Dict[str, Any] = {}
 
@@ -1006,7 +1080,14 @@ def api_wizi_issues():
         result = _wizi_graphql(gql, variables)
         if "errors" in result:
             return jsonify({"error": result["errors"][0].get("message", "GraphQL error"), "details": result["errors"]}), 502
-        return jsonify({"queryType": query_type, root_key: result.get("data", {}).get(root_key, {})})
+        
+        response_data = {"queryType": query_type, root_key: result.get("data", {}).get(root_key, {})}
+        
+        # Add warning if subscription resolution failed
+        if subscription_resolution_failed:
+            response_data["warning"] = f"Subscription '{subscription_id}' not found in cloud accounts. Results may be unfiltered."
+        
+        return jsonify(response_data)
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         return jsonify({"error": f"Wizi API error: {e.code}", "details": body}), 502

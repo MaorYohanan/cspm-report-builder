@@ -10,6 +10,18 @@
         info:     { text: 'מידע',  class: 'sev-info' }
       };
 
+      // ── Security: Data URL validation ──
+      function isValidDataUrl(url) {
+        if (!url || typeof url !== 'string') return false;
+        // Only allow image data URLs (png, jpg, jpeg, gif, webp, svg)
+        const validImagePattern = /^data:image\/(png|jpe?g|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+=*$/;
+        return validImagePattern.test(url);
+      }
+
+      function sanitizeDataUrl(url) {
+        return isValidDataUrl(url) ? url : '';
+      }
+
       const addBtn        = document.getElementById('btn-add-finding');
       const cancelEditBtn = document.getElementById('btn-cancel-edit');
       const genBtn        = document.getElementById('btn-generate');
@@ -86,7 +98,9 @@
       var stepFindingsCount = document.getElementById('step-findings-count');
 
       function updateStepper() {
-        var hasDetails = !!(document.getElementById('report-client').value.trim() || document.getElementById('report-env').value.trim());
+        var clientEl = document.getElementById('report-client');
+        var envEl = document.getElementById('report-env');
+        var hasDetails = !!(clientEl && clientEl.value.trim()) || !!(envEl && envEl.value.trim());
         var hasFindings = findings.length > 0;
 
         stepperSteps.forEach(function(s) {
@@ -178,11 +192,12 @@
 
       // ממיר מחרוזת תאריך בפורמט DD/MM/YYYY לאובייקט Date
       function parseReportDate(str) {
-        if (!str) return null;
+        if (!str || typeof str !== 'string') return null;
         const parts = str.split(/[.\-\/]/).map(Number);
         if (parts.length !== 3) return null;
         const [day, month, year] = parts;
-        if (!day || !month || !year) return null;
+        if (!day || !month || !year || isNaN(day) || isNaN(month) || isNaN(year)) return null;
+        if (day < 1 || day > 31 || month < 1 || month > 12 || year < 1900 || year > 2100) return null;
         const d = new Date(year, month - 1, day);
         // בדיקת sanity בסיסית
         if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) {
@@ -276,17 +291,27 @@
 
       templateSelect.addEventListener('change', function() {
         if (this.value === '') return;
-        var t = findingTemplates[parseInt(this.value)];
+        var idx = parseInt(this.value);
+        if (isNaN(idx) || idx < 0 || idx >= findingTemplates.length) return;
+        var t = findingTemplates[idx];
         if (!t) return;
-        document.getElementById('f-category').value = t.category;
+        
+        var categoryEl = document.getElementById('f-category');
+        var titleEl = document.getElementById('f-title');
+        var severityEl = document.getElementById('f-severity');
+        var descEl = document.getElementById('f-description');
+        var impactEl = document.getElementById('f-impact');
+        var recsEl = document.getElementById('f-recs');
+        
+        if (categoryEl) categoryEl.value = t.category || 'CSPM';
         prefillId();
-        document.getElementById('f-title').value = t.title;
-        document.getElementById('f-severity').value = t.severity;
-        document.getElementById('f-description').value = t.description || '';
-        document.getElementById('f-impact').value = t.impact || '';
-        document.getElementById('f-recs').value = t.recs || '';
+        if (titleEl) titleEl.value = t.title || '';
+        if (severityEl) severityEl.value = t.severity || 'medium';
+        if (descEl) descEl.value = t.description || '';
+        if (impactEl) impactEl.value = t.impact || '';
+        if (recsEl) recsEl.value = t.recs || '';
         this.value = '';
-        document.getElementById('f-title').focus();
+        if (titleEl) titleEl.focus();
       });
 
       // --- Auto-generate finding ID per category ---
@@ -302,8 +327,10 @@
 
       function prefillId() {
         var idField = document.getElementById('f-id');
+        if (!idField) return;
         if (editingIndex === null) {
-          var cat = document.getElementById('f-category').value;
+          var catEl = document.getElementById('f-category');
+          var cat = catEl ? catEl.value : 'CSPM';
           idField.value = generateNextId(cat);
           idField.readOnly = true;
         }
@@ -326,18 +353,28 @@
       const dateInput = document.getElementById('report-date');
 
       function getDateAsDDMMYYYY() {
+        if (!dateInput) return '';
         const val = dateInput.value; // YYYY-MM-DD from native picker
         if (!val) return '';
-        const [y, m, d] = val.split('-');
+        const parts = val.split('-');
+        if (parts.length !== 3) return '';
+        const [y, m, d] = parts;
+        if (!y || !m || !d) return '';
         return d + '/' + m + '/' + y;
       }
 
       function setDateFromDDMMYYYY(str) {
-        if (!str) { dateInput.value = ''; return; }
+        if (!dateInput) return;
+        if (!str || typeof str !== 'string') { dateInput.value = ''; return; }
         const parts = str.split(/[.\-\/]/);
         if (parts.length !== 3) { dateInput.value = ''; return; }
         const [d, m, y] = parts;
-        dateInput.value = y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
+        if (!d || !m || !y) { dateInput.value = ''; return; }
+        try {
+          dateInput.value = y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
+        } catch (e) {
+          dateInput.value = '';
+        }
       }
 
       // --- Priority custom field toggle ---
@@ -891,7 +928,10 @@
         if (evidenceArr.length) {
           html += '<div class="preview-field"><div class="preview-label">הוכחות (' + evidenceArr.length + ')</div><div class="preview-value">';
           evidenceArr.forEach(function(e) {
-            html += '<img src="' + e + '" style="max-width:180px;max-height:120px;border-radius:6px;border:1px solid var(--border);margin:4px 4px 4px 0;">';
+            var safeUrl = sanitizeDataUrl(e);
+            if (safeUrl) {
+              html += '<img src="' + safeUrl + '" style="max-width:180px;max-height:120px;border-radius:6px;border:1px solid var(--border);margin:4px 4px 4px 0;">';
+            }
           });
           html += '</div></div>';
         }
@@ -1589,11 +1629,13 @@
             : `<p class="muted">${t.noPriority}</p>`;
 
           var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
+          // Filter out invalid data URLs for security
+          evidenceArr = evidenceArr.filter(function(ev) { return isValidDataUrl(ev); });
           const evidenceHtml = evidenceArr.length
             ? `
                <div class="finding-section-title">${t.findingEvidence} (${evidenceArr.length} ${evidenceArr.length === 1 ? t.image : t.images})</div>
                <p class="muted">${t.evidenceText}</p>
-               ${evidenceArr.map(function(ev, ei) { return '<div style="width:800px; max-width:100%; margin-top:8px;"><img src="' + ev + '" alt="Evidence ' + (ei+1) + '" class="evidence-img" style="width:100%; height:auto; border:1px solid #ccc; border-radius:4px; display:block; cursor:pointer;" onclick="document.getElementById(\'lightbox-overlay\').style.display=\'flex\'; document.getElementById(\'lightbox-img\').src=this.src;"></div>'; }).join('')}
+               ${evidenceArr.map(function(ev, ei) { return '<div style="width:800px; max-width:100%; margin-top:8px;"><img src="' + sanitizeDataUrl(ev) + '" alt="Evidence ' + (ei+1) + '" class="evidence-img" style="width:100%; height:auto; border:1px solid #ccc; border-radius:4px; display:block; cursor:pointer;" onclick="document.getElementById(\'lightbox-overlay\').style.display=\'flex\'; document.getElementById(\'lightbox-img\').src=this.src;"></div>'; }).join('')}
               `
             : '';
 
@@ -2687,6 +2729,8 @@
       // --- Auto-save to localStorage ---
       const AUTOSAVE_KEY = 'cspm_report_autosave';
       const autosaveIndicator = document.getElementById('autosave-indicator');
+      let autoSaveTimeout = null;
+      let autoSaveInProgress = false;
 
       function showAutosaveStatus(text, saving) {
         autosaveIndicator.textContent = text;
@@ -2694,7 +2738,12 @@
         autosaveIndicator.classList.add('visible');
       }
 
-      function autoSave() {
+      function autoSaveImmediate() {
+        if (autoSaveInProgress) return; // Prevent overlapping saves
+        
+        autoSaveInProgress = true;
+        showAutosaveStatus('💾 שומר...', true);
+        
         try {
           const snapshot = buildSnapshot();
           localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(snapshot));
@@ -2702,8 +2751,24 @@
           var hh = String(now.getHours()).padStart(2, '0');
           var mm = String(now.getMinutes()).padStart(2, '0');
           var ss = String(now.getSeconds()).padStart(2, '0');
-          showAutosaveStatus('💾 נשמר ' + hh + ':' + mm + ':' + ss);
-        } catch (e) { /* quota exceeded or private mode — ignore */ }
+          showAutosaveStatus('💾 נשמר ' + hh + ':' + mm + ':' + ss, false);
+        } catch (e) {
+          if (e.name === 'QuotaExceededError') {
+            showAutosaveStatus('⚠️ אחסון מלא - ייצא JSON', false);
+            showToast('שגיאה: אחסון מלא. ייצא את הדו"ח כ-JSON.', 'error');
+          }
+          // Ignore other errors (private mode, etc.)
+        } finally {
+          autoSaveInProgress = false;
+        }
+      }
+
+      function autoSave() {
+        // Debounce: cancel pending save and schedule new one
+        if (autoSaveTimeout) {
+          clearTimeout(autoSaveTimeout);
+        }
+        autoSaveTimeout = setTimeout(autoSaveImmediate, 500);
       }
 
       function autoRestore() {
@@ -2725,8 +2790,12 @@
       }
 
       // Save every 10 seconds and on page unload
-      setInterval(autoSave, 10000);
-      window.addEventListener('beforeunload', autoSave);
+      setInterval(autoSaveImmediate, 10000);
+      window.addEventListener('beforeunload', function() {
+        // Clear debounce timeout and save immediately on page close
+        if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+        autoSaveImmediate();
+      });
 
       // Restore on load
       autoRestore();
@@ -3210,7 +3279,12 @@
           { value: 'RESOLVED', text: 'Resolved', selected: false },
           { value: 'REJECTED', text: 'Rejected', selected: false }
         ],
-        networkExposures: [],
+        networkExposures: [
+          { value: 'OPEN', text: 'Open', selected: true },
+          { value: 'IN_PROGRESS', text: 'In Progress', selected: false },
+          { value: 'RESOLVED', text: 'Resolved', selected: false },
+          { value: 'REJECTED', text: 'Rejected', selected: false }
+        ],
         inventoryFindings: [
           { value: 'OPEN', text: 'Open', selected: true },
           { value: 'IN_PROGRESS', text: 'In Progress', selected: false },
@@ -3269,7 +3343,12 @@
           { value: 'MEDIUM', text: 'Medium', selected: false },
           { value: 'LOW', text: 'Low', selected: false }
         ],
-        networkExposures: [],
+        networkExposures: [
+          { value: 'CRITICAL', text: 'Critical', selected: true },
+          { value: 'HIGH', text: 'High', selected: true },
+          { value: 'MEDIUM', text: 'Medium', selected: false },
+          { value: 'LOW', text: 'Low', selected: false }
+        ],
         inventoryFindings: [
           { value: 'CRITICAL', text: 'Critical', selected: true },
           { value: 'HIGH', text: 'High', selected: true },
@@ -3323,6 +3402,8 @@
           opt.textContent = '— לא רלוונטי —';
           wiziSeveritySelect.appendChild(opt);
         }
+        
+        // Project field is now used for subscription filtering - no warnings needed
       }
 
       wiziQueryTypeSelect.addEventListener('change', function() {
@@ -3414,33 +3495,30 @@
         });
       }
 
+      // Project field is now used for subscription filtering (not Wiz projects)
+      // Set up autocomplete with subscription names
       setupAutocomplete(wiziProjectInput, wiziProjectId, wiziProjectList, function() {
-        return wiziProjects;
+        return wiziSubscriptions;
       });
 
       function loadWiziFilters() {
-        // Try to load projects via raw GraphQL
-        fetch('/api/wizi/graphql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: '{ projects(first: 500) { nodes { id name slug } } }' })
-        })
+        // Load subscriptions for autocomplete
+        fetch('/api/wizi/subscriptions')
           .then(function(r) { return r.json(); })
           .then(function(data) {
-            var nodes = (data.data || {}).projects ? data.data.projects.nodes || [] : [];
-            if (nodes.length) {
-              wiziProjects = nodes.map(function(p) {
-                return { id: p.id, label: p.name, sub: p.slug || '' };
+            if (data.subscriptions && data.subscriptions.length) {
+              wiziSubscriptions = data.subscriptions.map(function(s) {
+                return { 
+                  id: s.name, 
+                  label: s.name, 
+                  sub: s.cloudProvider + ' · ' + (s.externalId || (s.id ? s.id.substring(0, 8) : ''))
+                };
               });
-              console.log('Wizi: loaded ' + wiziProjects.length + ' projects');
-            } else {
-              console.warn('Wizi projects: no data or unsupported query', data);
             }
-          }).catch(function(e) { console.warn('Wizi projects fetch failed:', e); });
-
-        // Try to load subscriptions — no root query available, use free text search
-        // Subscriptions are filtered via relatedEntity.subscriptionSearch in the issues query
-        console.log('Wizi: subscription filter uses free-text search (no root query available)');
+          })
+          .catch(function(e) { 
+            // Silently fail - subscriptions autocomplete is optional
+          });
       }
 
       // Check if Wizi is enabled on load
@@ -3454,11 +3532,8 @@
               loadWiziFilters();
               // Update status after filters load
               setTimeout(function() {
-                var parts = ['✓ Wizi מחובר'];
-                parts.push(data.totalIssues + ' issues');
-                if (wiziProjects.length) parts.push(wiziProjects.length + ' projects');
-                wiziStatusMsg.textContent = parts.join(' · ');
-              }, 3000);
+                wiziStatusMsg.textContent = '✓ Wizi מחובר · ' + data.totalIssues + ' issues';
+              }, 1000);
             } else {
               wiziStatusMsg.textContent = 'Wizi לא מוגדר — הגדר WIZI_CLIENT_ID ו-WIZI_CLIENT_SECRET ב-.env';
             }
@@ -3807,14 +3882,17 @@
         var sevFilter = getSelectedValues(document.getElementById('wizi-severity'));
         var statusFilter = getSelectedValues(wiziStatusSelect);
         var limit = parseInt(document.getElementById('wizi-limit').value) || 10;
-        var project = wiziProjectId.value || wiziProjectInput.value.trim() || null;
-        var subscription = wiziSubInput.value.trim() || null;
+        
+        // Subscription priority: use "פרויקט / Subscription" field first, then free text field
+        var projectFieldValue = wiziProjectInput.value.trim() || null;
+        var freeTextSub = wiziSubInput.value.trim() || null;
+        var subscription = projectFieldValue || freeTextSub;
 
         wiziFetchBtn.disabled = true;
         wiziStatusMsg.textContent = 'שולף ממצאים מ-Wizi...';
 
         var body = { queryType: qt, first: limit, severity: sevFilter, status: statusFilter };
-        if (project) body.project = project;
+        // Send subscription filter (from either subscription field or project field)
         if (subscription) body.subscription = subscription;
         if (append && wiziEndCursor) body.after = wiziEndCursor;
 
@@ -3829,19 +3907,32 @@
             wiziStatusMsg.textContent = 'שגיאה: ' + data.error;
             return;
           }
+          
+          // Show warning if subscription resolution failed
+          if (data.warning) {
+            showToast(data.warning, 'warning');
+          }
+          
           var rootKey = data.queryType || qt;
           var resultSet = data[rootKey] || {};
           var nodes = resultSet.nodes || [];
           var pageInfo = resultSet.pageInfo || {};
 
-          // Client-side subscription name filter for non-issues query types
-          // (issues use server-side relatedEntity.subscriptionSearch)
-          var subFilter = subscription && qt !== 'issues' ? subscription.toLowerCase() : null;
-          if (subFilter) {
+          // Client-side subscription name filter
+          // Only apply for excessiveAccessFindings which doesn't support backend filtering
+          // All other query types use backend filtering (resolved_sub_ids/resolved_sub_ext_ids)
+          var needsClientFilter = subscription && qt === 'excessiveAccessFindings';
+          if (needsClientFilter) {
+            var subFilter = subscription.toLowerCase();
+            var beforeFilter = nodes.length;
             nodes = nodes.filter(function(n) {
               var subName = getNodeSubscriptionName(n, qt);
-              return subName && subName.toLowerCase().indexOf(subFilter) >= 0;
+              if (!subName) return false; // No subscription name, exclude
+              return subName.toLowerCase().indexOf(subFilter) >= 0;
             });
+            if (beforeFilter !== nodes.length) {
+              showToast('סונן ' + (beforeFilter - nodes.length) + ' ממצאים לפי subscription', 'info');
+            }
           }
 
           if (append) {
@@ -3888,29 +3979,44 @@
 
       // Extract subscription name from a finding node based on query type
       function getNodeSubscriptionName(node, qt) {
+        var subName = '';
         if (qt === 'issues') {
           var es = node.entitySnapshot || {};
-          return es.subscriptionName || '';
+          subName = es.subscriptionName || '';
         }
-        if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
+        else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
           var res = node.resource || {};
           var sub = res.subscription || res.cloudAccount || {};
-          return sub.name || '';
+          subName = sub.name || '';
         }
-        if (qt === 'dataFindingsV2') {
+        else if (qt === 'vulnerabilityFindings') {
+          // VULN findings have projects array, not direct subscription
+          var projects = node.projects || [];
+          if (projects.length) {
+            subName = projects.map(function(p) { return p.name; }).join(', ');
+          }
+        }
+        else if (qt === 'dataFindingsV2') {
           var ca = node.cloudAccount || {};
-          return ca.name || '';
+          subName = ca.name || '';
         }
-        if (qt === 'secretInstances') {
+        else if (qt === 'secretInstances') {
           var sr = node.resource || {};
-          return sr.name || '';
+          var sca = sr.cloudAccount || {};
+          subName = sca.name || sr.name || '';
         }
-        if (qt === 'excessiveAccessFindings') {
+        else if (qt === 'excessiveAccessFindings') {
           var p = node.principal || {};
           var pca = p.cloudAccount || {};
-          return pca.name || '';
+          subName = pca.name || '';
         }
-        return '';
+        else if (qt === 'networkExposures') {
+          var ee = node.exposedEntity || {};
+          var eca = ee.cloudAccount || {};
+          subName = eca.name || '';
+        }
+        
+        return subName;
       }
 
       wiziSelectAllBtn.addEventListener('click', function() {
@@ -3934,16 +4040,129 @@
           return;
         }
 
+        // Group findings by rule ID only
+        // All items with same rule will be consolidated into one finding
+        // with all unique subscriptions and resources listed
+        var groupedByRule = {};
+        selected.forEach(function(item) {
+          var ruleId = getWiziRuleId(item, wiziQueryType);
+          if (!ruleId) ruleId = 'no-rule-' + Math.random(); // Fallback for items without rule
+          
+          if (!groupedByRule[ruleId]) {
+            groupedByRule[ruleId] = [];
+          }
+          groupedByRule[ruleId].push(item);
+        });
+
         var imported = 0;
         var skipped = 0;
+        var consolidated = 0;
+        var updated = 0;
         var existingTitles = {};
-        findings.forEach(function(f) { existingTitles[(f.title || '').toLowerCase()] = true; });
+        var existingFindingsByTitle = {};
+        findings.forEach(function(f) { 
+          var lowerTitle = (f.title || '').toLowerCase();
+          existingTitles[lowerTitle] = true;
+          existingFindingsByTitle[lowerTitle] = f;
+        });
 
-        selected.forEach(function(item) {
-          // Dedup: check if a finding with the same title already exists
-          var title = getWiziItemTitle(item, wiziQueryType);
-          if (title && existingTitles[title.toLowerCase()]) {
-            skipped++;
+        Object.keys(groupedByRule).forEach(function(ruleId) {
+          var items = groupedByRule[ruleId];
+          var firstItem = items[0];
+          
+          // Check if finding with same title already exists
+          var title = getWiziItemTitle(firstItem, wiziQueryType);
+          var lowerTitle = title ? title.toLowerCase() : null;
+          
+          if (lowerTitle && existingTitles[lowerTitle]) {
+            // Finding exists - append new resources and subscriptions
+            var existingFinding = existingFindingsByTitle[lowerTitle];
+            
+            // Extract all unique resource names from new items
+            var newResources = [];
+            items.forEach(function(item) {
+              var resourceName = extractResourceName(item, wiziQueryType);
+              if (resourceName && newResources.indexOf(resourceName) === -1) {
+                newResources.push(resourceName);
+              }
+            });
+            
+            // Extract all unique subscription names from new items
+            var newSubscriptions = [];
+            items.forEach(function(item) {
+              var subName = getNodeSubscriptionName(item, wiziQueryType);
+              if (subName && newSubscriptions.indexOf(subName) === -1) {
+                newSubscriptions.push(subName);
+              }
+            });
+            
+            // Get existing resources from Entity/Resource line
+            var existingResources = [];
+            var entityLineIndex = -1;
+            for (var j = 0; j < existingFinding.technical.length; j++) {
+              if (existingFinding.technical[j].startsWith('Entity:') || 
+                  existingFinding.technical[j].startsWith('Resource:') ||
+                  existingFinding.technical[j].startsWith('Principal:')) {
+                entityLineIndex = j;
+                var parts = existingFinding.technical[j].split(':');
+                if (parts.length > 1) {
+                  existingResources = parts[1].split(',').map(function(r) { return r.trim(); });
+                }
+                break;
+              }
+            }
+            
+            // Merge resources (avoid duplicates)
+            var allResources = existingResources.slice();
+            newResources.forEach(function(r) {
+              if (allResources.indexOf(r) === -1) {
+                allResources.push(r);
+              }
+            });
+            
+            // Get existing subscriptions from owner field
+            var existingSubscriptions = existingFinding.owner ? existingFinding.owner.split(',').map(function(s) { return s.trim(); }) : [];
+            
+            // Merge subscriptions (avoid duplicates)
+            var allSubscriptions = existingSubscriptions.slice();
+            newSubscriptions.forEach(function(s) {
+              if (allSubscriptions.indexOf(s) === -1) {
+                allSubscriptions.push(s);
+              }
+            });
+            
+            // Update Entity/Resource line if resources changed
+            if (allResources.length > existingResources.length) {
+              if (entityLineIndex >= 0) {
+                var prefix = existingFinding.technical[entityLineIndex].split(':')[0];
+                existingFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+              } else if (allResources.length > 0) {
+                // Entity line doesn't exist, create it at the beginning
+                existingFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+              }
+            }
+            
+            // Update owner field if subscriptions changed
+            if (allSubscriptions.length > existingSubscriptions.length) {
+              existingFinding.owner = allSubscriptions.join(', ');
+              
+              // Also update Subscription line in technical details if it exists
+              var subLineIndex = -1;
+              for (var k = 0; k < existingFinding.technical.length; k++) {
+                if (existingFinding.technical[k].startsWith('Subscription:') || 
+                    existingFinding.technical[k].startsWith('Account:')) {
+                  subLineIndex = k;
+                  break;
+                }
+              }
+              
+              if (subLineIndex >= 0) {
+                var subPrefix = existingFinding.technical[subLineIndex].split(':')[0];
+                existingFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
+              }
+            }
+            
+            updated++;
             return;
           }
 
@@ -3958,8 +4177,78 @@
             inventoryFindings: importInventoryFinding
           };
           var fn = importers[wiziQueryType] || importIssueFinding;
-          fn(item);
+          
+          // Import first item to create the finding
+          fn(firstItem);
           imported++;
+          
+          // Extract all unique subscription names from all items (for owner field)
+          var allSubscriptions = [];
+          items.forEach(function(item) {
+            var subName = getNodeSubscriptionName(item, wiziQueryType);
+            if (subName && allSubscriptions.indexOf(subName) === -1) {
+              allSubscriptions.push(subName);
+            }
+          });
+          
+          var lastFinding = findings[findings.length - 1];
+          
+          // Set owner field to subscription(s) - works for single or multiple items
+          if (allSubscriptions.length > 0) {
+            lastFinding.owner = allSubscriptions.join(', ');
+          }
+          
+          // If multiple items with same rule, consolidate resources
+          if (items.length > 1) {
+            consolidated += items.length - 1;
+            
+            // Extract all unique resource names
+            var allResources = [];
+            items.forEach(function(item) {
+              var resourceName = extractResourceName(item, wiziQueryType);
+              if (resourceName && allResources.indexOf(resourceName) === -1) {
+                allResources.push(resourceName);
+              }
+            });
+            
+            // If multiple resources, consolidate in Entity/Resource line
+            if (allResources.length > 1) {
+              var entityLineIndex = -1;
+              for (var j = 0; j < lastFinding.technical.length; j++) {
+                if (lastFinding.technical[j].startsWith('Entity:') || 
+                    lastFinding.technical[j].startsWith('Resource:') ||
+                    lastFinding.technical[j].startsWith('Principal:')) {
+                  entityLineIndex = j;
+                  break;
+                }
+              }
+              
+              if (entityLineIndex >= 0) {
+                var prefix = lastFinding.technical[entityLineIndex].split(':')[0];
+                lastFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+              } else {
+                lastFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+              }
+            }
+            
+            // If multiple subscriptions, also update Subscription line in technical details
+            if (allSubscriptions.length > 1) {
+              var subLineIndex = -1;
+              for (var k = 0; k < lastFinding.technical.length; k++) {
+                if (lastFinding.technical[k].startsWith('Subscription:') || 
+                    lastFinding.technical[k].startsWith('Account:')) {
+                  subLineIndex = k;
+                  break;
+                }
+              }
+              
+              if (subLineIndex >= 0) {
+                var subPrefix = lastFinding.technical[subLineIndex].split(':')[0];
+                lastFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
+              }
+            }
+          }
+          
           if (title) existingTitles[title.toLowerCase()] = true;
         });
 
@@ -3968,6 +4257,8 @@
         autoSave();
         switchToTab('tab-findings-list');
         var msg = 'יובאו ' + imported + ' ממצאים מ-Wizi';
+        if (consolidated) msg += ' (' + consolidated + ' משאבים נוספים אוחדו)';
+        if (updated) msg += ' (' + updated + ' ממצאים עודכנו)';
         if (skipped) msg += ' (' + skipped + ' כפולים דולגו)';
         showToast(msg, 'success');
       });
@@ -4195,6 +4486,139 @@
         if (qt === 'excessiveAccessFindings') return item.name || '';
         if (qt === 'networkExposures') return 'Network Exposure — ' + ((item.exposedEntity || {}).name || item.id);
         return item.name || '';
+      }
+
+      // ── Helper: get rule ID from a Wizi item for consolidation ──
+      function getWiziRuleId(item, qt) {
+        if (qt === 'issues') {
+          var rules = item.sourceRules || [];
+          return rules.length ? (rules[0].id || rules[0].shortId || rules[0].name) : null;
+        }
+        if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
+          var rule = item.rule || {};
+          return rule.id || rule.shortId || rule.shortName || rule.externalId || null;
+        }
+        if (qt === 'vulnerabilityFindings') {
+          // For vulns, use CVE name or vulnerability name as the "rule"
+          return item.name || item.detailedName || null;
+        }
+        if (qt === 'dataFindingsV2') {
+          var classifier = item.dataClassifier || {};
+          return classifier.id || classifier.name || null;
+        }
+        if (qt === 'secretInstances') {
+          var rule = item.rule || {};
+          return rule.id || rule.name || item.type || null;
+        }
+        if (qt === 'excessiveAccessFindings') {
+          // Use finding name as rule ID (same excessive access type)
+          return item.name || null;
+        }
+        if (qt === 'networkExposures') {
+          // Network exposures don't have rules, use exposure type + port range
+          return item.type + '_' + (item.portRange || 'any');
+        }
+        return null;
+      }
+
+      // ── Helper: extract resource info for consolidation ──
+      function extractResourceInfo(item, qt) {
+        var lines = [];
+        
+        if (qt === 'issues') {
+          var entity = item.entitySnapshot || {};
+          if (entity.name) lines.push('Resource: ' + entity.name);
+          if (entity.subscriptionName) lines.push('Subscription: ' + entity.subscriptionName);
+          if (entity.region) lines.push('Region: ' + entity.region);
+          if (entity.nativeType) lines.push('Type: ' + entity.nativeType);
+        }
+        
+        else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
+          var resource = item.resource || {};
+          var sub = resource.subscription || resource.cloudAccount || {};
+          if (resource.name) lines.push('Resource: ' + resource.name);
+          if (sub.name) lines.push('Subscription: ' + sub.name);
+          if (resource.region) lines.push('Region: ' + resource.region);
+          if (resource.nativeType || resource.type) lines.push('Type: ' + (resource.nativeType || resource.type));
+          if (item.result) lines.push('Result: ' + item.result);
+        }
+        
+        else if (qt === 'vulnerabilityFindings') {
+          var projects = (item.projects || []).map(function(p) { return p.name; }).filter(Boolean);
+          if (projects.length) lines.push('Projects: ' + projects.join(', '));
+          if (item.version) lines.push('Affected Version: ' + item.version);
+          if (item.firstDetectedAt) lines.push('First Detected: ' + item.firstDetectedAt.split('T')[0]);
+        }
+        
+        else if (qt === 'dataFindingsV2') {
+          var entity = item.graphEntity || {};
+          var account = item.cloudAccount || {};
+          if (entity.name) lines.push('Entity: ' + entity.name);
+          if (entity.type) lines.push('Type: ' + entity.type);
+          if (account.name) lines.push('Account: ' + account.name);
+        }
+        
+        else if (qt === 'secretInstances') {
+          var res = item.resource || {};
+          if (res.name) lines.push('Resource: ' + res.name);
+          if (res.nativeType) lines.push('Type: ' + res.nativeType);
+          if (res.region) lines.push('Region: ' + res.region);
+          if (item.path) lines.push('Path: ' + item.path);
+        }
+        
+        else if (qt === 'excessiveAccessFindings') {
+          var principal = item.principal || {};
+          var ge = principal.graphEntity || {};
+          var ca = principal.cloudAccount || {};
+          if (ge.name) lines.push('Principal: ' + ge.name);
+          if (ge.type) lines.push('Principal Type: ' + ge.type);
+          if (ca.name) lines.push('Account: ' + ca.name);
+        }
+        
+        else if (qt === 'networkExposures') {
+          var entity = item.exposedEntity || {};
+          if (entity.name) lines.push('Entity: ' + entity.name);
+          if (entity.type) lines.push('Type: ' + entity.type);
+          if (item.sourceIpRange) lines.push('Source IP: ' + item.sourceIpRange);
+        }
+        
+        return lines;
+      }
+
+      // ── Helper: extract just the resource/entity name for consolidation ──
+      function extractResourceName(item, qt) {
+        if (qt === 'issues') {
+          var entity = item.entitySnapshot || {};
+          return entity.name || null;
+        }
+        else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
+          var resource = item.resource || {};
+          return resource.name || null;
+        }
+        else if (qt === 'vulnerabilityFindings') {
+          // For vulnerabilities, use the name field or first project name
+          if (item.name) return item.name;
+          var projects = (item.projects || []).map(function(p) { return p.name; }).filter(Boolean);
+          return projects.length ? projects[0] : null;
+        }
+        else if (qt === 'dataFindingsV2') {
+          var entity = item.graphEntity || {};
+          return entity.name || null;
+        }
+        else if (qt === 'secretInstances') {
+          var res = item.resource || {};
+          return res.name || null;
+        }
+        else if (qt === 'excessiveAccessFindings') {
+          var principal = item.principal || {};
+          var ge = principal.graphEntity || {};
+          return ge.name || null;
+        }
+        else if (qt === 'networkExposures') {
+          var entity = item.exposedEntity || {};
+          return entity.name || null;
+        }
+        return null;
       }
 
       // ── Helper: extract auto-fill data from Wizi results ──
