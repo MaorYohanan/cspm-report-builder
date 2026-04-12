@@ -449,6 +449,7 @@
       function getDateAsDDMMYYYY() {
         if (!dateInput) return '';
 <<<<<<< HEAD
+<<<<<<< HEAD
         return (dateInput.value || '').trim();
 =======
         const val = dateInput.value; // YYYY-MM-DD from native picker
@@ -459,11 +460,15 @@
         if (!y || !m || !d) return '';
         return d + '/' + m + '/' + y;
 >>>>>>> 7889ed2 (many fixes)
+=======
+        return (dateInput.value || '').trim();
+>>>>>>> 00a97b9 (bug fixes)
       }
 
       function setDateFromDDMMYYYY(str) {
         if (!dateInput) return;
         if (!str || typeof str !== 'string') { dateInput.value = ''; return; }
+<<<<<<< HEAD
 <<<<<<< HEAD
         // Accept DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY and normalize to DD/MM/YYYY
         var parts = str.split(/[.\-\/]/);
@@ -473,15 +478,14 @@
         dateInput.value = d.padStart(2, '0') + '/' + m.padStart(2, '0') + '/' + y;
 =======
         const parts = str.split(/[.\-\/]/);
+=======
+        // Accept DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY and normalize to DD/MM/YYYY
+        var parts = str.split(/[.\-\/]/);
+>>>>>>> 00a97b9 (bug fixes)
         if (parts.length !== 3) { dateInput.value = ''; return; }
-        const [d, m, y] = parts;
+        var d = parts[0], m = parts[1], y = parts[2];
         if (!d || !m || !y) { dateInput.value = ''; return; }
-        try {
-          dateInput.value = y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
-        } catch (e) {
-          dateInput.value = '';
-        }
->>>>>>> 7889ed2 (many fixes)
+        dateInput.value = d.padStart(2, '0') + '/' + m.padStart(2, '0') + '/' + y;
       }
 
       // Today buttons
@@ -501,8 +505,31 @@
         if (digits.length === 8 && raw.indexOf('/') === -1) {
           input.value = digits.substring(0, 2) + '/' + digits.substring(2, 4) + '/' + digits.substring(4, 8);
         }
+>>>>>>> 7889ed2 (many fixes)
       }
 
+<<<<<<< HEAD
+      // Today buttons
+      document.getElementById('btn-date-today').addEventListener('click', function() {
+        dateInput.value = getTodayDDMMYYYY();
+      });
+
+      // ── Range date picker sync (DD/MM/YYYY text inputs) ──
+      var rangeFromInput = document.getElementById('report-range-from');
+      var rangeToInput = document.getElementById('report-range-to');
+      var rangeHidden = document.getElementById('report-range');
+
+      function normalizeDateInput(input) {
+        // Auto-format: if user types 8 digits, format as DD/MM/YYYY
+        var raw = (input.value || '').replace(/[^\d\/]/g, '');
+        var digits = raw.replace(/\D/g, '');
+        if (digits.length === 8 && raw.indexOf('/') === -1) {
+          input.value = digits.substring(0, 2) + '/' + digits.substring(2, 4) + '/' + digits.substring(4, 8);
+        }
+      }
+
+=======
+>>>>>>> 00a97b9 (bug fixes)
       function syncRangeFromPickers() {
         var from = (rangeFromInput.value || '').trim();
         var to = (rangeToInput.value || '').trim();
@@ -2761,6 +2788,7 @@
           (document.getElementById('report-client').value || '').trim() ||
           (document.getElementById('report-env').value || '').trim();
         
+<<<<<<< HEAD
         if (!hasData) { doNewReport(); return; }
         styledConfirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?<br>כל הנתונים שלא נשמרו יאבדו.', {
           icon: '🗑️', title: 'דו"ח חדש', confirmText: 'נקה והתחל מחדש', cancelText: 'ביטול', danger: true
@@ -2770,6 +2798,13 @@
       });
 
       function doNewReport() {        // Clear findings
+=======
+        if (hasData && !confirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?\nכל הנתונים שלא נשמרו יאבדו.')) {
+          return;
+        }
+
+        // Clear findings
+>>>>>>> 00a97b9 (bug fixes)
         findings.length = 0;
         resetEditState();
 
@@ -2801,7 +2836,11 @@
         }
         var coverPreview = document.getElementById('cover-image-preview');
         if (coverPreview) coverPreview.innerHTML = '';
+<<<<<<< HEAD
         var coverInput = document.getElementById('report-cover-image');
+=======
+        var coverInput = document.getElementById('cover-image-input');
+>>>>>>> 00a97b9 (bug fixes)
         if (coverInput) coverInput.value = '';
 
         // Clear localStorage auto-save
@@ -2810,6 +2849,7 @@
         renderFindingsTable();
         prefillId();
         updateStepper();
+<<<<<<< HEAD
 
         // Clear bulk import state
         var bulkSubInput = document.getElementById('bulk-import-sub');
@@ -2829,6 +2869,12 @@
         showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
         statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
       }
+=======
+        switchToTab('tab-report-details');
+        showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
+        statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
+      });
+>>>>>>> 00a97b9 (bug fixes)
 
       // פתיחת דיאלוג טעינת JSON
       importJsonBtn.addEventListener('click', function() {
