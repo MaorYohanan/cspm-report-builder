@@ -2633,7 +2633,7 @@
         }
         var coverPreview = document.getElementById('cover-image-preview');
         if (coverPreview) coverPreview.innerHTML = '';
-        var coverInput = document.getElementById('cover-image-input');
+        var coverInput = document.getElementById('report-cover-image');
         if (coverInput) coverInput.value = '';
 
         // Clear localStorage auto-save
