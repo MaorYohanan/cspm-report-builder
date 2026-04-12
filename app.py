@@ -971,7 +971,9 @@ def api_wizi_issues():
             filter_by["result"] = as_list(status)
         if resolved_sub_ids:
             filter_by["resource"] = {"subscriptionId": resolved_sub_ids}
-        # configurationFindings: no direct project ID filter (only projectTag)
+        if project_id:
+            filter_by.setdefault("resource", {})["projectId"] = as_list(project_id)
+        # configurationFindings: project filter via resource.projectId
         gql = WIZI_CONFIG_FINDINGS_QUERY
         root_key = "configurationFindings"
 
@@ -994,7 +996,9 @@ def api_wizi_issues():
             filter_by["status"] = as_list(status)
         if resolved_sub_ids:
             filter_by["resource"] = {"subscriptionId": resolved_sub_ids}
-        # hostConfigurationRuleAssessments: no project filter available
+        if project_id:
+            filter_by.setdefault("resource", {})["projectId"] = as_list(project_id)
+        # hostConfigurationRuleAssessments: project filter via resource.projectId
         gql = WIZI_HOST_CONFIG_QUERY
         root_key = "hostConfigurationRuleAssessments"
 

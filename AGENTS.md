@@ -106,9 +106,9 @@ Each query type uses a different field for project filtering:
 | Query Type | Filter Field | Format |
 |---|---|---|
 | `issues` | `project` | `[id]` |
-| `configurationFindings` | _(no project ID filter, only `projectTag`)_ | — |
+| `configurationFindings` | `resource.projectId` | `[id]` |
 | `vulnerabilityFindings` | `projectIdV2` | `{equals: [id]}` |
-| `hostConfigurationRuleAssessments` | _(no project filter available)_ | — |
+| `hostConfigurationRuleAssessments` | `resource.projectId` | `[id]` |
 | `dataFindingsV2` | `projectId` | `[id]` |
 | `secretInstances` | `projectId` | `[id]` |
 | `excessiveAccessFindings` | `project` | `[id]` |
@@ -164,6 +164,6 @@ Things that DON'T exist (confirmed via API errors):
 - Frontend files are volume-mounted in docker-compose — edit and refresh
 - Only `app.py` changes require `docker compose up --build -d`
 - Cache busting: `index.html` uses `?v=N` on CSS/JS includes — bump after changes
-- Current versions: JS `?v=42`, CSS `?v=18`
+- Current versions: JS `?v=46`, CSS `?v=18`
 - `.env` file is gitignored — never commit credentials
 - The tool is branded "Wizi" (rebranded from Wiz) in the UI — keep it public-ready with no org-specific references
