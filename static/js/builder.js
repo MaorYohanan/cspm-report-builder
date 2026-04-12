@@ -739,6 +739,7 @@
                 var _pdfBtn = document.getElementById('btn-render-pdf');
                 if (_pdfBtn) _pdfBtn.disabled = true;
                 if (batchActions) batchActions.style.display = 'none';
+                renderCategoryBadges();
                 return;
               }
 
