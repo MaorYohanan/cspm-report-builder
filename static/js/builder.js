@@ -2837,10 +2837,14 @@
         var coverPreview = document.getElementById('cover-image-preview');
         if (coverPreview) coverPreview.innerHTML = '';
 <<<<<<< HEAD
+<<<<<<< HEAD
         var coverInput = document.getElementById('report-cover-image');
 =======
         var coverInput = document.getElementById('cover-image-input');
 >>>>>>> 00a97b9 (bug fixes)
+=======
+        var coverInput = document.getElementById('report-cover-image');
+>>>>>>> cab1507 (bug fix)
         if (coverInput) coverInput.value = '';
 
         // Clear localStorage auto-save
