@@ -54,6 +54,7 @@
         <h1>Wizi — CSPM Report Builder</h1>
         <button class="btn btn-secondary btn-sm" id="btn-theme-toggle" title="החלף ערכת נושא" style="margin-top:0;padding:4px 8px;">🌙</button>
         <button class="btn btn-secondary btn-sm" id="btn-kbd-help" title="קיצורי מקלדת (?)" style="margin-top:0;padding:4px 8px;">⌨️</button>
+        <button class="btn btn-danger btn-sm" id="btn-new-report" title="דו"ח חדש — נקה הכל" style="margin-top:0;padding:4px 10px;">🗑️ דו"ח חדש</button>
       </div>
       <span id="autosave-indicator" class="autosave-indicator"></span>
     </div>
@@ -97,8 +98,28 @@
         </div>
         <div class="row">
           <div class="col">
-            <label for="report-range">טווח הבדיקה</label>
-            <input type="text" id="report-range" placeholder="01/01/2025 - 15/01/2025">
+            <label>טווח הבדיקה</label>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+              <div style="flex:1;min-width:110px;">
+                <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">מתאריך</span>
+                <div style="display:flex;gap:2px;align-items:center;">
+                  <input type="text" id="report-range-from" placeholder="DD/MM/YYYY" style="flex:1;">
+                  <input type="date" id="report-range-from-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                  <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-range-from-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
+                </div>
+              </div>
+              <span class="muted" style="padding-top:14px;">—</span>
+              <div style="flex:1;min-width:110px;">
+                <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">עד תאריך</span>
+                <div style="display:flex;gap:2px;align-items:center;">
+                  <input type="text" id="report-range-to" placeholder="DD/MM/YYYY" style="flex:1;">
+                  <input type="date" id="report-range-to-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                  <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-range-to-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
+                </div>
+              </div>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-range-today" title="סיום היום" style="padding:4px 8px;margin-top:14px;white-space:nowrap;">📅 היום</button>
+            </div>
+            <input type="hidden" id="report-range">
           </div>
           <div class="col">
             <label for="report-consultant">יועץ / גוף מבצע</label>
@@ -108,7 +129,12 @@
         <div class="row">
           <div class="col">
             <label for="report-date">תאריך הדו"ח</label>
-            <input type="date" id="report-date">
+            <div style="display:flex;gap:4px;align-items:center;">
+              <input type="text" id="report-date" placeholder="DD/MM/YYYY" style="flex:1;">
+              <input type="date" id="report-date-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+              <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-date-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-date-today" title="הגדר תאריך היום" style="padding:4px 8px;margin:0;white-space:nowrap;">📅 היום</button>
+            </div>
           </div>
           <div class="col">
             <label for="report-risk">הערכת סיכון כללית</label>
@@ -353,6 +379,7 @@
         <button class="btn btn-secondary" id="btn-generate" disabled>תצוגה מקדימה</button>
         <button class="btn btn-secondary" id="btn-download" disabled>הורד HTML</button>
         <button class="btn btn-secondary" id="btn-export-json">הורד תצורה</button>
+        <button class="btn btn-secondary" id="btn-export-csv">ייצוא CSV</button>
         <button class="btn btn-secondary" id="btn-import-json">טען תצורה</button>
         <button class="btn btn-secondary" id="btn-import-csv">ייבוא CSV</button>
         <button class="btn btn-secondary" id="btn-import-baseline">השוואה לקודם</button>
@@ -459,7 +486,6 @@
           </div>
           <div class="col" style="align-self:end;">
             <button class="btn btn-primary" id="btn-wizi-fetch">שלוף ממצאים</button>
-            <button class="btn btn-secondary" id="btn-wizi-load-more" style="display:none;">טען עוד</button>
           </div>
         </div>
         <!-- Wizi presets -->
@@ -472,6 +498,7 @@
         </div>
         <div id="wizi-status-msg" class="muted small-text" role="status" aria-live="polite"></div>
         <div id="wizi-results" class="small-text"></div>
+        <button class="btn btn-secondary" id="btn-wizi-load-more" style="display:none;margin-top:8px;">טען עוד</button>
         <div id="wizi-actions" style="display:none;margin-top:10px;">
           <button class="btn btn-primary" id="btn-wizi-import-selected">ייבא נבחרים לדו"ח</button>
           <button class="btn btn-secondary" id="btn-wizi-select-all">בחר/בטל הכל</button>
@@ -482,6 +509,6 @@
 
   </div>
 
-  <script src="/static/js/builder.js?v=41"></script>
+  <script src="/static/js/builder.js?v=46"></script>
 </body>
 </html>

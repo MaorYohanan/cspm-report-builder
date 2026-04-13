@@ -349,33 +349,152 @@
         this.select();
       });
 
-      // --- Date field: convert date input (YYYY-MM-DD) to DD/MM/YYYY for display ---
+      // --- Date field: DD/MM/YYYY text input (Israel format) ---
       const dateInput = document.getElementById('report-date');
+
+      function getTodayDDMMYYYY() {
+        var d = new Date();
+        var dd = String(d.getDate()).padStart(2, '0');
+        var mm = String(d.getMonth() + 1).padStart(2, '0');
+        var yyyy = d.getFullYear();
+        return dd + '/' + mm + '/' + yyyy;
+      }
 
       function getDateAsDDMMYYYY() {
         if (!dateInput) return '';
-        const val = dateInput.value; // YYYY-MM-DD from native picker
-        if (!val) return '';
-        const parts = val.split('-');
-        if (parts.length !== 3) return '';
-        const [y, m, d] = parts;
-        if (!y || !m || !d) return '';
-        return d + '/' + m + '/' + y;
+        return (dateInput.value || '').trim();
       }
 
       function setDateFromDDMMYYYY(str) {
         if (!dateInput) return;
         if (!str || typeof str !== 'string') { dateInput.value = ''; return; }
-        const parts = str.split(/[.\-\/]/);
+        // Accept DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY and normalize to DD/MM/YYYY
+        var parts = str.split(/[.\-\/]/);
         if (parts.length !== 3) { dateInput.value = ''; return; }
-        const [d, m, y] = parts;
+        var d = parts[0], m = parts[1], y = parts[2];
         if (!d || !m || !y) { dateInput.value = ''; return; }
-        try {
-          dateInput.value = y + '-' + m.padStart(2, '0') + '-' + d.padStart(2, '0');
-        } catch (e) {
-          dateInput.value = '';
+        dateInput.value = d.padStart(2, '0') + '/' + m.padStart(2, '0') + '/' + y;
+      }
+
+      // Today buttons
+      document.getElementById('btn-date-today').addEventListener('click', function() {
+        dateInput.value = getTodayDDMMYYYY();
+      });
+
+      // ── Range date picker sync (DD/MM/YYYY text inputs) ──
+      var rangeFromInput = document.getElementById('report-range-from');
+      var rangeToInput = document.getElementById('report-range-to');
+      var rangeHidden = document.getElementById('report-range');
+
+      function normalizeDateInput(input) {
+        // Auto-format: if user types 8 digits, format as DD/MM/YYYY
+        var raw = (input.value || '').replace(/[^\d\/]/g, '');
+        var digits = raw.replace(/\D/g, '');
+        if (digits.length === 8 && raw.indexOf('/') === -1) {
+          input.value = digits.substring(0, 2) + '/' + digits.substring(2, 4) + '/' + digits.substring(4, 8);
         }
       }
+
+      function syncRangeFromPickers() {
+        var from = (rangeFromInput.value || '').trim();
+        var to = (rangeToInput.value || '').trim();
+        if (from && to) {
+          rangeHidden.value = from + ' - ' + to;
+        } else if (from) {
+          rangeHidden.value = from;
+        } else if (to) {
+          rangeHidden.value = to;
+        } else {
+          rangeHidden.value = '';
+        }
+      }
+
+      function syncPickersFromRange(rangeStr) {
+        if (!rangeStr) {
+          rangeFromInput.value = '';
+          rangeToInput.value = '';
+          return;
+        }
+        var dashIdx = rangeStr.indexOf(' - ');
+        if (dashIdx >= 0) {
+          rangeFromInput.value = rangeStr.substring(0, dashIdx).trim();
+          rangeToInput.value = rangeStr.substring(dashIdx + 3).trim();
+        } else {
+          rangeFromInput.value = rangeStr.trim();
+          rangeToInput.value = '';
+        }
+      }
+
+      rangeFromInput.addEventListener('change', function() {
+        normalizeDateInput(rangeFromInput);
+        syncRangeFromPickers();
+      });
+
+      rangeToInput.addEventListener('change', function() {
+        normalizeDateInput(rangeToInput);
+        syncRangeFromPickers();
+      });
+
+      document.getElementById('btn-range-today').addEventListener('click', function() {
+        var today = getTodayDDMMYYYY();
+        if (!rangeFromInput.value) {
+          rangeFromInput.value = today;
+        }
+        rangeToInput.value = today;
+        syncRangeFromPickers();
+      });
+
+      // ── Calendar picker buttons (🗓) ──
+      // Map: hidden date input → visible text input
+      var pickerTargetMap = {
+        'report-range-from-picker': 'report-range-from',
+        'report-range-to-picker': 'report-range-to',
+        'report-date-picker': 'report-date'
+      };
+
+      function isoToDDMMYYYY(iso) {
+        if (!iso) return '';
+        var p = iso.split('-');
+        if (p.length !== 3) return '';
+        return p[2] + '/' + p[1] + '/' + p[0];
+      }
+
+      function ddmmyyyyToISO(str) {
+        if (!str) return '';
+        var p = str.split(/[.\-\/]/);
+        if (p.length !== 3) return '';
+        return p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+      }
+
+      // Wire all 🗓 buttons
+      document.querySelectorAll('.date-picker-btn').forEach(function(btn) {
+        var pickerId = btn.getAttribute('data-picker');
+        var picker = document.getElementById(pickerId);
+        if (!picker) return;
+
+        btn.addEventListener('click', function() {
+          // Pre-fill picker from current text value
+          var targetId = pickerTargetMap[pickerId];
+          var textInput = targetId ? document.getElementById(targetId) : null;
+          if (textInput && textInput.value) {
+            var iso = ddmmyyyyToISO(textInput.value);
+            if (iso) picker.value = iso;
+          }
+          picker.showPicker();
+        });
+
+        picker.addEventListener('change', function() {
+          var targetId = pickerTargetMap[pickerId];
+          var textInput = targetId ? document.getElementById(targetId) : null;
+          if (textInput && picker.value) {
+            textInput.value = isoToDDMMYYYY(picker.value);
+            // Trigger sync for range fields
+            if (targetId === 'report-range-from' || targetId === 'report-range-to') {
+              syncRangeFromPickers();
+            }
+          }
+        });
+      });
 
       // --- Priority custom field toggle ---
       const priorityCustomWrapper = document.getElementById('priority-custom-wrapper');
@@ -506,6 +625,7 @@
         document.getElementById('report-client').value      = m.client      || '';
         document.getElementById('report-env').value         = m.env         || '';
         document.getElementById('report-range').value       = m.range       || '';
+        syncPickersFromRange(m.range || '');
         document.getElementById('report-consultant').value  = m.consultant  || '';
         setDateFromDDMMYYYY(m.reportDate || '');
         document.getElementById('report-risk').value        = m.reportRisk  || '';
@@ -619,6 +739,7 @@
                 var _pdfBtn = document.getElementById('btn-render-pdf');
                 if (_pdfBtn) _pdfBtn.disabled = true;
                 if (batchActions) batchActions.style.display = 'none';
+                renderCategoryBadges();
                 return;
               }
 
@@ -1604,10 +1725,17 @@
         var findingsCardsHtml = '';
         catKeys.forEach(function(cat) {
           var catLabel = categoryMap[cat] || cat;
-          if (catKeys.length > 1) {
-            findingsCardsHtml += '<h2 style="margin-top:18px;border-right:3px solid #1d4ed8;padding-right:5px;">' + escapeHtml(cat + ' – ' + catLabel) + '</h2>\n';
+          var catFindings = findingsByCategory[cat];
+          var isFirstInCat = true;
+          
+          catFindings.forEach(function(f) {
+
+          // For the first finding in each category, wrap the category header + card together
+          var catHeaderHtml = '';
+          if (isFirstInCat && catKeys.length > 1) {
+            catHeaderHtml = '<h2 style="margin-top:18px;margin-bottom:6px;border-right:3px solid #1d4ed8;padding-right:5px;">' + escapeHtml(cat + ' – ' + catLabel) + '</h2>\n';
+            isFirstInCat = false;
           }
-          findingsByCategory[cat].forEach(function(f) {
 
           const sev = severityMap[f.severity] || severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
@@ -1641,6 +1769,7 @@
 
           findingsCardsHtml += `
           <div class="finding-wrap">
+          ${catHeaderHtml}
           <div class="finding-card" id="${anchorId}">
             <div class="finding-header">
               <div>
@@ -2005,6 +2134,7 @@
     background: #f9fafb;
     border: 1px solid #e2e8f0;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
   }
 
   .finding-header {
@@ -2066,6 +2196,8 @@
     border: 1px solid #cbd5e1;
     background: #eff6ff;
     color: #1e3a8a;
+    word-break: break-word;
+    max-width: 100%;
   }
 
   .two-column {
@@ -2076,10 +2208,14 @@
 
   .two-column > div {
     flex: 1;
+    min-width: 0;
     background: #ffffff;
     border-radius: 4px;
     border: 1px solid #e5e7eb;
     padding: 6px;
+    overflow: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
   }
 
   img {
@@ -2404,6 +2540,114 @@
         statusMsg.textContent = 'תצורת הדו"ח יוצאה כקובץ JSON (meta + ממצאים).';
       });
 
+      // ── ייצוא ממצאים כ-CSV ──
+      document.getElementById('btn-export-csv').addEventListener('click', function() {
+        if (!findings.length) {
+          showToast('אין ממצאים לייצוא', 'warning');
+          return;
+        }
+
+        var csvHeaders = ['id', 'title', 'severity', 'category', 'description', 'impact', 'technical', 'policies', 'recommendation', 'priority', 'owner'];
+
+        function csvEscape(val) {
+          var s = (val === null || val === undefined) ? '' : String(val);
+          if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || s.indexOf('\r') >= 0) {
+            return '"' + s.replace(/"/g, '""') + '"';
+          }
+          return s;
+        }
+
+        var lines = [];
+        lines.push(csvHeaders.map(csvEscape).join(','));
+
+        findings.forEach(function(f) {
+          var row = [
+            f.id || '',
+            f.title || '',
+            f.severity || '',
+            f.category || '',
+            f.description || '',
+            f.impact || '',
+            Array.isArray(f.technical) ? f.technical.join('\n') : (f.technical || ''),
+            Array.isArray(f.policies) ? f.policies.join('\n') : (f.policies || ''),
+            Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || ''),
+            f.priority || '',
+            f.owner || ''
+          ];
+          lines.push(row.map(csvEscape).join(','));
+        });
+
+        var bom = '\uFEFF';
+        var csvContent = bom + lines.join('\r\n');
+        var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = buildFilename('csv');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('יוצאו ' + findings.length + ' ממצאים ל-CSV', 'success');
+        statusMsg.textContent = 'יוצאו ' + findings.length + ' ממצאים לקובץ CSV.';
+      });
+
+      // ── דו"ח חדש — ניקוי הכל ──
+      document.getElementById('btn-new-report').addEventListener('click', function() {
+        var hasData = findings.length > 0 || 
+          (document.getElementById('report-client').value || '').trim() ||
+          (document.getElementById('report-env').value || '').trim();
+        
+        if (hasData && !confirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?\nכל הנתונים שלא נשמרו יאבדו.')) {
+          return;
+        }
+
+        // Clear findings
+        findings.length = 0;
+        resetEditState();
+
+        // Clear all meta fields
+        var metaFields = [
+          'report-client', 'report-env', 'report-range', 'report-consultant',
+          'report-risk', 'report-exec-summary', 'report-key-topics',
+          'report-team-name', 'report-org-name', 'report-footer-text',
+          'report-cover-note', 'report-version', 'report-lang'
+        ];
+        metaFields.forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.value = el.id === 'report-version' ? '1.0' : (el.id === 'report-lang' ? 'he' : '');
+        });
+
+        // Clear date
+        var dateEl = document.getElementById('report-date');
+        if (dateEl) dateEl.value = '';
+
+        // Clear range pickers
+        var rangeFrom = document.getElementById('report-range-from');
+        var rangeTo = document.getElementById('report-range-to');
+        if (rangeFrom) rangeFrom.value = '';
+        if (rangeTo) rangeTo.value = '';
+
+        // Reset cover image
+        if (typeof defaultCoverImageDataUrl !== 'undefined') {
+          coverImageDataUrl = defaultCoverImageDataUrl;
+        }
+        var coverPreview = document.getElementById('cover-image-preview');
+        if (coverPreview) coverPreview.innerHTML = '';
+        var coverInput = document.getElementById('report-cover-image');
+        if (coverInput) coverInput.value = '';
+
+        // Clear localStorage auto-save
+        try { localStorage.removeItem('cspm_report_autosave'); } catch(e) {}
+
+        renderFindingsTable();
+        prefillId();
+        updateStepper();
+        switchToTab('tab-report-details');
+        showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
+        statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
+      });
+
       // פתיחת דיאלוג טעינת JSON
       importJsonBtn.addEventListener('click', function() {
         importJsonInput.click();
@@ -2603,9 +2847,13 @@
               var colId = headers.findIndex(function(h) { return h === 'id' || h === 'finding id' || h === 'מזהה'; });
               var colTitle = headers.findIndex(function(h) { return h === 'title' || h === 'name' || h === 'כותרת' || h === 'issue'; });
               var colSev = headers.findIndex(function(h) { return h === 'severity' || h === 'חומרה' || h === 'risk'; });
+              var colCat = headers.findIndex(function(h) { return h === 'category' || h === 'קטגוריה'; });
               var colDesc = headers.findIndex(function(h) { return h === 'description' || h === 'תיאור' || h === 'details'; });
               var colImpact = headers.findIndex(function(h) { return h === 'impact' || h === 'השפעה'; });
+              var colTech = headers.findIndex(function(h) { return h === 'technical' || h === 'פרטים טכניים'; });
+              var colPolicies = headers.findIndex(function(h) { return h === 'policies' || h === 'מדיניות'; });
               var colRec = headers.findIndex(function(h) { return h === 'recommendation' || h === 'remediation' || h === 'המלצה' || h === 'fix'; });
+              var colPriority = headers.findIndex(function(h) { return h === 'priority' || h === 'עדיפות'; });
               var colOwner = headers.findIndex(function(h) { return h === 'owner' || h === 'בעלים' || h === 'team' || h === 'צוות'; });
 
               if (colTitle === -1) {
@@ -2617,17 +2865,19 @@
                 var r = rows[i];
                 var title = r[colTitle] || '';
                 if (!title) continue;
+                var cat = (colCat >= 0 && r[colCat]) ? r[colCat].trim().toUpperCase() : 'CSPM';
+                if (!categoryMap[cat]) cat = 'CSPM';
                 findings.push({
-                  id: (colId >= 0 && r[colId]) ? r[colId] : generateNextId('CSPM'),
+                  id: (colId >= 0 && r[colId]) ? r[colId] : generateNextId(cat),
                   title: title,
                   severity: colSev >= 0 ? mapSeverity(r[colSev]) : 'medium',
-                  category: 'CSPM',
+                  category: cat,
                   description: colDesc >= 0 ? (r[colDesc] || '') : '',
                   impact: colImpact >= 0 ? (r[colImpact] || '') : '',
-                  technical: [],
-                  policies: [],
+                  technical: colTech >= 0 ? splitLines(r[colTech] || '') : [],
+                  policies: colPolicies >= 0 ? splitLines(r[colPolicies] || '') : [],
                   recs: colRec >= 0 ? splitLines(r[colRec] || '') : [],
-                  priority: '',
+                  priority: colPriority >= 0 ? (r[colPriority] || '') : '',
                   owner: colOwner >= 0 ? (r[colOwner] || '') : '',
                   evidence: []
                 });
@@ -2863,7 +3113,7 @@
 
       // Default report date to today if not already set (e.g. from auto-restore)
       if (!dateInput.value) {
-        dateInput.valueAsDate = new Date();
+        dateInput.value = getTodayDDMMYYYY();
       }
 
       prefillId();
@@ -3583,6 +3833,16 @@
           wiziActionsDiv.style.display = 'none';
           return;
         }
+
+        // Sort by rule/control ID for consistent ordering
+        wiziIssues.sort(function(a, b) {
+          var idA = (getWiziRuleId(a, wiziQueryType) || '').toString().toLowerCase();
+          var idB = (getWiziRuleId(b, wiziQueryType) || '').toString().toLowerCase();
+          if (idA < idB) return -1;
+          if (idA > idB) return 1;
+          return 0;
+        });
+
         var renderers = {
           configurationFindings: renderWiziConfigTable,
           vulnerabilityFindings: renderWiziVulnTable,
@@ -4680,7 +4940,7 @@
         // Set today's date if empty
         var dateField = document.getElementById('report-date');
         if (!dateField.value) {
-          dateField.valueAsDate = new Date();
+          dateField.value = getTodayDDMMYYYY();
         }
         wiziAutoFillBanner.style.display = 'none';
         pendingAutoFill = null;
