@@ -665,6 +665,19 @@ query VulnFindings($first: Int, $after: String, $filterBy: VulnerabilityFindingF
       remediation description detailedName
       status
       projects { name }
+      vulnerableAsset {
+        ... on VulnerableAssetVirtualMachine { name type subscriptionName }
+        ... on VulnerableAssetServerless { name type subscriptionName }
+        ... on VulnerableAssetContainerImage { name type subscriptionName }
+        ... on VulnerableAssetContainer { name type subscriptionName }
+        ... on VulnerableAssetRepositoryBranch { name type subscriptionName }
+        ... on VulnerableAssetIde { name type subscriptionName }
+        ... on VulnerableAssetEndpoint { name type subscriptionName }
+        ... on VulnerableAssetPaaSResource { name type subscriptionName }
+        ... on VulnerableAssetVirtualMachineImage { name type subscriptionName }
+        ... on VulnerableAssetCommon { name type subscriptionName }
+        ... on VulnerableAssetNetworkAddress { name type subscriptionName }
+      }
       firstDetectedAt lastDetectedAt
     }
   }
@@ -681,7 +694,7 @@ query HostConfigFindings($first: Int, $after: String, $filterBy: HostConfigurati
       rule { id name description remediationInstructions }
       resource {
         name nativeType region cloudPlatform
-        subscription { name cloudProvider }
+        subscription { name cloudProvider externalId }
       }
     }
   }
@@ -697,7 +710,7 @@ query DataFindings($first: Int, $after: String, $filterBy: DataFindingFiltersV2)
       id name severity status
       dataClassifier { name category }
       graphEntity { name type }
-      cloudAccount { name cloudProvider }
+      cloudAccount { name cloudProvider externalId }
     }
   }
 }
@@ -725,7 +738,8 @@ query ExcessiveAccessFindings($first: Int, $after: String, $filterBy: ExcessiveA
     nodes {
       id name severity status cloudPlatform description
       remediationType remediationInstructions
-      principal { graphEntity { name type } cloudAccount { name } }
+      projects { name }
+      principal { graphEntity { name type } cloudAccount { name externalId } }
     }
   }
 }
@@ -754,7 +768,7 @@ query InventoryFindings($first: Int, $after: String, $filterBy: InventoryFinding
       rule { id name description }
       resource {
         name nativeType region cloudPlatform
-        cloudAccount { name }
+        cloudAccount { name externalId cloudProvider }
       }
     }
   }
@@ -1097,6 +1111,145 @@ def api_wizi_issues():
         return jsonify({"error": f"Wizi API error: {e.code}", "details": body}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 502
+
+
+# --- Bulk fetch helpers ---
+
+QUERY_TYPE_MAP = {
+    "issues": (WIZI_ISSUES_QUERY, "issues"),
+    "configurationFindings": (WIZI_CONFIG_FINDINGS_QUERY, "configurationFindings"),
+    "vulnerabilityFindings": (WIZI_VULN_FINDINGS_QUERY, "vulnerabilityFindings"),
+    "hostConfigurationRuleAssessments": (WIZI_HOST_CONFIG_QUERY, "hostConfigurationRuleAssessments"),
+    "dataFindingsV2": (WIZI_DATA_FINDINGS_QUERY, "dataFindingsV2"),
+    "secretInstances": (WIZI_SECRET_INSTANCES_QUERY, "secretInstances"),
+    "excessiveAccessFindings": (WIZI_EXCESSIVE_ACCESS_QUERY, "excessiveAccessFindings"),
+    "networkExposures": (WIZI_NETWORK_EXPOSURE_QUERY, "networkExposures"),
+    "inventoryFindings": (WIZI_INVENTORY_FINDINGS_QUERY, "inventoryFindings"),
+}
+
+
+def build_bulk_filter(query_type, sub_ids, sub_ext_ids):
+    """Build a filterBy dict for a given query type with HIGH/CRITICAL severity,
+    OPEN/IN_PROGRESS status (or FAIL for configurationFindings), and subscription filter."""
+    filter_by = {}
+
+    # --- Severity filter ---
+    if query_type in ("issues", "configurationFindings", "vulnerabilityFindings", "hostConfigurationRuleAssessments"):
+        filter_by["severity"] = ["CRITICAL", "HIGH"]
+    elif query_type == "networkExposures":
+        pass  # networkExposures has no severity filter
+    else:
+        # dataFindingsV2, secretInstances, excessiveAccessFindings, inventoryFindings
+        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
+
+    # --- Status filter ---
+    if query_type == "configurationFindings":
+        filter_by["result"] = ["FAIL"]
+    elif query_type == "networkExposures":
+        pass  # networkExposures has no status filter
+    elif query_type in ("issues", "vulnerabilityFindings", "hostConfigurationRuleAssessments"):
+        filter_by["status"] = ["OPEN", "IN_PROGRESS"]
+    else:
+        # dataFindingsV2, secretInstances, excessiveAccessFindings, inventoryFindings
+        filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
+
+    # --- Subscription filter (only if IDs are available) ---
+    if query_type == "issues" and sub_ids:
+        filter_by["cloudAccountOrCloudOrganizationId"] = sub_ids
+    elif query_type == "configurationFindings" and sub_ids:
+        filter_by["resource"] = {"subscriptionId": sub_ids}
+    elif query_type == "vulnerabilityFindings" and sub_ext_ids:
+        filter_by["subscriptionExternalId"] = sub_ext_ids
+    elif query_type == "hostConfigurationRuleAssessments" and sub_ids:
+        filter_by["resource"] = {"subscriptionId": sub_ids}
+    elif query_type == "dataFindingsV2" and sub_ext_ids:
+        filter_by["graphEntityCloudAccount"] = {"equals": sub_ext_ids}
+    elif query_type == "secretInstances" and sub_ext_ids:
+        filter_by["cloudAccount"] = {"equals": sub_ext_ids}
+    elif query_type == "excessiveAccessFindings":
+        pass  # No server-side subscription filter
+    elif query_type == "networkExposures" and sub_ext_ids:
+        filter_by["cloudAccount"] = sub_ext_ids
+    elif query_type == "inventoryFindings" and sub_ids:
+        filter_by["resource"] = {"subscriptionId": {"equals": sub_ids}}
+
+    return filter_by
+
+
+@app.route("/api/wizi/bulk-fetch", methods=["POST"])
+def api_wizi_bulk_fetch():
+    """Fetch findings across all 9 query types for a subscription."""
+    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+        return jsonify({"error": "Wizi integration not configured"}), 501
+
+    data = request.get_json(silent=True) or {}
+    subscription = (data.get("subscription") or "").strip()
+    if not subscription:
+        return jsonify({"error": "יש להזין שם Subscription"}), 400
+
+    # --- Resolve subscription name → cloud account UUIDs + externalIds ---
+    resolved_sub_ids: list = []
+    resolved_sub_ext_ids: list = []
+    resolved_sub_names: list = []
+
+    try:
+        sub_result = _wizi_graphql(
+            'query($filterBy: CloudAccountFilters) { cloudAccounts(first: 100, filterBy: $filterBy) { nodes { id name externalId } } }',
+            {"filterBy": {"search": subscription}}
+        )
+        nodes = sub_result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+
+        # If no exact match, try partial search with significant parts
+        if not nodes:
+            parts = subscription.replace("_", "-").split("-")
+            significant_parts = [p for p in parts if len(p) >= 4 and p.lower() not in ("aws", "azure", "gcp", "dev", "prod", "test", "stg")]
+
+            if significant_parts:
+                for part in significant_parts:
+                    sub_result = _wizi_graphql(
+                        'query($filterBy: CloudAccountFilters) { cloudAccounts(first: 100, filterBy: $filterBy) { nodes { id name externalId } } }',
+                        {"filterBy": {"search": part}}
+                    )
+                    nodes = sub_result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+                    if nodes:
+                        nodes = [n for n in nodes if subscription.lower() in n.get("name", "").lower()]
+                        if nodes:
+                            break
+
+        resolved_sub_ids = [n["id"] for n in nodes if n.get("id")]
+        resolved_sub_ext_ids = [n["externalId"] for n in nodes if n.get("externalId")]
+        resolved_sub_names = [n["name"] for n in nodes if n.get("name")]
+    except Exception:
+        pass  # Continue without subscription filter
+
+    resolved_subscription = {
+        "ids": resolved_sub_ids,
+        "externalIds": resolved_sub_ext_ids,
+        "names": resolved_sub_names,
+    }
+
+    # --- Fetch all 9 query types sequentially ---
+    results = {}
+    errors = {}
+
+    for query_type, (gql, root_key) in QUERY_TYPE_MAP.items():
+        try:
+            filter_by = build_bulk_filter(query_type, resolved_sub_ids, resolved_sub_ext_ids)
+            variables = {"first": 500, "filterBy": filter_by}
+            result = _wizi_graphql(gql, variables)
+            query_data = result.get("data", {}).get(root_key, {})
+            results[query_type] = {
+                "nodes": query_data.get("nodes", []),
+                "totalCount": query_data.get("totalCount", 0),
+            }
+        except Exception as e:
+            errors[query_type] = str(e)
+
+    return jsonify({
+        "results": results,
+        "resolvedSubscription": resolved_subscription,
+        "errors": errors,
+    })
 
 
 @app.route("/api/wizi/find-by-id", methods=["POST"])

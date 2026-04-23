@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=18">
+  <link rel="stylesheet" href="/static/css/builder.css?v=19">
 </head>
 <body>
   <!-- Toast container -->
@@ -407,6 +407,30 @@
     <!-- Panel: Wizi integration -->
     <section class="tab-panel" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
       <div class="section-body">
+        <!-- Bulk Import Section -->
+        <div class="wizi-quick-add" id="bulk-import-section">
+          <label>📦 ייבוא מרוכז לפי Subscription</label>
+          <div class="row" style="align-items:end;">
+            <div class="col">
+              <div class="autocomplete-wrapper">
+                <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
+                <input type="hidden" id="bulk-import-sub-id">
+                <div class="autocomplete-list" id="bulk-import-sub-list"></div>
+              </div>
+            </div>
+            <div class="col" style="max-width:160px;">
+              <button class="btn btn-primary" id="btn-bulk-import">ייבוא מרוכז</button>
+            </div>
+          </div>
+          <div id="bulk-import-progress" class="muted small-text" style="margin-top:6px;"></div>
+          <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
+          <div id="bulk-import-actions" style="display:none;margin-top:10px;">
+            <button class="btn btn-primary" id="btn-bulk-import-selected">ייבא נבחרים לדו"ח</button>
+            <button class="btn btn-secondary" id="btn-bulk-select-all">בחר/בטל הכל</button>
+            <span id="bulk-selected-count" class="muted small-text" style="margin-right:10px;"></span>
+          </div>
+        </div>
+        <hr style="border-color:var(--border);margin:16px 0;">
         <!-- Quick fetch by ID -->
         <div class="wizi-quick-add">
           <label for="wizi-find-id">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
@@ -509,6 +533,6 @@
 
   </div>
 
-  <script src="/static/js/builder.js?v=46"></script>
+  <script src="/static/js/builder.js?v=47"></script>
 </body>
 </html>
