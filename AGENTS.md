@@ -1,4 +1,7 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
 # CSPM Report Builder — AI Agent Context
 
 This file provides structured context for AI agents working on this codebase.
@@ -168,6 +171,7 @@ Things that DON'T exist (confirmed via API errors):
 - Current versions: JS `?v=46`, CSS `?v=18`
 - `.env` file is gitignored — never commit credentials
 - The tool is branded "Wizi" (rebranded from Wiz) in the UI — keep it public-ready with no org-specific references
+<<<<<<< HEAD
 =======
 # CSPM Report Builder — AI Agent Context
 
@@ -339,3 +343,5 @@ Things that DON'T exist (confirmed via API errors):
 - `.env` file is gitignored — never commit credentials
 - The tool is branded "Wizi" (rebranded from Wiz) in the UI — keep it public-ready with no org-specific references
 >>>>>>> 7889ed2 (many fixes)
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)

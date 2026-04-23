@@ -1114,6 +1114,7 @@
           showToast(indices.length + ' ממצאים נמחקו', 'info');
           promptReorderAfterDelete();
         });
+<<<<<<< HEAD
       });
 
       // Batch AI enrich selected findings
@@ -1134,6 +1135,8 @@
           return;
         }
         enrichFindingsWithAiSummaries(selected);
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
       });
 
       // Findings filter listeners
@@ -1584,6 +1587,7 @@
           prefillId();
           statusMsg.textContent = 'כל הממצאים נמחקו.';
         });
+<<<<<<< HEAD
       });
 
       // AI enrich all findings
@@ -1604,6 +1608,8 @@
           return;
         }
         enrichFindingsWithAiSummaries(toEnrich);
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
       });
 
       // Clear form
@@ -2789,6 +2795,9 @@
           (document.getElementById('report-env').value || '').trim();
         
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
         if (!hasData) { doNewReport(); return; }
         styledConfirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?<br>כל הנתונים שלא נשמרו יאבדו.', {
           icon: '🗑️', title: 'דו"ח חדש', confirmText: 'נקה והתחל מחדש', cancelText: 'ביטול', danger: true
@@ -2796,6 +2805,7 @@
           if (yes) doNewReport();
         });
       });
+<<<<<<< HEAD
 
       function doNewReport() {        // Clear findings
 =======
@@ -2805,6 +2815,10 @@
 
         // Clear findings
 >>>>>>> 00a97b9 (bug fixes)
+=======
+
+      function doNewReport() {        // Clear findings
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
         findings.length = 0;
         resetEditState();
 
@@ -2854,6 +2868,9 @@
         prefillId();
         updateStepper();
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
 
         // Clear bulk import state
         var bulkSubInput = document.getElementById('bulk-import-sub');
@@ -2869,6 +2886,7 @@
         bulkImportResults = {};
         bulkImportRunning = false;
 
+<<<<<<< HEAD
         switchToTab('tab-report-details');
         showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
         statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
@@ -2879,6 +2897,12 @@
         statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
       });
 >>>>>>> 00a97b9 (bug fixes)
+=======
+        switchToTab('tab-report-details');
+        showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
+        statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
+      }
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
 
       // פתיחת דיאלוג טעינת JSON
       importJsonBtn.addEventListener('click', function() {
@@ -6723,6 +6747,7 @@
         });
       }
 
+<<<<<<< HEAD
       document.getElementById('btn-bulk-expand-all').addEventListener('click', function() {
         document.querySelectorAll('#bulk-import-results details').forEach(function(d) { d.open = true; });
       });
@@ -6735,6 +6760,11 @@
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
           var beforeCount = findings.length;
+=======
+      var btnBulkImportSelected = document.getElementById('btn-bulk-import-selected');
+      if (btnBulkImportSelected) {
+        btnBulkImportSelected.addEventListener('click', function() {
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
           var result = importSelectedBulkFindings();
           if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
             showToast('לא נבחרו ממצאים לייבוא', 'warning');
@@ -6750,6 +6780,7 @@
           prefillId();
           autoSave();
           switchToTab('tab-findings-list');
+<<<<<<< HEAD
 
           // Enrich newly imported findings with AI remediation summaries
           var newFindings = findings.slice(beforeCount);
@@ -6760,6 +6791,8 @@
               if (yes) enrichFindingsWithAiSummaries(newFindings);
             });
           }
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
         });
       }
 

@@ -999,6 +999,7 @@ select[multiple] option {
   box-shadow: 0 4px 14px rgba(239, 68, 68, 0.25);
 }
 
+<<<<<<< HEAD
 /* ── AI progress bar ── */
 .ai-progress-container {
   position: fixed;
@@ -1080,6 +1081,8 @@ select[multiple] option {
   background: rgba(239, 68, 68, 0.25);
 }
 
+=======
+>>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
 /* ── Finding preview panel ── */
 .preview-panel {
   position: fixed;
