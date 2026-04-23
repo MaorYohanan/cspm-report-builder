@@ -363,9 +363,11 @@
             <option value="למעקב">למעקב</option>
           </select>
           <input type="text" id="batch-owner" class="filter-input" placeholder="שנה בעלים..." style="max-width:150px;">
+          <button class="btn btn-secondary btn-sm" id="btn-batch-ai-enrich">🤖 שפר המלצות</button>
           <button class="btn btn-danger btn-sm" id="btn-batch-delete">מחק נבחרים</button>
         </div>
         <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין לפי חומרה ↓</button>
+        <button class="btn btn-secondary btn-sm" id="btn-ai-enrich-all">🤖 הפעל שיפור המלצות להכל</button>
         <button class="btn btn-danger btn-sm" id="btn-clear-all-findings">מחק הכל</button>
         <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
         <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
@@ -423,12 +425,14 @@
             </div>
           </div>
           <div id="bulk-import-progress" class="muted small-text" style="margin-top:6px;"></div>
-          <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
           <div id="bulk-import-actions" style="display:none;margin-top:10px;">
             <button class="btn btn-primary" id="btn-bulk-import-selected">ייבא נבחרים לדו"ח</button>
             <button class="btn btn-secondary" id="btn-bulk-select-all">בחר/בטל הכל</button>
+            <button class="btn btn-secondary btn-sm" id="btn-bulk-expand-all" title="הרחב הכל" style="padding:4px 8px;">▼</button>
+            <button class="btn btn-secondary btn-sm" id="btn-bulk-collapse-all" title="כווץ הכל" style="padding:4px 8px;">▲</button>
             <span id="bulk-selected-count" class="muted small-text" style="margin-right:10px;"></span>
           </div>
+          <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
         </div>
         <hr style="border-color:var(--border);margin:16px 0;">
         <!-- Quick fetch by ID -->

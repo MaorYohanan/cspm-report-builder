@@ -1067,6 +1067,26 @@
         });
       });
 
+      // Batch AI enrich selected findings
+      document.getElementById('btn-batch-ai-enrich').addEventListener('click', function() {
+        var indices = getSelectedFindingIndices();
+        if (!indices.length) {
+          showToast('לא נבחרו ממצאים', 'warning');
+          return;
+        }
+        var selected = indices.map(function(idx) { return findings[idx]; }).filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+        if (!selected.length) {
+          showToast('כל הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+          return;
+        }
+        enrichFindingsWithAiSummaries(selected);
+      });
+
       // Findings filter listeners
       document.getElementById('findings-search').addEventListener('input', renderFindingsTable);
       document.getElementById('findings-filter-category').addEventListener('change', renderFindingsTable);
@@ -1515,6 +1535,26 @@
           prefillId();
           statusMsg.textContent = 'כל הממצאים נמחקו.';
         });
+      });
+
+      // AI enrich all findings
+      document.getElementById('btn-ai-enrich-all').addEventListener('click', function() {
+        if (!findings.length) {
+          showToast('אין ממצאים לשיפור', 'warning');
+          return;
+        }
+        // Filter out findings that already have an AI summary
+        var toEnrich = findings.filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+        if (!toEnrich.length) {
+          showToast('כל הממצאים כבר כוללים סיכום AI', 'info');
+          return;
+        }
+        enrichFindingsWithAiSummaries(toEnrich);
       });
 
       // Clear form
@@ -4420,6 +4460,7 @@
       });
 
       wiziImportBtn.addEventListener('click', function() {
+        var beforeCount = findings.length;
         var selected = [];
         document.querySelectorAll('.wizi-check:checked').forEach(function(cb) {
           var idx = parseInt(cb.getAttribute('data-idx'));
@@ -4703,6 +4744,16 @@
         if (updated) msg += ' (' + updated + ' ממצאים עודכנו)';
         if (skipped) msg += ' (' + skipped + ' כפולים דולגו)';
         showToast(msg, 'success');
+
+        // Enrich newly imported findings with AI remediation summaries
+        var newFindings = findings.slice(beforeCount);
+        if (newFindings.length) {
+          styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
+            icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
+          }).then(function(yes) {
+            if (yes) enrichFindingsWithAiSummaries(newFindings);
+          });
+        }
       });
 
       // ── Fetch by Wizi finding ID ──
@@ -5307,6 +5358,137 @@
         }
 
         return recs;
+      }
+
+      // AI remediation summary cache (keyed by remediation text hash)
+      var _aiSummaryCache = {};
+
+      function fetchRemediationSummary(title, remediationText, retries) {
+        if (!remediationText || remediationText.length < 30) return Promise.resolve(null);
+        retries = retries || 0;
+        var cacheKey = remediationText.substring(0, 200);
+        if (_aiSummaryCache[cacheKey]) return Promise.resolve(_aiSummaryCache[cacheKey]);
+
+        return fetch('/api/summarize-remediation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title, text: remediationText })
+        })
+        .then(function(r) {
+          if ((r.status === 429 || r.status === 502) && retries < 3) {
+            var delay = (retries + 1) * 3000;
+            console.warn('AI summary error ' + r.status + ', retrying in ' + delay + 'ms...');
+            return new Promise(function(resolve) { setTimeout(resolve, delay); })
+              .then(function() { return fetchRemediationSummary(title, remediationText, retries + 1); });
+          }
+          if (!r.ok) {
+            return r.json().catch(function() { return {}; }).then(function(d) {
+              var errMsg = d.error || ('HTTP ' + r.status);
+              throw new Error(errMsg);
+            });
+          }
+          return r.json();
+        })
+        .then(function(data) {
+          if (data && data.summary) {
+            _aiSummaryCache[cacheKey] = data.summary;
+            return data.summary;
+          }
+          return null;
+        });
+      }
+
+      function enrichFindingsWithAiSummaries(findingsToEnrich) {
+        var toEnrich = findingsToEnrich.filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+
+        if (!toEnrich.length) return Promise.resolve();
+
+        // Create progress bar
+        var container = document.createElement('div');
+        container.className = 'ai-progress-container';
+        container.innerHTML =
+          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 מייצר סיכומי AI להמלצות</span></div>' +
+          '<div class="ai-progress-track"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>' +
+          '<div class="ai-progress-label"><span id="ai-progress-label">0 / ' + toEnrich.length + '</span><button class="ai-progress-abort" id="ai-progress-abort">ביטול</button></div>';
+        document.body.appendChild(container);
+
+        var fillEl = container.querySelector('#ai-progress-fill');
+        var labelEl = container.querySelector('#ai-progress-label');
+        var aborted = false;
+
+        container.querySelector('#ai-progress-abort').addEventListener('click', function() {
+          aborted = true;
+        });
+        var idx = 0;
+        var enriched = 0;
+
+        function updateProgress() {
+          var pct = Math.round((idx / toEnrich.length) * 100);
+          fillEl.style.width = pct + '%';
+          labelEl.textContent = idx + ' / ' + toEnrich.length + (enriched ? ' (' + enriched + ' הוספו)' : '');
+        }
+
+        function processNext() {
+          if (aborted) {
+            container.querySelector('.ai-spinner').style.display = 'none';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '⏹ בוטל';
+            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('#ai-progress-abort').style.display = 'none';
+            setTimeout(function() {
+              if (container.parentNode) container.parentNode.removeChild(container);
+            }, 1500);
+            autoSave();
+            return Promise.resolve();
+          }
+          if (idx >= toEnrich.length) {
+            // Done — show completion briefly then remove
+            fillEl.style.width = '100%';
+            container.querySelector('.ai-spinner').style.display = 'none';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ סיכומי AI הושלמו';
+            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('#ai-progress-abort').style.display = 'none';
+            setTimeout(function() {
+              if (container.parentNode) container.parentNode.removeChild(container);
+            }, 2000);
+            autoSave();
+            return Promise.resolve();
+          }
+          var f = toEnrich[idx++];
+          updateProgress();
+          var recsText = f.recs.join('\n');
+          return fetchRemediationSummary(f.title, recsText).then(function(summary) {
+            if (summary) {
+              f.recs.unshift('🤖 ' + summary);
+              enriched++;
+              renderFindingsTable();
+            }
+            updateProgress();
+          }).then(function() {
+            return new Promise(function(resolve) { setTimeout(resolve, 3000); });
+          }).then(processNext)
+          .catch(function(err) {
+            // Failed after retries — abort and notify
+            fillEl.style.background = 'var(--danger)';
+            container.querySelector('.ai-spinner').style.display = 'none';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '❌ שיפור ההמלצות נכשל';
+            labelEl.textContent = err.message || 'שגיאה בלתי צפויה';
+            var abortBtn = container.querySelector('#ai-progress-abort');
+            abortBtn.textContent = 'אישור';
+            abortBtn.style.background = 'var(--accent)';
+            abortBtn.style.color = 'white';
+            abortBtn.style.borderColor = 'var(--accent)';
+            abortBtn.onclick = function() {
+              if (container.parentNode) container.parentNode.removeChild(container);
+            };
+            autoSave();
+          });
+        }
+
+        return processNext();
       }
 
       function importIssueFinding(issue) {
@@ -6469,9 +6651,18 @@
         });
       }
 
+      document.getElementById('btn-bulk-expand-all').addEventListener('click', function() {
+        document.querySelectorAll('#bulk-import-results details').forEach(function(d) { d.open = true; });
+      });
+
+      document.getElementById('btn-bulk-collapse-all').addEventListener('click', function() {
+        document.querySelectorAll('#bulk-import-results details').forEach(function(d) { d.open = false; });
+      });
+
       var btnBulkImportSelected = document.getElementById('btn-bulk-import-selected');
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
+          var beforeCount = findings.length;
           var result = importSelectedBulkFindings();
           if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
             showToast('לא נבחרו ממצאים לייבוא', 'warning');
@@ -6487,6 +6678,16 @@
           prefillId();
           autoSave();
           switchToTab('tab-findings-list');
+
+          // Enrich newly imported findings with AI remediation summaries
+          var newFindings = findings.slice(beforeCount);
+          if (newFindings.length) {
+            styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
+              icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
+            }).then(function(yes) {
+              if (yes) enrichFindingsWithAiSummaries(newFindings);
+            });
+          }
         });
       }
 
