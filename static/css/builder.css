@@ -1000,6 +1000,9 @@ select[multiple] option {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
 /* ── AI progress bar ── */
 .ai-progress-container {
   position: fixed;
@@ -1081,8 +1084,11 @@ select[multiple] option {
   background: rgba(239, 68, 68, 0.25);
 }
 
+<<<<<<< HEAD
 =======
 >>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
 /* ── Finding preview panel ── */
 .preview-panel {
   position: fixed;

@@ -488,6 +488,9 @@ GEMINI_SYSTEM_PROMPT = (
 )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
 REMEDIATION_SUMMARY_PROMPT = (
     "You are a senior cloud security consultant. "
     "Given a remediation instruction for a cloud security finding, write a SHORT summary (1-2 sentences) "
@@ -549,8 +552,11 @@ def api_summarize_remediation():
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
+<<<<<<< HEAD
 =======
 >>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
 
 @app.route("/api/suggest", methods=["POST"])
 def api_suggest():

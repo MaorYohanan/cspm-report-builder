@@ -1139,6 +1139,26 @@
 >>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
       });
 
+      // Batch AI enrich selected findings
+      document.getElementById('btn-batch-ai-enrich').addEventListener('click', function() {
+        var indices = getSelectedFindingIndices();
+        if (!indices.length) {
+          showToast('לא נבחרו ממצאים', 'warning');
+          return;
+        }
+        var selected = indices.map(function(idx) { return findings[idx]; }).filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+        if (!selected.length) {
+          showToast('כל הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+          return;
+        }
+        enrichFindingsWithAiSummaries(selected);
+      });
+
       // Findings filter listeners
       document.getElementById('findings-search').addEventListener('input', renderFindingsTable);
       document.getElementById('findings-filter-category').addEventListener('change', renderFindingsTable);
@@ -1610,6 +1630,26 @@
         enrichFindingsWithAiSummaries(toEnrich);
 =======
 >>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
+      });
+
+      // AI enrich all findings
+      document.getElementById('btn-ai-enrich-all').addEventListener('click', function() {
+        if (!findings.length) {
+          showToast('אין ממצאים לשיפור', 'warning');
+          return;
+        }
+        // Filter out findings that already have an AI summary
+        var toEnrich = findings.filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+        if (!toEnrich.length) {
+          showToast('כל הממצאים כבר כוללים סיכום AI', 'info');
+          return;
+        }
+        enrichFindingsWithAiSummaries(toEnrich);
       });
 
       // Clear form
@@ -6748,6 +6788,9 @@
       }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
       document.getElementById('btn-bulk-expand-all').addEventListener('click', function() {
         document.querySelectorAll('#bulk-import-results details').forEach(function(d) { d.open = true; });
       });
@@ -6760,11 +6803,14 @@
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
           var beforeCount = findings.length;
+<<<<<<< HEAD
 =======
       var btnBulkImportSelected = document.getElementById('btn-bulk-import-selected');
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
 >>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
           var result = importSelectedBulkFindings();
           if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
             showToast('לא נבחרו ממצאים לייבוא', 'warning');
@@ -6781,6 +6827,9 @@
           autoSave();
           switchToTab('tab-findings-list');
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
 
           // Enrich newly imported findings with AI remediation summaries
           var newFindings = findings.slice(beforeCount);
@@ -6791,8 +6840,11 @@
               if (yes) enrichFindingsWithAiSummaries(newFindings);
             });
           }
+<<<<<<< HEAD
 =======
 >>>>>>> 3243bf3 (new bulk-query feature and bug fixes)
+=======
+>>>>>>> 5bc0077 (new ai recomandation improver feature and bug fixes)
         });
       }
 
