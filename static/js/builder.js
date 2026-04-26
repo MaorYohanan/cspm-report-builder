@@ -49,6 +49,50 @@
         setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 3200);
       }
 
+      function styledConfirm(message, opts) {
+        opts = opts || {};
+        var icon = opts.icon || '⚠️';
+        var title = opts.title || '';
+        var confirmText = opts.confirmText || 'אישור';
+        var cancelText = opts.cancelText || 'ביטול';
+        var danger = opts.danger || false;
+
+        return new Promise(function(resolve) {
+          var overlay = document.createElement('div');
+          overlay.className = 'confirm-overlay';
+
+          var dialog = document.createElement('div');
+          dialog.className = 'confirm-dialog';
+
+          dialog.innerHTML =
+            '<div class="confirm-dialog-icon">' + icon + '</div>' +
+            (title ? '<div class="confirm-dialog-title">' + title + '</div>' : '') +
+            '<div class="confirm-dialog-message">' + message + '</div>' +
+            '<div class="confirm-dialog-actions">' +
+              '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="confirm-yes">' + confirmText + '</button>' +
+              '<button class="btn btn-secondary" id="confirm-no">' + cancelText + '</button>' +
+            '</div>';
+
+          overlay.appendChild(dialog);
+          document.body.appendChild(overlay);
+
+          function cleanup(result) {
+            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            resolve(result);
+          }
+
+          dialog.querySelector('#confirm-yes').addEventListener('click', function() { cleanup(true); });
+          dialog.querySelector('#confirm-no').addEventListener('click', function() { cleanup(false); });
+          overlay.addEventListener('click', function(e) { if (e.target === overlay) cleanup(false); });
+          document.addEventListener('keydown', function handler(e) {
+            if (e.key === 'Escape') { document.removeEventListener('keydown', handler); cleanup(false); }
+            if (e.key === 'Enter') { document.removeEventListener('keydown', handler); cleanup(true); }
+          });
+
+          dialog.querySelector('#confirm-yes').focus();
+        });
+      }
+
       // ── Theme toggle ──
       (function() {
         var saved = localStorage.getItem('cspm_theme') || 'dark';
@@ -325,6 +369,48 @@
         return prefix + '-' + String(max + 1).padStart(3, '0');
       }
 
+      function reorderFindingIds() {
+        // Re-number IDs per category sequentially
+        var counters = {};
+        findings.forEach(function(f) {
+          var m = (f.id || '').match(/^([A-Z]+)-\d+/);
+          if (!m) return;
+          var prefix = m[1];
+          if (!counters[prefix]) counters[prefix] = 0;
+          counters[prefix]++;
+          f.id = prefix + '-' + String(counters[prefix]).padStart(3, '0');
+        });
+      }
+
+      function promptReorderAfterDelete() {
+        if (!findings.length) return;
+        var byCategory = {};
+        findings.forEach(function(f) {
+          var m = (f.id || '').match(/^([A-Z]+)-(\d+)/);
+          if (!m) return;
+          if (!byCategory[m[1]]) byCategory[m[1]] = [];
+          byCategory[m[1]].push(parseInt(m[2], 10));
+        });
+        var hasGap = false;
+        Object.keys(byCategory).forEach(function(cat) {
+          var nums = byCategory[cat].sort(function(a, b) { return a - b; });
+          for (var i = 0; i < nums.length; i++) {
+            if (nums[i] !== i + 1) { hasGap = true; break; }
+          }
+        });
+        if (!hasGap) return;
+        styledConfirm('יש פערים במספור המזהים. לסדר מחדש?', {
+          icon: '🔢', title: 'מספור מזהים', confirmText: 'סדר מחדש', cancelText: 'השאר כמו שזה'
+        }).then(function(yes) {
+          if (yes) {
+            reorderFindingIds();
+            renderFindingsTable();
+            prefillId();
+            showToast('מזהים סודרו מחדש', 'success');
+          }
+        });
+      }
+
       function prefillId() {
         var idField = document.getElementById('f-id');
         if (!idField) return;
@@ -557,12 +643,17 @@
           startEditFinding(kbSelectedIdx);
         } else if ((e.key === 'd' || e.key === 'D') && kbSelectedIdx >= 0) {
           e.preventDefault();
-          if (confirm('למחוק ממצא ' + (findings[kbSelectedIdx].id || '') + '?')) {
-            findings.splice(kbSelectedIdx, 1);
-            if (kbSelectedIdx >= findings.length) kbSelectedIdx = findings.length - 1;
-            renderFindingsTable();
-            highlightFindingRow(kbSelectedIdx);
-          }
+          styledConfirm('למחוק ממצא ' + (findings[kbSelectedIdx].id || '') + '?', {
+            icon: '🗑️', title: 'מחיקת ממצא', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+          }).then(function(yes) {
+            if (yes) {
+              findings.splice(kbSelectedIdx, 1);
+              if (kbSelectedIdx >= findings.length) kbSelectedIdx = findings.length - 1;
+              renderFindingsTable();
+              highlightFindingRow(kbSelectedIdx);
+              promptReorderAfterDelete();
+            }
+          });
         }
       });
 
@@ -815,6 +906,7 @@
                     else if (editingIndex !== null && idx < editingIndex) editingIndex--;
                     renderFindingsTable();
                     showToast('ממצא נמחק', 'info');
+                    promptReorderAfterDelete();
                   } else if (action === 'preview') {
                     showFindingPreview(idx);
                   } else if (action === 'edit') {
@@ -962,12 +1054,37 @@
       document.getElementById('btn-batch-delete').addEventListener('click', function() {
         var indices = getSelectedFindingIndices().sort(function(a, b) { return b - a; });
         if (!indices.length) return;
-        if (!confirm('למחוק ' + indices.length + ' ממצאים?')) return;
-        indices.forEach(function(idx) { findings.splice(idx, 1); });
-        editingIndex = null;
-        renderFindingsTable();
-        autoSave();
-        showToast(indices.length + ' ממצאים נמחקו', 'info');
+        styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
+          icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+        }).then(function(yes) {
+          if (!yes) return;
+          indices.forEach(function(idx) { findings.splice(idx, 1); });
+          editingIndex = null;
+          renderFindingsTable();
+          autoSave();
+          showToast(indices.length + ' ממצאים נמחקו', 'info');
+          promptReorderAfterDelete();
+        });
+      });
+
+      // Batch AI enrich selected findings
+      document.getElementById('btn-batch-ai-enrich').addEventListener('click', function() {
+        var indices = getSelectedFindingIndices();
+        if (!indices.length) {
+          showToast('לא נבחרו ממצאים', 'warning');
+          return;
+        }
+        var selected = indices.map(function(idx) { return findings[idx]; }).filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+        if (!selected.length) {
+          showToast('כל הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+          return;
+        }
+        enrichFindingsWithAiSummaries(selected);
       });
 
       // Findings filter listeners
@@ -1408,12 +1525,36 @@
       // Clear all findings
       document.getElementById('btn-clear-all-findings').addEventListener('click', function() {
         if (!findings.length) return;
-        if (!confirm('למחוק את כל ' + findings.length + ' הממצאים?')) return;
-        findings.length = 0;
-        resetEditState();
-        renderFindingsTable();
-        prefillId();
-        statusMsg.textContent = 'כל הממצאים נמחקו.';
+        styledConfirm('למחוק את כל ' + findings.length + ' הממצאים?', {
+          icon: '🗑️', title: 'מחיקת כל הממצאים', confirmText: 'מחק הכל', cancelText: 'ביטול', danger: true
+        }).then(function(yes) {
+          if (!yes) return;
+          findings.length = 0;
+          resetEditState();
+          renderFindingsTable();
+          prefillId();
+          statusMsg.textContent = 'כל הממצאים נמחקו.';
+        });
+      });
+
+      // AI enrich all findings
+      document.getElementById('btn-ai-enrich-all').addEventListener('click', function() {
+        if (!findings.length) {
+          showToast('אין ממצאים לשיפור', 'warning');
+          return;
+        }
+        // Filter out findings that already have an AI summary
+        var toEnrich = findings.filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+        if (!toEnrich.length) {
+          showToast('כל הממצאים כבר כוללים סיכום AI', 'info');
+          return;
+        }
+        enrichFindingsWithAiSummaries(toEnrich);
       });
 
       // Clear form
@@ -2598,11 +2739,15 @@
           (document.getElementById('report-client').value || '').trim() ||
           (document.getElementById('report-env').value || '').trim();
         
-        if (hasData && !confirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?\nכל הנתונים שלא נשמרו יאבדו.')) {
-          return;
-        }
+        if (!hasData) { doNewReport(); return; }
+        styledConfirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?<br>כל הנתונים שלא נשמרו יאבדו.', {
+          icon: '🗑️', title: 'דו"ח חדש', confirmText: 'נקה והתחל מחדש', cancelText: 'ביטול', danger: true
+        }).then(function(yes) {
+          if (yes) doNewReport();
+        });
+      });
 
-        // Clear findings
+      function doNewReport() {        // Clear findings
         findings.length = 0;
         resetEditState();
 
@@ -2643,10 +2788,25 @@
         renderFindingsTable();
         prefillId();
         updateStepper();
+
+        // Clear bulk import state
+        var bulkSubInput = document.getElementById('bulk-import-sub');
+        if (bulkSubInput) bulkSubInput.value = '';
+        var bulkSubId = document.getElementById('bulk-import-sub-id');
+        if (bulkSubId) bulkSubId.value = '';
+        var bulkProgress = document.getElementById('bulk-import-progress');
+        if (bulkProgress) bulkProgress.innerHTML = '';
+        var bulkResults = document.getElementById('bulk-import-results');
+        if (bulkResults) bulkResults.innerHTML = '';
+        var bulkActions = document.getElementById('bulk-import-actions');
+        if (bulkActions) bulkActions.style.display = 'none';
+        bulkImportResults = {};
+        bulkImportRunning = false;
+
         switchToTab('tab-report-details');
         showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
         statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
-      });
+      }
 
       // פתיחת דיאלוג טעינת JSON
       importJsonBtn.addEventListener('click', function() {
@@ -3309,7 +3469,10 @@
       };
 
       window.cloudDeleteState = async function(id) {
-        if (!confirm('למחוק תצורה זו?')) return;
+        var yes = await styledConfirm('למחוק תצורה זו?', {
+          icon: '🗑️', title: 'מחיקת תצורה', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+        });
+        if (!yes) return;
         try {
           await fetch('/api/delete-state/' + id, { method: 'DELETE' });
           refreshStatesList();
@@ -3319,7 +3482,10 @@
       };
 
       window.cloudDeleteOutput = async function(filename) {
-        if (!confirm('למחוק קובץ זה?')) return;
+        var yes = await styledConfirm('למחוק קובץ זה?', {
+          icon: '🗑️', title: 'מחיקת קובץ', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+        });
+        if (!yes) return;
         try {
           await fetch('/api/delete-output/' + filename, { method: 'DELETE' });
           refreshOutputsList();
@@ -3941,7 +4107,7 @@
       function renderWiziVulnTable() {
         var html = '<table><caption>ממצאי Wizi — Vulnerability Findings — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>CVE / Name</th><th>חומרה</th><th>Score</th><th>Exploit</th><th>Fix</th><th>Fixed Version</th><th>סטטוס</th>' +
+          '<th>CVE / Name</th><th>חומרה</th><th>Score</th><th>משאב</th><th>סוג משאב</th><th>Exploit</th><th>Fix</th><th>Fixed Version</th><th>סטטוס</th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(item, idx) {
@@ -3949,11 +4115,16 @@
           var sevClass = 'sev-' + mapWiziSeverity(sev);
           var exploitBadge = item.hasExploit ? '<span class="severity-chip sev-critical">כן</span>' : '<span class="muted">לא</span>';
           var fixBadge = item.hasFix ? '<span class="severity-chip sev-low">כן</span>' : '<span class="muted">לא</span>';
+          var asset = item.vulnerableAsset || {};
+          var assetName = asset.name || '—';
+          var assetType = asset.type || '—';
           html += '<tr>' +
             '<td><input type="checkbox" class="wizi-check" data-idx="' + idx + '" checked></td>' +
             '<td title="' + (item.CVEDescription || item.description || '').replace(/"/g, '&quot;') + '">' + (item.name || item.detailedName || 'N/A') + '</td>' +
             '<td><span class="severity-chip ' + sevClass + '">' + sev + '</span></td>' +
             '<td>' + (item.score != null ? item.score.toFixed(1) : '—') + '</td>' +
+            '<td>' + escapeHtml(assetName) + '</td>' +
+            '<td>' + escapeHtml(assetType) + '</td>' +
             '<td>' + exploitBadge + '</td>' +
             '<td>' + fixBadge + '</td>' +
             '<td>' + (item.fixedVersion || '—') + '</td>' +
@@ -4224,6 +4395,9 @@
           // Auto-fill report details from first Wizi fetch
           if (!append && nodes.length && !document.getElementById('report-client').value.trim()) {
             var autoFillData = extractWiziAutoFillData(nodes, qt);
+            // Use the subscription input value as client name (it's the cloud provider ID the user searched for)
+            var subInput = wiziProjectInput.value.trim() || wiziSubInput.value.trim() || '';
+            if (subInput) autoFillData.subscription = subInput;
             if (autoFillData.subscription || autoFillData.cloud) {
               showWiziAutoFillBanner(autoFillData);
             }
@@ -4250,11 +4424,8 @@
           subName = sub.name || '';
         }
         else if (qt === 'vulnerabilityFindings') {
-          // VULN findings have projects array, not direct subscription
-          var projects = node.projects || [];
-          if (projects.length) {
-            subName = projects.map(function(p) { return p.name; }).join(', ');
-          }
+          var asset = node.vulnerableAsset || {};
+          subName = asset.subscriptionName || '';
         }
         else if (qt === 'dataFindingsV2') {
           var ca = node.cloudAccount || {};
@@ -4268,7 +4439,7 @@
         else if (qt === 'excessiveAccessFindings') {
           var p = node.principal || {};
           var pca = p.cloudAccount || {};
-          subName = pca.name || '';
+          subName = pca.name || pca.externalId || '';
         }
         else if (qt === 'networkExposures') {
           var ee = node.exposedEntity || {};
@@ -4289,6 +4460,7 @@
       });
 
       wiziImportBtn.addEventListener('click', function() {
+        var beforeCount = findings.length;
         var selected = [];
         document.querySelectorAll('.wizi-check:checked').forEach(function(cb) {
           var idx = parseInt(cb.getAttribute('data-idx'));
@@ -4297,6 +4469,57 @@
 
         if (!selected.length) {
           wiziStatusMsg.textContent = 'לא נבחרו ממצאים לייבוא.';
+          return;
+        }
+
+        // Special case: aggregate vuln findings into a single finding if more than 5
+        if (wiziQueryType === 'vulnerabilityFindings' && selected.length > 5) {
+          var cat = 'VULN';
+          var id = generateNextId(cat);
+          var highestSev = 'high';
+          var critCount = 0;
+          var highCount = 0;
+          var resourceNames = [];
+          var subscriptionNames = [];
+          var technical = [];
+
+          selected.forEach(function(item) {
+            var sev = mapWiziSeverity(item.severity);
+            if (sev === 'critical') { critCount++; highestSev = 'critical'; }
+            else highCount++;
+
+            var asset = item.vulnerableAsset || {};
+            var resName = asset.name || '';
+            if (resName && resourceNames.indexOf(resName) === -1) resourceNames.push(resName);
+            var subName = asset.subscriptionName || '';
+            if (subName && subscriptionNames.indexOf(subName) === -1) subscriptionNames.push(subName);
+          });
+
+          technical.push('Total Vulnerabilities: ' + selected.length);
+          if (critCount) technical.push('Critical: ' + critCount);
+          if (highCount) technical.push('High: ' + highCount);
+          if (resourceNames.length) technical.push('Affected Resources: ' + resourceNames.join(', '));
+          if (subscriptionNames.length) technical.push('Subscriptions: ' + subscriptionNames.join(', '));
+
+          findings.push({
+            id: id, category: cat,
+            title: 'Multiple vulnerabilities with high and above severity',
+            severity: highestSev,
+            description: 'נמצאו ' + selected.length + ' פגיעויות ברמת חומרה גבוהה ומעלה',
+            impact: 'פגיעויות מרובות ברמת חומרה גבוהה ומעלה — ' + critCount + ' קריטיות, ' + highCount + ' גבוהות',
+            technical: technical,
+            policies: [],
+            recs: ['לטפל בפגיעויות בהתאם לרמת החומרה ולעדכן את הרכיבים הפגיעים'],
+            priority: '',
+            owner: subscriptionNames.join(', '),
+            evidence: []
+          });
+
+          renderFindingsTable();
+          prefillId();
+          autoSave();
+          switchToTab('tab-findings-list');
+          showToast('יובאו ' + selected.length + ' פגיעויות כממצא מאוחד', 'success');
           return;
         }
 
@@ -4521,6 +4744,16 @@
         if (updated) msg += ' (' + updated + ' ממצאים עודכנו)';
         if (skipped) msg += ' (' + skipped + ' כפולים דולגו)';
         showToast(msg, 'success');
+
+        // Enrich newly imported findings with AI remediation summaries
+        var newFindings = findings.slice(beforeCount);
+        if (newFindings.length) {
+          styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
+            icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
+          }).then(function(yes) {
+            if (yes) enrichFindingsWithAiSummaries(newFindings);
+          });
+        }
       });
 
       // ── Fetch by Wizi finding ID ──
@@ -4856,8 +5089,14 @@
           return resource.name || null;
         }
         else if (qt === 'vulnerabilityFindings') {
-          // For vulnerabilities, use the name field or first project name
-          if (item.name) return item.name;
+          // vulnerableAsset.name is the resource (e.g. "cgov-subnet-frontend-00089-f6v")
+          var asset = item.vulnerableAsset || {};
+          if (asset.name) return asset.name;
+          // Fallback: parse detailedName which often has format "package on resource-name"
+          var dn = item.detailedName || '';
+          var onIdx = dn.lastIndexOf(' on ');
+          if (onIdx > 0) return dn.substring(onIdx + 4);
+          // Last fallback: first project name
           var projects = (item.projects || []).map(function(p) { return p.name; }).filter(Boolean);
           return projects.length ? projects[0] : null;
         }
@@ -4885,31 +5124,62 @@
       function extractWiziAutoFillData(nodes, qt) {
         var subscriptions = {};
         var clouds = {};
+        var topics = {};
         nodes.forEach(function(n) {
           if (qt === 'issues') {
             var es = n.entitySnapshot || {};
-            if (es.subscriptionName) subscriptions[es.subscriptionName] = true;
+            if (es.subscriptionExternalId) subscriptions[es.subscriptionExternalId] = true;
+            else if (es.subscriptionName) subscriptions[es.subscriptionName] = true;
             if (es.cloudPlatform) clouds[es.cloudPlatform] = true;
           } else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
             var res = n.resource || {};
             var sub = res.subscription || res.cloudAccount || {};
-            if (sub.name) subscriptions[sub.name] = true;
-            if (sub.cloudProvider || res.cloudPlatform) clouds[sub.cloudProvider || res.cloudPlatform] = true;
+            if (sub.externalId) subscriptions[sub.externalId] = true;
+            else if (sub.name) subscriptions[sub.name] = true;
+            if (sub.cloudProvider) clouds[sub.cloudProvider] = true;
+            else if (res.cloudPlatform) clouds[res.cloudPlatform] = true;
           } else if (qt === 'vulnerabilityFindings') {
-            (n.projects || []).forEach(function(p) { if (p.name) subscriptions[p.name] = true; });
+            var asset = n.vulnerableAsset || {};
+            if (asset.subscriptionName) subscriptions[asset.subscriptionName] = true;
+            if (asset.type) {
+              var t = asset.type.replace(/_/g, ' ');
+              topics['פגיעויות ב-' + t] = true;
+            }
           } else if (qt === 'dataFindingsV2') {
             var ca = n.cloudAccount || {};
             if (ca.name) subscriptions[ca.name] = true;
             if (ca.cloudProvider) clouds[ca.cloudProvider] = true;
+          } else if (qt === 'secretInstances') {
+            var sr = n.resource || {};
+            var sca = sr.cloudAccount || {};
+            if (sca.name) subscriptions[sca.name] = true;
+            if (sr.cloudPlatform) clouds[sr.cloudPlatform] = true;
           } else if (qt === 'excessiveAccessFindings') {
             if (n.cloudPlatform) clouds[n.cloudPlatform] = true;
             var pca = (n.principal || {}).cloudAccount || {};
-            if (pca.name) subscriptions[pca.name] = true;
+            if (pca.externalId) subscriptions[pca.externalId] = true;
+            else if (pca.name) subscriptions[pca.name] = true;
+          } else if (qt === 'networkExposures') {
+            var ee = n.exposedEntity || {};
+            var eca = ee.cloudAccount || {};
+            if (eca.name) subscriptions[eca.name] = true;
           }
         });
+
+        // Extract key topics from query types
+        if (qt === 'configurationFindings') topics['תצורת ענן (CSPM)'] = true;
+        if (qt === 'hostConfigurationRuleAssessments') topics['תצורת שרתים (Host Configuration)'] = true;
+        if (qt === 'vulnerabilityFindings') topics['פגיעויות (Vulnerabilities)'] = true;
+        if (qt === 'dataFindingsV2') topics['אבטחת מידע (DSPM)'] = true;
+        if (qt === 'secretInstances') topics['סודות חשופים (Secrets)'] = true;
+        if (qt === 'excessiveAccessFindings') topics['הרשאות יתר (Excessive Access)'] = true;
+        if (qt === 'networkExposures') topics['חשיפה לאינטרנט (Network Exposure)'] = true;
+        if (qt === 'inventoryFindings') topics['משאבים בסוף חיים (EOL)'] = true;
+
         return {
           subscription: Object.keys(subscriptions).join(', '),
-          cloud: Object.keys(clouds).join(', ')
+          cloud: Object.keys(clouds).join(', '),
+          keyTopics: Object.keys(topics).join('\n')
         };
       }
 
@@ -4923,6 +5193,7 @@
         var parts = [];
         if (data.subscription) parts.push('לקוח: ' + data.subscription);
         if (data.cloud) parts.push('ענן: ' + data.cloud);
+        if (data.keyTopics) parts.push('נושאים: ' + data.keyTopics.split('\n').length);
         wiziAutoFillText.textContent = '💡 זוהו פרטים — ' + parts.join(' | ');
         wiziAutoFillBanner.style.display = '';
       }
@@ -4931,11 +5202,15 @@
         if (!pendingAutoFill) return;
         var clientField = document.getElementById('report-client');
         var envField = document.getElementById('report-env');
+        var keyTopicsField = document.getElementById('report-key-topics');
         if (!clientField.value.trim() && pendingAutoFill.subscription) {
           clientField.value = pendingAutoFill.subscription;
         }
         if (!envField.value.trim() && pendingAutoFill.cloud) {
           envField.value = pendingAutoFill.cloud;
+        }
+        if (!keyTopicsField.value.trim() && pendingAutoFill.keyTopics) {
+          keyTopicsField.value = pendingAutoFill.keyTopics;
         }
         // Set today's date if empty
         var dateField = document.getElementById('report-date');
@@ -5049,9 +5324,11 @@
         // 1. Use remediationInstructions if available (actual remediation steps)
         var ri = (rule.remediationInstructions || '').trim();
         if (ri) {
-          // Clean up markdown code blocks and split into meaningful lines
+          // Extract code block contents and replace blocks with their content
           var cleaned = ri
-            .replace(/```[\s\S]*?```/g, '')  // remove code blocks
+            .replace(/```(?:\w*\n)?([\s\S]*?)```/g, function(_, code) {
+              return code.trim();
+            })
             .replace(/\s*\n\s*/g, '\n');     // normalize whitespace
           var lines = cleaned.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
           lines.forEach(function(line) {
@@ -5081,6 +5358,137 @@
         }
 
         return recs;
+      }
+
+      // AI remediation summary cache (keyed by remediation text hash)
+      var _aiSummaryCache = {};
+
+      function fetchRemediationSummary(title, remediationText, retries) {
+        if (!remediationText || remediationText.length < 30) return Promise.resolve(null);
+        retries = retries || 0;
+        var cacheKey = remediationText.substring(0, 200);
+        if (_aiSummaryCache[cacheKey]) return Promise.resolve(_aiSummaryCache[cacheKey]);
+
+        return fetch('/api/summarize-remediation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: title, text: remediationText })
+        })
+        .then(function(r) {
+          if ((r.status === 429 || r.status === 502) && retries < 3) {
+            var delay = (retries + 1) * 3000;
+            console.warn('AI summary error ' + r.status + ', retrying in ' + delay + 'ms...');
+            return new Promise(function(resolve) { setTimeout(resolve, delay); })
+              .then(function() { return fetchRemediationSummary(title, remediationText, retries + 1); });
+          }
+          if (!r.ok) {
+            return r.json().catch(function() { return {}; }).then(function(d) {
+              var errMsg = d.error || ('HTTP ' + r.status);
+              throw new Error(errMsg);
+            });
+          }
+          return r.json();
+        })
+        .then(function(data) {
+          if (data && data.summary) {
+            _aiSummaryCache[cacheKey] = data.summary;
+            return data.summary;
+          }
+          return null;
+        });
+      }
+
+      function enrichFindingsWithAiSummaries(findingsToEnrich) {
+        var toEnrich = findingsToEnrich.filter(function(f) {
+          if (!f.recs || !f.recs.length) return false;
+          if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+          return true;
+        });
+
+        if (!toEnrich.length) return Promise.resolve();
+
+        // Create progress bar
+        var container = document.createElement('div');
+        container.className = 'ai-progress-container';
+        container.innerHTML =
+          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 מייצר סיכומי AI להמלצות</span></div>' +
+          '<div class="ai-progress-track"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>' +
+          '<div class="ai-progress-label"><span id="ai-progress-label">0 / ' + toEnrich.length + '</span><button class="ai-progress-abort" id="ai-progress-abort">ביטול</button></div>';
+        document.body.appendChild(container);
+
+        var fillEl = container.querySelector('#ai-progress-fill');
+        var labelEl = container.querySelector('#ai-progress-label');
+        var aborted = false;
+
+        container.querySelector('#ai-progress-abort').addEventListener('click', function() {
+          aborted = true;
+        });
+        var idx = 0;
+        var enriched = 0;
+
+        function updateProgress() {
+          var pct = Math.round((idx / toEnrich.length) * 100);
+          fillEl.style.width = pct + '%';
+          labelEl.textContent = idx + ' / ' + toEnrich.length + (enriched ? ' (' + enriched + ' הוספו)' : '');
+        }
+
+        function processNext() {
+          if (aborted) {
+            container.querySelector('.ai-spinner').style.display = 'none';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '⏹ בוטל';
+            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('#ai-progress-abort').style.display = 'none';
+            setTimeout(function() {
+              if (container.parentNode) container.parentNode.removeChild(container);
+            }, 1500);
+            autoSave();
+            return Promise.resolve();
+          }
+          if (idx >= toEnrich.length) {
+            // Done — show completion briefly then remove
+            fillEl.style.width = '100%';
+            container.querySelector('.ai-spinner').style.display = 'none';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ סיכומי AI הושלמו';
+            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('#ai-progress-abort').style.display = 'none';
+            setTimeout(function() {
+              if (container.parentNode) container.parentNode.removeChild(container);
+            }, 2000);
+            autoSave();
+            return Promise.resolve();
+          }
+          var f = toEnrich[idx++];
+          updateProgress();
+          var recsText = f.recs.join('\n');
+          return fetchRemediationSummary(f.title, recsText).then(function(summary) {
+            if (summary) {
+              f.recs.unshift('🤖 ' + summary);
+              enriched++;
+              renderFindingsTable();
+            }
+            updateProgress();
+          }).then(function() {
+            return new Promise(function(resolve) { setTimeout(resolve, 3000); });
+          }).then(processNext)
+          .catch(function(err) {
+            // Failed after retries — abort and notify
+            fillEl.style.background = 'var(--danger)';
+            container.querySelector('.ai-spinner').style.display = 'none';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '❌ שיפור ההמלצות נכשל';
+            labelEl.textContent = err.message || 'שגיאה בלתי צפויה';
+            var abortBtn = container.querySelector('#ai-progress-abort');
+            abortBtn.textContent = 'אישור';
+            abortBtn.style.background = 'var(--accent)';
+            abortBtn.style.color = 'white';
+            abortBtn.style.borderColor = 'var(--accent)';
+            abortBtn.onclick = function() {
+              if (container.parentNode) container.parentNode.removeChild(container);
+            };
+            autoSave();
+          });
+        }
+
+        return processNext();
       }
 
       function importIssueFinding(issue) {
@@ -5559,6 +5967,727 @@
           policies: [], recs: recs, priority: '',
           owner: ca.name || '',
           evidence: []
+        });
+      }
+
+      // ── Bulk Import ──
+      var bulkImportResults = {};
+      var bulkImportRunning = false;
+
+      function handleBulkImport() {
+        var subInput = document.getElementById('bulk-import-sub');
+        var progressDiv = document.getElementById('bulk-import-progress');
+        var resultsDiv = document.getElementById('bulk-import-results');
+        var actionsDiv = document.getElementById('bulk-import-actions');
+        var btn = document.getElementById('btn-bulk-import');
+
+        var sub = (subInput.value || '').trim();
+        if (!sub) {
+          progressDiv.textContent = 'יש להזין שם Subscription';
+          return;
+        }
+
+        bulkImportRunning = true;
+        btn.disabled = true;
+        resultsDiv.innerHTML = '';
+        progressDiv.textContent = 'מבצע ייבוא מרוכז...';
+        actionsDiv.style.display = 'none';
+
+        fetch('/api/wizi/bulk-fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: sub })
+        })
+        .then(function(resp) {
+          if (resp.status === 501) {
+            progressDiv.textContent = 'Wizi לא מוגדר';
+            return null;
+          }
+          if (resp.status === 429) {
+            progressDiv.textContent = 'חריגה ממגבלת קצב בקשות';
+            return null;
+          }
+          if (!resp.ok) {
+            return resp.json().then(function(err) {
+              progressDiv.textContent = err.error || 'שגיאה בשליפת נתונים';
+              return null;
+            });
+          }
+          return resp.json();
+        })
+        .then(function(data) {
+          if (data) {
+            renderBulkResults(data);
+            // Auto-fill report details from bulk import results
+            if (!document.getElementById('report-client').value.trim()) {
+              var resolved = data.resolvedSubscription || {};
+              // Use resolved externalIds for client name (cloud provider subscription IDs)
+              var clientName = (resolved.externalIds || []).join(', ') || (resolved.names || []).join(', ');
+
+              // Detect cloud platforms and key topics from results
+              var clouds = {};
+              var topics = {};
+              var results = data.results || {};
+              Object.keys(results).forEach(function(qt) {
+                var nodes = (results[qt] || {}).nodes || [];
+                if (!nodes.length) return;
+                var d = extractWiziAutoFillData(nodes, qt);
+                if (d.cloud) d.cloud.split(', ').forEach(function(c) { clouds[c] = true; });
+                if (d.keyTopics) d.keyTopics.split('\n').forEach(function(t) { topics[t] = true; });
+              });
+
+              var mergedData = {
+                subscription: clientName,
+                cloud: Object.keys(clouds).join(', '),
+                keyTopics: Object.keys(topics).join('\n')
+              };
+              if (mergedData.subscription || mergedData.cloud) {
+                showWiziAutoFillBanner(mergedData);
+              }
+            }
+          }
+        })
+        .catch(function() {
+          progressDiv.textContent = 'שגיאת רשת';
+        })
+        .finally(function() {
+          btn.disabled = false;
+          bulkImportRunning = false;
+        });
+      }
+
+      function renderBulkResults(data) {
+        var progressDiv = document.getElementById('bulk-import-progress');
+        var resultsDiv = document.getElementById('bulk-import-results');
+        var actionsDiv = document.getElementById('bulk-import-actions');
+
+        var queryTypeLabels = {
+          'issues': 'Issues (כללי)',
+          'configurationFindings': 'CSPM — Cloud Configuration',
+          'vulnerabilityFindings': 'VULN — Vulnerabilities',
+          'hostConfigurationRuleAssessments': 'HSPM — Host Configuration',
+          'dataFindingsV2': 'DSPM — Data Findings',
+          'secretInstances': 'SECR — Secrets',
+          'excessiveAccessFindings': 'EAPM — Excessive Access',
+          'networkExposures': 'NEXP — Network Exposure',
+          'inventoryFindings': 'EOLM — Inventory / EOL'
+        };
+
+        var resolved = data.resolvedSubscription || {};
+        var results = data.results || {};
+        var errors = data.errors || {};
+
+        // Warning toast if subscription not resolved
+        if ((!resolved.ids || !resolved.ids.length) && (!resolved.externalIds || !resolved.externalIds.length)) {
+          showToast('לא נמצא Subscription תואם — התוצאות עשויות להיות חלקיות', 'warning');
+        }
+
+        // Show per-query-type errors
+        var errorKeys = Object.keys(errors);
+        var progressHtml = '';
+        if (errorKeys.length) {
+          errorKeys.forEach(function(qt) {
+            var label = queryTypeLabels[qt] || qt;
+            progressHtml += '<div style="color:var(--warning,#f59e0b);">⚠ ' + escapeHtml(label) + ': ' + escapeHtml(errors[qt]) + '</div>';
+          });
+        }
+
+        // Store results and compute counts
+        bulkImportResults = {};
+        var totalCount = 0;
+        var breakdownParts = [];
+        var queryTypes = Object.keys(queryTypeLabels);
+
+        // Get the subscription search term for client-side filtering (EAPM)
+        var bulkSubSearch = (document.getElementById('bulk-import-sub').value || '').trim().toLowerCase();
+
+        queryTypes.forEach(function(qt) {
+          var r = results[qt] || {};
+          var nodes = r.nodes || [];
+
+          // Client-side subscription filter for excessiveAccessFindings (no server-side filter)
+          if (qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
+            nodes = nodes.filter(function(n) {
+              var p = n.principal || {};
+              var pca = p.cloudAccount || {};
+              var subName = (pca.name || '').toLowerCase();
+              var subExtId = (pca.externalId || '').toLowerCase();
+              return subName.indexOf(bulkSubSearch) >= 0 || subExtId.indexOf(bulkSubSearch) >= 0;
+            });
+          }
+
+          if (nodes.length) {
+            bulkImportResults[qt] = nodes;
+            totalCount += nodes.length;
+            breakdownParts.push((queryTypeLabels[qt]) + ': ' + nodes.length);
+          }
+        });
+
+        // Empty state
+        if (totalCount === 0 && errorKeys.length === 0) {
+          progressDiv.innerHTML = 'לא נמצאו ממצאים עבור Subscription זה';
+          resultsDiv.innerHTML = '';
+          return;
+        }
+
+        // Progress summary
+        progressHtml += '<div><strong>סה"כ: ' + totalCount + ' ממצאים</strong></div>';
+        if (breakdownParts.length) {
+          progressHtml += '<div>' + breakdownParts.join(' · ') + '</div>';
+        }
+        progressDiv.innerHTML = progressHtml;
+
+        // Build results table
+        var html = '';
+        queryTypes.forEach(function(qt) {
+          var nodes = bulkImportResults[qt];
+          if (!nodes || !nodes.length) return;
+          var label = queryTypeLabels[qt];
+
+          html += '<details open style="margin-bottom:8px;">';
+          html += '<summary style="cursor:pointer;font-weight:bold;padding:4px 0;">' + escapeHtml(label) + ' (' + nodes.length + ')</summary>';
+          html += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
+          html += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '" checked></th>';
+          html += '<th>סוג</th><th>חומרה</th><th>כותרת</th>';
+          if (qt === 'vulnerabilityFindings') {
+            html += '<th>משאב</th><th>סוג משאב</th>';
+          }
+          if (qt === 'secretInstances') {
+            html += '<th>משאב</th>';
+          }
+          html += '<th>Subscription</th>';
+          html += '</tr></thead><tbody>';
+
+          nodes.forEach(function(node, idx) {
+            var sev = mapWiziSeverity(node.severity);
+            var sevInfo = severityMap[sev] || severityMap.medium;
+            var title = getWiziItemTitle(node, qt);
+            var subName = getNodeSubscriptionName(node, qt);
+
+            html += '<tr>';
+            html += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + idx + '" checked></td>';
+            html += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
+            html += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
+            html += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
+            if (qt === 'vulnerabilityFindings') {
+              var asset = node.vulnerableAsset || {};
+              html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(asset.name || '') + '">' + escapeHtml(asset.name || '—') + '</td>';
+              html += '<td>' + escapeHtml(asset.type || '—') + '</td>';
+            }
+            if (qt === 'secretInstances') {
+              var res = node.resource || {};
+              html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(res.name || '') + '">' + escapeHtml(res.name || '—') + '</td>';
+            }
+            html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '—') + '</td>';
+            html += '</tr>';
+          });
+
+          html += '</tbody></table></details>';
+        });
+
+        resultsDiv.innerHTML = html;
+        actionsDiv.style.display = '';
+
+        // Wire section-level checkboxes
+        resultsDiv.querySelectorAll('.bulk-section-check').forEach(function(sectionCb) {
+          sectionCb.addEventListener('change', function() {
+            var qt = sectionCb.getAttribute('data-query-type');
+            var checked = sectionCb.checked;
+            resultsDiv.querySelectorAll('.bulk-check[data-query-type="' + qt + '"]').forEach(function(cb) {
+              cb.checked = checked;
+            });
+            updateBulkSelectedCount();
+          });
+        });
+
+        // Wire individual checkboxes
+        resultsDiv.querySelectorAll('.bulk-check').forEach(function(cb) {
+          cb.addEventListener('change', function() {
+            updateBulkSelectedCount();
+          });
+        });
+
+        updateBulkSelectedCount();
+      }
+
+      function updateBulkSelectedCount() {
+        var total = document.querySelectorAll('.bulk-check').length;
+        var checked = document.querySelectorAll('.bulk-check:checked').length;
+        var countEl = document.getElementById('bulk-selected-count');
+        if (countEl) countEl.textContent = checked + ' / ' + total + ' נבחרו';
+      }
+
+      var importFnMap = {
+        'issues': importIssueFinding,
+        'configurationFindings': importConfigFinding,
+        'vulnerabilityFindings': importVulnFinding,
+        'hostConfigurationRuleAssessments': importHostConfigFinding,
+        'dataFindingsV2': importDataFinding,
+        'secretInstances': importSecretFinding,
+        'excessiveAccessFindings': importExcessiveAccessFinding,
+        'networkExposures': importNetworkExposureFinding,
+        'inventoryFindings': importInventoryFinding
+      };
+
+      function importSelectedBulkFindings() {
+        var checked = document.querySelectorAll('.bulk-check:checked');
+        var imported = 0;
+        var skipped = 0;
+        var consolidated = 0;
+        var updated = 0;
+
+        // Collect selected items grouped by query type
+        var selectedByType = {};
+        checked.forEach(function(cb) {
+          var queryType = cb.getAttribute('data-query-type');
+          var nodeIndex = parseInt(cb.getAttribute('data-node-index'), 10);
+          var nodes = bulkImportResults[queryType];
+          if (!nodes || nodeIndex < 0 || nodeIndex >= nodes.length) return;
+          if (!selectedByType[queryType]) selectedByType[queryType] = [];
+          selectedByType[queryType].push(nodes[nodeIndex]);
+        });
+
+        // Build existing title index for consolidation
+        var existingTitles = {};
+        var existingFindingsByTitle = {};
+        findings.forEach(function(f) {
+          var lowerTitle = (f.title || '').toLowerCase();
+          existingTitles[lowerTitle] = true;
+          existingFindingsByTitle[lowerTitle] = f;
+        });
+
+        // Process each query type
+        Object.keys(selectedByType).forEach(function(queryType) {
+          var items = selectedByType[queryType];
+          var importFn = importFnMap[queryType];
+          if (!importFn) return;
+
+          // Special case: aggregate vuln findings into a single finding if more than 5
+          if (queryType === 'vulnerabilityFindings' && items.length > 5) {
+            // Check for duplicates first
+            var newItems = [];
+            items.forEach(function(item) {
+              if (item.id && findings.some(function(f) { return f._wizSourceId === item.id; })) {
+                skipped++;
+              } else {
+                newItems.push(item);
+              }
+            });
+            if (!newItems.length) return;
+
+            // Build aggregated finding
+            var cat = 'VULN';
+            var id = generateNextId(cat);
+            var highestSev = 'high';
+            var critCount = 0;
+            var highCount = 0;
+            var cveList = [];
+            var resourceNames = [];
+            var subscriptionNames = [];
+            var technical = [];
+
+            newItems.forEach(function(item) {
+              var sev = mapWiziSeverity(item.severity);
+              if (sev === 'critical') critCount++;
+              else highCount++;
+              if (sev === 'critical') highestSev = 'critical';
+
+              var cveName = item.name || item.detailedName || '';
+              if (cveName && cveList.indexOf(cveName) === -1) cveList.push(cveName);
+
+              var asset = item.vulnerableAsset || {};
+              var resName = asset.name || '';
+              if (resName && resourceNames.indexOf(resName) === -1) resourceNames.push(resName);
+
+              var subName = asset.subscriptionName || '';
+              if (subName && subscriptionNames.indexOf(subName) === -1) subscriptionNames.push(subName);
+            });
+
+            technical.push('Total Vulnerabilities: ' + newItems.length);
+            if (critCount) technical.push('Critical: ' + critCount);
+            if (highCount) technical.push('High: ' + highCount);
+            if (resourceNames.length) technical.push('Affected Resources: ' + resourceNames.join(', '));
+            if (subscriptionNames.length) technical.push('Subscriptions: ' + subscriptionNames.join(', '));
+
+            findings.push({
+              id: id,
+              category: cat,
+              title: 'Multiple vulnerabilities with high and above severity',
+              severity: highestSev,
+              description: 'נמצאו ' + newItems.length + ' פגיעויות ברמת חומרה גבוהה ומעלה',
+              impact: 'פגיעויות מרובות ברמת חומרה גבוהה ומעלה — ' + critCount + ' קריטיות, ' + highCount + ' גבוהות',
+              technical: technical,
+              policies: [],
+              recs: ['לטפל בפגיעויות בהתאם לרמת החומרה ולעדכן את הרכיבים הפגיעים'],
+              priority: '',
+              owner: subscriptionNames.join(', '),
+              evidence: []
+            });
+
+            // Tag with first item's source ID for duplicate detection
+            if (newItems[0].id) {
+              findings[findings.length - 1]._wizSourceId = newItems[0].id;
+            }
+
+            imported++;
+            consolidated += newItems.length - 1;
+            return;
+          }
+
+          // Special case: aggregate VPC firewall rule CSPM findings by exact resource
+          if (queryType === 'configurationFindings') {
+            var vpcPattern = /^VPC firewall rule[s]? should restrict .+ access/i;
+            var vpcItems = [];
+            var nonVpcItems = [];
+            items.forEach(function(item) {
+              var title = getWiziItemTitle(item, queryType);
+              if (vpcPattern.test(title)) {
+                vpcItems.push(item);
+              } else {
+                nonVpcItems.push(item);
+              }
+            });
+
+            if (vpcItems.length > 0) {
+              // Group VPC items by exact resource name
+              var vpcByResource = {};
+              vpcItems.forEach(function(item) {
+                var res = item.resource || {};
+                var resKey = res.name || 'unknown-' + Math.random();
+                if (!vpcByResource[resKey]) vpcByResource[resKey] = [];
+                vpcByResource[resKey].push(item);
+              });
+
+              Object.keys(vpcByResource).forEach(function(resName) {
+                var resItems = vpcByResource[resName];
+                if (resItems.length >= 2) {
+                  // Aggregate: 2+ VPC firewall findings on same resource
+                  var firstItem = resItems[0];
+                  if (firstItem.id && findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
+                    skipped += resItems.length;
+                    return;
+                  }
+
+                  var resource = firstItem.resource || {};
+                  var sub = resource.subscription || {};
+                  var highestSev = 'high';
+                  var ruleNames = [];
+                  var policies = [];
+
+                  resItems.forEach(function(item) {
+                    var sev = mapWiziSeverity(item.severity);
+                    if (sev === 'critical') highestSev = 'critical';
+                    var t = getWiziItemTitle(item, queryType);
+                    if (t && ruleNames.indexOf(t) === -1) ruleNames.push(t);
+                  });
+
+                  var sevLabel = (severityMap[highestSev] || {}).text || highestSev;
+                  var cat = 'CSPM';
+                  var id = generateNextId(cat);
+                  var technical = [];
+                  if (sub.cloudProvider) technical.push('Cloud: ' + sub.cloudProvider);
+                  if (sub.name) technical.push('Subscription: ' + sub.name);
+                  if (resource.region) technical.push('Region: ' + resource.region);
+                  if (resource.name) technical.push('Resource: ' + resource.name);
+                  if (resource.nativeType || resource.type) technical.push('Type: ' + (resource.nativeType || resource.type));
+                  technical.push('Total Rules: ' + resItems.length);
+                  ruleNames.forEach(function(r) { technical.push('• ' + r); });
+
+                  var recs = extractRecommendations(firstItem.rule || {}, sevLabel);
+
+                  findings.push({
+                    id: id, category: cat,
+                    title: 'VPC firewall rules should restrict MULTIPLE accesses',
+                    severity: highestSev,
+                    description: 'נמצאו ' + resItems.length + ' כללי VPC firewall על משאב ' + resName,
+                    impact: 'חשיפת משאב לסיכון ברמת ' + sevLabel + ' — ' + resName,
+                    technical: technical,
+                    policies: policies,
+                    recs: recs,
+                    priority: '',
+                    owner: sub.name || '',
+                    evidence: []
+                  });
+
+                  if (firstItem.id) {
+                    findings[findings.length - 1]._wizSourceId = firstItem.id;
+                  }
+
+                  imported++;
+                  consolidated += resItems.length - 1;
+                } else {
+                  // Single VPC finding on this resource — pass through to normal flow
+                  nonVpcItems.push(resItems[0]);
+                }
+              });
+
+              // Replace items with non-VPC items (already-aggregated VPC items are handled)
+              items = nonVpcItems;
+              if (!items.length) return;
+            }
+          }
+
+          // Group by rule ID within this query type (same as single-query import)
+          var groupedByRule = {};
+          items.forEach(function(item) {
+            var ruleId = getWiziRuleId(item, queryType);
+            if (!ruleId) ruleId = 'no-rule-' + Math.random();
+            if (!groupedByRule[ruleId]) groupedByRule[ruleId] = [];
+            groupedByRule[ruleId].push(item);
+          });
+
+          Object.keys(groupedByRule).forEach(function(ruleId) {
+            var ruleItems = groupedByRule[ruleId];
+            var firstItem = ruleItems[0];
+
+            // Duplicate detection by _wizSourceId
+            if (firstItem.id && findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
+              skipped += ruleItems.length;
+              return;
+            }
+
+            // Check if finding with same title already exists — merge into it
+            var title = getWiziItemTitle(firstItem, queryType);
+            var lowerTitle = title ? title.toLowerCase() : null;
+
+            if (lowerTitle && existingTitles[lowerTitle]) {
+              var existingFinding = existingFindingsByTitle[lowerTitle];
+
+              // Extract all unique resource names from new items
+              var newResources = [];
+              ruleItems.forEach(function(item) {
+                var resourceName = extractResourceName(item, queryType);
+                if (resourceName && newResources.indexOf(resourceName) === -1) {
+                  newResources.push(resourceName);
+                }
+              });
+
+              // Extract all unique subscription names from new items
+              var newSubscriptions = [];
+              ruleItems.forEach(function(item) {
+                var subName = getNodeSubscriptionName(item, queryType);
+                if (subName && newSubscriptions.indexOf(subName) === -1) {
+                  newSubscriptions.push(subName);
+                }
+              });
+
+              // Get existing resources from Entity/Resource line
+              var existingResources = [];
+              var entityLineIndex = -1;
+              for (var j = 0; j < existingFinding.technical.length; j++) {
+                if (existingFinding.technical[j].startsWith('Entity:') ||
+                    existingFinding.technical[j].startsWith('Resource:') ||
+                    existingFinding.technical[j].startsWith('Principal:')) {
+                  entityLineIndex = j;
+                  var parts = existingFinding.technical[j].split(':');
+                  if (parts.length > 1) {
+                    existingResources = parts[1].split(',').map(function(r) { return r.trim(); });
+                  }
+                  break;
+                }
+              }
+
+              // Merge resources
+              var allResources = existingResources.slice();
+              newResources.forEach(function(r) {
+                if (allResources.indexOf(r) === -1) allResources.push(r);
+              });
+
+              // Get existing subscriptions from owner field
+              var existingSubscriptions = existingFinding.owner ? existingFinding.owner.split(',').map(function(s) { return s.trim(); }) : [];
+
+              // Merge subscriptions
+              var allSubscriptions = existingSubscriptions.slice();
+              newSubscriptions.forEach(function(s) {
+                if (allSubscriptions.indexOf(s) === -1) allSubscriptions.push(s);
+              });
+
+              // Update Entity/Resource line if resources changed
+              if (allResources.length > existingResources.length) {
+                if (entityLineIndex >= 0) {
+                  var prefix = existingFinding.technical[entityLineIndex].split(':')[0];
+                  existingFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+                } else if (allResources.length > 0) {
+                  existingFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+                }
+              }
+
+              // Update owner field if subscriptions changed
+              if (allSubscriptions.length > existingSubscriptions.length) {
+                existingFinding.owner = allSubscriptions.join(', ');
+                var subLineIndex = -1;
+                for (var k = 0; k < existingFinding.technical.length; k++) {
+                  if (existingFinding.technical[k].startsWith('Subscription:') ||
+                      existingFinding.technical[k].startsWith('Account:')) {
+                    subLineIndex = k;
+                    break;
+                  }
+                }
+                if (subLineIndex >= 0) {
+                  var subPrefix = existingFinding.technical[subLineIndex].split(':')[0];
+                  existingFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
+                }
+              }
+
+              updated++;
+              return;
+            }
+
+            // Import first item to create the finding
+            importFn(firstItem);
+            imported++;
+
+            var lastFinding = findings[findings.length - 1];
+
+            // Tag with Wiz source ID
+            if (firstItem.id) {
+              lastFinding._wizSourceId = firstItem.id;
+            }
+
+            // Extract all unique subscription names from all items
+            var allSubscriptions = [];
+            ruleItems.forEach(function(item) {
+              var subName = getNodeSubscriptionName(item, queryType);
+              if (subName && allSubscriptions.indexOf(subName) === -1) {
+                allSubscriptions.push(subName);
+              }
+            });
+
+            if (allSubscriptions.length > 0) {
+              lastFinding.owner = allSubscriptions.join(', ');
+            }
+
+            // If multiple items with same rule, consolidate resources
+            if (ruleItems.length > 1) {
+              consolidated += ruleItems.length - 1;
+
+              var allResources = [];
+              ruleItems.forEach(function(item) {
+                var resourceName = extractResourceName(item, queryType);
+                if (resourceName && allResources.indexOf(resourceName) === -1) {
+                  allResources.push(resourceName);
+                }
+              });
+
+              if (allResources.length > 1) {
+                var entityLineIndex = -1;
+                for (var j = 0; j < lastFinding.technical.length; j++) {
+                  if (lastFinding.technical[j].startsWith('Entity:') ||
+                      lastFinding.technical[j].startsWith('Resource:') ||
+                      lastFinding.technical[j].startsWith('Principal:')) {
+                    entityLineIndex = j;
+                    break;
+                  }
+                }
+                if (entityLineIndex >= 0) {
+                  var prefix = lastFinding.technical[entityLineIndex].split(':')[0];
+                  lastFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+                } else {
+                  lastFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+                }
+              }
+
+              if (allSubscriptions.length > 1) {
+                var subLineIndex = -1;
+                for (var k = 0; k < lastFinding.technical.length; k++) {
+                  if (lastFinding.technical[k].startsWith('Subscription:') ||
+                      lastFinding.technical[k].startsWith('Account:')) {
+                    subLineIndex = k;
+                    break;
+                  }
+                }
+                if (subLineIndex >= 0) {
+                  var subPrefix = lastFinding.technical[subLineIndex].split(':')[0];
+                  lastFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
+                }
+              }
+            }
+
+            if (title) existingTitles[title.toLowerCase()] = true;
+          });
+        });
+
+        return { imported: imported, skipped: skipped, consolidated: consolidated, updated: updated };
+      }
+
+      var btnBulkImport = document.getElementById('btn-bulk-import');
+      if (btnBulkImport) {
+        btnBulkImport.addEventListener('click', handleBulkImport);
+      }
+
+      // Autocomplete for bulk import subscription input
+      var bulkImportSubInput = document.getElementById('bulk-import-sub');
+      var bulkImportSubId = document.getElementById('bulk-import-sub-id');
+      var bulkImportSubList = document.getElementById('bulk-import-sub-list');
+      if (bulkImportSubInput && bulkImportSubId && bulkImportSubList) {
+        setupAutocomplete(bulkImportSubInput, bulkImportSubId, bulkImportSubList, function() {
+          return wiziSubscriptions;
+        });
+      }
+
+      if (bulkImportSubInput) {
+        bulkImportSubInput.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' && !document.querySelector('#bulk-import-sub-list.open')) {
+            e.preventDefault();
+            handleBulkImport();
+          }
+        });
+      }
+
+      var btnBulkSelectAll = document.getElementById('btn-bulk-select-all');
+      if (btnBulkSelectAll) {
+        btnBulkSelectAll.addEventListener('click', function() {
+          var resultsDiv = document.getElementById('bulk-import-results');
+          if (!resultsDiv) return;
+          var allChecks = resultsDiv.querySelectorAll('.bulk-check');
+          var allChecked = true;
+          for (var i = 0; i < allChecks.length; i++) {
+            if (!allChecks[i].checked) { allChecked = false; break; }
+          }
+          var newState = !allChecked;
+          allChecks.forEach(function(cb) { cb.checked = newState; });
+          resultsDiv.querySelectorAll('.bulk-section-check').forEach(function(cb) { cb.checked = newState; });
+          updateBulkSelectedCount();
+        });
+      }
+
+      document.getElementById('btn-bulk-expand-all').addEventListener('click', function() {
+        document.querySelectorAll('#bulk-import-results details').forEach(function(d) { d.open = true; });
+      });
+
+      document.getElementById('btn-bulk-collapse-all').addEventListener('click', function() {
+        document.querySelectorAll('#bulk-import-results details').forEach(function(d) { d.open = false; });
+      });
+
+      var btnBulkImportSelected = document.getElementById('btn-bulk-import-selected');
+      if (btnBulkImportSelected) {
+        btnBulkImportSelected.addEventListener('click', function() {
+          var beforeCount = findings.length;
+          var result = importSelectedBulkFindings();
+          if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
+            showToast('לא נבחרו ממצאים לייבוא', 'warning');
+            return;
+          }
+          var message = 'יובאו ' + result.imported + ' ממצאים';
+          if (result.consolidated) message += ' (' + result.consolidated + ' משאבים נוספים אוחדו)';
+          if (result.updated) message += ' (' + result.updated + ' ממצאים עודכנו)';
+          if (result.skipped) message += ' (' + result.skipped + ' כפולים דולגו)';
+          showToast(message, 'success');
+          renderFindingsTable();
+          updateStepper();
+          prefillId();
+          autoSave();
+          switchToTab('tab-findings-list');
+
+          // Enrich newly imported findings with AI remediation summaries
+          var newFindings = findings.slice(beforeCount);
+          if (newFindings.length) {
+            styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
+              icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
+            }).then(function(yes) {
+              if (yes) enrichFindingsWithAiSummaries(newFindings);
+            });
+          }
         });
       }
 
