@@ -5363,23 +5363,28 @@
       // AI remediation summary cache (keyed by remediation text hash)
       var _aiSummaryCache = {};
 
-      function fetchRemediationSummary(title, remediationText, retries) {
-        if (!remediationText || remediationText.length < 30) return Promise.resolve(null);
+      function fetchRemediationSummary(finding, retries) {
+        var recsText = (finding.recs || []).join('\n');
+        if ((!recsText || recsText.length < 30) && !finding.description) return Promise.resolve(null);
         retries = retries || 0;
-        var cacheKey = remediationText.substring(0, 200);
+        var cacheKey = (finding.title || '') + '|' + recsText.substring(0, 200);
         if (_aiSummaryCache[cacheKey]) return Promise.resolve(_aiSummaryCache[cacheKey]);
 
         return fetch('/api/summarize-remediation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: title, text: remediationText })
+          body: JSON.stringify({
+            title: finding.title || '',
+            description: finding.description || '',
+            text: recsText
+          })
         })
         .then(function(r) {
           if ((r.status === 429 || r.status === 502) && retries < 3) {
             var delay = (retries + 1) * 3000;
             console.warn('AI summary error ' + r.status + ', retrying in ' + delay + 'ms...');
             return new Promise(function(resolve) { setTimeout(resolve, delay); })
-              .then(function() { return fetchRemediationSummary(title, remediationText, retries + 1); });
+              .then(function() { return fetchRemediationSummary(finding, retries + 1); });
           }
           if (!r.ok) {
             return r.json().catch(function() { return {}; }).then(function(d) {
@@ -5459,8 +5464,7 @@
           }
           var f = toEnrich[idx++];
           updateProgress();
-          var recsText = f.recs.join('\n');
-          return fetchRemediationSummary(f.title, recsText).then(function(summary) {
+          return fetchRemediationSummary(f).then(function(summary) {
             if (summary) {
               f.recs.unshift('🤖 ' + summary);
               enriched++;
@@ -5468,7 +5472,7 @@
             }
             updateProgress();
           }).then(function() {
-            return new Promise(function(resolve) { setTimeout(resolve, 3000); });
+            return new Promise(function(resolve) { setTimeout(resolve, 500); });
           }).then(processNext)
           .catch(function(err) {
             // Failed after retries — abort and notify
