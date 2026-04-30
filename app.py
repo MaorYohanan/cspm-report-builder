@@ -489,11 +489,12 @@ GEMINI_SYSTEM_PROMPT = (
 
 REMEDIATION_SUMMARY_PROMPT = (
     "You are a senior cloud security consultant. "
-    "Given a remediation instruction for a cloud security finding, write a SHORT summary (1-2 sentences) "
-    "explaining WHY this remediation matters and what risk it mitigates. "
-    "Do NOT include any CLI commands, code, or technical steps. "
-    "Write in Hebrew. Be concise and focus on the security impact. "
-    "Technical terms like IAM, S3, VPC, MFA, RBAC, WAF, GCP, AWS, Azure should stay in English."
+    "Given a cloud security finding and its remediation instructions, explain in 2-3 short sentences "
+    "the LOGIC and REASONING behind the remediation steps — WHY these steps fix the problem, "
+    "what security risk they mitigate, and what could happen if left unaddressed. "
+    "Be clear, concise, and easy to understand. Avoid jargon where possible. "
+    "Do NOT repeat the remediation steps themselves. Do NOT include CLI commands or code. "
+    "Write in Hebrew. Technical terms like IAM, S3, VPC, MFA, RBAC, WAF, GCP, AWS, Azure, firewall should stay in English."
 )
 
 
@@ -506,47 +507,79 @@ def api_summarize_remediation():
     data = request.get_json(silent=True) or {}
     text = (data.get("text") or "").strip()
     title = (data.get("title") or "").strip()
+    description = (data.get("description") or "").strip()
     model = (data.get("model") or "").strip()
 
-    if not text:
+    if not text and not title:
         return jsonify({"error": "No text provided"}), 400
 
     if len(text) > 5000:
         text = text[:5000]
 
-    if not model or model not in GEMINI_MODELS:
-        model = GEMINI_DEFAULT_MODEL
+    prompt_parts = []
+    if title:
+        prompt_parts.append(f"Finding: {title}")
+    if description:
+        prompt_parts.append(f"Description: {description}")
+    if text:
+        prompt_parts.append(f"Remediation instructions:\n{text}")
+    user_prompt = "\n\n".join(prompt_parts)
 
-    user_prompt = f"Finding: {title}\n\nRemediation instructions:\n{text}" if title else text
-
-    payload = json.dumps({
+    payload_dict = {
         "contents": [{"parts": [{"text": user_prompt}]}],
         "systemInstruction": {"parts": [{"text": REMEDIATION_SUMMARY_PROMPT}]},
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 256}
-    }).encode("utf-8")
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 4096}
+    }
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
-    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    # Try requested model first, then fall back to other models on 429
+    models_to_try = [model] if model and model in GEMINI_MODELS else []
+    for m in GEMINI_MODELS:
+        if m not in models_to_try:
+            models_to_try.append(m)
 
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-        candidates = result.get("candidates", [])
-        if not candidates:
-            block_reason = result.get("promptFeedback", {}).get("blockReason", "")
-            if block_reason:
-                return jsonify({"error": f"Content blocked: {block_reason}"}), 400
-            return jsonify({"error": "No response from model"}), 502
-        parts = candidates[0].get("content", {}).get("parts", [])
-        summary = parts[0].get("text", "").strip() if parts else ""
-        if not summary:
-            return jsonify({"error": "Empty response"}), 502
-        return jsonify({"summary": summary})
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        return jsonify({"error": f"Gemini API error: {e.code}", "details": body}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    last_error = None
+    for i, try_model in enumerate(models_to_try):
+        if i > 0:
+            print(f"[AI] Model fallback: {models_to_try[i-1]} → {try_model}", flush=True)
+
+        payload = json.dumps(payload_dict).encode("utf-8")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{try_model}:generateContent?key={GEMINI_API_KEY}"
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+            candidates = result.get("candidates", [])
+            if not candidates:
+                block_reason = result.get("promptFeedback", {}).get("blockReason", "")
+                if block_reason:
+                    return jsonify({"error": f"Content blocked: {block_reason}"}), 400
+                print(f"[AI] {try_model}: no candidates, trying next", flush=True)
+                continue
+            resp_parts = candidates[0].get("content", {}).get("parts", [])
+            summary = resp_parts[0].get("text", "").strip() if resp_parts else ""
+            if not summary:
+                print(f"[AI] {try_model}: empty response, trying next", flush=True)
+                continue
+            if i > 0:
+                print(f"[AI] Success with fallback model: {try_model}", flush=True)
+            return jsonify({"summary": summary, "model": try_model})
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            last_error = (e.code, body)
+            if e.code == 429:
+                continue  # Try next model
+            return jsonify({"error": f"Gemini API error: {e.code}", "details": body}), 502
+        except Exception as e:
+            last_error = (0, str(e))
+            continue
+
+    # All models failed
+    if last_error:
+        code, details = last_error
+        status = 429 if code == 429 else 502
+        return jsonify({"error": f"All models exhausted (last: {code})", "details": details}), status
+    return jsonify({"error": "No response from any model"}), 502
 
 
 @app.route("/api/suggest", methods=["POST"])
