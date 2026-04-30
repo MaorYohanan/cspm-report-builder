@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=19">
+  <link rel="stylesheet" href="/static/css/builder.css?v=20">
 </head>
 <body>
   <!-- Toast container -->
@@ -50,28 +50,14 @@
 
   <div class="app-container">
     <div class="app-header">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <h1>Wizi — CSPM Report Builder</h1>
-        <button class="btn btn-secondary btn-sm" id="btn-theme-toggle" title="החלף ערכת נושא" style="margin-top:0;padding:4px 8px;">🌙</button>
-        <button class="btn btn-secondary btn-sm" id="btn-kbd-help" title="קיצורי מקלדת (?)" style="margin-top:0;padding:4px 8px;">⌨️</button>
-        <button class="btn btn-danger btn-sm" id="btn-new-report" title="דו"ח חדש — נקה הכל" style="margin-top:0;padding:4px 10px;">🗑️ דו"ח חדש</button>
+      <h1>Wizi — CSPM Report Builder</h1>
+      <div class="app-header-actions">
+        <span id="autosave-indicator" class="autosave-indicator"></span>
+        <button class="btn-icon" id="btn-theme-toggle" title="החלף ערכת נושא">🌙</button>
+        <button class="btn-icon" id="btn-kbd-help" title="קיצורי מקלדת (?)">⌨️</button>
+        <button class="btn-icon" id="btn-new-report" title="דו״ח חדש">📄</button>
       </div>
-      <span id="autosave-indicator" class="autosave-indicator"></span>
     </div>
-
-    <!-- Progress stepper -->
-    <div class="progress-stepper" id="progress-stepper">
-      <div class="step" data-step="details"><span class="step-icon">①</span> פרטי דו"ח</div>
-      <div class="step-arrow">→</div>
-      <div class="step" data-step="findings"><span class="step-icon">②</span> ממצאים <span class="step-badge" id="step-findings-count"></span></div>
-      <div class="step-arrow">→</div>
-      <div class="step" data-step="review"><span class="step-icon">③</span> סקירה</div>
-      <div class="step-arrow">→</div>
-      <div class="step" data-step="export"><span class="step-icon">④</span> ייצוא</div>
-    </div>
-    <p class="muted" style="text-align:center;">
-      ממלאים פרטי דו"ח, מוסיפים ממצאים (כולל הוכחה כתמונה), אפשר לערוך/למחוק/להזיז. בסוף מייצרים דו"ח HTML או PDF.
-    </p>
 
     <!-- Tab navigation -->
     <nav class="tab-bar" role="tablist" aria-label="חלקי הטופס">
@@ -86,125 +72,146 @@
     <!-- Panel: פרטי דו"ח -->
     <section class="tab-panel active" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
       <div class="section-body">
-        <div class="row">
-          <div class="col">
-            <label for="report-client">שם הלקוח</label>
-            <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ">
-          </div>
-          <div class="col">
-            <label for="report-env">סביבת בדיקה / ענן</label>
-            <input type="text" id="report-env" placeholder="AWS / Azure / GCP / Multi-Cloud">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label>טווח הבדיקה</label>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-              <div style="flex:1;min-width:110px;">
-                <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">מתאריך</span>
-                <div style="display:flex;gap:2px;align-items:center;">
-                  <input type="text" id="report-range-from" placeholder="DD/MM/YYYY" style="flex:1;">
-                  <input type="date" id="report-range-from-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
-                  <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-range-from-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
-                </div>
-              </div>
-              <span class="muted" style="padding-top:14px;">—</span>
-              <div style="flex:1;min-width:110px;">
-                <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">עד תאריך</span>
-                <div style="display:flex;gap:2px;align-items:center;">
-                  <input type="text" id="report-range-to" placeholder="DD/MM/YYYY" style="flex:1;">
-                  <input type="date" id="report-range-to-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
-                  <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-range-to-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
-                </div>
-              </div>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-range-today" title="סיום היום" style="padding:4px 8px;margin-top:14px;white-space:nowrap;">📅 היום</button>
+        <!-- Section: Client Info -->
+        <div class="form-section">
+          <div class="form-section-header">👤 פרטי לקוח</div>
+          <div class="row">
+            <div class="col">
+              <label for="report-client">שם הלקוח</label>
+              <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ">
             </div>
-            <input type="hidden" id="report-range">
-          </div>
-          <div class="col">
-            <label for="report-consultant">יועץ / גוף מבצע</label>
-            <input type="text" id="report-consultant" placeholder="שם היועץ / חברה">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-date">תאריך הדו"ח</label>
-            <div style="display:flex;gap:4px;align-items:center;">
-              <input type="text" id="report-date" placeholder="DD/MM/YYYY" style="flex:1;">
-              <input type="date" id="report-date-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
-              <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-date-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-date-today" title="הגדר תאריך היום" style="padding:4px 8px;margin:0;white-space:nowrap;">📅 היום</button>
+            <div class="col">
+              <label for="report-env">סביבת בדיקה / ענן</label>
+              <input type="text" id="report-env" placeholder="AWS / Azure / GCP / Multi-Cloud">
+            </div>
+            <div class="col">
+              <label for="report-consultant">יועץ / גוף מבצע</label>
+              <input type="text" id="report-consultant" placeholder="שם היועץ / חברה">
             </div>
           </div>
-          <div class="col">
-            <label for="report-risk">הערכת סיכון כללית</label>
-            <select id="report-risk">
-              <option value="">-- לא נבחר --</option>
-              <option value="נמוכה">נמוכה</option>
-              <option value="בינונית">בינונית</option>
-              <option value="גבוהה">גבוהה</option>
-              <option value="קריטית">קריטית</option>
-            </select>
+          <div class="row">
+            <div class="col">
+              <label for="report-team-name">שם הצוות / כותרת</label>
+              <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע">
+            </div>
+            <div class="col">
+              <label for="report-org-name">שם הארגון</label>
+              <input type="text" id="report-org-name" placeholder="החברה שלי">
+            </div>
           </div>
         </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-exec-summary">תקציר מנהלים</label>
-            <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
-          </div>
-          <div class="col">
-            <label for="report-key-topics">נושאי מפתח</label>
-            <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-team-name">שם הצוות / כותרת</label>
-            <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע">
-          </div>
-          <div class="col">
-            <label for="report-org-name">שם הארגון</label>
-            <input type="text" id="report-org-name" placeholder="החברה שלי">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-footer-text">טקסט תחתית</label>
-            <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד">
-          </div>
-          <div class="col">
-            <label for="report-cover-note">הערת שער</label>
-            <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו...">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col" style="max-width:120px;">
-            <label for="report-version">גרסה</label>
-            <input type="text" id="report-version" value="1.0" placeholder="1.0">
-          </div>
-          <div class="col" style="max-width:120px;">
-            <label for="report-lang">שפה</label>
-            <select id="report-lang">
-              <option value="he" selected>עברית</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div class="col">
-            <label for="report-cover-image">תמונת שער</label>
-            <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער">
-            <div id="cover-image-preview" class="evidence-preview"></div>
-          </div>
-          <div class="col" id="ai-model-row" style="display:none;">
-            <label for="ai-model">מודל AI</label>
-            <select id="ai-model"></select>
+
+        <!-- Section: Dates & Assessment -->
+        <div class="form-section">
+          <div class="form-section-header">📅 תאריכים והערכה</div>
+          <div class="row">
+            <div class="col">
+              <label>טווח הבדיקה</label>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <div style="flex:1;min-width:110px;">
+                  <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">מתאריך</span>
+                  <div style="display:flex;gap:2px;align-items:center;">
+                    <input type="text" id="report-range-from" placeholder="DD/MM/YYYY" style="flex:1;">
+                    <input type="date" id="report-range-from-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                    <button type="button" class="btn-icon-sm date-picker-btn" data-picker="report-range-from-picker" title="בחר תאריך">🗓</button>
+                  </div>
+                </div>
+                <span class="muted" style="padding-top:14px;">—</span>
+                <div style="flex:1;min-width:110px;">
+                  <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">עד תאריך</span>
+                  <div style="display:flex;gap:2px;align-items:center;">
+                    <input type="text" id="report-range-to" placeholder="DD/MM/YYYY" style="flex:1;">
+                    <input type="date" id="report-range-to-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                    <button type="button" class="btn-icon-sm date-picker-btn" data-picker="report-range-to-picker" title="בחר תאריך">🗓</button>
+                  </div>
+                </div>
+                <button type="button" class="btn-icon-sm" id="btn-range-today" title="סיום היום" style="margin-top:14px;">📅</button>
+              </div>
+              <input type="hidden" id="report-range">
+            </div>
+            <div class="col" style="max-width:200px;">
+              <label for="report-date">תאריך הדו"ח</label>
+              <div style="display:flex;gap:4px;align-items:center;">
+                <input type="text" id="report-date" placeholder="DD/MM/YYYY" style="flex:1;">
+                <input type="date" id="report-date-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                <button type="button" class="btn-icon-sm date-picker-btn" data-picker="report-date-picker" title="בחר תאריך">🗓</button>
+                <button type="button" class="btn-icon-sm" id="btn-date-today" title="היום">📅</button>
+              </div>
+            </div>
+            <div class="col" style="max-width:160px;">
+              <label for="report-risk">הערכת סיכון</label>
+              <select id="report-risk">
+                <option value="">-- לא נבחר --</option>
+                <option value="נמוכה">נמוכה</option>
+                <option value="בינונית">בינונית</option>
+                <option value="גבוהה">גבוהה</option>
+                <option value="קריטית">קריטית</option>
+              </select>
+            </div>
           </div>
         </div>
-        <div class="defaults-bar">
-          <button class="btn btn-secondary btn-sm" id="btn-save-defaults">💾 שמור כברירת מחדל</button>
-          <button class="btn btn-secondary btn-sm" id="btn-load-defaults">📋 טען ברירת מחדל</button>
-          <button class="btn btn-danger btn-sm" id="btn-clear-defaults">✕ מחק ברירת מחדל</button>
-          <span id="defaults-status" class="muted small-text"></span>
+
+        <!-- Section: Content -->
+        <div class="form-section">
+          <div class="form-section-header">📝 תוכן הדו"ח</div>
+          <div class="row">
+            <div class="col">
+              <label for="report-exec-summary">תקציר מנהלים</label>
+              <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
+            </div>
+            <div class="col">
+              <label for="report-key-topics">נושאי מפתח</label>
+              <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col">
+              <label for="report-footer-text">טקסט תחתית</label>
+              <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד">
+            </div>
+            <div class="col">
+              <label for="report-cover-note">הערת שער</label>
+              <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו...">
+            </div>
+          </div>
         </div>
+
+        <!-- Section: Settings -->
+        <div class="form-section">
+          <div class="form-section-header">⚙️ הגדרות</div>
+          <div class="row">
+            <div class="col" style="max-width:100px;">
+              <label for="report-version">גרסה</label>
+              <input type="text" id="report-version" value="1.0" placeholder="1.0">
+            </div>
+            <div class="col" style="max-width:100px;">
+              <label for="report-lang">שפה</label>
+              <select id="report-lang">
+                <option value="he" selected>עברית</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div class="col">
+              <label for="report-cover-image">תמונת שער</label>
+              <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער">
+              <div id="cover-image-preview" class="evidence-preview"></div>
+            </div>
+            <div class="col" id="ai-model-row" style="display:none;">
+              <label for="ai-model">מודל AI</label>
+              <select id="ai-model"></select>
+            </div>
+          </div>
+        </div>
+
+        <details class="defaults-section">
+          <summary class="defaults-summary">💾 ברירות מחדל</summary>
+          <div class="defaults-bar">
+            <button class="btn btn-secondary btn-sm" id="btn-save-defaults">💾 שמור כברירת מחדל</button>
+            <button class="btn btn-secondary btn-sm" id="btn-load-defaults">📋 טען ברירת מחדל</button>
+            <button class="btn btn-danger btn-sm" id="btn-clear-defaults">✕ מחק ברירת מחדל</button>
+            <span id="defaults-status" class="muted small-text"></span>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -367,8 +374,19 @@
           <button class="btn btn-danger btn-sm" id="btn-batch-delete">מחק נבחרים</button>
         </div>
         <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין לפי חומרה ↓</button>
-        <button class="btn btn-secondary btn-sm" id="btn-ai-enrich-all">🤖 הפעל שיפור המלצות להכל</button>
-        <button class="btn btn-danger btn-sm" id="btn-clear-all-findings">מחק הכל</button>
+        <div class="actions-dropdown-wrapper" style="display:inline-block;position:relative;">
+          <button class="btn btn-secondary btn-sm" id="btn-more-actions">⋮ פעולות נוספות</button>
+          <div class="actions-dropdown" id="findings-more-menu" style="display:none;">
+            <button class="actions-dropdown-item" id="btn-ai-enrich-all">🤖 הפעל שיפור המלצות להכל</button>
+            <button class="actions-dropdown-item actions-dropdown-danger" id="btn-clear-all-findings">🗑️ מחק הכל</button>
+          </div>
+        </div>
+        <select class="bulk-page-size" id="findings-page-size-static" style="margin-top:8px;">
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+        </select>
         <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
         <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
       </div>
@@ -377,19 +395,39 @@
     <!-- Panel: ייצוא דו"ח -->
     <section class="tab-panel" id="panel-export" role="tabpanel" aria-labelledby="tab-export">
       <div class="section-body">
-        <button class="btn btn-primary" id="btn-render-pdf" disabled>ייצא PDF</button>
-        <button class="btn btn-secondary" id="btn-generate" disabled>תצוגה מקדימה</button>
-        <button class="btn btn-secondary" id="btn-download" disabled>הורד HTML</button>
-        <button class="btn btn-secondary" id="btn-export-json">הורד תצורה</button>
-        <button class="btn btn-secondary" id="btn-export-csv">ייצוא CSV</button>
-        <button class="btn btn-secondary" id="btn-import-json">טען תצורה</button>
-        <button class="btn btn-secondary" id="btn-import-csv">ייבוא CSV</button>
-        <button class="btn btn-secondary" id="btn-import-baseline">השוואה לקודם</button>
-        <button class="btn btn-secondary" id="btn-save-state-cloud">שמור בשרת</button>
+        <div class="export-grid">
+          <!-- Export group -->
+          <div class="export-card">
+            <div class="export-card-header">📤 ייצוא דו"ח</div>
+            <div class="export-card-body">
+              <button class="btn btn-primary" id="btn-render-pdf" disabled>📄 ייצא PDF</button>
+              <button class="btn btn-secondary" id="btn-generate" disabled>👁 תצוגה מקדימה</button>
+              <button class="btn btn-secondary" id="btn-download" disabled>🌐 הורד HTML</button>
+              <button class="btn btn-secondary" id="btn-export-csv">📊 ייצוא CSV</button>
+            </div>
+          </div>
+          <!-- Import group -->
+          <div class="export-card">
+            <div class="export-card-header">📥 ייבוא ותצורה</div>
+            <div class="export-card-body">
+              <button class="btn btn-secondary" id="btn-export-json">💾 הורד תצורה</button>
+              <button class="btn btn-secondary" id="btn-import-json">📂 טען תצורה</button>
+              <button class="btn btn-secondary" id="btn-import-csv">📄 ייבוא CSV</button>
+              <button class="btn btn-secondary" id="btn-import-baseline">📈 השוואה לקודם</button>
+            </div>
+          </div>
+          <!-- Save group -->
+          <div class="export-card">
+            <div class="export-card-header">☁️ שמירה בשרת</div>
+            <div class="export-card-body">
+              <button class="btn btn-secondary" id="btn-save-state-cloud">☁️ שמור בשרת</button>
+            </div>
+          </div>
+        </div>
         <input type="file" id="input-import-json" accept="application/json" style="display:none;" aria-label="בחירת קובץ תצורה">
         <input type="file" id="input-import-csv" accept=".csv,text/csv" style="display:none;" aria-label="בחירת CSV">
         <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת JSON להשוואה">
-        <span id="status-msg" class="muted small-text" role="status" aria-live="polite"></span>
+        <span id="status-msg" class="muted small-text" role="status" aria-live="polite" style="display:block;margin-top:12px;"></span>
         <div id="trend-comparison" style="display:none;margin-top:14px;"></div>
       </div>
     </section>
@@ -409,51 +447,64 @@
     <!-- Panel: Wizi integration -->
     <section class="tab-panel" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
       <div class="section-body">
-        <!-- Bulk Import Section -->
-        <div class="wizi-quick-add" id="bulk-import-section">
-          <label>📦 ייבוא מרוכז לפי Subscription</label>
-          <div class="row" style="align-items:end;">
-            <div class="col">
-              <div class="autocomplete-wrapper">
-                <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
-                <input type="hidden" id="bulk-import-sub-id">
-                <div class="autocomplete-list" id="bulk-import-sub-list"></div>
+        <!-- Wizi sub-tabs -->
+        <nav class="wizi-sub-tabs" role="tablist">
+          <button class="wizi-sub-tab active" data-wizi-panel="wizi-panel-bulk">📦 ייבוא מרוכז</button>
+          <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-find-id">🔎 שליפה לפי מזהה</button>
+          <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-query">🔍 שאילתה מסוננת</button>
+        </nav>
+
+        <!-- Sub-panel: Bulk Import -->
+        <div class="wizi-sub-panel active" id="wizi-panel-bulk">
+          <div class="wizi-quick-add" id="bulk-import-section">
+            <label>📦 ייבוא מרוכז לפי Subscription</label>
+            <div class="row" style="align-items:end;">
+              <div class="col">
+                <div class="autocomplete-wrapper">
+                  <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
+                  <input type="hidden" id="bulk-import-sub-id">
+                  <div class="autocomplete-list" id="bulk-import-sub-list"></div>
+                </div>
+              </div>
+              <div class="col" style="max-width:160px;">
+                <button class="btn btn-primary" id="btn-bulk-import">ייבוא מרוכז</button>
               </div>
             </div>
-            <div class="col" style="max-width:160px;">
-              <button class="btn btn-primary" id="btn-bulk-import">ייבוא מרוכז</button>
+            <div id="bulk-import-progress" class="muted small-text" style="margin-top:6px;"></div>
+            <div id="bulk-import-actions" class="bulk-actions-sticky" style="display:none;">
+              <button class="btn btn-primary" id="btn-bulk-import-selected">ייבא נבחרים לדו"ח</button>
+              <button class="btn btn-secondary" id="btn-bulk-select-all">בחר/בטל הכל</button>
+              <button class="btn btn-secondary btn-sm" id="btn-bulk-expand-all" title="הרחב הכל" style="padding:4px 8px;">▼</button>
+              <button class="btn btn-secondary btn-sm" id="btn-bulk-collapse-all" title="כווץ הכל" style="padding:4px 8px;">▲</button>
+              <span id="bulk-selected-count" class="muted small-text" style="margin-right:10px;"></span>
             </div>
+            <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
           </div>
-          <div id="bulk-import-progress" class="muted small-text" style="margin-top:6px;"></div>
-          <div id="bulk-import-actions" style="display:none;margin-top:10px;">
-            <button class="btn btn-primary" id="btn-bulk-import-selected">ייבא נבחרים לדו"ח</button>
-            <button class="btn btn-secondary" id="btn-bulk-select-all">בחר/בטל הכל</button>
-            <button class="btn btn-secondary btn-sm" id="btn-bulk-expand-all" title="הרחב הכל" style="padding:4px 8px;">▼</button>
-            <button class="btn btn-secondary btn-sm" id="btn-bulk-collapse-all" title="כווץ הכל" style="padding:4px 8px;">▲</button>
-            <span id="bulk-selected-count" class="muted small-text" style="margin-right:10px;"></span>
-          </div>
-          <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
         </div>
-        <hr style="border-color:var(--border);margin:16px 0;">
-        <!-- Quick fetch by ID -->
-        <div class="wizi-quick-add">
-          <label for="wizi-find-id">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
-          <div class="row" style="align-items:end;">
-            <div class="col">
-              <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
+
+        <!-- Sub-panel: Find by ID -->
+        <div class="wizi-sub-panel" id="wizi-panel-find-id">
+          <div class="wizi-quick-add">
+            <label for="wizi-find-id">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
+            <div class="row" style="align-items:end;">
+              <div class="col">
+                <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
+              </div>
+              <div class="col">
+                <label for="wizi-find-id-sub" class="muted small-text" style="margin-bottom:4px;">סינון לפי Subscription / פרויקט (אופציונלי)</label>
+                <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
+              </div>
+              <div class="col" style="max-width:140px;">
+                <button class="btn btn-primary btn-sm" id="btn-wizi-find-by-id">שלוף וייבא</button>
+              </div>
             </div>
-            <div class="col">
-              <label for="wizi-find-id-sub" class="muted small-text" style="margin-bottom:4px;">סינון לפי Subscription / פרויקט (אופציונלי)</label>
-              <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
-            </div>
-            <div class="col" style="max-width:140px;">
-              <button class="btn btn-primary btn-sm" id="btn-wizi-find-by-id">שלוף וייבא</button>
-            </div>
+            <span id="wizi-find-id-status" class="muted small-text"></span>
+            <div id="wizi-find-id-results" class="small-text" style="margin-top:8px;"></div>
           </div>
-          <span id="wizi-find-id-status" class="muted small-text"></span>
-          <div id="wizi-find-id-results" class="small-text" style="margin-top:8px;"></div>
         </div>
-        <hr style="border-color:var(--border);margin:16px 0;">
+
+        <!-- Sub-panel: Filtered Query -->
+        <div class="wizi-sub-panel" id="wizi-panel-query">
         <div class="row">
           <div class="col" style="max-width:220px;">
             <label for="wizi-query-type">סוג שאילתה</label>
@@ -532,11 +583,12 @@
           <button class="btn btn-secondary" id="btn-wizi-select-all">בחר/בטל הכל</button>
           <span id="wizi-selected-count" class="muted small-text" style="margin-right:10px;"></span>
         </div>
+        </div><!-- /wizi-panel-query -->
       </div>
     </section>
 
   </div>
 
-  <script src="/static/js/builder.js?v=47"></script>
+  <script src="/static/js/builder.js?v=48"></script>
 </body>
 </html>

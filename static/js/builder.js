@@ -1,6 +1,8 @@
     (function() {
       const findings = [];
       let editingIndex = null;
+      var findingsSortState = { col: null, dir: 'asc' };
+      var findingsPageState = { page: 0, pageSize: 20 };
 
       const severityMap = {
         critical: { text: 'קריטי', class: 'sev-critical' },
@@ -847,14 +849,52 @@
                 filtered.push({ f: f, idx: idx });
               });
 
+              // Apply sort
+              if (findingsSortState.col) {
+                var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+                filtered.sort(function(a, b) {
+                  var va, vb;
+                  var col = findingsSortState.col;
+                  if (col === 'id') { va = a.f.id || ''; vb = b.f.id || ''; }
+                  else if (col === 'category') { va = a.f.category || ''; vb = b.f.category || ''; }
+                  else if (col === 'title') { va = (a.f.title || '').toLowerCase(); vb = (b.f.title || '').toLowerCase(); }
+                  else if (col === 'severity') { va = sevOrder[a.f.severity] || 9; vb = sevOrder[b.f.severity] || 9; }
+                  else if (col === 'owner') { va = (a.f.owner || '').toLowerCase(); vb = (b.f.owner || '').toLowerCase(); }
+                  else { va = ''; vb = ''; }
+                  if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
+                  if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+                  return 0;
+                });
+              }
+
               var filterNote = filtered.length < findings.length ? ' (מציג ' + filtered.length + ' מתוך ' + findings.length + ')' : '';
 
-              let html = '<table><caption class="muted small-text">רשימת ממצאים שנוספו לדו"ח' + filterNote + '</caption><thead><tr>' +
+              function fSortInd(col) {
+                if (findingsSortState.col !== col) return ' <span class="sort-arrow">⇅</span>';
+                return findingsSortState.dir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+              }
+
+              let html = '';
+              html += '<table><caption class="muted small-text">רשימת ממצאים שנוספו לדו"ח' + filterNote + ' | ' + (fStart + 1) + '–' + fEnd + ' מתוך ' + totalFiltered + '</caption><thead><tr>' +
                 '<th><input type="checkbox" id="finding-check-all" class="finding-check"></th>' +
-                '<th>#</th><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th><th>מדיניות / תקנים</th><th>הוכחה</th><th>פעולות</th>' +
+                '<th>#</th>' +
+                '<th class="sortable-th" data-findings-sort="id">מזהה' + fSortInd('id') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="category">קטגוריה' + fSortInd('category') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="title">כותרת' + fSortInd('title') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="severity">חומרה' + fSortInd('severity') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="owner">בעלים' + fSortInd('owner') + '</th>' +
+                '<th>מדיניות / תקנים</th><th>הוכחה</th><th>פעולות</th>' +
                 '</tr></thead><tbody>';
 
-              filtered.forEach(function(item) {
+              // Pagination
+              var totalFiltered = filtered.length;
+              var fTotalPages = Math.ceil(totalFiltered / findingsPageState.pageSize);
+              if (findingsPageState.page >= fTotalPages && fTotalPages > 0) findingsPageState.page = fTotalPages - 1;
+              var fStart = findingsPageState.page * findingsPageState.pageSize;
+              var fEnd = Math.min(fStart + findingsPageState.pageSize, totalFiltered);
+              var pagedFiltered = filtered.slice(fStart, fEnd);
+
+              pagedFiltered.forEach(function(item) {
                 var f = item.f;
                 var idx = item.idx;
                 const sev = severityMap[f.severity] || severityMap.medium;
@@ -876,17 +916,27 @@
                   '<td class="inline-editable" data-field="owner" data-idx="' + idx + '">' + (f.owner || '<span class="muted">—</span>') + '</td>' +
                   '<td>' + policiesInline + '</td>' +
                   '<td>' + evidenceText + '</td>' +
-                  '<td>' +
-                    '<button class="btn btn-secondary btn-sm" data-action="preview" data-idx="' + idx + '" aria-label="תצוגה מקדימה ' + (f.id || '') + '">👁</button>' +
-                    '<button class="btn btn-secondary btn-sm" data-action="edit" data-idx="' + idx + '" aria-label="ערוך ממצא ' + (f.id || '') + '">ערוך</button>' +
-                    '<button class="btn btn-secondary btn-sm" data-action="dup" data-idx="' + idx + '" aria-label="שכפל ממצא ' + (f.id || '') + '">שכפל</button>' +
-                    '<button class="btn btn-danger btn-sm" data-action="delete" data-idx="' + idx + '" aria-label="מחק ממצא ' + (f.id || '') + '">מחק</button>' +
+                  '<td class="actions-cell">' +
+                    '<button class="btn-icon-sm" data-action="preview" data-idx="' + idx + '" title="תצוגה מקדימה">👁</button>' +
+                    '<button class="btn-icon-sm" data-action="edit" data-idx="' + idx + '" title="ערוך">✏️</button>' +
+                    '<button class="btn-icon-sm" data-action="dup" data-idx="' + idx + '" title="שכפל">📋</button>' +
+                    '<button class="btn-icon-sm btn-icon-sm-danger" data-action="delete" data-idx="' + idx + '" title="מחק">✕</button>' +
                     '<span class="drag-handle" title="גרור לשינוי סדר">⠿</span>' +
                   '</td>' +
                   '</tr>';
               });
 
               html += '</tbody></table>';
+
+              // Pagination nav below table
+              if (fTotalPages > 1) {
+                html += '<div class="bulk-pagination-bottom">';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-prev"' + (findingsPageState.page === 0 ? ' disabled' : '') + '>▶</button>';
+                html += '<span class="bulk-pagination-page">' + (findingsPageState.page + 1) + ' / ' + fTotalPages + '</span>';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-next"' + (findingsPageState.page >= fTotalPages - 1 ? ' disabled' : '') + '>◀</button>';
+                html += '</div>';
+              }
+
               tableWrapper.innerHTML = html;
               genBtn.disabled = false;
               dlBtn.disabled  = false;
@@ -985,6 +1035,27 @@
               // Category badges and drag-and-drop
               renderCategoryBadges();
               setupDragAndDrop();
+
+              // Wire sortable headers for findings table
+              tableWrapper.querySelectorAll('.sortable-th[data-findings-sort]').forEach(function(th) {
+                th.addEventListener('click', function() {
+                  var col = th.getAttribute('data-findings-sort');
+                  if (findingsSortState.col === col) {
+                    findingsSortState.dir = findingsSortState.dir === 'asc' ? 'desc' : 'asc';
+                  } else {
+                    findingsSortState.col = col;
+                    findingsSortState.dir = 'asc';
+                  }
+                  findingsPageState.page = 0;
+                  renderFindingsTable();
+                });
+              });
+
+              // Wire pagination
+              var fpPrev = document.getElementById('findings-page-prev');
+              var fpNext = document.getElementById('findings-page-next');
+              if (fpPrev) fpPrev.addEventListener('click', function() { findingsPageState.page--; renderFindingsTable(); });
+              if (fpNext) fpNext.addEventListener('click', function() { findingsPageState.page++; renderFindingsTable(); });
             }
 
       // ── Batch actions ──
@@ -1521,6 +1592,32 @@
         renderFindingsTable();
         statusMsg.textContent = 'ממצאים מוינו לפי חומרה (קריטי ← מידע).';
       });
+
+      // Page size selector for findings table
+      var findingsPageSizeStatic = document.getElementById('findings-page-size-static');
+      if (findingsPageSizeStatic) {
+        findingsPageSizeStatic.addEventListener('change', function() {
+          findingsPageState.pageSize = parseInt(this.value);
+          findingsPageState.page = 0;
+          renderFindingsTable();
+        });
+      }
+
+      // More actions dropdown toggle
+      var moreActionsBtn = document.getElementById('btn-more-actions');
+      var moreActionsMenu = document.getElementById('findings-more-menu');
+      if (moreActionsBtn && moreActionsMenu) {
+        moreActionsBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          moreActionsMenu.style.display = moreActionsMenu.style.display === 'none' ? 'block' : 'none';
+        });
+        document.addEventListener('click', function() {
+          moreActionsMenu.style.display = 'none';
+        });
+        moreActionsMenu.addEventListener('click', function() {
+          moreActionsMenu.style.display = 'none';
+        });
+      }
 
       // Clear all findings
       document.getElementById('btn-clear-all-findings').addEventListener('click', function() {
@@ -3628,6 +3725,19 @@
       // =====================================================================
       // Wizi integration
       // =====================================================================
+
+      // Wizi sub-tab switching
+      document.querySelectorAll('.wizi-sub-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.wizi-sub-tab').forEach(function(t) { t.classList.remove('active'); });
+          document.querySelectorAll('.wizi-sub-panel').forEach(function(p) { p.classList.remove('active'); });
+          tab.classList.add('active');
+          var panelId = tab.getAttribute('data-wizi-panel');
+          var panel = document.getElementById(panelId);
+          if (panel) panel.classList.add('active');
+        });
+      });
+
       var wiziResults = document.getElementById('wizi-results');
       var wiziStatusMsg = document.getElementById('wizi-status-msg');
       var wiziFetchBtn = document.getElementById('btn-wizi-fetch');
@@ -3831,11 +3941,24 @@
       function setupAutocomplete(input, hiddenInput, listEl, getItems) {
         var activeIdx = -1;
 
+        // Move list to body so it's never clipped by parent overflow
+        if (listEl.parentNode !== document.body) {
+          document.body.appendChild(listEl);
+        }
+
+        function positionList() {
+          var rect = input.getBoundingClientRect();
+          listEl.style.position = 'fixed';
+          listEl.style.top = rect.bottom + 'px';
+          listEl.style.left = rect.left + 'px';
+          listEl.style.width = rect.width + 'px';
+        }
+
         function render(query) {
           var items = getItems();
           var q = (query || '').toLowerCase();
           var filtered = q ? items.filter(function(it) {
-            return it.label.toLowerCase().includes(q) || (it.sub || '').toLowerCase().includes(q);
+            return it.label.toLowerCase().includes(q) || (it.sub || '').toLowerCase().includes(q) || (it.externalId || '').toLowerCase().includes(q);
           }) : items;
           filtered = filtered.slice(0, 50); // cap results
 
@@ -3849,6 +3972,7 @@
               it.label + (it.sub ? ' <span class="ac-sub">' + it.sub + '</span>' : '') +
               '</div>';
           }).join('');
+          positionList();
           listEl.classList.add('open');
           activeIdx = -1;
         }
@@ -3905,6 +4029,14 @@
           }
         });
 
+        // Close on scroll/resize (fixed position won't follow)
+        window.addEventListener('scroll', function() {
+          if (listEl.classList.contains('open')) positionList();
+        }, true);
+        window.addEventListener('resize', function() {
+          listEl.classList.remove('open');
+        });
+
         // Clear button behavior — if user clears the field, reset hidden ID
         input.addEventListener('change', function() {
           if (!input.value.trim()) hiddenInput.value = '';
@@ -3927,7 +4059,8 @@
                 return { 
                   id: s.name, 
                   label: s.name, 
-                  sub: s.cloudProvider + ' · ' + (s.externalId || (s.id ? s.id.substring(0, 8) : ''))
+                  sub: s.cloudProvider + ' · ' + (s.externalId || (s.id ? s.id.substring(0, 8) : '')),
+                  externalId: s.externalId || ''
                 };
               });
             }
@@ -6143,73 +6276,187 @@
 
         // Build results table
         var html = '';
+        var bulkPageState = {};
+        var defaultPageSize = 20;
+
         queryTypes.forEach(function(qt) {
           var nodes = bulkImportResults[qt];
           if (!nodes || !nodes.length) return;
           var label = queryTypeLabels[qt];
+          bulkPageState[qt] = { page: 0, pageSize: defaultPageSize };
 
-          html += '<details open style="margin-bottom:8px;">';
-          html += '<summary style="cursor:pointer;font-weight:bold;padding:4px 0;">' + escapeHtml(label) + ' (' + nodes.length + ')</summary>';
-          html += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
-          html += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '" checked></th>';
-          html += '<th>סוג</th><th>חומרה</th><th>כותרת</th>';
-          if (qt === 'vulnerabilityFindings') {
-            html += '<th>משאב</th><th>סוג משאב</th>';
-          }
-          if (qt === 'secretInstances') {
-            html += '<th>משאב</th>';
-          }
-          html += '<th>Subscription</th>';
-          html += '</tr></thead><tbody>';
-
-          nodes.forEach(function(node, idx) {
-            var sev = mapWiziSeverity(node.severity);
-            var sevInfo = severityMap[sev] || severityMap.medium;
-            var title = getWiziItemTitle(node, qt);
-            var subName = getNodeSubscriptionName(node, qt);
-
-            html += '<tr>';
-            html += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + idx + '" checked></td>';
-            html += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
-            html += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
-            html += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
-            if (qt === 'vulnerabilityFindings') {
-              var asset = node.vulnerableAsset || {};
-              html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(asset.name || '') + '">' + escapeHtml(asset.name || '—') + '</td>';
-              html += '<td>' + escapeHtml(asset.type || '—') + '</td>';
-            }
-            if (qt === 'secretInstances') {
-              var res = node.resource || {};
-              html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(res.name || '') + '">' + escapeHtml(res.name || '—') + '</td>';
-            }
-            html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '—') + '</td>';
-            html += '</tr>';
-          });
-
-          html += '</tbody></table></details>';
+          html += '<details class="bulk-section-card" data-qt="' + qt + '">';
+          html += '<summary class="bulk-section-summary"><span class="bulk-section-icon">' + (qt === 'vulnerabilityFindings' ? '🛡️' : qt === 'configurationFindings' ? '⚙️' : qt === 'secretInstances' ? '🔑' : qt === 'excessiveAccessFindings' ? '👤' : qt === 'networkExposures' ? '🌐' : qt === 'hostConfigurationRuleAssessments' ? '🖥️' : qt === 'dataFindingsV2' ? '💾' : qt === 'inventoryFindings' ? '📦' : '📋') + '</span><span class="bulk-section-label">' + escapeHtml(label) + '</span><span class="bulk-section-count">' + nodes.length + '</span></summary>';
+          html += '<div class="bulk-section-body" id="bulk-body-' + qt + '"></div>';
+          html += '</details>';
         });
 
         resultsDiv.innerHTML = html;
         actionsDiv.style.display = '';
 
-        // Wire section-level checkboxes
-        resultsDiv.querySelectorAll('.bulk-section-check').forEach(function(sectionCb) {
-          sectionCb.addEventListener('change', function() {
-            var qt = sectionCb.getAttribute('data-query-type');
-            var checked = sectionCb.checked;
-            resultsDiv.querySelectorAll('.bulk-check[data-query-type="' + qt + '"]').forEach(function(cb) {
-              cb.checked = checked;
-            });
-            updateBulkSelectedCount();
-          });
-        });
+        function getBulkSortValue(node, qt, col) {
+          var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+          if (col === 'severity') return sevOrder[mapWiziSeverity(node.severity)] || 9;
+          if (col === 'title') return (getWiziItemTitle(node, qt) || '').toLowerCase();
+          if (col === 'subscription') return (getNodeSubscriptionName(node, qt) || '').toLowerCase();
+          if (col === 'resource') {
+            if (qt === 'vulnerabilityFindings') return ((node.vulnerableAsset || {}).name || '').toLowerCase();
+            if (qt === 'secretInstances') return ((node.resource || {}).name || '').toLowerCase();
+            return '';
+          }
+          if (col === 'resourceType') return ((node.vulnerableAsset || {}).type || '').toLowerCase();
+          if (col === 'type') return qt;
+          return '';
+        }
 
-        // Wire individual checkboxes
-        resultsDiv.querySelectorAll('.bulk-check').forEach(function(cb) {
-          cb.addEventListener('change', function() {
-            updateBulkSelectedCount();
+        function renderBulkPage(qt) {
+          var nodes = bulkImportResults[qt];
+          if (!nodes) return;
+          var state = bulkPageState[qt];
+          var start = state.page * state.pageSize;
+          var end = Math.min(start + state.pageSize, nodes.length);
+          var totalPages = Math.ceil(nodes.length / state.pageSize);
+          var label = queryTypeLabels[qt];
+
+          // Sort nodes if sort is active
+          if (state.sortCol) {
+            var dir = state.sortDir || 'asc';
+            nodes = nodes.slice().sort(function(a, b) {
+              var va = getBulkSortValue(a, qt, state.sortCol);
+              var vb = getBulkSortValue(b, qt, state.sortCol);
+              if (va < vb) return dir === 'asc' ? -1 : 1;
+              if (va > vb) return dir === 'asc' ? 1 : -1;
+              return 0;
+            });
+            bulkImportResults[qt] = nodes;
+          }
+
+          var bodyEl = document.getElementById('bulk-body-' + qt);
+          if (!bodyEl) return;
+
+          function sortIndicator(col) {
+            if (state.sortCol !== col) return ' <span class="sort-arrow">⇅</span>';
+            return state.sortDir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+          }
+
+          var h = '';
+          // Pagination controls top - info + page size
+          h += '<div class="bulk-pagination-top">';
+          h += '<span class="bulk-pagination-info">' + (start + 1) + '–' + end + ' מתוך ' + nodes.length + '</span>';
+          h += '<select class="bulk-page-size" data-qt="' + qt + '">';
+          [20, 50, 100, 200].forEach(function(s) {
+            h += '<option value="' + s + '"' + (s === state.pageSize ? ' selected' : '') + '>' + s + '</option>';
           });
-        });
+          h += '</select>';
+          h += '</div>';
+
+          // Table with sortable headers
+          h += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
+          h += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '" checked></th>';
+          h += '<th class="sortable-th" data-sort-col="type" data-qt="' + qt + '">סוג' + sortIndicator('type') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="severity" data-qt="' + qt + '">חומרה' + sortIndicator('severity') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="title" data-qt="' + qt + '">כותרת' + sortIndicator('title') + '</th>';
+          if (qt === 'vulnerabilityFindings') {
+            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
+            h += '<th class="sortable-th" data-sort-col="resourceType" data-qt="' + qt + '">סוג משאב' + sortIndicator('resourceType') + '</th>';
+          }
+          if (qt === 'secretInstances') {
+            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
+          }
+          h += '<th class="sortable-th" data-sort-col="subscription" data-qt="' + qt + '">Subscription' + sortIndicator('subscription') + '</th>';
+          h += '</tr></thead><tbody>';
+
+          for (var i = start; i < end; i++) {
+            var node = nodes[i];
+            var sev = mapWiziSeverity(node.severity);
+            var sevInfo = severityMap[sev] || severityMap.medium;
+            var title = getWiziItemTitle(node, qt);
+            var subName = getNodeSubscriptionName(node, qt);
+
+            h += '<tr>';
+            h += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + i + '" checked></td>';
+            h += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
+            h += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
+            h += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
+            if (qt === 'vulnerabilityFindings') {
+              var asset = node.vulnerableAsset || {};
+              h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(asset.name || '') + '">' + escapeHtml(asset.name || '—') + '</td>';
+              h += '<td>' + escapeHtml(asset.type || '—') + '</td>';
+            }
+            if (qt === 'secretInstances') {
+              var res = node.resource || {};
+              h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(res.name || '') + '">' + escapeHtml(res.name || '—') + '</td>';
+            }
+            h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '—') + '</td>';
+            h += '</tr>';
+          }
+
+          h += '</tbody></table>';
+
+          // Pagination controls below table
+          if (totalPages > 1) {
+            h += '<div class="bulk-pagination-bottom">';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="prev"' + (state.page === 0 ? ' disabled' : '') + '>▶</button>';
+            h += '<span class="bulk-pagination-page">' + (state.page + 1) + ' / ' + totalPages + '</span>';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="next"' + (state.page >= totalPages - 1 ? ' disabled' : '') + '>◀</button>';
+            h += '</div>';
+          }
+
+          bodyEl.innerHTML = h;
+
+          // Wire pagination events
+          bodyEl.querySelectorAll('.bulk-page-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var dir = btn.getAttribute('data-dir');
+              if (dir === 'next') bulkPageState[qt].page++;
+              else bulkPageState[qt].page--;
+              renderBulkPage(qt);
+              updateBulkSelectedCount();
+            });
+          });
+          var pageSizeSelect = bodyEl.querySelector('.bulk-page-size');
+          if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', function() {
+              bulkPageState[qt].pageSize = parseInt(this.value);
+              bulkPageState[qt].page = 0;
+              renderBulkPage(qt);
+              updateBulkSelectedCount();
+            });
+          }
+          // Wire section checkbox
+          var sectionCheck = bodyEl.querySelector('.bulk-section-check');
+          if (sectionCheck) {
+            sectionCheck.addEventListener('change', function() {
+              var checked = sectionCheck.checked;
+              bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = checked; });
+              updateBulkSelectedCount();
+            });
+          }
+          // Wire individual checkboxes
+          bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) {
+            cb.addEventListener('change', updateBulkSelectedCount);
+          });
+          // Wire sortable headers
+          bodyEl.querySelectorAll('.sortable-th').forEach(function(th) {
+            th.addEventListener('click', function() {
+              var col = th.getAttribute('data-sort-col');
+              var sortQt = th.getAttribute('data-qt');
+              var st = bulkPageState[sortQt];
+              if (st.sortCol === col) {
+                st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc';
+              } else {
+                st.sortCol = col;
+                st.sortDir = 'asc';
+              }
+              st.page = 0;
+              renderBulkPage(sortQt);
+              updateBulkSelectedCount();
+            });
+          });
+        }
+
+        // Render first page for each section
+        Object.keys(bulkPageState).forEach(renderBulkPage);
 
         updateBulkSelectedCount();
       }
