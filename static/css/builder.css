@@ -132,6 +132,13 @@ body {
   display: flex;
   flex: 1;
   overflow: hidden;
+  direction: ltr; /* explicit LTR so sidebar stays on right, main on left */
+}
+
+/* All content inside stays RTL */
+.main-content,
+.sidebar {
+  direction: rtl;
 }
 
 /* Sidebar */
