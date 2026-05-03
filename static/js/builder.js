@@ -6695,4 +6695,126 @@
         });
       }
 
+
+    // ══════════════════════════════════════════════════════
+    // SIDEBAR ROUTING
+    // ══════════════════════════════════════════════════════
+    (function() {
+      var screenToTab = {
+        'screen-details':       'tab-report-details',
+        'screen-finding-form':  'tab-finding-form',
+        'screen-findings-list': 'tab-findings-list',
+        'screen-export':        'tab-export',
+        'screen-cloud-manager': 'tab-cloud-manager',
+        'screen-wizi':          'tab-wizi'
+      };
+
+      var topbarTitles = {
+        'screen-details':       ['פרטי דו"ח', 'הגדרות הדו"ח'],
+        'screen-finding-form':  ['הוסף ממצא', 'עריכת ממצא'],
+        'screen-findings-list': ['ממצאים', 'רשימת הממצאים'],
+        'screen-export':        ['ייצוא דו"ח', 'PDF / HTML / JSON'],
+        'screen-cloud-manager': ['קבצי שרת', 'ניהול קבצים'],
+        'screen-wizi':          ['Wiz Import', 'ייבוא ממצאים']
+      };
+
+      function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(function(s) {
+          s.classList.remove('active');
+        });
+        var target = document.getElementById(screenId);
+        if (target) target.classList.add('active');
+
+        document.querySelectorAll('.sidebar-nav-item').forEach(function(item) {
+          item.classList.toggle('active', item.getAttribute('data-screen') === screenId);
+        });
+
+        var titles = topbarTitles[screenId] || ['', ''];
+        var titleEl = document.getElementById('topbar-title');
+        var breadEl = document.getElementById('topbar-breadcrumb');
+        if (titleEl) titleEl.textContent = titles[0];
+        if (breadEl) breadEl.textContent = titles[1];
+
+        try { localStorage.setItem('cspm_active_screen', screenId); } catch(e) {}
+
+        // Activate the hidden tab-btn so legacy JS (switchToTab side-effects) still fires
+        var tabId = screenToTab[screenId];
+        if (tabId) {
+          document.querySelectorAll('.tab-btn').forEach(function(btn) {
+            btn.classList.remove('active');
+            btn.setAttribute('aria-selected', 'false');
+          });
+          var btn = document.getElementById(tabId);
+          if (btn) {
+            btn.classList.add('active');
+            btn.setAttribute('aria-selected', 'true');
+          }
+          document.querySelectorAll('.tab-panel').forEach(function(p) {
+            p.classList.remove('active');
+          });
+          var panelId = btn ? btn.getAttribute('aria-controls') : null;
+          if (panelId) {
+            var panel = document.getElementById(panelId);
+            if (panel) panel.classList.add('active');
+          }
+          try { localStorage.setItem('cspm_active_tab', tabId); } catch(e) {}
+        }
+
+        updateSidebarMeta();
+      }
+
+      function updateSidebarMeta() {
+        var clientEl = document.getElementById('report-client');
+        var envEl    = document.getElementById('report-env');
+        var hasDetails  = !!(clientEl && clientEl.value.trim()) || !!(envEl && envEl.value.trim());
+        var hasFindings = findings.length > 0;
+        var steps = (hasDetails ? 1 : 0) + (hasFindings ? 2 : 0);
+        var pct   = Math.round((steps / 4) * 100);
+
+        var fillEl  = document.getElementById('sidebar-progress-fill');
+        var pctEl   = document.getElementById('sidebar-progress-pct');
+        var stepsEl = document.getElementById('sidebar-progress-steps');
+        if (fillEl)  fillEl.style.width  = pct + '%';
+        if (pctEl)   pctEl.textContent   = pct + '%';
+        if (stepsEl) stepsEl.textContent = steps + ' מתוך 4 שלבים';
+
+        var badge = document.getElementById('nav-findings-count');
+        if (badge) {
+          badge.textContent = findings.length || '';
+          badge.style.display = findings.length ? '' : 'none';
+        }
+
+        var nameEl = document.getElementById('sidebar-report-name');
+        var envSel = document.getElementById('sidebar-report-env');
+        if (nameEl) nameEl.textContent = (clientEl && clientEl.value.trim()) || 'דו"ח חדש';
+        if (envSel) envSel.textContent = (envEl && envEl.value.trim()) || 'לא הוגדרה סביבה';
+      }
+
+      // Patch updateStepper to also refresh sidebar
+      var _origUpdateStepper = updateStepper;
+      updateStepper = function() {
+        _origUpdateStepper();
+        updateSidebarMeta();
+      };
+
+      // Wire sidebar nav clicks
+      document.querySelectorAll('.sidebar-nav-item[data-screen]').forEach(function(item) {
+        item.addEventListener('click', function() {
+          showScreen(item.getAttribute('data-screen'));
+        });
+      });
+
+      // Restore last screen
+      var savedScreen = localStorage.getItem('cspm_active_screen') || 'screen-details';
+      showScreen(savedScreen);
+
+      // Keep sidebar meta fresh when report fields change
+      ['report-client', 'report-env'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateSidebarMeta);
+      });
+
+      updateSidebarMeta();
+    })();
+
     })();

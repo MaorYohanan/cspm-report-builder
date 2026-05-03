@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=19">
+  <link rel="stylesheet" href="/static/css/builder.css?v=20">
 </head>
 <body>
   <!-- Toast container -->
@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  <!-- Finding preview panel -->
+  <!-- Finding preview panel (legacy, kept for JS compatibility) -->
   <div id="finding-preview-panel" class="preview-panel" style="display:none;">
     <div class="preview-panel-header">
       <span id="preview-panel-title">תצוגה מקדימה</span>
@@ -48,44 +48,43 @@
     <button class="btn btn-secondary btn-sm" id="btn-wizi-autofill-dismiss">✕</button>
   </div>
 
-  <div class="app-container">
-    <div class="app-header">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <h1>Wizi — CSPM Report Builder</h1>
+  <!-- ═══════════════════════════════════════════════════════
+       APP SHELL: TopBar + Sidebar + Main
+  ════════════════════════════════════════════════════════ -->
+  <div class="app-shell">
+
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title" id="topbar-title">לוח בקרה</span>
+        <span class="topbar-breadcrumb" id="topbar-breadcrumb">Wizi Reporter</span>
+      </div>
+      <div class="topbar-right">
+        <span id="autosave-indicator" class="autosave-indicator"></span>
         <button class="btn btn-secondary btn-sm" id="btn-theme-toggle" title="החלף ערכת נושא" style="margin-top:0;padding:4px 8px;">🌙</button>
         <button class="btn btn-secondary btn-sm" id="btn-kbd-help" title="קיצורי מקלדת (?)" style="margin-top:0;padding:4px 8px;">⌨️</button>
-        <button class="btn btn-danger btn-sm" id="btn-new-report" title="דו"ח חדש — נקה הכל" style="margin-top:0;padding:4px 10px;">🗑️ דו"ח חדש</button>
+        <button class="btn btn-secondary btn-sm" id="btn-preview-report" disabled style="margin-top:0;">תצוגה מקדימה</button>
+        <button class="btn btn-primary btn-sm" id="btn-render-pdf" disabled style="margin-top:0;">ייצוא PDF ↑</button>
+        <button class="btn btn-danger btn-sm" id="btn-new-report" title="דו&quot;ח חדש — נקה הכל" style="margin-top:0;padding:4px 10px;">🗑️ חדש</button>
       </div>
-      <span id="autosave-indicator" class="autosave-indicator"></span>
-    </div>
+    </header>
 
-    <!-- Progress stepper -->
-    <div class="progress-stepper" id="progress-stepper">
-      <div class="step" data-step="details"><span class="step-icon">①</span> פרטי דו"ח</div>
-      <div class="step-arrow">→</div>
-      <div class="step" data-step="findings"><span class="step-icon">②</span> ממצאים <span class="step-badge" id="step-findings-count"></span></div>
-      <div class="step-arrow">→</div>
-      <div class="step" data-step="review"><span class="step-icon">③</span> סקירה</div>
-      <div class="step-arrow">→</div>
-      <div class="step" data-step="export"><span class="step-icon">④</span> ייצוא</div>
-    </div>
-    <p class="muted" style="text-align:center;">
-      ממלאים פרטי דו"ח, מוסיפים ממצאים (כולל הוכחה כתמונה), אפשר לערוך/למחוק/להזיז. בסוף מייצרים דו"ח HTML או PDF.
-    </p>
+    <div class="app-body">
 
-    <!-- Tab navigation -->
-    <nav class="tab-bar" role="tablist" aria-label="חלקי הטופס">
-      <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-report-details" id="tab-report-details">פרטי דו"ח</button>
-      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form">הוספת / עריכת ממצא</button>
-      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list">ממצאים שנוספו</button>
-      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export">ייצוא דו"ח</button>
-      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager">ניהול קבצים בשרת</button>
-      <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi">🔍 Wizi</button>
-    </nav>
+      <!-- Main Content (left of sidebar in RTL) -->
+      <main class="main-content" id="main-content">
 
-    <!-- Panel: פרטי דו"ח -->
-    <section class="tab-panel active" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
-      <div class="section-body">
+        <!-- Hidden legacy elements JS depends on -->
+        <span id="status-msg" class="muted small-text" role="status" aria-live="polite" style="display:none;"></span>
+        <div id="trend-comparison" style="display:none;"></div>
+
+        <!-- ── Screen: פרטי דו"ח ── -->
+        <section class="screen active" id="screen-details">
+          <!-- Hidden tab-btn stubs so existing JS switchToTab() still works -->
+          <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-report-details" id="tab-report-details" style="display:none;"></button>
+
+          <section class="tab-panel active" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
+          <div class="section-body">
         <div class="row">
           <div class="col">
             <label for="report-client">שם הלקוח</label>
@@ -205,12 +204,16 @@
           <button class="btn btn-danger btn-sm" id="btn-clear-defaults">✕ מחק ברירת מחדל</button>
           <span id="defaults-status" class="muted small-text"></span>
         </div>
-      </div>
-    </section>
+        </div>
+        </section><!-- /panel-report-details -->
+        </section><!-- /screen-details -->
 
-    <!-- Panel: טופס הוספת/עריכת ממצא -->
-    <section class="tab-panel" id="panel-finding-form" role="tabpanel" aria-labelledby="tab-finding-form">
-      <div class="section-body">
+        <!-- ── Screen: הוסף ממצא ── -->
+        <section class="screen" id="screen-finding-form">
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form" style="display:none;"></button>
+
+          <section class="tab-panel active" id="panel-finding-form" role="tabpanel" aria-labelledby="tab-finding-form">
+          <div class="section-body">
         <div class="row">
           <div class="col">
             <label for="f-template">תבנית מוכנה</label>
@@ -311,12 +314,16 @@
         <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
         <span class="kbd-hint">Ctrl+Enter</span>
         <span id="edit-state" class="muted small-text"></span>
-      </div>
-    </section>
+        </div>
+        </section><!-- /panel-finding-form -->
+        </section><!-- /screen-finding-form -->
 
-    <!-- Panel: רשימת הממצאים -->
-    <section class="tab-panel" id="panel-findings-list" role="tabpanel" aria-labelledby="tab-findings-list">
-      <div class="section-body">
+        <!-- ── Screen: ממצאים ── -->
+        <section class="screen" id="screen-findings-list">
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list" style="display:none;"></button>
+
+          <section class="tab-panel active" id="panel-findings-list" role="tabpanel" aria-labelledby="tab-findings-list">
+          <div class="section-body">
         <!-- Filter bar -->
         <div class="findings-filter-bar">
           <input type="text" id="findings-search" placeholder="🔍 חיפוש לפי כותרת / מזהה..." class="filter-input">
@@ -371,12 +378,16 @@
         <button class="btn btn-danger btn-sm" id="btn-clear-all-findings">מחק הכל</button>
         <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
         <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
-      </div>
-    </section>
+        </div>
+        </section><!-- /panel-findings-list -->
+        </section><!-- /screen-findings-list -->
 
-    <!-- Panel: ייצוא דו"ח -->
-    <section class="tab-panel" id="panel-export" role="tabpanel" aria-labelledby="tab-export">
-      <div class="section-body">
+        <!-- ── Screen: ייצוא ── -->
+        <section class="screen" id="screen-export">
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" style="display:none;"></button>
+
+          <section class="tab-panel active" id="panel-export" role="tabpanel" aria-labelledby="tab-export">
+          <div class="section-body">
         <button class="btn btn-primary" id="btn-render-pdf" disabled>ייצא PDF</button>
         <button class="btn btn-secondary" id="btn-generate" disabled>תצוגה מקדימה</button>
         <button class="btn btn-secondary" id="btn-download" disabled>הורד HTML</button>
@@ -391,24 +402,32 @@
         <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת JSON להשוואה">
         <span id="status-msg" class="muted small-text" role="status" aria-live="polite"></span>
         <div id="trend-comparison" style="display:none;margin-top:14px;"></div>
-      </div>
-    </section>
+        </div>
+        </section><!-- /panel-export -->
+        </section><!-- /screen-export -->
 
-    <!-- Panel: ניהול קבצים בשרת -->
-    <section class="tab-panel" id="panel-cloud-manager" role="tabpanel" aria-labelledby="tab-cloud-manager">
-      <div class="section-body">
+        <!-- ── Screen: ניהול קבצים ── -->
+        <section class="screen" id="screen-cloud-manager">
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager" style="display:none;"></button>
+
+          <section class="tab-panel active" id="panel-cloud-manager" role="tabpanel" aria-labelledby="tab-cloud-manager">
+          <div class="section-body">
         <div id="states-list" class="small-text"><p class="muted">טוען...</p></div>
         <div id="outputs-list" class="small-text"><p class="muted">טוען...</p></div>
         <div style="margin-top:8px;">
           <label for="cloud-upload-state">העלאת תצורה (JSON)</label>
           <input type="file" id="cloud-upload-state" accept="application/json" aria-label="העלאת קובץ תצורה לשרת">
         </div>
-      </div>
-    </section>
+        </div>
+        </section><!-- /panel-cloud-manager -->
+        </section><!-- /screen-cloud-manager -->
 
-    <!-- Panel: Wizi integration -->
-    <section class="tab-panel" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
-      <div class="section-body">
+        <!-- ── Screen: Wizi Import ── -->
+        <section class="screen" id="screen-wizi">
+          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" style="display:none;"></button>
+
+          <section class="tab-panel active" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
+          <div class="section-body">
         <!-- Bulk Import Section -->
         <div class="wizi-quick-add" id="bulk-import-section">
           <label>📦 ייבוא מרוכז לפי Subscription</label>
@@ -532,11 +551,89 @@
           <button class="btn btn-secondary" id="btn-wizi-select-all">בחר/בטל הכל</button>
           <span id="wizi-selected-count" class="muted small-text" style="margin-right:10px;"></span>
         </div>
-      </div>
-    </section>
+        </div>
+        </section><!-- /panel-wizi -->
+        </section><!-- /screen-wizi -->
 
+      </main><!-- /main-content -->
+
+      <!-- ═══════════════════════════════════════════════════
+           SIDEBAR (right side in RTL)
+      ════════════════════════════════════════════════════ -->
+      <aside class="sidebar" id="sidebar">
+
+        <!-- Logo -->
+        <div class="sidebar-logo">
+          <div class="sidebar-logo-icon">W</div>
+          <div class="sidebar-logo-text">
+            <span class="sidebar-logo-name">Wizi</span>
+            <span class="sidebar-logo-sub">Reporter</span>
+          </div>
+        </div>
+
+        <!-- Active report selector -->
+        <div class="sidebar-report-selector" id="sidebar-report-selector">
+          <div class="sidebar-report-name" id="sidebar-report-name">דו"ח חדש</div>
+          <div class="sidebar-report-env" id="sidebar-report-env">לא הוגדרה סביבה</div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="sidebar-nav" aria-label="ניווט ראשי">
+
+          <div class="sidebar-section-label">אזור עבודה</div>
+          <div class="sidebar-nav-item active" data-screen="screen-details" id="nav-details">
+            <span class="nav-icon">☰</span> פרטי דו"ח
+          </div>
+
+          <div class="sidebar-section-label">ממצאים</div>
+          <div class="sidebar-nav-item" data-screen="screen-findings-list" id="nav-findings-list">
+            <span class="nav-icon">◈</span> ממצאים
+            <span class="nav-badge" id="nav-findings-count" style="display:none;"></span>
+          </div>
+          <div class="sidebar-nav-item" data-screen="screen-finding-form" id="nav-finding-form">
+            <span class="nav-icon">＋</span> הוסף ממצא
+          </div>
+
+          <div class="sidebar-section-label">נתונים</div>
+          <div class="sidebar-nav-item" data-screen="screen-wizi" id="nav-wizi">
+            <span class="nav-icon">🔍</span> Wiz Import
+          </div>
+          <div class="sidebar-nav-item" data-screen="screen-cloud-manager" id="nav-cloud-manager">
+            <span class="nav-icon">☁</span> קבצי שרת
+          </div>
+
+          <div class="sidebar-section-label">פלט</div>
+          <div class="sidebar-nav-item" data-screen="screen-export" id="nav-export">
+            <span class="nav-icon">↑</span> ייצוא דו"ח
+          </div>
+
+        </nav>
+
+        <!-- Progress bar -->
+        <div class="sidebar-progress">
+          <div class="sidebar-progress-label">
+            <span>התקדמות</span>
+            <span class="sidebar-progress-pct" id="sidebar-progress-pct">0%</span>
+          </div>
+          <div class="sidebar-progress-track">
+            <div class="sidebar-progress-fill" id="sidebar-progress-fill" style="width:0%"></div>
+          </div>
+          <div class="sidebar-progress-steps" id="sidebar-progress-steps">0 מתוך 4 שלבים</div>
+        </div>
+
+      </aside><!-- /sidebar -->
+
+    </div><!-- /app-body -->
+  </div><!-- /app-shell -->
+
+  <!-- Hidden legacy progress stepper (JS reads it) -->
+  <div id="progress-stepper" style="display:none;">
+    <div class="step" data-step="details"></div>
+    <div class="step" data-step="findings"><span class="step-badge" id="step-findings-count"></span></div>
+    <div class="step" data-step="review"></div>
+    <div class="step" data-step="export"></div>
   </div>
 
-  <script src="/static/js/builder.js?v=47"></script>
+  <script src="/static/js/builder.js?v=48"></script>
 </body>
 </html>
