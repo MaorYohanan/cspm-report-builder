@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=20">
+  <link rel="stylesheet" href="/static/css/builder.css?v=21">
 </head>
 <body>
   <!-- Toast container -->
@@ -77,6 +77,22 @@
         <!-- Hidden legacy elements JS depends on -->
         <span id="status-msg" class="muted small-text" role="status" aria-live="polite" style="display:none;"></span>
         <div id="trend-comparison" style="display:none;"></div>
+
+        <!-- ── Screen: לוח בקרה (Dashboard) ── -->
+        <section class="screen" id="screen-dashboard">
+          <div class="section-body">
+            <div id="dashboard-content">
+              <div class="empty-state">
+                <div class="empty-state-icon">▦</div>
+                <div class="empty-state-text">לוח הבקרה יוצג כאן לאחר הוספת ממצאים</div>
+                <div class="empty-state-actions">
+                  <button class="btn btn-primary btn-sm" onclick="document.getElementById('nav-finding-form').click()">➕ הוסף ממצא</button>
+                  <button class="btn btn-secondary btn-sm" onclick="document.getElementById('nav-wizi').click()">🔍 ייבא מ-Wizi</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section><!-- /screen-dashboard -->
 
         <!-- ── Screen: פרטי דו"ח ── -->
         <section class="screen active" id="screen-details">
@@ -581,6 +597,9 @@
         <nav class="sidebar-nav" aria-label="ניווט ראשי">
 
           <div class="sidebar-section-label">אזור עבודה</div>
+          <div class="sidebar-nav-item" data-screen="screen-dashboard" id="nav-dashboard">
+            <span class="nav-icon">▦</span> לוח בקרה
+          </div>
           <div class="sidebar-nav-item active" data-screen="screen-details" id="nav-details">
             <span class="nav-icon">☰</span> פרטי דו"ח
           </div>
@@ -621,6 +640,11 @@
           <div class="sidebar-progress-steps" id="sidebar-progress-steps">0 מתוך 4 שלבים</div>
         </div>
 
+        <!-- Sidebar footer utils -->
+        <div class="sidebar-footer-utils">
+          <button class="btn-icon" id="btn-sidebar-collapse" title="כווץ תפריט">«</button>
+        </div>
+
       </aside><!-- /sidebar -->
 
     </div><!-- /app-body -->
@@ -634,6 +658,6 @@
     <div class="step" data-step="export"></div>
   </div>
 
-  <script src="/static/js/builder.js?v=48"></script>
+  <script src="/static/js/builder.js?v=49"></script>
 </body>
 </html>

@@ -921,23 +921,32 @@ def api_wizi_subscriptions():
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
         return jsonify({"error": "Wizi integration not configured"}), 501
     try:
-        # Use cloudAccounts query since subscriptions root query doesn't exist
-        result = _wizi_graphql("""
-            query {
-              cloudAccounts(first: 500) {
-                nodes {
-                  id
-                  name
-                  externalId
-                  cloudProvider
-                }
-              }
-            }
-        """)
-        if "errors" in result:
-            return jsonify({"error": result["errors"][0].get("message", "GraphQL error")}), 502
-        nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
-        return jsonify({"subscriptions": nodes})
+        # Use cloudAccounts query with pagination since subscriptions root query doesn't exist
+        all_nodes = []
+        after = None
+        while True:
+            variables = {"first": 500}
+            if after:
+                variables["after"] = after
+            result = _wizi_graphql(
+                """query($first: Int, $after: String) {
+                  cloudAccounts(first: $first, after: $after) {
+                    nodes { id name externalId cloudProvider }
+                    pageInfo { hasNextPage endCursor }
+                  }
+                }""",
+                variables
+            )
+            if "errors" in result:
+                return jsonify({"error": result["errors"][0].get("message", "GraphQL error")}), 502
+            data = result.get("data", {}).get("cloudAccounts", {})
+            nodes = data.get("nodes", [])
+            all_nodes.extend(nodes)
+            page_info = data.get("pageInfo", {})
+            if not page_info.get("hasNextPage"):
+                break
+            after = page_info.get("endCursor")
+        return jsonify({"subscriptions": all_nodes})
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 

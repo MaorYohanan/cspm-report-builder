@@ -6701,6 +6701,7 @@
     // ══════════════════════════════════════════════════════
     (function() {
       var screenToTab = {
+        'screen-dashboard':     null,
         'screen-details':       'tab-report-details',
         'screen-finding-form':  'tab-finding-form',
         'screen-findings-list': 'tab-findings-list',
@@ -6710,6 +6711,7 @@
       };
 
       var topbarTitles = {
+        'screen-dashboard':     ['לוח בקרה', 'סקירה כללית'],
         'screen-details':       ['פרטי דו"ח', 'הגדרות הדו"ח'],
         'screen-finding-form':  ['הוסף ממצא', 'עריכת ממצא'],
         'screen-findings-list': ['ממצאים', 'רשימת הממצאים'],
@@ -6815,6 +6817,179 @@
       });
 
       updateSidebarMeta();
+    })();
+
+
+    // ══════════════════════════════════════════════════════
+    // DASHBOARD RENDER
+    // ══════════════════════════════════════════════════════
+    (function() {
+      var catColors = {
+        CSPM: 'oklch(0.58 0.2 220)', KSPM: 'oklch(0.58 0.18 280)',
+        DSPM: 'oklch(0.58 0.2 180)', VULN: 'oklch(0.58 0.22 15)',
+        NEXP: 'oklch(0.68 0.18 40)', EAPM: 'oklch(0.72 0.16 80)',
+        HSPM: 'oklch(0.62 0.17 155)', SECR: 'oklch(0.62 0.18 300)',
+        EOLM: 'oklch(0.6 0.02 220)'
+      };
+
+      function renderDashboard() {
+        var el = document.getElementById('dashboard-content');
+        if (!el) return;
+
+        if (!findings.length) {
+          el.innerHTML = '<div class="empty-state">' +
+            '<div class="empty-state-icon">▦</div>' +
+            '<div class="empty-state-text">לוח הבקרה יוצג כאן לאחר הוספת ממצאים</div>' +
+            '<div class="empty-state-actions">' +
+              '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'nav-finding-form\').click()">➕ הוסף ממצא</button>' +
+              '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'nav-wizi\').click()">🔍 ייבא מ-Wizi</button>' +
+            '</div></div>';
+          return;
+        }
+
+        // Count by severity
+        var sevCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+        var catCounts = {};
+        findings.forEach(function(f) {
+          if (sevCounts[f.severity] !== undefined) sevCounts[f.severity]++;
+          var cat = f.category || 'CSPM';
+          catCounts[cat] = (catCounts[cat] || 0) + 1;
+        });
+
+        // KPI row
+        var kpiHtml = '<div class="dashboard-kpi-grid">' +
+          '<div class="kpi-card"><div class="kpi-label">סה"כ ממצאים</div><div class="kpi-value kpi-total">' + findings.length + '</div></div>' +
+          '<div class="kpi-card"><div class="kpi-label">קריטי</div><div class="kpi-value kpi-critical">' + sevCounts.critical + '</div></div>' +
+          '<div class="kpi-card"><div class="kpi-label">גבוה</div><div class="kpi-value kpi-high">' + sevCounts.high + '</div></div>' +
+          '<div class="kpi-card"><div class="kpi-label">בינוני</div><div class="kpi-value kpi-medium">' + sevCounts.medium + '</div></div>' +
+          '<div class="kpi-card"><div class="kpi-label">נמוך</div><div class="kpi-value kpi-low">' + sevCounts.low + '</div></div>' +
+        '</div>';
+
+        // Category bar chart
+        var maxCat = Math.max.apply(null, Object.values(catCounts));
+        var catBars = Object.keys(catCounts).sort(function(a,b){ return catCounts[b]-catCounts[a]; }).map(function(cat) {
+          var pct = Math.round((catCounts[cat] / maxCat) * 100);
+          var color = catColors[cat] || 'var(--accent)';
+          return '<div class="cat-bar-row">' +
+            '<span class="cat-bar-label">' + cat + '</span>' +
+            '<div class="cat-bar-track"><div class="cat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+            '<span class="cat-bar-count">' + catCounts[cat] + '</span>' +
+          '</div>';
+        }).join('');
+
+        // Donut SVG
+        var sevOrder = ['critical','high','medium','low','info'];
+        var sevColors = {
+          critical: 'var(--sev-critical-color)', high: 'var(--sev-high-color)',
+          medium: 'var(--sev-medium-color)', low: 'var(--sev-low-color)', info: 'var(--sev-info-color)'
+        };
+        var sevLabels = { critical:'קריטי', high:'גבוה', medium:'בינוני', low:'נמוך', info:'מידע' };
+        var total = findings.length;
+        var cx = 60, cy = 60, outerR = 44, innerR = 28;
+        var angle = -Math.PI / 2;
+        var paths = '';
+        var legend = '';
+        sevOrder.forEach(function(k) {
+          var n = sevCounts[k];
+          if (!n) return;
+          var sweep = (n / total) * 2 * Math.PI;
+          var x1 = cx + outerR * Math.cos(angle), y1 = cy + outerR * Math.sin(angle);
+          var x2 = cx + outerR * Math.cos(angle + sweep), y2 = cy + outerR * Math.sin(angle + sweep);
+          var ix1 = cx + innerR * Math.cos(angle + sweep), iy1 = cy + innerR * Math.sin(angle + sweep);
+          var ix2 = cx + innerR * Math.cos(angle), iy2 = cy + innerR * Math.sin(angle);
+          var large = sweep > Math.PI ? 1 : 0;
+          paths += '<path d="M' + x1.toFixed(1) + ',' + y1.toFixed(1) +
+            ' A' + outerR + ',' + outerR + ' 0 ' + large + ',1 ' + x2.toFixed(1) + ',' + y2.toFixed(1) +
+            ' L' + ix1.toFixed(1) + ',' + iy1.toFixed(1) +
+            ' A' + innerR + ',' + innerR + ' 0 ' + large + ',0 ' + ix2.toFixed(1) + ',' + iy2.toFixed(1) +
+            ' Z" fill="' + sevColors[k] + '"/>';
+          legend += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;">' +
+            '<span style="width:10px;height:10px;border-radius:2px;background:' + sevColors[k] + ';flex-shrink:0;display:inline-block;"></span>' +
+            '<span style="color:var(--text-muted)">' + sevLabels[k] + '</span>' +
+            '<span style="color:var(--text);font-weight:600;margin-right:auto;">' + n + '</span></div>';
+          angle += sweep;
+        });
+        var donutSvg = '<div style="display:flex;align-items:center;gap:16px;">' +
+          '<svg width="120" height="120" viewBox="0 0 120 120">' + paths +
+          '<text x="60" y="56" text-anchor="middle" font-size="18" font-weight="800" fill="var(--text-heading)">' + total + '</text>' +
+          '<text x="60" y="70" text-anchor="middle" font-size="9" fill="var(--text-muted)">ממצאים</text>' +
+          '</svg><div style="flex:1">' + legend + '</div></div>';
+
+        // Charts row
+        var chartsHtml = '<div class="dashboard-charts-grid">' +
+          '<div class="dashboard-card"><div class="dashboard-card-title">התפלגות חומרה</div>' + donutSvg + '</div>' +
+          '<div class="dashboard-card"><div class="dashboard-card-title">פילוח קטגוריות</div>' + catBars + '</div>' +
+          '<div class="dashboard-card"><div class="dashboard-card-title">סיכום סיכון</div>' +
+            '<div style="font-size:28px;font-weight:800;color:var(--sev-' + (sevCounts.critical > 0 ? 'critical' : sevCounts.high > 0 ? 'high' : 'medium') + '-color);margin-bottom:8px;">' +
+            (sevCounts.critical > 0 ? 'קריטי' : sevCounts.high > 0 ? 'גבוה' : 'בינוני') + '</div>' +
+            '<div style="font-size:12px;color:var(--text-muted);line-height:1.7;">' +
+            (sevCounts.critical ? '• ' + sevCounts.critical + ' ממצאים קריטיים דורשים טיפול מיידי<br>' : '') +
+            (sevCounts.high ? '• ' + sevCounts.high + ' ממצאים בחומרה גבוהה<br>' : '') +
+            Object.keys(catCounts).slice(0,3).map(function(c){ return '• ' + catCounts[c] + ' ממצאי ' + c; }).join('<br>') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+        // Recent findings table (last 5)
+        var recent = findings.slice(-5).reverse();
+        var sevMap = { critical:'קריטי', high:'גבוה', medium:'בינוני', low:'נמוך', info:'מידע' };
+        var rows = recent.map(function(f) {
+          var sev = f.severity || 'medium';
+          return '<tr>' +
+            '<td style="font-family:monospace;color:var(--accent);font-size:11px;">' + (f.id||'') + '</td>' +
+            '<td><span class="cat-badge" data-cat="' + (f.category||'CSPM') + '">' + (f.category||'CSPM') + '</span></td>' +
+            '<td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title||'') + '</td>' +
+            '<td><span class="severity-chip sev-' + sev + '">' + (sevMap[sev]||sev) + '</span></td>' +
+            '<td style="color:var(--text-muted);font-size:11px;">' + (f.owner||'—') + '</td>' +
+          '</tr>';
+        }).join('');
+
+        var tableHtml = '<div class="dashboard-table-card">' +
+          '<div class="dashboard-table-header">' +
+            '<span class="dashboard-card-title">ממצאים אחרונים</span>' +
+            '<span class="dashboard-show-all" onclick="document.getElementById(\'nav-findings-list\').click()">הצג הכל ←</span>' +
+          '</div>' +
+          '<table style="margin-top:0;border:none;border-radius:0;">' +
+            '<thead><tr><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+        '</div>';
+
+        el.innerHTML = kpiHtml + chartsHtml + tableHtml;
+      }
+
+      // Re-render dashboard whenever findings change
+      var _origRender = renderFindingsTable;
+      renderFindingsTable = function() {
+        _origRender();
+        renderDashboard();
+      };
+
+      // Wire dashboard nav item to also render
+      var dashNav = document.getElementById('nav-dashboard');
+      if (dashNav) {
+        dashNav.addEventListener('click', renderDashboard);
+      }
+
+      renderDashboard();
+    })();
+
+    // ══════════════════════════════════════════════════════
+    // SIDEBAR COLLAPSE
+    // ══════════════════════════════════════════════════════
+    (function() {
+      var sidebar = document.getElementById('sidebar');
+      var collapseBtn = document.getElementById('btn-sidebar-collapse');
+      if (!sidebar || !collapseBtn) return;
+
+      var collapsed = localStorage.getItem('cspm_sidebar_collapsed') === '1';
+      if (collapsed) sidebar.classList.add('collapsed');
+
+      collapseBtn.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        var isNowCollapsed = sidebar.classList.contains('collapsed');
+        try { localStorage.setItem('cspm_sidebar_collapsed', isNowCollapsed ? '1' : '0'); } catch(e) {}
+      });
     })();
 
     })();
