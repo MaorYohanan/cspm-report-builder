@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=21">
+  <link rel="stylesheet" href="/static/css/builder.css?v=31">
 </head>
 <body>
   <!-- Toast container -->
@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  <!-- Finding preview panel (legacy, kept for JS compatibility) -->
+  <!-- Finding preview panel -->
   <div id="finding-preview-panel" class="preview-panel" style="display:none;">
     <div class="preview-panel-header">
       <span id="preview-panel-title">תצוגה מקדימה</span>
@@ -48,188 +48,274 @@
     <button class="btn btn-secondary btn-sm" id="btn-wizi-autofill-dismiss">✕</button>
   </div>
 
-  <!-- ═══════════════════════════════════════════════════════
-       APP SHELL: TopBar + Sidebar + Main
-  ════════════════════════════════════════════════════════ -->
-  <div class="app-shell">
-
-    <!-- Top Bar -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="topbar-title" id="topbar-title">לוח בקרה</span>
-        <span class="topbar-breadcrumb" id="topbar-breadcrumb">Wizi Reporter</span>
+  <div class="app-layout">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar" id="app-sidebar">
+      <div class="sidebar-brand" id="sidebar-brand-link" style="cursor:pointer;" title="לוח בקרה">
+        <div class="sidebar-logo">W</div>
+        <div class="sidebar-brand-text">
+          <span class="sidebar-brand-name">Wizi</span>
+          <span class="sidebar-brand-sub">REPORTER</span>
+        </div>
       </div>
-      <div class="topbar-right">
+
+      <button class="sidebar-new-report" id="btn-new-report" title="דו״ח חדש">
+        <span>דו"ח חדש</span>
+        <span class="sidebar-new-sub" id="sidebar-env-label">לא הוגדרה סביבה</span>
+      </button>
+
+      <div class="sidebar-section-label section-workspace" data-collapse="nav-workspace">אזור עבודה <span class="section-chevron">‹</span></div>
+      <nav class="sidebar-nav" id="nav-workspace" role="tablist">
+        <button class="sidebar-item active" role="tab" aria-selected="true" aria-controls="panel-dashboard" id="tab-dashboard" title="לוח בקרה">
+          <span class="sidebar-item-icon icon-dashboard">▦</span> לוח בקרה
+        </button>
+        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-report-details" id="tab-report-details" title="פרטי דו״ח">
+          <span class="sidebar-item-icon icon-details">≡</span> פרטי דו"ח
+        </button>
+        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list" title="ממצאים">
+          <span class="sidebar-item-icon icon-findings">◆</span> ממצאים <span class="sidebar-badge" id="step-findings-count"></span>
+        </button>
+        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form" title="הוסף ממצא">
+          <span class="sidebar-item-icon icon-add">+</span> הוסף ממצא
+        </button>
+      </nav>
+
+      <div class="sidebar-section-label section-data" data-collapse="nav-data">נתונים <span class="section-chevron">‹</span></div>
+      <nav class="sidebar-nav" id="nav-data">
+        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" title="Wiz Import">
+          <span class="sidebar-item-icon icon-wizi">🔍</span> Wiz Import
+        </button>
+        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager" title="קבצי שרת">
+          <span class="sidebar-item-icon icon-cloud">☁️</span> קבצי שרת
+        </button>
+      </nav>
+
+      <div class="sidebar-section-label section-output" data-collapse="nav-output">פלט <span class="section-chevron">‹</span></div>
+      <nav class="sidebar-nav" id="nav-output">
+        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" title="ייצוא דו״ח">
+          <span class="sidebar-item-icon icon-export">↑</span> ייצוא דו"ח
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-utils">
+          <button class="btn-icon" id="btn-theme-toggle" title="החלף ערכת נושא">🌙</button>
+          <button class="btn-icon" id="btn-kbd-help" title="קיצורי מקלדת (?)">⌨️</button>
+          <button class="btn-icon sidebar-collapse-btn" id="btn-sidebar-collapse" title="כווץ תפריט">«</button>
+        </div>
+        <div class="sidebar-progress-wrapper">
+          <div class="sidebar-progress">
+            <span>התקדמות</span>
+            <span class="sidebar-progress-text" id="sidebar-progress-text">0%</span>
+          </div>
+          <div class="sidebar-progress-bar">
+            <div class="sidebar-progress-fill" id="sidebar-progress-fill" style="width:0%"></div>
+          </div>
+          <div class="sidebar-progress-label" id="sidebar-progress-label">0 מתוך 4 שלבים</div>
+          <div class="progress-tooltip" id="progress-tooltip">
+            <div class="progress-tooltip-item"><span class="progress-tooltip-icon">✗</span> שם לקוח</div>
+            <div class="progress-tooltip-item"><span class="progress-tooltip-icon">✗</span> סביבת ענן</div>
+            <div class="progress-tooltip-item"><span class="progress-tooltip-icon">✗</span> ממצאים</div>
+            <div class="progress-tooltip-item"><span class="progress-tooltip-icon">✗</span> ייצוא דו"ח</div>
+          </div>
+        </div>
         <span id="autosave-indicator" class="autosave-indicator"></span>
-        <button class="btn btn-secondary btn-sm" id="btn-theme-toggle" title="החלף ערכת נושא" style="margin-top:0;padding:4px 8px;">🌙</button>
-        <button class="btn btn-secondary btn-sm" id="btn-kbd-help" title="קיצורי מקלדת (?)" style="margin-top:0;padding:4px 8px;">⌨️</button>
-        <button class="btn btn-secondary btn-sm" id="btn-preview-report" disabled style="margin-top:0;">תצוגה מקדימה</button>
-        <button class="btn btn-primary btn-sm" id="btn-render-pdf" disabled style="margin-top:0;">ייצוא PDF ↑</button>
-        <button class="btn btn-danger btn-sm" id="btn-new-report" title="דו&quot;ח חדש — נקה הכל" style="margin-top:0;padding:4px 10px;">🗑️ חדש</button>
       </div>
-    </header>
+    </aside>
 
-    <div class="app-body">
+    <!-- Main content -->
+    <main class="main-content" id="main-content">
+      <div class="content-header">
+        <h1 class="content-title" id="content-title">לוח בקרה</h1>
+        <span id="autosave-time" class="muted small-text"></span>
+      </div>
 
-      <!-- Main Content -->
-      <main class="main-content" id="main-content">
+    <!-- Panel: Dashboard -->
+    <section class="tab-panel active" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
+      <div class="section-body">
+        <!-- KPI Row -->
+        <div class="dashboard-kpi-row" id="dashboard-kpis">
+          <div class="kpi-card">
+            <span class="kpi-label">סה"כ ממצאים</span>
+            <span class="kpi-value" id="kpi-total">0</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">קריטי</span>
+            <span class="kpi-value kpi-critical" id="kpi-critical">0</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">גבוה</span>
+            <span class="kpi-value kpi-high" id="kpi-high">0</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">בינוני</span>
+            <span class="kpi-value kpi-medium" id="kpi-medium">0</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">נמוך</span>
+            <span class="kpi-value kpi-low" id="kpi-low">0</span>
+          </div>
+        </div>
 
-        <!-- Hidden legacy elements JS depends on -->
-        <span id="status-msg" class="muted small-text" role="status" aria-live="polite" style="display:none;"></span>
-        <div id="trend-comparison" style="display:none;"></div>
+        <!-- Charts Row -->
+        <div class="dashboard-charts-row">
+          <div class="dashboard-card" id="dashboard-donut-card">
+            <div class="dashboard-card-title">פילוח חומרה</div>
+            <div id="dashboard-donut"></div>
+          </div>
+          <div class="dashboard-card" id="dashboard-categories-card">
+            <div class="dashboard-card-title">פילוח קטגוריות</div>
+            <div id="dashboard-categories"></div>
+          </div>
+          <div class="dashboard-card" id="dashboard-risk-card">
+            <div class="dashboard-card-title">הערכת סיכון</div>
+            <div id="dashboard-risk-summary"></div>
+          </div>
+        </div>
 
-        <!-- ── Screen: לוח בקרה (Dashboard) ── -->
-        <section class="screen" id="screen-dashboard">
-          <div class="section-body">
-            <div id="dashboard-content">
-              <div class="empty-state">
-                <div class="empty-state-icon">▦</div>
-                <div class="empty-state-text">לוח הבקרה יוצג כאן לאחר הוספת ממצאים</div>
-                <div class="empty-state-actions">
-                  <button class="btn btn-primary btn-sm" onclick="document.getElementById('nav-finding-form').click()">➕ הוסף ממצא</button>
-                  <button class="btn btn-secondary btn-sm" onclick="document.getElementById('nav-wizi').click()">🔍 ייבא מ-Wizi</button>
-                </div>
+        <!-- Recent Findings -->
+        <div class="dashboard-card">
+          <div class="dashboard-card-title" style="display:flex;justify-content:space-between;align-items:center;">
+            <span>ממצאים אחרונים</span>
+            <a href="#" class="dashboard-link" id="dashboard-show-all">הצג הכל ←</a>
+          </div>
+          <div id="dashboard-recent-findings"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Panel: פרטי דו"ח -->
+    <section class="tab-panel" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
+      <div class="section-body report-form">
+
+        <details class="form-collapse" open>
+          <summary class="form-collapse-title">פרטי לקוח</summary>
+          <div class="report-form-grid">
+            <div class="form-field">
+              <label for="report-client">שם הלקוח</label>
+              <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ">
+            </div>
+            <div class="form-field">
+              <label for="report-env">סביבת בדיקה / ענן</label>
+              <input type="text" id="report-env" placeholder="AWS / Azure / GCP / Multi-Cloud">
+            </div>
+            <div class="form-field">
+              <label for="report-consultant">יועץ / גוף מבצע</label>
+              <input type="text" id="report-consultant" placeholder="שם היועץ / חברה">
+            </div>
+            <div class="form-field">
+              <label for="report-team-name">שם הצוות / כותרת</label>
+              <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע">
+            </div>
+            <div class="form-field">
+              <label for="report-org-name">שם הארגון</label>
+              <input type="text" id="report-org-name" placeholder="החברה שלי">
+            </div>
+            <div class="form-field">
+              <label for="report-date">תאריך הדו"ח</label>
+              <div style="display:flex;gap:4px;align-items:center;">
+                <input type="text" id="report-date" placeholder="DD/MM/YYYY" style="flex:1;">
+                <input type="date" id="report-date-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                <button type="button" class="btn-icon-sm date-picker-btn" data-picker="report-date-picker" title="בחר תאריך">🗓</button>
+                <button type="button" class="btn-icon-sm" id="btn-date-today" title="היום">📅</button>
               </div>
             </div>
           </div>
-        </section><!-- /screen-dashboard -->
+        </details>
 
-        <!-- ── Screen: פרטי דו"ח ── -->
-        <section class="screen active" id="screen-details">
-          <!-- Hidden tab-btn stubs so existing JS switchToTab() still works -->
-          <button class="tab-btn active" role="tab" aria-selected="true" aria-controls="panel-report-details" id="tab-report-details" style="display:none;"></button>
-
-          <section class="tab-panel active" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
-          <div class="section-body">
-        <div class="row">
-          <div class="col">
-            <label for="report-client">שם הלקוח</label>
-            <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ">
-          </div>
-          <div class="col">
-            <label for="report-env">סביבת בדיקה / ענן</label>
-            <input type="text" id="report-env" placeholder="AWS / Azure / GCP / Multi-Cloud">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label>טווח הבדיקה</label>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-              <div style="flex:1;min-width:110px;">
-                <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">מתאריך</span>
-                <div style="display:flex;gap:2px;align-items:center;">
-                  <input type="text" id="report-range-from" placeholder="DD/MM/YYYY" style="flex:1;">
-                  <input type="date" id="report-range-from-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
-                  <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-range-from-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
-                </div>
+        <details class="form-collapse" open>
+          <summary class="form-collapse-title">תאריכים והערכה</summary>
+          <div class="report-form-grid">
+            <div class="form-field form-field-wide">
+              <label>טווח הבדיקה</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input type="text" id="report-range-from" placeholder="DD/MM/YYYY" style="flex:1;">
+                <input type="date" id="report-range-from-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                <button type="button" class="btn-icon-sm date-picker-btn" data-picker="report-range-from-picker" title="בחר תאריך">🗓</button>
+                <span class="muted">—</span>
+                <input type="text" id="report-range-to" placeholder="DD/MM/YYYY" style="flex:1;">
+                <input type="date" id="report-range-to-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
+                <button type="button" class="btn-icon-sm date-picker-btn" data-picker="report-range-to-picker" title="בחר תאריך">🗓</button>
+                <button type="button" class="btn-icon-sm" id="btn-range-today" title="סיום היום">📅</button>
               </div>
-              <span class="muted" style="padding-top:14px;">—</span>
-              <div style="flex:1;min-width:110px;">
-                <span class="muted" style="font-size:10px;display:block;margin-bottom:2px;">עד תאריך</span>
-                <div style="display:flex;gap:2px;align-items:center;">
-                  <input type="text" id="report-range-to" placeholder="DD/MM/YYYY" style="flex:1;">
-                  <input type="date" id="report-range-to-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
-                  <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-range-to-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
-                </div>
-              </div>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-range-today" title="סיום היום" style="padding:4px 8px;margin-top:14px;white-space:nowrap;">📅 היום</button>
+              <input type="hidden" id="report-range">
             </div>
-            <input type="hidden" id="report-range">
-          </div>
-          <div class="col">
-            <label for="report-consultant">יועץ / גוף מבצע</label>
-            <input type="text" id="report-consultant" placeholder="שם היועץ / חברה">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-date">תאריך הדו"ח</label>
-            <div style="display:flex;gap:4px;align-items:center;">
-              <input type="text" id="report-date" placeholder="DD/MM/YYYY" style="flex:1;">
-              <input type="date" id="report-date-picker" style="width:0;height:0;padding:0;border:0;opacity:0;position:absolute;" tabindex="-1">
-              <button type="button" class="btn btn-secondary btn-sm date-picker-btn" data-picker="report-date-picker" title="בחר תאריך" style="padding:2px 5px;margin:0;font-size:12px;">🗓</button>
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-date-today" title="הגדר תאריך היום" style="padding:4px 8px;margin:0;white-space:nowrap;">📅 היום</button>
+            <div class="form-field">
+              <label for="report-risk">הערכת סיכון כללית</label>
+              <select id="report-risk">
+                <option value="">-- לא נבחר --</option>
+                <option value="נמוכה">נמוכה</option>
+                <option value="בינונית">בינונית</option>
+                <option value="גבוהה">גבוהה</option>
+                <option value="קריטית">קריטית</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="report-version">גרסה</label>
+              <input type="text" id="report-version" value="1.0" placeholder="1.0">
             </div>
           </div>
-          <div class="col">
-            <label for="report-risk">הערכת סיכון כללית</label>
-            <select id="report-risk">
-              <option value="">-- לא נבחר --</option>
-              <option value="נמוכה">נמוכה</option>
-              <option value="בינונית">בינונית</option>
-              <option value="גבוהה">גבוהה</option>
-              <option value="קריטית">קריטית</option>
-            </select>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-exec-summary">תקציר מנהלים</label>
-            <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
-          </div>
-          <div class="col">
-            <label for="report-key-topics">נושאי מפתח</label>
-            <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-team-name">שם הצוות / כותרת</label>
-            <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע">
-          </div>
-          <div class="col">
-            <label for="report-org-name">שם הארגון</label>
-            <input type="text" id="report-org-name" placeholder="החברה שלי">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col">
-            <label for="report-footer-text">טקסט תחתית</label>
-            <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד">
-          </div>
-          <div class="col">
-            <label for="report-cover-note">הערת שער</label>
-            <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו...">
-          </div>
-        </div>
-        <div class="row">
-          <div class="col" style="max-width:120px;">
-            <label for="report-version">גרסה</label>
-            <input type="text" id="report-version" value="1.0" placeholder="1.0">
-          </div>
-          <div class="col" style="max-width:120px;">
-            <label for="report-lang">שפה</label>
-            <select id="report-lang">
-              <option value="he" selected>עברית</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div class="col">
-            <label for="report-cover-image">תמונת שער</label>
-            <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער">
-            <div id="cover-image-preview" class="evidence-preview"></div>
-          </div>
-          <div class="col" id="ai-model-row" style="display:none;">
-            <label for="ai-model">מודל AI</label>
-            <select id="ai-model"></select>
-          </div>
-        </div>
-        <div class="defaults-bar">
-          <button class="btn btn-secondary btn-sm" id="btn-save-defaults">💾 שמור כברירת מחדל</button>
-          <button class="btn btn-secondary btn-sm" id="btn-load-defaults">📋 טען ברירת מחדל</button>
-          <button class="btn btn-danger btn-sm" id="btn-clear-defaults">✕ מחק ברירת מחדל</button>
-          <span id="defaults-status" class="muted small-text"></span>
-        </div>
-        </div>
-        </section><!-- /panel-report-details -->
-        </section><!-- /screen-details -->
+        </details>
 
-        <!-- ── Screen: הוסף ממצא ── -->
-        <section class="screen" id="screen-finding-form">
-          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form" style="display:none;"></button>
+        <details class="form-collapse" open>
+          <summary class="form-collapse-title">תוכן הדו"ח</summary>
+          <div class="report-form-grid">
+            <div class="form-field form-field-wide">
+              <label for="report-exec-summary">תקציר מנהלים</label>
+              <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
+            </div>
+            <div class="form-field form-field-wide">
+              <label for="report-key-topics">נושאי מפתח</label>
+              <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
+            </div>
+          </div>
+        </details>
 
-          <section class="tab-panel active" id="panel-finding-form" role="tabpanel" aria-labelledby="tab-finding-form">
-          <div class="section-body">
+        <details class="form-collapse" open>
+          <summary class="form-collapse-title">הגדרות ועיצוב</summary>
+          <div class="report-form-grid">
+            <div class="form-field">
+              <label for="report-footer-text">טקסט תחתית</label>
+              <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד">
+            </div>
+            <div class="form-field">
+              <label for="report-cover-note">הערת שער</label>
+              <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו...">
+            </div>
+            <div class="form-field">
+              <label for="report-lang">שפה</label>
+              <select id="report-lang">
+                <option value="he" selected>עברית</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="report-cover-image">תמונת שער</label>
+              <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער">
+              <div id="cover-image-preview" class="evidence-preview"></div>
+            </div>
+            <div class="form-field" id="ai-model-row" style="display:none;">
+              <label for="ai-model">מודל AI</label>
+              <select id="ai-model"></select>
+            </div>
+          </div>
+        </details>
+
+        <details class="defaults-section">
+          <summary class="defaults-summary">💾 ברירות מחדל</summary>
+          <div class="defaults-bar">
+            <button class="btn btn-secondary btn-sm" id="btn-save-defaults">שמור כברירת מחדל</button>
+            <button class="btn btn-secondary btn-sm" id="btn-load-defaults">טען ברירת מחדל</button>
+            <button class="btn btn-danger btn-sm" id="btn-clear-defaults">מחק ברירת מחדל</button>
+            <span id="defaults-status" class="muted small-text"></span>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- Panel: טופס הוספת/עריכת ממצא -->
+    <section class="tab-panel" id="panel-finding-form" role="tabpanel" aria-labelledby="tab-finding-form">
+      <div class="section-body">
         <div class="row">
           <div class="col">
             <label for="f-template">תבנית מוכנה</label>
@@ -330,165 +416,248 @@
         <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
         <span class="kbd-hint">Ctrl+Enter</span>
         <span id="edit-state" class="muted small-text"></span>
-        </div>
-        </section><!-- /panel-finding-form -->
-        </section><!-- /screen-finding-form -->
+      </div>
+    </section>
 
-        <!-- ── Screen: ממצאים ── -->
-        <section class="screen" id="screen-findings-list">
-          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list" style="display:none;"></button>
-
-          <section class="tab-panel active" id="panel-findings-list" role="tabpanel" aria-labelledby="tab-findings-list">
-          <div class="section-body">
-        <!-- Filter bar -->
-        <div class="findings-filter-bar">
-          <input type="text" id="findings-search" placeholder="🔍 חיפוש לפי כותרת / מזהה..." class="filter-input">
-          <select id="findings-filter-category" class="filter-select">
-            <option value="">כל הקטגוריות</option>
-            <option value="CSPM">CSPM</option>
-            <option value="KSPM">KSPM</option>
-            <option value="DSPM">DSPM</option>
-            <option value="VULN">VULN</option>
-            <option value="NEXP">NEXP</option>
-            <option value="EAPM">EAPM</option>
-            <option value="HSPM">HSPM</option>
-            <option value="SECR">SECR</option>
-            <option value="EOLM">EOLM</option>
-          </select>
-          <select id="findings-filter-severity" class="filter-select">
-            <option value="">כל החומרות</option>
-            <option value="critical">קריטי</option>
-            <option value="high">גבוה</option>
-            <option value="medium">בינוני</option>
-            <option value="low">נמוך</option>
-            <option value="info">מידע</option>
-          </select>
+    <!-- Panel: רשימת הממצאים -->
+    <section class="tab-panel" id="panel-findings-list" role="tabpanel" aria-labelledby="tab-findings-list">
+      <div class="findings-master-detail">
+        <!-- List Pane -->
+        <div class="findings-list-pane">
+          <div class="findings-list-toolbar">
+            <input type="text" id="findings-search" placeholder="🔍 חיפוש..." class="filter-input" style="margin-bottom:8px;">
+            <div class="findings-filter-bar">
+              <select id="findings-filter-category" class="filter-select">
+                <option value="">כל הקטגוריות</option>
+                <option value="CSPM">CSPM</option>
+                <option value="KSPM">KSPM</option>
+                <option value="DSPM">DSPM</option>
+                <option value="VULN">VULN</option>
+                <option value="NEXP">NEXP</option>
+                <option value="EAPM">EAPM</option>
+                <option value="HSPM">HSPM</option>
+                <option value="SECR">SECR</option>
+                <option value="EOLM">EOLM</option>
+              </select>
+              <select id="findings-filter-severity" class="filter-select">
+                <option value="">כל החומרות</option>
+                <option value="critical">קריטי</option>
+                <option value="high">גבוה</option>
+                <option value="medium">בינוני</option>
+                <option value="low">נמוך</option>
+                <option value="info">מידע</option>
+              </select>
+            </div>
+          </div>
+          <div id="category-badges" class="category-badges"></div>
+          <!-- Batch actions (hidden, elements kept for JS) -->
+          <div id="batch-actions" style="display:none;">
+            <span id="batch-count"></span>
+            <select id="batch-severity" style="display:none;">
+              <option value="">חומרה</option>
+              <option value="critical">קריטי</option>
+              <option value="high">גבוה</option>
+              <option value="medium">בינוני</option>
+              <option value="low">נמוך</option>
+              <option value="info">מידע</option>
+            </select>
+            <select id="batch-priority" style="display:none;">
+              <option value="">עדיפות</option>
+              <option value="מיידי (0–7 ימים)">מיידי</option>
+              <option value="גבוהה (עד 30 ימים)">גבוהה</option>
+              <option value="בינונית (30–60 ימים)">בינונית</option>
+              <option value="נמוכה (60–120 ימים)">נמוכה</option>
+            </select>
+            <input type="hidden" id="batch-owner">
+            <button id="btn-batch-ai-enrich" style="display:none;"></button>
+            <button id="btn-batch-delete" style="display:none;"></button>
+          </div>
+          <div class="findings-list-actions">
+            <div class="actions-dropdown-wrapper" style="display:inline-block;position:relative;">
+              <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין ↓</button>
+              <div class="actions-dropdown" id="sort-menu" style="display:none;">
+                <button class="actions-dropdown-item" data-sort-by="severity">חומרה</button>
+                <button class="actions-dropdown-item" data-sort-by="id">מזהה</button>
+                <button class="actions-dropdown-item" data-sort-by="title">כותרת</button>
+                <button class="actions-dropdown-item" data-sort-by="category">קטגוריה</button>
+                <button class="actions-dropdown-item" data-sort-by="owner">בעלים</button>
+              </div>
+            </div>
+            <div class="actions-dropdown-wrapper" style="display:inline-block;position:relative;">
+              <button class="btn btn-secondary btn-sm" id="btn-more-actions">⋮</button>
+              <div class="actions-dropdown" id="findings-more-menu" style="display:none;">
+                <button class="actions-dropdown-item" id="btn-ai-enrich-selected">🤖 שיפור המלצות לנבחרים</button>
+                <button class="actions-dropdown-item" id="btn-ai-enrich-all">🤖 שיפור המלצות להכל</button>
+                <button class="actions-dropdown-item" id="menu-batch-delete">🗑️ מחק נבחרים</button>
+                <button class="actions-dropdown-item actions-dropdown-danger" id="btn-clear-all-findings">✕ מחק הכל</button>
+              </div>
+            </div>
+            <select class="bulk-page-size" id="findings-page-size-static">
+              <option value="20" selected>20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+            </select>
+            <span id="batch-count-inline" class="batch-count-inline"></span>
+          </div>
+          <div id="findings-table-wrapper" class="small-text findings-list-scroll" role="region" aria-live="polite"></div>
+          <div class="findings-list-footer">
+            <span class="muted small-text" id="findings-list-count"></span>
+            <button class="btn btn-primary btn-sm" id="btn-add-finding-nav">+ הוסף</button>
+          </div>
         </div>
-        <!-- Category count badges -->
-        <div id="category-badges" class="category-badges"></div>
-        <!-- Batch actions -->
-        <div class="batch-actions" id="batch-actions" style="display:none;">
-          <span id="batch-count" class="muted small-text"></span>
-          <select id="batch-severity" class="filter-select" style="max-width:120px;">
-            <option value="">שנה חומרה</option>
-            <option value="critical">קריטי</option>
-            <option value="high">גבוה</option>
-            <option value="medium">בינוני</option>
-            <option value="low">נמוך</option>
-            <option value="info">מידע</option>
-          </select>
-          <select id="batch-priority" class="filter-select" style="max-width:160px;">
-            <option value="">שנה עדיפות</option>
-            <option value="מיידי (0–7 ימים)">מיידי</option>
-            <option value="גבוהה (עד 30 ימים)">גבוהה</option>
-            <option value="בינונית (30–60 ימים)">בינונית</option>
-            <option value="נמוכה (60–120 ימים)">נמוכה</option>
-            <option value="למעקב">למעקב</option>
-          </select>
-          <input type="text" id="batch-owner" class="filter-input" placeholder="שנה בעלים..." style="max-width:150px;">
-          <button class="btn btn-secondary btn-sm" id="btn-batch-ai-enrich">🤖 שפר המלצות</button>
-          <button class="btn btn-danger btn-sm" id="btn-batch-delete">מחק נבחרים</button>
+        <!-- Detail Pane -->
+        <div class="findings-resize-handle" id="findings-resize-handle"></div>
+        <div class="findings-detail-pane" id="findings-detail-pane">
+          <div class="findings-detail-empty" id="findings-detail-empty">
+            <div style="font-size:36px;margin-bottom:10px;">📋</div>
+            <div style="font-size:13px;color:var(--text-muted);">בחר ממצא מהרשימה לצפייה בפרטים</div>
+          </div>
+          <div class="findings-detail-content" id="findings-detail-content" style="display:none;">
+            <div class="detail-severity-bar" id="detail-severity-bar"></div>
+            <div class="findings-detail-header" id="findings-detail-header"></div>
+            <div class="detail-position" id="detail-position"></div>
+            <div class="findings-detail-tabs">
+              <button class="findings-detail-tab active" data-detail-tab="description">תיאור</button>
+              <button class="findings-detail-tab" data-detail-tab="impact">השפעה</button>
+              <button class="findings-detail-tab" data-detail-tab="technical">טכני</button>
+              <button class="findings-detail-tab" data-detail-tab="recs">המלצות</button>
+              <button class="findings-detail-tab" data-detail-tab="policies">תקנים</button>
+              <button class="findings-detail-tab" data-detail-tab="evidence">הוכחות</button>
+              <button class="findings-detail-tab" data-detail-tab="info">מידע נוסף</button>
+              <button class="findings-detail-tab" data-detail-tab="notes">הערות</button>
+            </div>
+            <div class="findings-detail-body" id="findings-detail-body"></div>
+            <div class="findings-detail-footer">
+              <button class="btn btn-secondary btn-sm" id="btn-detail-prev">הבא →</button>
+              <button class="btn btn-secondary btn-sm" id="btn-detail-next">← הקודם</button>
+              <button class="btn btn-secondary btn-sm" id="btn-detail-copy" title="העתק לקליפבורד">📋 העתק</button>
+              <button class="btn btn-secondary btn-sm" id="btn-detail-expand" title="הרחב">⛶</button>
+              <button class="btn btn-primary btn-sm" id="btn-detail-edit">ערוך</button>
+              <button class="btn btn-danger btn-sm" id="btn-detail-delete">מחק</button>
+            </div>
+          </div>
         </div>
-        <button class="btn btn-secondary btn-sm" id="btn-sort-severity">מיין לפי חומרה ↓</button>
-        <button class="btn btn-secondary btn-sm" id="btn-ai-enrich-all">🤖 הפעל שיפור המלצות להכל</button>
-        <button class="btn btn-danger btn-sm" id="btn-clear-all-findings">מחק הכל</button>
-        <span class="kbd-hint">J/K לניווט, E לעריכה, D למחיקה</span>
-        <div id="findings-table-wrapper" class="small-text" role="region" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <!-- Panel: ייצוא דו"ח -->
+    <section class="tab-panel" id="panel-export" role="tabpanel" aria-labelledby="tab-export">
+      <div class="section-body">
+        <div class="export-grid">
+          <!-- Export group -->
+          <div class="export-card">
+            <div class="export-card-header">📤 ייצוא דו"ח</div>
+            <div class="export-card-body">
+              <button class="btn btn-primary" id="btn-render-pdf" disabled>📄 ייצא PDF</button>
+              <button class="btn btn-secondary" id="btn-generate" disabled>👁 תצוגה מקדימה</button>
+              <button class="btn btn-secondary" id="btn-download" disabled>🌐 הורד HTML</button>
+              <button class="btn btn-secondary" id="btn-export-csv">📊 ייצוא CSV</button>
+            </div>
+          </div>
+          <!-- Import group -->
+          <div class="export-card">
+            <div class="export-card-header">📥 ייבוא ותצורה</div>
+            <div class="export-card-body">
+              <button class="btn btn-secondary" id="btn-export-json">💾 הורד תצורה</button>
+              <button class="btn btn-secondary" id="btn-import-json">📂 טען תצורה</button>
+              <button class="btn btn-secondary" id="btn-import-csv">📄 ייבוא CSV</button>
+              <button class="btn btn-secondary" id="btn-import-baseline">📈 השוואה לקודם</button>
+            </div>
+          </div>
+          <!-- Save group -->
+          <div class="export-card">
+            <div class="export-card-header">☁️ שמירה בשרת</div>
+            <div class="export-card-body">
+              <button class="btn btn-secondary" id="btn-save-state-cloud">☁️ שמור בשרת</button>
+            </div>
+          </div>
         </div>
-        </section><!-- /panel-findings-list -->
-        </section><!-- /screen-findings-list -->
-
-        <!-- ── Screen: ייצוא ── -->
-        <section class="screen" id="screen-export">
-          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" style="display:none;"></button>
-
-          <section class="tab-panel active" id="panel-export" role="tabpanel" aria-labelledby="tab-export">
-          <div class="section-body">
-        <button class="btn btn-primary" id="btn-render-pdf" disabled>ייצא PDF</button>
-        <button class="btn btn-secondary" id="btn-generate" disabled>תצוגה מקדימה</button>
-        <button class="btn btn-secondary" id="btn-download" disabled>הורד HTML</button>
-        <button class="btn btn-secondary" id="btn-export-json">הורד תצורה</button>
-        <button class="btn btn-secondary" id="btn-export-csv">ייצוא CSV</button>
-        <button class="btn btn-secondary" id="btn-import-json">טען תצורה</button>
-        <button class="btn btn-secondary" id="btn-import-csv">ייבוא CSV</button>
-        <button class="btn btn-secondary" id="btn-import-baseline">השוואה לקודם</button>
-        <button class="btn btn-secondary" id="btn-save-state-cloud">שמור בשרת</button>
         <input type="file" id="input-import-json" accept="application/json" style="display:none;" aria-label="בחירת קובץ תצורה">
         <input type="file" id="input-import-csv" accept=".csv,text/csv" style="display:none;" aria-label="בחירת CSV">
         <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת JSON להשוואה">
-        <span id="status-msg" class="muted small-text" role="status" aria-live="polite"></span>
+        <span id="status-msg" class="muted small-text" role="status" aria-live="polite" style="display:block;margin-top:12px;"></span>
         <div id="trend-comparison" style="display:none;margin-top:14px;"></div>
-        </div>
-        </section><!-- /panel-export -->
-        </section><!-- /screen-export -->
+      </div>
+    </section>
 
-        <!-- ── Screen: ניהול קבצים ── -->
-        <section class="screen" id="screen-cloud-manager">
-          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager" style="display:none;"></button>
-
-          <section class="tab-panel active" id="panel-cloud-manager" role="tabpanel" aria-labelledby="tab-cloud-manager">
-          <div class="section-body">
+    <!-- Panel: ניהול קבצים בשרת -->
+    <section class="tab-panel" id="panel-cloud-manager" role="tabpanel" aria-labelledby="tab-cloud-manager">
+      <div class="section-body">
         <div id="states-list" class="small-text"><p class="muted">טוען...</p></div>
         <div id="outputs-list" class="small-text"><p class="muted">טוען...</p></div>
         <div style="margin-top:8px;">
           <label for="cloud-upload-state">העלאת תצורה (JSON)</label>
           <input type="file" id="cloud-upload-state" accept="application/json" aria-label="העלאת קובץ תצורה לשרת">
         </div>
-        </div>
-        </section><!-- /panel-cloud-manager -->
-        </section><!-- /screen-cloud-manager -->
+      </div>
+    </section>
 
-        <!-- ── Screen: Wizi Import ── -->
-        <section class="screen" id="screen-wizi">
-          <button class="tab-btn" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" style="display:none;"></button>
+    <!-- Panel: Wizi integration -->
+    <section class="tab-panel" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
+      <div class="section-body">
+        <!-- Wizi sub-tabs -->
+        <nav class="wizi-sub-tabs" role="tablist">
+          <button class="wizi-sub-tab active" data-wizi-panel="wizi-panel-bulk">📦 ייבוא מרוכז</button>
+          <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-find-id">🔎 שליפה לפי מזהה</button>
+          <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-query">🔍 שאילתה מסוננת</button>
+        </nav>
 
-          <section class="tab-panel active" id="panel-wizi" role="tabpanel" aria-labelledby="tab-wizi">
-          <div class="section-body">
-        <!-- Bulk Import Section -->
-        <div class="wizi-quick-add" id="bulk-import-section">
-          <label>📦 ייבוא מרוכז לפי Subscription</label>
-          <div class="row" style="align-items:end;">
-            <div class="col">
-              <div class="autocomplete-wrapper">
-                <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
-                <input type="hidden" id="bulk-import-sub-id">
-                <div class="autocomplete-list" id="bulk-import-sub-list"></div>
+        <!-- Sub-panel: Bulk Import -->
+        <div class="wizi-sub-panel active" id="wizi-panel-bulk">
+          <div class="wizi-quick-add" id="bulk-import-section">
+            <label>📦 ייבוא מרוכז לפי Subscription</label>
+            <div class="row" style="align-items:end;">
+              <div class="col">
+                <div class="autocomplete-wrapper">
+                  <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
+                  <input type="hidden" id="bulk-import-sub-id">
+                  <div class="autocomplete-list" id="bulk-import-sub-list"></div>
+                </div>
+              </div>
+              <div class="col" style="max-width:160px;">
+                <button class="btn btn-primary" id="btn-bulk-import">ייבוא מרוכז</button>
               </div>
             </div>
-            <div class="col" style="max-width:160px;">
-              <button class="btn btn-primary" id="btn-bulk-import">ייבוא מרוכז</button>
+            <div id="bulk-import-progress" class="muted small-text" style="margin-top:6px;"></div>
+            <div id="bulk-progress-bar" class="wizi-progress">
+              <div class="wizi-progress-label"><span class="wizi-progress-spinner"></span><span id="bulk-progress-text">מייבא נתונים...</span></div>
+              <div class="wizi-progress-track"><div class="wizi-progress-fill" id="bulk-progress-fill" style="width:30%"></div></div>
             </div>
+            <div id="bulk-import-actions" class="bulk-actions-sticky" style="display:none;">
+              <button class="btn btn-primary" id="btn-bulk-import-selected">ייבא נבחרים לדו"ח</button>
+              <button class="btn btn-secondary" id="btn-bulk-select-all">בחר/בטל הכל</button>
+              <button class="btn btn-secondary btn-sm" id="btn-bulk-expand-all" title="הרחב הכל" style="padding:4px 8px;">▼</button>
+              <button class="btn btn-secondary btn-sm" id="btn-bulk-collapse-all" title="כווץ הכל" style="padding:4px 8px;">▲</button>
+              <span id="bulk-selected-count" class="muted small-text" style="margin-right:10px;"></span>
+            </div>
+            <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
           </div>
-          <div id="bulk-import-progress" class="muted small-text" style="margin-top:6px;"></div>
-          <div id="bulk-import-actions" style="display:none;margin-top:10px;">
-            <button class="btn btn-primary" id="btn-bulk-import-selected">ייבא נבחרים לדו"ח</button>
-            <button class="btn btn-secondary" id="btn-bulk-select-all">בחר/בטל הכל</button>
-            <button class="btn btn-secondary btn-sm" id="btn-bulk-expand-all" title="הרחב הכל" style="padding:4px 8px;">▼</button>
-            <button class="btn btn-secondary btn-sm" id="btn-bulk-collapse-all" title="כווץ הכל" style="padding:4px 8px;">▲</button>
-            <span id="bulk-selected-count" class="muted small-text" style="margin-right:10px;"></span>
-          </div>
-          <div id="bulk-import-results" class="small-text" style="margin-top:8px;"></div>
         </div>
-        <hr style="border-color:var(--border);margin:16px 0;">
-        <!-- Quick fetch by ID -->
-        <div class="wizi-quick-add">
-          <label for="wizi-find-id">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
-          <div class="row" style="align-items:end;">
-            <div class="col">
-              <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
+
+        <!-- Sub-panel: Find by ID -->
+        <div class="wizi-sub-panel" id="wizi-panel-find-id">
+          <div class="wizi-quick-add">
+            <label for="wizi-find-id">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
+            <div class="row" style="align-items:end;">
+              <div class="col">
+                <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
+              </div>
+              <div class="col">
+                <label for="wizi-find-id-sub" class="muted small-text" style="margin-bottom:4px;">סינון לפי Subscription / פרויקט (אופציונלי)</label>
+                <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
+              </div>
+              <div class="col" style="max-width:140px;">
+                <button class="btn btn-primary btn-sm" id="btn-wizi-find-by-id">שלוף וייבא</button>
+              </div>
             </div>
-            <div class="col">
-              <label for="wizi-find-id-sub" class="muted small-text" style="margin-bottom:4px;">סינון לפי Subscription / פרויקט (אופציונלי)</label>
-              <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
-            </div>
-            <div class="col" style="max-width:140px;">
-              <button class="btn btn-primary btn-sm" id="btn-wizi-find-by-id">שלוף וייבא</button>
-            </div>
+            <span id="wizi-find-id-status" class="muted small-text"></span>
+            <div id="wizi-find-id-results" class="small-text" style="margin-top:8px;"></div>
           </div>
-          <span id="wizi-find-id-status" class="muted small-text"></span>
-          <div id="wizi-find-id-results" class="small-text" style="margin-top:8px;"></div>
         </div>
-        <hr style="border-color:var(--border);margin:16px 0;">
+
+        <!-- Sub-panel: Filtered Query -->
+        <div class="wizi-sub-panel" id="wizi-panel-query">
         <div class="row">
           <div class="col" style="max-width:220px;">
             <label for="wizi-query-type">סוג שאילתה</label>
@@ -560,6 +729,10 @@
           <button class="btn btn-danger btn-sm" id="btn-wizi-preset-delete" style="display:none;">🗑 מחק</button>
         </div>
         <div id="wizi-status-msg" class="muted small-text" role="status" aria-live="polite"></div>
+        <div id="wizi-progress" class="wizi-progress">
+          <div class="wizi-progress-label"><span class="wizi-progress-spinner"></span><span id="wizi-progress-text">שולף נתונים...</span></div>
+          <div class="wizi-progress-track"><div class="wizi-progress-fill" id="wizi-progress-fill" style="width:30%"></div></div>
+        </div>
         <div id="wizi-results" class="small-text"></div>
         <button class="btn btn-secondary" id="btn-wizi-load-more" style="display:none;margin-top:8px;">טען עוד</button>
         <div id="wizi-actions" style="display:none;margin-top:10px;">
@@ -567,97 +740,13 @@
           <button class="btn btn-secondary" id="btn-wizi-select-all">בחר/בטל הכל</button>
           <span id="wizi-selected-count" class="muted small-text" style="margin-right:10px;"></span>
         </div>
-        </div>
-        </section><!-- /panel-wizi -->
-        </section><!-- /screen-wizi -->
+        </div><!-- /wizi-panel-query -->
+      </div>
+    </section>
 
-      </main><!-- /main-content -->
-
-      <!-- ═══════════════════════════════════════════════════
-           SIDEBAR (right side in RTL)
-      ════════════════════════════════════════════════════ -->
-      <aside class="sidebar" id="sidebar">
-
-        <!-- Logo -->
-        <div class="sidebar-logo">
-          <div class="sidebar-logo-icon">W</div>
-          <div class="sidebar-logo-text">
-            <span class="sidebar-logo-name">Wizi</span>
-            <span class="sidebar-logo-sub">Reporter</span>
-          </div>
-        </div>
-
-        <!-- Active report selector -->
-        <div class="sidebar-report-selector" id="sidebar-report-selector">
-          <div class="sidebar-report-name" id="sidebar-report-name">דו"ח חדש</div>
-          <div class="sidebar-report-env" id="sidebar-report-env">לא הוגדרה סביבה</div>
-        </div>
-
-        <!-- Navigation -->
-        <nav class="sidebar-nav" aria-label="ניווט ראשי">
-
-          <div class="sidebar-section-label">אזור עבודה</div>
-          <div class="sidebar-nav-item" data-screen="screen-dashboard" id="nav-dashboard">
-            <span class="nav-icon">▦</span> לוח בקרה
-          </div>
-          <div class="sidebar-nav-item active" data-screen="screen-details" id="nav-details">
-            <span class="nav-icon">☰</span> פרטי דו"ח
-          </div>
-
-          <div class="sidebar-section-label">ממצאים</div>
-          <div class="sidebar-nav-item" data-screen="screen-findings-list" id="nav-findings-list">
-            <span class="nav-icon">◈</span> ממצאים
-            <span class="nav-badge" id="nav-findings-count" style="display:none;"></span>
-          </div>
-          <div class="sidebar-nav-item" data-screen="screen-finding-form" id="nav-finding-form">
-            <span class="nav-icon">＋</span> הוסף ממצא
-          </div>
-
-          <div class="sidebar-section-label">נתונים</div>
-          <div class="sidebar-nav-item" data-screen="screen-wizi" id="nav-wizi">
-            <span class="nav-icon">🔍</span> Wiz Import
-          </div>
-          <div class="sidebar-nav-item" data-screen="screen-cloud-manager" id="nav-cloud-manager">
-            <span class="nav-icon">☁</span> קבצי שרת
-          </div>
-
-          <div class="sidebar-section-label">פלט</div>
-          <div class="sidebar-nav-item" data-screen="screen-export" id="nav-export">
-            <span class="nav-icon">↑</span> ייצוא דו"ח
-          </div>
-
-        </nav>
-
-        <!-- Progress bar -->
-        <div class="sidebar-progress">
-          <div class="sidebar-progress-label">
-            <span>התקדמות</span>
-            <span class="sidebar-progress-pct" id="sidebar-progress-pct">0%</span>
-          </div>
-          <div class="sidebar-progress-track">
-            <div class="sidebar-progress-fill" id="sidebar-progress-fill" style="width:0%"></div>
-          </div>
-          <div class="sidebar-progress-steps" id="sidebar-progress-steps">0 מתוך 4 שלבים</div>
-        </div>
-
-        <!-- Sidebar footer utils -->
-        <div class="sidebar-footer-utils">
-          <button class="btn-icon" id="btn-sidebar-collapse" title="כווץ תפריט">«</button>
-        </div>
-
-      </aside><!-- /sidebar -->
-
-    </div><!-- /app-body -->
-  </div><!-- /app-shell -->
-
-  <!-- Hidden legacy progress stepper (JS reads it) -->
-  <div id="progress-stepper" style="display:none;">
-    <div class="step" data-step="details"></div>
-    <div class="step" data-step="findings"><span class="step-badge" id="step-findings-count"></span></div>
-    <div class="step" data-step="review"></div>
-    <div class="step" data-step="export"></div>
+    </main>
   </div>
 
-  <script src="/static/js/builder.js?v=49"></script>
+  <script src="/static/js/builder.js?v=61"></script>
 </body>
 </html>

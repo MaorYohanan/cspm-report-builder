@@ -1,0 +1,51 @@
+/* ── Light theme ── */
+[data-theme="light"] {
+  --bg-base: #f0f4f8;
+  --bg-surface: #ffffff;
+  --bg-card: #f8fafc;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #ffffff;
+  --border: rgba(0,0,0,0.08);
+  --border-hover: rgba(0,0,0,0.14);
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --text-heading: #0f172a;
+  --accent: oklch(0.48 0.2 260);
+  --accent-hover: oklch(0.42 0.22 260);
+  --accent-glow: oklch(0.48 0.2 260 / 0.10);
+  --accent-subtle: oklch(0.48 0.2 260 / 0.06);
+  --danger: oklch(0.52 0.22 15);
+  --danger-subtle: oklch(0.52 0.22 15 / 0.08);
+  --sidebar-bg: #f8fafc;
+  --sidebar-border: rgba(0,0,0,0.06);
+}
+
+[data-theme="light"] input[type="date"] { color-scheme: light; }
+
+[data-theme="light"] .main-content {
+  background: var(--bg-surface);
+}
+
+[data-theme="light"] .main-content::before {
+  opacity: 0.3;
+  background:
+    radial-gradient(ellipse at 20% 20%, oklch(0.85 0.05 260 / 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, oklch(0.88 0.04 300 / 0.3) 0%, transparent 45%);
+}
+
+[data-theme="light"] .sev-critical { background: rgba(185, 28, 28, 0.1); color: #991b1b; border-left-color: #dc2626; }
+[data-theme="light"] .sev-high     { background: rgba(239, 68, 68, 0.1); color: #b91c1c; border-left-color: #ef4444; }
+[data-theme="light"] .sev-medium   { background: rgba(249, 115, 22, 0.1); color: #c2410c; border-left-color: #f97316; }
+[data-theme="light"] .sev-low      { background: rgba(34, 197, 94, 0.1); color: #15803d; border-left-color: #22c55e; }
+[data-theme="light"] .sev-info     { background: rgba(107, 114, 128, 0.1); color: #4b5563; border-left-color: #6b7280; }
+
+[data-theme="light"] .tag-inline { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.15); color: #2563eb; }
+[data-theme="light"] .cat-badge { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.15); color: #2563eb; }
+[data-theme="light"] .btn-danger { background: rgba(220, 38, 38, 0.08); color: #dc2626; border-color: rgba(220, 38, 38, 0.2); }
+[data-theme="light"] .btn-ai { background: linear-gradient(135deg, rgba(168, 85, 247, 0.08), rgba(37, 99, 235, 0.08)); color: #7c3aed; border-color: rgba(168, 85, 247, 0.2); }
+[data-theme="light"] .toast-success { background: #16a34a; }
+[data-theme="light"] .toast-info { background: #2563eb; }
+[data-theme="light"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+}

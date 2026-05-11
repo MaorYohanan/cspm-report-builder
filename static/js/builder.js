@@ -1,6 +1,13 @@
+// ═══════════════════════════════════════════
+// SOURCE: core.js
+// ═══════════════════════════════════════════
     (function() {
       const findings = [];
       let editingIndex = null;
+      var findingsSortState = { col: null, dir: 'asc' };
+      var findingsPageState = { page: 0, pageSize: 20 };
+      var selectedFindingIndex = null;
+      var activeDetailTab = 'description';
 
       const severityMap = {
         critical: { text: 'קריטי', class: 'sev-critical' },
@@ -93,6 +100,11 @@
         });
       }
 
+
+
+// ═══════════════════════════════════════════
+// SOURCE: ui.js
+// ═══════════════════════════════════════════
       // ── Theme toggle ──
       (function() {
         var saved = localStorage.getItem('cspm_theme') || 'dark';
@@ -113,6 +125,135 @@
             localStorage.setItem('cspm_theme', 'light');
           }
           updateIcon();
+        });
+      })();
+
+      // ── Sidebar collapse toggle ──
+      (function() {
+        var sidebar = document.getElementById('app-sidebar');
+        var collapseBtn = document.getElementById('btn-sidebar-collapse');
+        if (!sidebar || !collapseBtn) return;
+        var saved = localStorage.getItem('cspm_sidebar_collapsed');
+        if (saved === 'true') sidebar.classList.add('collapsed');
+
+        collapseBtn.addEventListener('click', function() {
+          sidebar.classList.toggle('collapsed');
+          var isCollapsed = sidebar.classList.contains('collapsed');
+          collapseBtn.textContent = isCollapsed ? '»' : '«';
+          localStorage.setItem('cspm_sidebar_collapsed', isCollapsed);
+        });
+
+        // Set initial icon
+        if (sidebar.classList.contains('collapsed')) collapseBtn.textContent = '»';
+      })();
+
+      // ── Animated mesh background ──
+      (function() {
+        var main = document.getElementById('main-content');
+        if (!main) return;
+        var canvas = document.createElement('canvas');
+        canvas.id = 'mesh-bg';
+        canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;opacity:0.5;';
+        main.insertBefore(canvas, main.firstChild);
+
+        var ctx = canvas.getContext('2d');
+        var dots = [];
+        var numDots = 90;
+        var maxDist = 130;
+        var animId;
+
+        function resize() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        }
+
+        function initDots() {
+          dots = [];
+          for (var i = 0; i < numDots; i++) {
+            dots.push({
+              x: Math.random() * canvas.width,
+              y: Math.random() * canvas.height,
+              vx: (Math.random() - 0.5) * 0.3,
+              vy: (Math.random() - 0.5) * 0.3
+            });
+          }
+        }
+
+        function draw() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          var isDark = !document.documentElement.getAttribute('data-theme') || document.documentElement.getAttribute('data-theme') === 'dark';
+          var dotColor = isDark ? 'rgba(130,150,230,' : 'rgba(70,90,170,';
+          var lineColor = isDark ? 'rgba(110,140,220,' : 'rgba(70,90,170,';
+
+          // Move dots
+          for (var i = 0; i < dots.length; i++) {
+            var d = dots[i];
+            d.x += d.vx;
+            d.y += d.vy;
+            if (d.x < 0 || d.x > canvas.width) d.vx *= -1;
+            if (d.y < 0 || d.y > canvas.height) d.vy *= -1;
+          }
+
+          // Draw lines
+          for (var i = 0; i < dots.length; i++) {
+            for (var j = i + 1; j < dots.length; j++) {
+              var dx = dots[i].x - dots[j].x;
+              var dy = dots[i].y - dots[j].y;
+              var dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist < maxDist) {
+                var alpha = (1 - dist / maxDist) * 0.4;
+                ctx.beginPath();
+                ctx.strokeStyle = lineColor + alpha + ')';
+                ctx.lineWidth = 0.8;
+                ctx.moveTo(dots[i].x, dots[i].y);
+                ctx.lineTo(dots[j].x, dots[j].y);
+                ctx.stroke();
+              }
+            }
+          }
+
+          // Draw dots
+          for (var i = 0; i < dots.length; i++) {
+            ctx.beginPath();
+            ctx.arc(dots[i].x, dots[i].y, 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = dotColor + '0.7)';
+            ctx.fill();
+          }
+
+          animId = requestAnimationFrame(draw);
+        }
+
+        resize();
+        initDots();
+        draw();
+
+        window.addEventListener('resize', function() {
+          resize();
+          initDots();
+        });
+      })();
+
+      // ── Sidebar section collapse ──
+      (function() {
+        var labels = document.querySelectorAll('.sidebar-section-label[data-collapse]');
+        labels.forEach(function(label) {
+          var targetId = label.getAttribute('data-collapse');
+          var nav = document.getElementById(targetId);
+          if (!nav) return;
+
+          // Restore saved state
+          var key = 'cspm_nav_' + targetId;
+          var saved = localStorage.getItem(key);
+          if (saved === 'collapsed') {
+            label.classList.add('collapsed');
+            nav.classList.add('collapsed');
+          }
+
+          label.addEventListener('click', function() {
+            var isCollapsed = nav.classList.toggle('collapsed');
+            label.classList.toggle('collapsed', isCollapsed);
+            localStorage.setItem(key, isCollapsed ? 'collapsed' : 'open');
+          });
         });
       })();
 
@@ -137,58 +278,518 @@
         }
       });
 
-      // ── Progress stepper ──
-      var stepperSteps = document.querySelectorAll('.progress-stepper .step');
-      var stepFindingsCount = document.getElementById('step-findings-count');
+      // ── Progress / sidebar state ──
 
       function updateStepper() {
-        var clientEl = document.getElementById('report-client');
+        // Update sidebar findings badge
+        var badge = document.getElementById('step-findings-count');
+        if (badge) {
+          badge.textContent = findings.length > 0 ? findings.length : '';
+        }
+        // Update sidebar env label
+        var envLabel = document.getElementById('sidebar-env-label');
         var envEl = document.getElementById('report-env');
-        var hasDetails = !!(clientEl && clientEl.value.trim()) || !!(envEl && envEl.value.trim());
+        if (envLabel && envEl) {
+          envLabel.textContent = envEl.value.trim() || 'לא הוגדרה סביבה';
+        }
+        // Update progress — 4 steps
+        var clientEl = document.getElementById('report-client');
+        var hasClient = !!(clientEl && clientEl.value.trim());
+        var hasEnv = !!(envEl && envEl.value.trim());
         var hasFindings = findings.length > 0;
+        var hasExported = !!(localStorage.getItem('cspm_has_exported'));
 
-        stepperSteps.forEach(function(s) {
-          s.classList.remove('done', 'active');
-          var step = s.getAttribute('data-step');
-          if (step === 'details' && hasDetails) s.classList.add('done');
-          if (step === 'findings' && hasFindings) s.classList.add('done');
+        var steps = 0;
+        if (hasClient) steps++;
+        if (hasEnv) steps++;
+        if (hasFindings) steps++;
+        if (hasExported) steps++;
+        var pct = Math.round((steps / 4) * 100);
+
+        var progressText = document.getElementById('sidebar-progress-text');
+        var progressFill = document.getElementById('sidebar-progress-fill');
+        var progressLabel = document.getElementById('sidebar-progress-label');
+        if (progressText) progressText.textContent = pct + '%';
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (progressLabel) progressLabel.textContent = steps + ' מתוך 4 שלבים';
+
+        // Update tooltip checklist
+        var tooltip = document.getElementById('progress-tooltip');
+        if (tooltip) {
+          tooltip.innerHTML =
+            '<div class="progress-tooltip-item ' + (hasClient ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasClient ? '✓' : '✗') + '</span> שם לקוח</div>' +
+            '<div class="progress-tooltip-item ' + (hasEnv ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasEnv ? '✓' : '✗') + '</span> סביבת ענן</div>' +
+            '<div class="progress-tooltip-item ' + (hasFindings ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasFindings ? '✓' : '✗') + '</span> ממצאים</div>' +
+            '<div class="progress-tooltip-item ' + (hasExported ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasExported ? '✓' : '✗') + '</span> ייצוא דו"ח</div>';
+        }
+      }
+
+      // ── Dashboard ──
+      function renderDashboard() {
+        var total = findings.length;
+        var crit = 0, high = 0, med = 0, low = 0;
+        var cats = {};
+        findings.forEach(function(f) {
+          if (f.severity === 'critical') crit++;
+          else if (f.severity === 'high') high++;
+          else if (f.severity === 'medium') med++;
+          else if (f.severity === 'low') low++;
+          var c = f.category || 'CSPM';
+          cats[c] = (cats[c] || 0) + 1;
         });
 
-        if (stepFindingsCount) {
-          stepFindingsCount.textContent = hasFindings ? findings.length : '';
+        var kpiTotal = document.getElementById('kpi-total');
+        var kpiCrit = document.getElementById('kpi-critical');
+        var kpiHigh = document.getElementById('kpi-high');
+        var kpiMed = document.getElementById('kpi-medium');
+        var kpiLow = document.getElementById('kpi-low');
+        if (kpiTotal) kpiTotal.textContent = total;
+        if (kpiCrit) kpiCrit.textContent = crit;
+        if (kpiHigh) kpiHigh.textContent = high;
+        if (kpiMed) kpiMed.textContent = med;
+        if (kpiLow) kpiLow.textContent = low;
+
+        // Donut chart
+        var donutEl = document.getElementById('dashboard-donut');
+        if (donutEl) {
+          if (total === 0) {
+            donutEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">אין ממצאים</div>';
+          } else {
+            var segments = [
+              { count: crit, color: 'oklch(0.58 0.22 15)', label: 'קריטי' },
+              { count: high, color: 'oklch(0.68 0.18 40)', label: 'גבוה' },
+              { count: med, color: 'oklch(0.72 0.16 80)', label: 'בינוני' },
+              { count: low, color: 'oklch(0.62 0.17 155)', label: 'נמוך' }
+            ].filter(function(s) { return s.count > 0; });
+            var svg = '<svg viewBox="0 0 120 120" width="100" height="100" style="display:block;margin:0 auto;">';
+            var offset = 0;
+            var circumference = 2 * Math.PI * 38;
+            segments.forEach(function(seg) {
+              var pct = seg.count / total;
+              var dash = pct * circumference;
+              var gap = circumference - dash;
+              svg += '<circle cx="60" cy="60" r="38" fill="none" stroke="' + seg.color + '" stroke-width="14" stroke-dasharray="' + dash + ' ' + gap + '" stroke-dashoffset="' + (-offset) + '" transform="rotate(-90 60 60)"/>';
+              offset += dash;
+            });
+            svg += '<text x="60" y="56" text-anchor="middle" fill="var(--text-heading)" font-size="18" font-weight="800">' + total + '</text>';
+            svg += '<text x="60" y="72" text-anchor="middle" fill="var(--text-muted)" font-size="9">ממצאים</text>';
+            svg += '</svg>';
+            var legend = '<div style="margin-top:10px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">';
+            segments.forEach(function(seg) {
+              legend += '<span style="font-size:11px;display:flex;align-items:center;gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:' + seg.color + ';"></span>' + seg.label + ' ' + seg.count + '</span>';
+            });
+            legend += '</div>';
+            donutEl.innerHTML = svg + legend;
+          }
         }
 
-        // Highlight current tab's step
-        var activeTab = document.querySelector('.tab-btn.active');
-        if (activeTab) {
-          var tabId = activeTab.id;
-          var stepMap = {
-            'tab-report-details': 'details',
-            'tab-finding-form': 'findings',
-            'tab-findings-list': 'review',
-            'tab-export': 'export'
-          };
-          var activeStep = stepMap[tabId];
-          if (activeStep) {
-            stepperSteps.forEach(function(s) {
-              if (s.getAttribute('data-step') === activeStep) s.classList.add('active');
+        // Category bars
+        var catsEl = document.getElementById('dashboard-categories');
+        if (catsEl) {
+          if (total === 0) {
+            catsEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">אין נתונים</div>';
+          } else {
+            var catColors = { CSPM:'oklch(0.58 0.2 220)', KSPM:'oklch(0.58 0.18 280)', DSPM:'oklch(0.58 0.2 180)', VULN:'oklch(0.58 0.22 15)', NEXP:'oklch(0.68 0.18 40)', EAPM:'oklch(0.72 0.16 80)', HSPM:'oklch(0.62 0.17 155)', SECR:'oklch(0.62 0.18 300)', EOLM:'oklch(0.6 0.02 220)' };
+            var maxCat = Math.max.apply(null, Object.values(cats));
+            var barsHtml = '';
+            Object.keys(cats).sort(function(a,b) { return cats[b] - cats[a]; }).forEach(function(cat) {
+              var pct = Math.round((cats[cat] / maxCat) * 100);
+              var color = catColors[cat] || 'var(--accent)';
+              barsHtml += '<div class="dashboard-bar-row"><span class="dashboard-bar-label">' + cat + '</span><div class="dashboard-bar-track"><div class="dashboard-bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div><span class="dashboard-bar-count">' + cats[cat] + '</span></div>';
             });
+            catsEl.innerHTML = barsHtml;
+          }
+        }
+
+        // Risk summary
+        var riskEl = document.getElementById('dashboard-risk-summary');
+        if (riskEl) {
+          var riskField = document.getElementById('report-risk');
+          var riskVal = riskField ? riskField.value : '';
+          var riskColor = riskVal === 'קריטית' ? 'oklch(0.58 0.22 15)' : riskVal === 'גבוהה' ? 'oklch(0.68 0.18 40)' : riskVal === 'בינונית' ? 'oklch(0.72 0.16 80)' : 'oklch(0.62 0.17 155)';
+          riskEl.innerHTML = '<div style="font-size:28px;font-weight:800;color:' + riskColor + ';">' + (riskVal || 'לא הוגדר') + '</div>' +
+            '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">' + total + ' ממצאים | ' + crit + ' קריטיים | ' + high + ' גבוהים</div>';
+        }
+
+        // Recent findings
+        var recentEl = document.getElementById('dashboard-recent-findings');
+        if (recentEl) {
+          if (total === 0) {
+            recentEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">אין ממצאים עדיין</div>';
+          } else {
+            var recent = findings.slice(0, 5);
+            var h = '<table style="width:100%;font-size:12px;"><thead><tr><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th></tr></thead><tbody>';
+            recent.forEach(function(f) {
+              var sev = severityMap[f.severity] || severityMap.medium;
+              h += '<tr><td style="color:var(--accent);font-family:monospace;">' + (f.id || '') + '</td><td><span class="tag-inline">' + (f.category || '') + '</span></td><td>' + (f.title || '').substring(0, 50) + '</td><td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td><td>' + (f.owner || '—') + '</td></tr>';
+            });
+            h += '</tbody></table>';
+            recentEl.innerHTML = h;
           }
         }
       }
 
-      // Click stepper steps to navigate
-      stepperSteps.forEach(function(s) {
-        s.addEventListener('click', function() {
-          var step = s.getAttribute('data-step');
-          var tabMap = { details: 'tab-report-details', findings: 'tab-finding-form', review: 'tab-findings-list', export: 'tab-export' };
-          if (tabMap[step]) switchToTab(tabMap[step]);
+
+
+// ═══════════════════════════════════════════
+// SOURCE: findings.js
+// ═══════════════════════════════════════════
+      // ── Finding Detail Pane ──
+      function showFindingDetail(idx) {
+        selectedFindingIndex = idx;
+        var emptyEl = document.getElementById('findings-detail-empty');
+        var contentEl = document.getElementById('findings-detail-content');
+        if (!contentEl || !emptyEl) return;
+
+        if (idx === null || !findings[idx]) {
+          emptyEl.style.display = '';
+          contentEl.style.display = 'none';
+          selectedFindingIndex = null;
+          return;
+        }
+
+        emptyEl.style.display = 'none';
+        contentEl.style.display = '';
+
+        var f = findings[idx];
+        var sev = severityMap[f.severity] || severityMap.medium;
+
+        // Severity bar
+        var sevBar = document.getElementById('detail-severity-bar');
+        if (sevBar) {
+          sevBar.className = 'detail-severity-bar ' + sev.class;
+        }
+
+        // Position indicator
+        var posEl = document.getElementById('detail-position');
+        if (posEl) {
+          posEl.textContent = 'ממצא ' + (idx + 1) + ' מתוך ' + findings.length;
+        }
+
+        // Header
+        var headerEl = document.getElementById('findings-detail-header');
+        headerEl.innerHTML =
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+            '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
+            '<span class="tag-inline">' + (f.category || 'CSPM') + '</span>' +
+            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + (f.id || '') + '</span>' +
+            '<span style="margin-right:auto;position:relative;">' +
+              '<button class="btn-icon-sm" id="btn-detail-actions" title="פעולות">⋮</button>' +
+              '<div class="actions-dropdown" id="detail-actions-menu" style="display:none;">' +
+                '<button class="actions-dropdown-item" id="detail-action-edit">✏️ ערוך</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-dup">📋 שכפל</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-ai">🤖 שיפור AI</button>' +
+                '<button class="actions-dropdown-item actions-dropdown-danger" id="detail-action-delete">🗑️ מחק</button>' +
+              '</div>' +
+            '</span>' +
+          '</div>' +
+          '<div style="font-size:18px;font-weight:700;color:var(--text-heading);margin-bottom:6px;line-height:1.4;">' + escapeHtml(f.title || '') + '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap;">' +
+            (f.owner ? '<span>👤 ' + escapeHtml(f.owner) + '</span>' : '') +
+            (f.priority ? '<span>⏱ ' + escapeHtml(f.priority) + '</span>' : '') +
+            (f.category ? '<span>📂 ' + escapeHtml(f.category) + '</span>' : '') +
+          '</div>';
+
+        // Wire detail actions dropdown
+        var detailActionsBtn = document.getElementById('btn-detail-actions');
+        var detailActionsMenu = document.getElementById('detail-actions-menu');
+        if (detailActionsBtn && detailActionsMenu) {
+          detailActionsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            detailActionsMenu.style.display = detailActionsMenu.style.display === 'none' ? 'block' : 'none';
+          });
+          document.getElementById('detail-action-edit').addEventListener('click', function() {
+            detailActionsMenu.style.display = 'none';
+            startEditFinding(selectedFindingIndex);
+          });
+          document.getElementById('detail-action-dup').addEventListener('click', function() {
+            detailActionsMenu.style.display = 'none';
+            if (selectedFindingIndex !== null && findings[selectedFindingIndex]) {
+              var orig = findings[selectedFindingIndex];
+              var dup = JSON.parse(JSON.stringify(orig));
+              dup.id = generateNextId(dup.category || 'CSPM');
+              findings.splice(selectedFindingIndex + 1, 0, dup);
+              renderFindingsTable();
+              showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
+            }
+          });
+          document.getElementById('detail-action-ai').addEventListener('click', function() {
+            detailActionsMenu.style.display = 'none';
+            if (selectedFindingIndex !== null && findings[selectedFindingIndex]) {
+              enrichFindingsWithAiSummaries([findings[selectedFindingIndex]]);
+            }
+          });
+          document.getElementById('detail-action-delete').addEventListener('click', function() {
+            detailActionsMenu.style.display = 'none';
+            document.getElementById('btn-detail-delete').click();
+          });
+        }
+
+        // Render active tab content
+        renderDetailTab();
+
+        // Highlight active list item
+        document.querySelectorAll('.finding-list-item').forEach(function(el) {
+          el.classList.toggle('active', parseInt(el.getAttribute('data-idx')) === idx);
         });
+        // Also highlight table rows
+        if (tableWrapper) {
+          tableWrapper.querySelectorAll('tr[data-idx]').forEach(function(row) {
+            row.classList.toggle('active-row', parseInt(row.getAttribute('data-idx')) === idx);
+          });
+        }
+      }
+
+      function renderDetailTab() {
+        var bodyEl = document.getElementById('findings-detail-body');
+        if (!bodyEl || selectedFindingIndex === null) return;
+        var f = findings[selectedFindingIndex];
+        if (!f) return;
+
+        var html = '';
+
+        if (activeDetailTab === 'description') {
+          var desc = f.description || 'אין תיאור';
+          html = '<div class="detail-content-block">' + escapeHtml(desc) + '</div>';
+
+        } else if (activeDetailTab === 'impact') {
+          var impact = f.impact || 'אין השפעה מוגדרת';
+          html = '<div class="detail-content-block">' + escapeHtml(impact) + '</div>';
+
+        } else if (activeDetailTab === 'technical') {
+          var tech = Array.isArray(f.technical) ? f.technical : (f.technical ? [f.technical] : []);
+          if (tech.length) {
+            html = '<ul class="detail-list-content">';
+            tech.forEach(function(line) { html += '<li>' + escapeHtml(line) + '</li>'; });
+            html += '</ul>';
+          } else {
+            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין פרטים טכניים</div>';
+          }
+
+        } else if (activeDetailTab === 'recs') {
+          var recs = Array.isArray(f.recs) ? f.recs : (f.recs ? [f.recs] : []);
+          if (recs.length) {
+            html = '<ul class="detail-list-content">';
+            recs.forEach(function(r, i) { html += '<li><strong>' + (i + 1) + '.</strong> ' + escapeHtml(r) + '</li>'; });
+            html += '</ul>';
+          } else {
+            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין המלצות</div>';
+          }
+
+        } else if (activeDetailTab === 'policies') {
+          var policies = Array.isArray(f.policies) && f.policies.length ? f.policies : [];
+          if (policies.length) {
+            html = '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+            policies.forEach(function(p) { html += '<span class="tag-inline">' + escapeHtml(p) + '</span>'; });
+            html += '</div>';
+          } else {
+            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין תקנים מקושרים</div>';
+          }
+
+        } else if (activeDetailTab === 'evidence') {
+          var evidence = Array.isArray(f.evidence) ? f.evidence : [];
+          if (evidence.length) {
+            html = '<div class="detail-evidence-grid">';
+            evidence.forEach(function(src, i) {
+              html += '<div class="detail-evidence-thumb" data-evidence-idx="' + i + '"><img src="' + src + '" alt="הוכחה ' + (i + 1) + '"></div>';
+            });
+            html += '</div>';
+          } else {
+            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין הוכחות מצורפות</div>';
+          }
+
+        } else if (activeDetailTab === 'info') {
+          html = '<div class="detail-info-grid">';
+          html += '<div class="detail-info-item"><span class="detail-info-label">מזהה</span><span class="detail-info-value">' + escapeHtml(f.id || '—') + '</span></div>';
+          html += '<div class="detail-info-item"><span class="detail-info-label">קטגוריה</span><span class="detail-info-value">' + escapeHtml(f.category || '—') + '</span></div>';
+          html += '<div class="detail-info-item"><span class="detail-info-label">חומרה</span><span class="detail-info-value">' + escapeHtml((severityMap[f.severity] || {}).text || f.severity || '—') + '</span></div>';
+          html += '<div class="detail-info-item"><span class="detail-info-label">עדיפות</span><span class="detail-info-value">' + escapeHtml(f.priority || '—') + '</span></div>';
+          html += '<div class="detail-info-item"><span class="detail-info-label">בעלים</span><span class="detail-info-value">' + escapeHtml(f.owner || '—') + '</span></div>';
+          html += '<div class="detail-info-item"><span class="detail-info-label">הוכחות</span><span class="detail-info-value">' + (Array.isArray(f.evidence) ? f.evidence.length : 0) + ' תמונות</span></div>';
+          html += '</div>';
+
+        } else if (activeDetailTab === 'notes') {
+          var notes = Array.isArray(f.notes) ? f.notes : [];
+          html = '<div class="detail-notes-container">';
+          html += '<div class="detail-notes-messages" id="detail-notes-messages">';
+          if (notes.length) {
+            notes.forEach(function(note, i) {
+              html += '<div class="detail-note-msg"><span class="note-delete" data-note-idx="' + i + '" title="מחק">✕</span>' + escapeHtml(note.text) + '<span class="note-time">' + (note.time || '') + '</span></div>';
+            });
+          } else {
+            html += '<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:20px;">אין הערות עדיין</div>';
+          }
+          html += '</div>';
+          html += '<div class="detail-notes-input"><input type="text" id="detail-note-input" placeholder="הוסף הערה..." dir="rtl"><button id="btn-add-note">שלח</button></div>';
+          html += '</div>';
+        }
+
+        bodyEl.innerHTML = html;
+
+        // Wire evidence lightbox
+        if (activeDetailTab === 'evidence') {
+          bodyEl.querySelectorAll('.detail-evidence-thumb').forEach(function(thumb) {
+            thumb.addEventListener('click', function() {
+              var img = thumb.querySelector('img');
+              if (!img) return;
+              var overlay = document.createElement('div');
+              overlay.className = 'detail-evidence-full';
+              overlay.innerHTML = '<img src="' + img.src + '">';
+              overlay.addEventListener('click', function() { overlay.remove(); });
+              document.body.appendChild(overlay);
+            });
+          });
+        }
+
+        // Wire notes
+        if (activeDetailTab === 'notes') {
+          var noteInput = document.getElementById('detail-note-input');
+          var btnAddNote = document.getElementById('btn-add-note');
+          function addNote() {
+            var text = (noteInput.value || '').trim();
+            if (!text) return;
+            if (!f.notes) f.notes = [];
+            var now = new Date();
+            var time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ' ' + String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0');
+            f.notes.push({ text: text, time: time });
+            renderDetailTab();
+            autoSave();
+          }
+          if (btnAddNote) btnAddNote.addEventListener('click', addNote);
+          if (noteInput) noteInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') addNote(); });
+
+          // Wire note delete
+          bodyEl.querySelectorAll('.note-delete').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var idx = parseInt(btn.getAttribute('data-note-idx'));
+              if (f.notes && !isNaN(idx)) {
+                f.notes.splice(idx, 1);
+                renderDetailTab();
+                autoSave();
+              }
+            });
+          });
+
+          // Scroll to bottom
+          var msgsEl = document.getElementById('detail-notes-messages');
+          if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+        }
+      }
+
+      // Wire detail tabs
+      document.querySelectorAll('.findings-detail-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.findings-detail-tab').forEach(function(t) { t.classList.remove('active'); });
+          tab.classList.add('active');
+          activeDetailTab = tab.getAttribute('data-detail-tab');
+          renderDetailTab();
+        });
+      });
+
+      // Wire detail footer buttons
+      var btnDetailPrev = document.getElementById('btn-detail-prev');
+      var btnDetailNext = document.getElementById('btn-detail-next');
+      var btnDetailEdit = document.getElementById('btn-detail-edit');
+      var btnDetailDelete = document.getElementById('btn-detail-delete');
+
+      // Resizable list pane
+      (function() {
+        var handle = document.getElementById('findings-resize-handle');
+        var listPane = document.querySelector('.findings-list-pane');
+        if (!handle || !listPane) return;
+        var startX, startWidth;
+
+        handle.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          startX = e.clientX;
+          startWidth = listPane.offsetWidth;
+          handle.classList.add('dragging');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+
+          function onMove(e) {
+            // RTL: moving mouse left = wider, moving right = narrower
+            var diff = startX - e.clientX;
+            var newWidth = Math.max(480, Math.min(800, startWidth + diff));
+            listPane.style.width = newWidth + 'px';
+          }
+
+          function onUp() {
+            handle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          }
+
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      })();
+
+      if (btnDetailNext) btnDetailNext.addEventListener('click', function() {
+        if (selectedFindingIndex !== null && selectedFindingIndex > 0) {
+          showFindingDetail(selectedFindingIndex - 1);
+        }
+      });
+      if (btnDetailPrev) btnDetailPrev.addEventListener('click', function() {
+        if (selectedFindingIndex !== null && selectedFindingIndex < findings.length - 1) {
+          showFindingDetail(selectedFindingIndex + 1);
+        }
+      });
+      if (btnDetailEdit) btnDetailEdit.addEventListener('click', function() {
+        if (selectedFindingIndex !== null) startEditFinding(selectedFindingIndex);
+      });
+
+      // Copy finding to clipboard
+      var btnDetailCopy = document.getElementById('btn-detail-copy');
+      if (btnDetailCopy) btnDetailCopy.addEventListener('click', function() {
+        if (selectedFindingIndex === null) return;
+        var f = findings[selectedFindingIndex];
+        var text = [
+          'מזהה: ' + (f.id || ''),
+          'כותרת: ' + (f.title || ''),
+          'חומרה: ' + ((severityMap[f.severity] || {}).text || ''),
+          'קטגוריה: ' + (f.category || ''),
+          'בעלים: ' + (f.owner || ''),
+          'עדיפות: ' + (f.priority || ''),
+          '',
+          'תיאור: ' + (f.description || ''),
+          '',
+          'השפעה: ' + (f.impact || ''),
+          '',
+          'המלצות:',
+          (Array.isArray(f.recs) ? f.recs.map(function(r, i) { return (i + 1) + '. ' + r; }).join('\n') : '')
+        ].join('\n');
+        navigator.clipboard.writeText(text).then(function() {
+          showToast('הועתק ללוח', 'success');
+        });
+      });
+
+      // Expand/collapse detail pane
+      var btnDetailExpand = document.getElementById('btn-detail-expand');
+      if (btnDetailExpand) btnDetailExpand.addEventListener('click', function() {
+        var pane = document.getElementById('findings-detail-pane');
+        if (pane) {
+          pane.classList.toggle('expanded');
+          btnDetailExpand.textContent = pane.classList.contains('expanded') ? '⛶' : '⛶';
+          btnDetailExpand.title = pane.classList.contains('expanded') ? 'צמצם' : 'הרחב';
+        }
+      });
+      if (btnDetailDelete) btnDetailDelete.addEventListener('click', function() {
+        if (selectedFindingIndex !== null) {
+          findings.splice(selectedFindingIndex, 1);
+          selectedFindingIndex = null;
+          showFindingDetail(null);
+          renderFindingsTable();
+          showToast('ממצא נמחק', 'info');
+          promptReorderAfterDelete();
+        }
       });
 
       // ── Tab navigation ──
       function switchToTab(tabId) {
-        document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        document.querySelectorAll('.sidebar-item').forEach(function(btn) {
           btn.classList.remove('active');
           btn.setAttribute('aria-selected', 'false');
         });
@@ -203,6 +804,19 @@
           var panel = document.getElementById(panelId);
           if (panel) panel.classList.add('active');
         }
+        // Update content title
+        var titleMap = {
+          'tab-dashboard': 'לוח בקרה',
+          'tab-report-details': 'פרטי דו"ח',
+          'tab-findings-list': 'ממצאים',
+          'tab-finding-form': 'הוספת / עריכת ממצא',
+          'tab-export': 'ייצוא דו"ח',
+          'tab-cloud-manager': 'קבצי שרת',
+          'tab-wizi': 'Wiz Import'
+        };
+        var titleEl = document.getElementById('content-title');
+        if (titleEl && titleMap[tabId]) titleEl.textContent = titleMap[tabId];
+        if (tabId === 'tab-dashboard') renderDashboard();
         try { localStorage.setItem('cspm_active_tab', tabId); } catch(e) {}
         updateStepper();
       }
@@ -215,24 +829,39 @@
         }
       })();
 
-      document.querySelectorAll('.tab-btn').forEach(function(btn) {
+      document.querySelectorAll('.sidebar-item').forEach(function(btn) {
         btn.addEventListener('click', function() {
           switchToTab(btn.id);
         });
-        // Arrow key navigation between tabs
-        btn.addEventListener('keydown', function(e) {
-          var tabs = Array.from(document.querySelectorAll('.tab-btn'));
-          var idx = tabs.indexOf(btn);
-          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            e.preventDefault();
-            // RTL: ArrowRight = previous, ArrowLeft = next
-            var dir = e.key === 'ArrowLeft' ? 1 : -1;
-            var next = tabs[(idx + dir + tabs.length) % tabs.length];
-            next.focus();
-            switchToTab(next.id);
-          }
-        });
       });
+
+      // Dashboard "show all" link
+      var dashShowAll = document.getElementById('dashboard-show-all');
+      if (dashShowAll) {
+        dashShowAll.addEventListener('click', function(e) {
+          e.preventDefault();
+          switchToTab('tab-findings-list');
+        });
+      }
+
+      // Add finding nav button
+      var btnAddFindingNav = document.getElementById('btn-add-finding-nav');
+      if (btnAddFindingNav) {
+        btnAddFindingNav.addEventListener('click', function() {
+          switchToTab('tab-finding-form');
+        });
+      }
+
+      // Sidebar brand click → dashboard
+      var sidebarBrand = document.getElementById('sidebar-brand-link');
+      if (sidebarBrand) {
+        sidebarBrand.addEventListener('click', function() {
+          switchToTab('tab-dashboard');
+        });
+      }
+
+      // Render dashboard on initial load
+      renderDashboard();
 
       // ממיר מחרוזת תאריך בפורמט DD/MM/YYYY לאובייקט Date
       function parseReportDate(str) {
@@ -399,16 +1028,9 @@
           }
         });
         if (!hasGap) return;
-        styledConfirm('יש פערים במספור המזהים. לסדר מחדש?', {
-          icon: '🔢', title: 'מספור מזהים', confirmText: 'סדר מחדש', cancelText: 'השאר כמו שזה'
-        }).then(function(yes) {
-          if (yes) {
-            reorderFindingIds();
-            renderFindingsTable();
-            prefillId();
-            showToast('מזהים סודרו מחדש', 'success');
-          }
-        });
+        reorderFindingIds();
+        renderFindingsTable();
+        prefillId();
       }
 
       function prefillId() {
@@ -809,8 +1431,11 @@
               // Update findings count badge on tab
               var findingsTab = document.getElementById('tab-findings-list');
               if (findingsTab) {
-                findingsTab.textContent = 'ממצאים שנוספו' + (findings.length ? ' (' + findings.length + ')' : '');
+                var tabIcon = '<span class="sidebar-item-icon">◆</span> ';
+                findingsTab.innerHTML = tabIcon + 'ממצאים <span class="sidebar-badge" id="step-findings-count">' + (findings.length || '') + '</span>';
               }
+              var listCountEl = document.getElementById('findings-list-count');
+              if (listCountEl) listCountEl.textContent = findings.length + ' ממצאים';
               updateStepper();
 
               var batchActions = document.getElementById('batch-actions');
@@ -847,46 +1472,73 @@
                 filtered.push({ f: f, idx: idx });
               });
 
+              // Apply sort
+              if (findingsSortState.col) {
+                var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+                filtered.sort(function(a, b) {
+                  var va, vb;
+                  var col = findingsSortState.col;
+                  if (col === 'id') { va = a.f.id || ''; vb = b.f.id || ''; }
+                  else if (col === 'category') { va = a.f.category || ''; vb = b.f.category || ''; }
+                  else if (col === 'title') { va = (a.f.title || '').toLowerCase(); vb = (b.f.title || '').toLowerCase(); }
+                  else if (col === 'severity') { va = sevOrder[a.f.severity] || 9; vb = sevOrder[b.f.severity] || 9; }
+                  else if (col === 'owner') { va = (a.f.owner || '').toLowerCase(); vb = (b.f.owner || '').toLowerCase(); }
+                  else { va = ''; vb = ''; }
+                  if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
+                  if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+                  return 0;
+                });
+              }
+
               var filterNote = filtered.length < findings.length ? ' (מציג ' + filtered.length + ' מתוך ' + findings.length + ')' : '';
 
-              let html = '<table><caption class="muted small-text">רשימת ממצאים שנוספו לדו"ח' + filterNote + '</caption><thead><tr>' +
+              // Pagination
+              var totalFiltered = filtered.length;
+              var fTotalPages = Math.ceil(totalFiltered / findingsPageState.pageSize);
+              if (findingsPageState.page >= fTotalPages && fTotalPages > 0) findingsPageState.page = fTotalPages - 1;
+              var fStart = findingsPageState.page * findingsPageState.pageSize;
+              var fEnd = Math.min(fStart + findingsPageState.pageSize, totalFiltered);
+              var pagedFiltered = filtered.slice(fStart, fEnd);
+
+              function fSortInd(col) {
+                if (findingsSortState.col !== col) return ' <span class="sort-arrow">⇅</span>';
+                return findingsSortState.dir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+              }
+
+              let html = '';
+              html += '<table><caption class="muted small-text">' + (fStart + 1) + '–' + fEnd + ' מתוך ' + totalFiltered + filterNote + '</caption><thead><tr>' +
                 '<th><input type="checkbox" id="finding-check-all" class="finding-check"></th>' +
-                '<th>#</th><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th><th>מדיניות / תקנים</th><th>הוכחה</th><th>פעולות</th>' +
+                '<th>#</th>' +
+                '<th class="sortable-th" data-findings-sort="id">מזהה' + fSortInd('id') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="title">כותרת' + fSortInd('title') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="severity">חומרה' + fSortInd('severity') + '</th>' +
                 '</tr></thead><tbody>';
 
-              filtered.forEach(function(item) {
+              pagedFiltered.forEach(function(item) {
                 var f = item.f;
                 var idx = item.idx;
                 const sev = severityMap[f.severity] || severityMap.medium;
-                const policiesInline = f.policies.length
-                  ? '<span class="tag-inline">' + f.policies[0].substring(0, 40) + (f.policies[0].length > 40 ? '…' : '') + '</span>' +
-                    (f.policies.length > 1 ? ' <span class="muted small-text">+' + (f.policies.length - 1) + '</span>' : '')
-                  : '<span class="muted">—</span>';
-
-                var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
-                const evidenceText = evidenceArr.length ? '✓ ' + evidenceArr.length + ' תמונ' + (evidenceArr.length === 1 ? 'ה' : 'ות') : '<span class="muted">אין</span>';
 
                 html += '<tr data-idx="' + idx + '">' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
-                  '<td>' + (f.id || '') + '</td>' +
-                  '<td><span class="tag-inline">' + (f.category || 'CSPM') + '</span></td>' +
-                  '<td class="inline-editable" data-field="title" data-idx="' + idx + '">' + (f.title || '') + '</td>' +
-                  '<td class="inline-editable" data-field="severity" data-idx="' + idx + '"><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td>' +
-                  '<td class="inline-editable" data-field="owner" data-idx="' + idx + '">' + (f.owner || '<span class="muted">—</span>') + '</td>' +
-                  '<td>' + policiesInline + '</td>' +
-                  '<td>' + evidenceText + '</td>' +
-                  '<td>' +
-                    '<button class="btn btn-secondary btn-sm" data-action="preview" data-idx="' + idx + '" aria-label="תצוגה מקדימה ' + (f.id || '') + '">👁</button>' +
-                    '<button class="btn btn-secondary btn-sm" data-action="edit" data-idx="' + idx + '" aria-label="ערוך ממצא ' + (f.id || '') + '">ערוך</button>' +
-                    '<button class="btn btn-secondary btn-sm" data-action="dup" data-idx="' + idx + '" aria-label="שכפל ממצא ' + (f.id || '') + '">שכפל</button>' +
-                    '<button class="btn btn-danger btn-sm" data-action="delete" data-idx="' + idx + '" aria-label="מחק ממצא ' + (f.id || '') + '">מחק</button>' +
-                    '<span class="drag-handle" title="גרור לשינוי סדר">⠿</span>' +
-                  '</td>' +
+                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (f.id || '') + '</td>' +
+                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title || '') + '</td>' +
+                  '<td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td>' +
                   '</tr>';
               });
 
               html += '</tbody></table>';
+
+              // Pagination nav below table
+              if (fTotalPages > 1) {
+                html += '<div class="bulk-pagination-bottom">';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-prev"' + (findingsPageState.page === 0 ? ' disabled' : '') + '>▶</button>';
+                html += '<span class="bulk-pagination-page">' + (findingsPageState.page + 1) + ' / ' + fTotalPages + '</span>';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-next"' + (findingsPageState.page >= fTotalPages - 1 ? ' disabled' : '') + '>◀</button>';
+                html += '</div>';
+              }
+
               tableWrapper.innerHTML = html;
               genBtn.disabled = false;
               dlBtn.disabled  = false;
@@ -908,7 +1560,7 @@
                     showToast('ממצא נמחק', 'info');
                     promptReorderAfterDelete();
                   } else if (action === 'preview') {
-                    showFindingPreview(idx);
+                    showFindingDetail(idx);
                   } else if (action === 'edit') {
                     startEditFinding(idx);
                   } else if (action === 'dup') {
@@ -919,6 +1571,15 @@
                     renderFindingsTable();
                     showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
                   }
+                });
+              });
+
+              // Wire row click to show detail
+              tableWrapper.querySelectorAll('tr[data-idx]').forEach(function(row) {
+                row.addEventListener('click', function(e) {
+                  if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.inline-editable')) return;
+                  var idx = parseInt(row.getAttribute('data-idx'));
+                  if (!isNaN(idx)) showFindingDetail(idx);
                 });
               });
 
@@ -985,6 +1646,27 @@
               // Category badges and drag-and-drop
               renderCategoryBadges();
               setupDragAndDrop();
+
+              // Wire sortable headers for findings table
+              tableWrapper.querySelectorAll('.sortable-th[data-findings-sort]').forEach(function(th) {
+                th.addEventListener('click', function() {
+                  var col = th.getAttribute('data-findings-sort');
+                  if (findingsSortState.col === col) {
+                    findingsSortState.dir = findingsSortState.dir === 'asc' ? 'desc' : 'asc';
+                  } else {
+                    findingsSortState.col = col;
+                    findingsSortState.dir = 'asc';
+                  }
+                  findingsPageState.page = 0;
+                  renderFindingsTable();
+                });
+              });
+
+              // Wire pagination
+              var fpPrev = document.getElementById('findings-page-prev');
+              var fpNext = document.getElementById('findings-page-next');
+              if (fpPrev) fpPrev.addEventListener('click', function() { findingsPageState.page--; renderFindingsTable(); });
+              if (fpNext) fpNext.addEventListener('click', function() { findingsPageState.page++; renderFindingsTable(); });
             }
 
       // ── Batch actions ──
@@ -1000,11 +1682,20 @@
         var selected = getSelectedFindingIndices();
         var batchActions = document.getElementById('batch-actions');
         var batchCount = document.getElementById('batch-count');
+        var batchCountInline = document.getElementById('batch-count-inline');
         if (selected.length > 0) {
           batchActions.style.display = '';
           batchCount.textContent = selected.length + ' ממצאים נבחרו';
+          if (batchCountInline) {
+            batchCountInline.textContent = selected.length + ' נבחרו';
+            batchCountInline.style.display = 'inline-block';
+          }
         } else {
           batchActions.style.display = 'none';
+          if (batchCountInline) {
+            batchCountInline.textContent = '';
+            batchCountInline.style.display = 'none';
+          }
         }
       }
 
@@ -1021,20 +1712,24 @@
       });
 
       // Batch priority change
-      document.getElementById('batch-priority').addEventListener('change', function() {
-        var newPri = this.value;
-        if (!newPri) return;
-        var indices = getSelectedFindingIndices();
-        indices.forEach(function(idx) { if (findings[idx]) findings[idx].priority = newPri; });
-        this.value = '';
-        renderFindingsTable();
-        autoSave();
-        showToast('עדיפות עודכנה ל-' + indices.length + ' ממצאים', 'success');
-      });
+      var batchPriorityEl = document.getElementById('batch-priority');
+      if (batchPriorityEl) {
+        batchPriorityEl.addEventListener('change', function() {
+          var newPri = this.value;
+          if (!newPri) return;
+          var indices = getSelectedFindingIndices();
+          indices.forEach(function(idx) { if (findings[idx]) findings[idx].priority = newPri; });
+          this.value = '';
+          renderFindingsTable();
+          autoSave();
+          showToast('עדיפות עודכנה ל-' + indices.length + ' ממצאים', 'success');
+        });
+      }
 
       // Batch owner change
       (function() {
         var batchOwnerInput = document.getElementById('batch-owner');
+        if (!batchOwnerInput) return;
         batchOwnerInput.addEventListener('keydown', function(e) {
           if (e.key === 'Enter') {
             var newOwner = this.value.trim();
@@ -1081,7 +1776,7 @@
           return true;
         });
         if (!selected.length) {
-          showToast('כל הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+          showToast('כל הממצאים הנבחרים כבר כוללים שיפור AI', 'info');
           return;
         }
         enrichFindingsWithAiSummaries(selected);
@@ -1511,16 +2206,79 @@
         resetEditState();
       });
 
-      // Sort findings by severity (critical first)
-      document.getElementById('btn-sort-severity').addEventListener('click', function() {
-        var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
-        findings.sort(function(a, b) {
-          return (sevOrder[a.severity] || 9) - (sevOrder[b.severity] || 9);
+      // Sort findings dropdown
+      var sortBtn = document.getElementById('btn-sort-severity');
+      var sortMenu = document.getElementById('sort-menu');
+      if (sortBtn && sortMenu) {
+        sortBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          sortMenu.style.display = sortMenu.style.display === 'none' ? 'block' : 'none';
         });
-        if (editingIndex !== null) resetEditState();
-        renderFindingsTable();
-        statusMsg.textContent = 'ממצאים מוינו לפי חומרה (קריטי ← מידע).';
-      });
+        document.addEventListener('click', function() { sortMenu.style.display = 'none'; });
+        sortMenu.querySelectorAll('[data-sort-by]').forEach(function(item) {
+          item.addEventListener('click', function() {
+            var col = item.getAttribute('data-sort-by');
+            if (findingsSortState.col === col) {
+              findingsSortState.dir = findingsSortState.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+              findingsSortState.col = col;
+              findingsSortState.dir = 'asc';
+            }
+            findingsPageState.page = 0;
+            renderFindingsTable();
+            sortMenu.style.display = 'none';
+          });
+        });
+      }
+
+      // Page size selector for findings table
+      var findingsPageSizeStatic = document.getElementById('findings-page-size-static');
+      if (findingsPageSizeStatic) {
+        findingsPageSizeStatic.addEventListener('change', function() {
+          findingsPageState.pageSize = parseInt(this.value);
+          findingsPageState.page = 0;
+          renderFindingsTable();
+        });
+      }
+
+      // More actions dropdown toggle
+      var moreActionsBtn = document.getElementById('btn-more-actions');
+      var moreActionsMenu = document.getElementById('findings-more-menu');
+      if (moreActionsBtn && moreActionsMenu) {
+        moreActionsBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          moreActionsMenu.style.display = moreActionsMenu.style.display === 'none' ? 'block' : 'none';
+        });
+        document.addEventListener('click', function() {
+          moreActionsMenu.style.display = 'none';
+        });
+        moreActionsMenu.addEventListener('click', function() {
+          moreActionsMenu.style.display = 'none';
+        });
+      }
+
+      // Menu batch delete (from ⋮ dropdown)
+      var menuBatchDelete = document.getElementById('menu-batch-delete');
+      if (menuBatchDelete) {
+        menuBatchDelete.addEventListener('click', function() {
+          var indices = getSelectedFindingIndices().sort(function(a, b) { return b - a; });
+          if (!indices.length) {
+            showToast('לא נבחרו ממצאים', 'warning');
+            return;
+          }
+          styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
+            icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+          }).then(function(yes) {
+            if (!yes) return;
+            indices.forEach(function(idx) { findings.splice(idx, 1); });
+            editingIndex = null;
+            renderFindingsTable();
+            autoSave();
+            showToast(indices.length + ' ממצאים נמחקו', 'info');
+            promptReorderAfterDelete();
+          });
+        });
+      }
 
       // Clear all findings
       document.getElementById('btn-clear-all-findings').addEventListener('click', function() {
@@ -1551,11 +2309,35 @@
           return true;
         });
         if (!toEnrich.length) {
-          showToast('כל הממצאים כבר כוללים סיכום AI', 'info');
+          showToast('כל הממצאים כבר כוללים שיפור AI', 'info');
           return;
         }
         enrichFindingsWithAiSummaries(toEnrich);
       });
+
+      // AI enrich selected findings only
+      var btnAiEnrichSelected = document.getElementById('btn-ai-enrich-selected');
+      if (btnAiEnrichSelected) {
+        btnAiEnrichSelected.addEventListener('click', function() {
+          var indices = getSelectedFindingIndices();
+          if (!indices.length) {
+            showToast('לא נבחרו ממצאים', 'warning');
+            return;
+          }
+          var selected = indices.map(function(idx) { return findings[idx]; });
+          var toEnrich = selected.filter(function(f) {
+            if (!f.recs || !f.recs.length) return false;
+            if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+            if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+            return true;
+          });
+          if (!toEnrich.length) {
+            showToast('הממצאים הנבחרים כבר כוללים שיפור AI', 'info');
+            return;
+          }
+          enrichFindingsWithAiSummaries(toEnrich);
+        });
+      }
 
       // Clear form
       document.getElementById('btn-clear-form').addEventListener('click', function() {
@@ -2662,6 +3444,8 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         statusMsg.textContent = 'קובץ HTML של הדו"ח ירד למחשב – אפשר לפתוח/לערוך אותו כרצונך.';
+        try { localStorage.setItem('cspm_has_exported', '1'); } catch(e) {}
+        updateStepper();
       });
       
       // ייצוא Snapshot כקובץ JSON
@@ -2681,6 +3465,11 @@
         statusMsg.textContent = 'תצורת הדו"ח יוצאה כקובץ JSON (meta + ממצאים).';
       });
 
+
+
+// ═══════════════════════════════════════════
+// SOURCE: export.js
+// ═══════════════════════════════════════════
       // ── ייצוא ממצאים כ-CSV ──
       document.getElementById('btn-export-csv').addEventListener('click', function() {
         if (!findings.length) {
@@ -3148,6 +3937,12 @@
         autosaveIndicator.classList.add('visible');
       }
 
+      autosaveIndicator.style.cursor = 'pointer';
+      autosaveIndicator.title = 'לחץ לשמירה ידנית';
+      autosaveIndicator.addEventListener('click', function() {
+        autoSaveImmediate();
+      });
+
       function autoSaveImmediate() {
         if (autoSaveInProgress) return; // Prevent overlapping saves
         
@@ -3296,8 +4091,10 @@
       // Override the renderFindingsTable to also update cloud buttons
       const _origRender = renderFindingsTable;
       // We already call renderFindingsTable at the end, so just hook into the table update
-      const origObserver = new MutationObserver(updateCloudButtons);
-      origObserver.observe(tableWrapper, { childList: true });
+      if (tableWrapper) {
+        const origObserver = new MutationObserver(updateCloudButtons);
+        origObserver.observe(tableWrapper, { childList: true });
+      }
 
       // --- Render PDF via server ---
       if (renderPdfBtn) {
@@ -3328,6 +4125,8 @@
             URL.revokeObjectURL(url);
             statusMsg.textContent = 'PDF נוצר והורד בהצלחה.';
             showToast('PDF נוצר והורד בהצלחה', 'success');
+            try { localStorage.setItem('cspm_has_exported', '1'); } catch(e) {}
+            updateStepper();
             refreshOutputsList();
           } catch (e) {
             statusMsg.textContent = 'שגיאה ביצירת PDF: ' + e.message;
@@ -3628,6 +4427,24 @@
       // =====================================================================
       // Wizi integration
       // =====================================================================
+
+      // Wizi sub-tab switching
+      document.querySelectorAll('.wizi-sub-tab').forEach(function(tab) {
+        tab.addEventListener('click', function() {
+          document.querySelectorAll('.wizi-sub-tab').forEach(function(t) { t.classList.remove('active'); });
+          document.querySelectorAll('.wizi-sub-panel').forEach(function(p) { p.classList.remove('active'); });
+          tab.classList.add('active');
+          var panelId = tab.getAttribute('data-wizi-panel');
+          var panel = document.getElementById(panelId);
+          if (panel) panel.classList.add('active');
+        });
+      });
+
+
+
+// ═══════════════════════════════════════════
+// SOURCE: wizi.js
+// ═══════════════════════════════════════════
       var wiziResults = document.getElementById('wizi-results');
       var wiziStatusMsg = document.getElementById('wizi-status-msg');
       var wiziFetchBtn = document.getElementById('btn-wizi-fetch');
@@ -3831,11 +4648,24 @@
       function setupAutocomplete(input, hiddenInput, listEl, getItems) {
         var activeIdx = -1;
 
+        // Move list to body so it's never clipped by parent overflow
+        if (listEl.parentNode !== document.body) {
+          document.body.appendChild(listEl);
+        }
+
+        function positionList() {
+          var rect = input.getBoundingClientRect();
+          listEl.style.position = 'fixed';
+          listEl.style.top = rect.bottom + 'px';
+          listEl.style.left = rect.left + 'px';
+          listEl.style.width = rect.width + 'px';
+        }
+
         function render(query) {
           var items = getItems();
           var q = (query || '').toLowerCase();
           var filtered = q ? items.filter(function(it) {
-            return it.label.toLowerCase().includes(q) || (it.sub || '').toLowerCase().includes(q);
+            return it.label.toLowerCase().includes(q) || (it.sub || '').toLowerCase().includes(q) || (it.externalId || '').toLowerCase().includes(q);
           }) : items;
           filtered = filtered.slice(0, 50); // cap results
 
@@ -3849,6 +4679,7 @@
               it.label + (it.sub ? ' <span class="ac-sub">' + it.sub + '</span>' : '') +
               '</div>';
           }).join('');
+          positionList();
           listEl.classList.add('open');
           activeIdx = -1;
         }
@@ -3905,6 +4736,14 @@
           }
         });
 
+        // Close on scroll/resize (fixed position won't follow)
+        window.addEventListener('scroll', function() {
+          if (listEl.classList.contains('open')) positionList();
+        }, true);
+        window.addEventListener('resize', function() {
+          listEl.classList.remove('open');
+        });
+
         // Clear button behavior — if user clears the field, reset hidden ID
         input.addEventListener('change', function() {
           if (!input.value.trim()) hiddenInput.value = '';
@@ -3927,7 +4766,8 @@
                 return { 
                   id: s.name, 
                   label: s.name, 
-                  sub: s.cloudProvider + ' · ' + (s.externalId || (s.id ? s.id.substring(0, 8) : ''))
+                  sub: s.cloudProvider + ' · ' + (s.externalId || (s.id ? s.id.substring(0, 8) : '')),
+                  externalId: s.externalId || ''
                 };
               });
             }
@@ -4321,6 +5161,10 @@
 
         wiziFetchBtn.disabled = true;
         wiziStatusMsg.textContent = 'שולף ממצאים מ-Wizi...';
+        var wiziProg = document.getElementById('wizi-progress');
+        var wiziProgFill = document.getElementById('wizi-progress-fill');
+        var wiziProgText = document.getElementById('wizi-progress-text');
+        if (wiziProg) { wiziProg.classList.add('active'); wiziProgFill.style.width = '30%'; wiziProgText.textContent = 'שולף ממצאים מ-Wizi...'; }
 
         var body = { queryType: qt, first: limit, severity: sevFilter, status: statusFilter };
         // Send subscription filter (from either subscription field or project field)
@@ -4408,6 +5252,8 @@
         })
         .finally(function() {
           wiziFetchBtn.disabled = false;
+          var wiziProg = document.getElementById('wizi-progress');
+          if (wiziProg) wiziProg.classList.remove('active');
         });
       }
 
@@ -4916,6 +5762,10 @@
 
         wiziFindIdBtn.disabled = true;
         wiziFindIdStatus.textContent = 'מחפש ממצאים...';
+        var wiziProg = document.getElementById('wizi-progress');
+        var wiziProgFill = document.getElementById('wizi-progress-fill');
+        var wiziProgText = document.getElementById('wizi-progress-text');
+        if (wiziProg) { wiziProg.classList.add('active'); wiziProgFill.style.width = '50%'; wiziProgText.textContent = 'מחפש ממצאים...'; }
 
         var payload = { id: findingId, page: page || 0, pageSize: 5 };
         if (subFilter) payload.subscription = subFilter;
@@ -4944,6 +5794,8 @@
         })
         .finally(function() {
           wiziFindIdBtn.disabled = false;
+          var wiziProg = document.getElementById('wizi-progress');
+          if (wiziProg) wiziProg.classList.remove('active');
         });
       }
 
@@ -5416,7 +6268,7 @@
         var container = document.createElement('div');
         container.className = 'ai-progress-container';
         container.innerHTML =
-          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 מייצר סיכומי AI להמלצות</span></div>' +
+          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 משפר המלצות באמצעות AI</span></div>' +
           '<div class="ai-progress-track"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>' +
           '<div class="ai-progress-label"><span id="ai-progress-label">0 / ' + toEnrich.length + '</span><button class="ai-progress-abort" id="ai-progress-abort">ביטול</button></div>';
         document.body.appendChild(container);
@@ -5441,7 +6293,7 @@
           if (aborted) {
             container.querySelector('.ai-spinner').style.display = 'none';
             container.querySelector('.ai-progress-header span:last-child').textContent = '⏹ בוטל';
-            labelEl.textContent = enriched + ' סיכומים נוספו';
+            labelEl.textContent = enriched + ' המלצות שופרו';
             container.querySelector('#ai-progress-abort').style.display = 'none';
             setTimeout(function() {
               if (container.parentNode) container.parentNode.removeChild(container);
@@ -5453,8 +6305,8 @@
             // Done — show completion briefly then remove
             fillEl.style.width = '100%';
             container.querySelector('.ai-spinner').style.display = 'none';
-            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ סיכומי AI הושלמו';
-            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ שיפור המלצות הושלם';
+            labelEl.textContent = enriched + ' המלצות שופרו';
             container.querySelector('#ai-progress-abort').style.display = 'none';
             setTimeout(function() {
               if (container.parentNode) container.parentNode.removeChild(container);
@@ -5996,6 +6848,10 @@
         resultsDiv.innerHTML = '';
         progressDiv.textContent = 'מבצע ייבוא מרוכז...';
         actionsDiv.style.display = 'none';
+        var bulkProg = document.getElementById('bulk-progress-bar');
+        var bulkProgFill = document.getElementById('bulk-progress-fill');
+        var bulkProgText = document.getElementById('bulk-progress-text');
+        if (bulkProg) { bulkProg.classList.add('active'); bulkProgFill.style.width = '30%'; bulkProgText.textContent = 'מייבא נתונים מ-Wizi...'; }
 
         fetch('/api/wizi/bulk-fetch', {
           method: 'POST',
@@ -6057,6 +6913,8 @@
         .finally(function() {
           btn.disabled = false;
           bulkImportRunning = false;
+          var bulkProg = document.getElementById('bulk-progress-bar');
+          if (bulkProg) bulkProg.classList.remove('active');
         });
       }
 
@@ -6143,73 +7001,187 @@
 
         // Build results table
         var html = '';
+        var bulkPageState = {};
+        var defaultPageSize = 20;
+
         queryTypes.forEach(function(qt) {
           var nodes = bulkImportResults[qt];
           if (!nodes || !nodes.length) return;
           var label = queryTypeLabels[qt];
+          bulkPageState[qt] = { page: 0, pageSize: defaultPageSize };
 
-          html += '<details open style="margin-bottom:8px;">';
-          html += '<summary style="cursor:pointer;font-weight:bold;padding:4px 0;">' + escapeHtml(label) + ' (' + nodes.length + ')</summary>';
-          html += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
-          html += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '" checked></th>';
-          html += '<th>סוג</th><th>חומרה</th><th>כותרת</th>';
-          if (qt === 'vulnerabilityFindings') {
-            html += '<th>משאב</th><th>סוג משאב</th>';
-          }
-          if (qt === 'secretInstances') {
-            html += '<th>משאב</th>';
-          }
-          html += '<th>Subscription</th>';
-          html += '</tr></thead><tbody>';
-
-          nodes.forEach(function(node, idx) {
-            var sev = mapWiziSeverity(node.severity);
-            var sevInfo = severityMap[sev] || severityMap.medium;
-            var title = getWiziItemTitle(node, qt);
-            var subName = getNodeSubscriptionName(node, qt);
-
-            html += '<tr>';
-            html += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + idx + '" checked></td>';
-            html += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
-            html += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
-            html += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
-            if (qt === 'vulnerabilityFindings') {
-              var asset = node.vulnerableAsset || {};
-              html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(asset.name || '') + '">' + escapeHtml(asset.name || '—') + '</td>';
-              html += '<td>' + escapeHtml(asset.type || '—') + '</td>';
-            }
-            if (qt === 'secretInstances') {
-              var res = node.resource || {};
-              html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(res.name || '') + '">' + escapeHtml(res.name || '—') + '</td>';
-            }
-            html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '—') + '</td>';
-            html += '</tr>';
-          });
-
-          html += '</tbody></table></details>';
+          html += '<details class="bulk-section-card" data-qt="' + qt + '">';
+          html += '<summary class="bulk-section-summary"><span class="bulk-section-icon">' + (qt === 'vulnerabilityFindings' ? '🛡️' : qt === 'configurationFindings' ? '⚙️' : qt === 'secretInstances' ? '🔑' : qt === 'excessiveAccessFindings' ? '👤' : qt === 'networkExposures' ? '🌐' : qt === 'hostConfigurationRuleAssessments' ? '🖥️' : qt === 'dataFindingsV2' ? '💾' : qt === 'inventoryFindings' ? '📦' : '📋') + '</span><span class="bulk-section-label">' + escapeHtml(label) + '</span><span class="bulk-section-count">' + nodes.length + '</span></summary>';
+          html += '<div class="bulk-section-body" id="bulk-body-' + qt + '"></div>';
+          html += '</details>';
         });
 
         resultsDiv.innerHTML = html;
         actionsDiv.style.display = '';
 
-        // Wire section-level checkboxes
-        resultsDiv.querySelectorAll('.bulk-section-check').forEach(function(sectionCb) {
-          sectionCb.addEventListener('change', function() {
-            var qt = sectionCb.getAttribute('data-query-type');
-            var checked = sectionCb.checked;
-            resultsDiv.querySelectorAll('.bulk-check[data-query-type="' + qt + '"]').forEach(function(cb) {
-              cb.checked = checked;
-            });
-            updateBulkSelectedCount();
-          });
-        });
+        function getBulkSortValue(node, qt, col) {
+          var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+          if (col === 'severity') return sevOrder[mapWiziSeverity(node.severity)] || 9;
+          if (col === 'title') return (getWiziItemTitle(node, qt) || '').toLowerCase();
+          if (col === 'subscription') return (getNodeSubscriptionName(node, qt) || '').toLowerCase();
+          if (col === 'resource') {
+            if (qt === 'vulnerabilityFindings') return ((node.vulnerableAsset || {}).name || '').toLowerCase();
+            if (qt === 'secretInstances') return ((node.resource || {}).name || '').toLowerCase();
+            return '';
+          }
+          if (col === 'resourceType') return ((node.vulnerableAsset || {}).type || '').toLowerCase();
+          if (col === 'type') return qt;
+          return '';
+        }
 
-        // Wire individual checkboxes
-        resultsDiv.querySelectorAll('.bulk-check').forEach(function(cb) {
-          cb.addEventListener('change', function() {
-            updateBulkSelectedCount();
+        function renderBulkPage(qt) {
+          var nodes = bulkImportResults[qt];
+          if (!nodes) return;
+          var state = bulkPageState[qt];
+          var start = state.page * state.pageSize;
+          var end = Math.min(start + state.pageSize, nodes.length);
+          var totalPages = Math.ceil(nodes.length / state.pageSize);
+          var label = queryTypeLabels[qt];
+
+          // Sort nodes if sort is active
+          if (state.sortCol) {
+            var dir = state.sortDir || 'asc';
+            nodes = nodes.slice().sort(function(a, b) {
+              var va = getBulkSortValue(a, qt, state.sortCol);
+              var vb = getBulkSortValue(b, qt, state.sortCol);
+              if (va < vb) return dir === 'asc' ? -1 : 1;
+              if (va > vb) return dir === 'asc' ? 1 : -1;
+              return 0;
+            });
+            bulkImportResults[qt] = nodes;
+          }
+
+          var bodyEl = document.getElementById('bulk-body-' + qt);
+          if (!bodyEl) return;
+
+          function sortIndicator(col) {
+            if (state.sortCol !== col) return ' <span class="sort-arrow">⇅</span>';
+            return state.sortDir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+          }
+
+          var h = '';
+          // Pagination controls top - info + page size
+          h += '<div class="bulk-pagination-top">';
+          h += '<span class="bulk-pagination-info">' + (start + 1) + '–' + end + ' מתוך ' + nodes.length + '</span>';
+          h += '<select class="bulk-page-size" data-qt="' + qt + '">';
+          [20, 50, 100, 200].forEach(function(s) {
+            h += '<option value="' + s + '"' + (s === state.pageSize ? ' selected' : '') + '>' + s + '</option>';
           });
-        });
+          h += '</select>';
+          h += '</div>';
+
+          // Table with sortable headers
+          h += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
+          h += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '" checked></th>';
+          h += '<th class="sortable-th" data-sort-col="type" data-qt="' + qt + '">סוג' + sortIndicator('type') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="severity" data-qt="' + qt + '">חומרה' + sortIndicator('severity') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="title" data-qt="' + qt + '">כותרת' + sortIndicator('title') + '</th>';
+          if (qt === 'vulnerabilityFindings') {
+            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
+            h += '<th class="sortable-th" data-sort-col="resourceType" data-qt="' + qt + '">סוג משאב' + sortIndicator('resourceType') + '</th>';
+          }
+          if (qt === 'secretInstances') {
+            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
+          }
+          h += '<th class="sortable-th" data-sort-col="subscription" data-qt="' + qt + '">Subscription' + sortIndicator('subscription') + '</th>';
+          h += '</tr></thead><tbody>';
+
+          for (var i = start; i < end; i++) {
+            var node = nodes[i];
+            var sev = mapWiziSeverity(node.severity);
+            var sevInfo = severityMap[sev] || severityMap.medium;
+            var title = getWiziItemTitle(node, qt);
+            var subName = getNodeSubscriptionName(node, qt);
+
+            h += '<tr>';
+            h += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + i + '" checked></td>';
+            h += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
+            h += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
+            h += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
+            if (qt === 'vulnerabilityFindings') {
+              var asset = node.vulnerableAsset || {};
+              h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(asset.name || '') + '">' + escapeHtml(asset.name || '—') + '</td>';
+              h += '<td>' + escapeHtml(asset.type || '—') + '</td>';
+            }
+            if (qt === 'secretInstances') {
+              var res = node.resource || {};
+              h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(res.name || '') + '">' + escapeHtml(res.name || '—') + '</td>';
+            }
+            h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '—') + '</td>';
+            h += '</tr>';
+          }
+
+          h += '</tbody></table>';
+
+          // Pagination controls below table
+          if (totalPages > 1) {
+            h += '<div class="bulk-pagination-bottom">';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="prev"' + (state.page === 0 ? ' disabled' : '') + '>▶</button>';
+            h += '<span class="bulk-pagination-page">' + (state.page + 1) + ' / ' + totalPages + '</span>';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="next"' + (state.page >= totalPages - 1 ? ' disabled' : '') + '>◀</button>';
+            h += '</div>';
+          }
+
+          bodyEl.innerHTML = h;
+
+          // Wire pagination events
+          bodyEl.querySelectorAll('.bulk-page-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var dir = btn.getAttribute('data-dir');
+              if (dir === 'next') bulkPageState[qt].page++;
+              else bulkPageState[qt].page--;
+              renderBulkPage(qt);
+              updateBulkSelectedCount();
+            });
+          });
+          var pageSizeSelect = bodyEl.querySelector('.bulk-page-size');
+          if (pageSizeSelect) {
+            pageSizeSelect.addEventListener('change', function() {
+              bulkPageState[qt].pageSize = parseInt(this.value);
+              bulkPageState[qt].page = 0;
+              renderBulkPage(qt);
+              updateBulkSelectedCount();
+            });
+          }
+          // Wire section checkbox
+          var sectionCheck = bodyEl.querySelector('.bulk-section-check');
+          if (sectionCheck) {
+            sectionCheck.addEventListener('change', function() {
+              var checked = sectionCheck.checked;
+              bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = checked; });
+              updateBulkSelectedCount();
+            });
+          }
+          // Wire individual checkboxes
+          bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) {
+            cb.addEventListener('change', updateBulkSelectedCount);
+          });
+          // Wire sortable headers
+          bodyEl.querySelectorAll('.sortable-th').forEach(function(th) {
+            th.addEventListener('click', function() {
+              var col = th.getAttribute('data-sort-col');
+              var sortQt = th.getAttribute('data-qt');
+              var st = bulkPageState[sortQt];
+              if (st.sortCol === col) {
+                st.sortDir = st.sortDir === 'asc' ? 'desc' : 'asc';
+              } else {
+                st.sortCol = col;
+                st.sortDir = 'asc';
+              }
+              st.page = 0;
+              renderBulkPage(sortQt);
+              updateBulkSelectedCount();
+            });
+          });
+        }
+
+        // Render first page for each section
+        Object.keys(bulkPageState).forEach(renderBulkPage);
 
         updateBulkSelectedCount();
       }
@@ -6696,300 +7668,10 @@
       }
 
 
-    // ══════════════════════════════════════════════════════
-    // SIDEBAR ROUTING
-    // ══════════════════════════════════════════════════════
-    (function() {
-      var screenToTab = {
-        'screen-dashboard':     null,
-        'screen-details':       'tab-report-details',
-        'screen-finding-form':  'tab-finding-form',
-        'screen-findings-list': 'tab-findings-list',
-        'screen-export':        'tab-export',
-        'screen-cloud-manager': 'tab-cloud-manager',
-        'screen-wizi':          'tab-wizi'
-      };
 
-      var topbarTitles = {
-        'screen-dashboard':     ['לוח בקרה', 'סקירה כללית'],
-        'screen-details':       ['פרטי דו"ח', 'הגדרות הדו"ח'],
-        'screen-finding-form':  ['הוסף ממצא', 'עריכת ממצא'],
-        'screen-findings-list': ['ממצאים', 'רשימת הממצאים'],
-        'screen-export':        ['ייצוא דו"ח', 'PDF / HTML / JSON'],
-        'screen-cloud-manager': ['קבצי שרת', 'ניהול קבצים'],
-        'screen-wizi':          ['Wiz Import', 'ייבוא ממצאים']
-      };
-
-      function showScreen(screenId) {
-        document.querySelectorAll('.screen').forEach(function(s) {
-          s.classList.remove('active');
-        });
-        var target = document.getElementById(screenId);
-        if (target) target.classList.add('active');
-
-        document.querySelectorAll('.sidebar-nav-item').forEach(function(item) {
-          item.classList.toggle('active', item.getAttribute('data-screen') === screenId);
-        });
-
-        var titles = topbarTitles[screenId] || ['', ''];
-        var titleEl = document.getElementById('topbar-title');
-        var breadEl = document.getElementById('topbar-breadcrumb');
-        if (titleEl) titleEl.textContent = titles[0];
-        if (breadEl) breadEl.textContent = titles[1];
-
-        try { localStorage.setItem('cspm_active_screen', screenId); } catch(e) {}
-
-        // Activate the hidden tab-btn so legacy JS (switchToTab side-effects) still fires
-        var tabId = screenToTab[screenId];
-        if (tabId) {
-          document.querySelectorAll('.tab-btn').forEach(function(btn) {
-            btn.classList.remove('active');
-            btn.setAttribute('aria-selected', 'false');
-          });
-          var btn = document.getElementById(tabId);
-          if (btn) {
-            btn.classList.add('active');
-            btn.setAttribute('aria-selected', 'true');
-          }
-          document.querySelectorAll('.tab-panel').forEach(function(p) {
-            p.classList.remove('active');
-          });
-          var panelId = btn ? btn.getAttribute('aria-controls') : null;
-          if (panelId) {
-            var panel = document.getElementById(panelId);
-            if (panel) panel.classList.add('active');
-          }
-          try { localStorage.setItem('cspm_active_tab', tabId); } catch(e) {}
-        }
-
-        updateSidebarMeta();
-      }
-
-      function updateSidebarMeta() {
-        var clientEl = document.getElementById('report-client');
-        var envEl    = document.getElementById('report-env');
-        var hasDetails  = !!(clientEl && clientEl.value.trim()) || !!(envEl && envEl.value.trim());
-        var hasFindings = findings.length > 0;
-        var steps = (hasDetails ? 1 : 0) + (hasFindings ? 2 : 0);
-        var pct   = Math.round((steps / 4) * 100);
-
-        var fillEl  = document.getElementById('sidebar-progress-fill');
-        var pctEl   = document.getElementById('sidebar-progress-pct');
-        var stepsEl = document.getElementById('sidebar-progress-steps');
-        if (fillEl)  fillEl.style.width  = pct + '%';
-        if (pctEl)   pctEl.textContent   = pct + '%';
-        if (stepsEl) stepsEl.textContent = steps + ' מתוך 4 שלבים';
-
-        var badge = document.getElementById('nav-findings-count');
-        if (badge) {
-          badge.textContent = findings.length || '';
-          badge.style.display = findings.length ? '' : 'none';
-        }
-
-        var nameEl = document.getElementById('sidebar-report-name');
-        var envSel = document.getElementById('sidebar-report-env');
-        if (nameEl) nameEl.textContent = (clientEl && clientEl.value.trim()) || 'דו"ח חדש';
-        if (envSel) envSel.textContent = (envEl && envEl.value.trim()) || 'לא הוגדרה סביבה';
-      }
-
-      // Patch updateStepper to also refresh sidebar
-      var _origUpdateStepper = updateStepper;
-      updateStepper = function() {
-        _origUpdateStepper();
-        updateSidebarMeta();
-      };
-
-      // Wire sidebar nav clicks
-      document.querySelectorAll('.sidebar-nav-item[data-screen]').forEach(function(item) {
-        item.addEventListener('click', function() {
-          showScreen(item.getAttribute('data-screen'));
-        });
-      });
-
-      // Restore last screen
-      var savedScreen = localStorage.getItem('cspm_active_screen') || 'screen-details';
-      showScreen(savedScreen);
-
-      // Keep sidebar meta fresh when report fields change
-      ['report-client', 'report-env'].forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener('input', updateSidebarMeta);
-      });
-
-      updateSidebarMeta();
+// ═══════════════════════════════════════════
+// SOURCE: init.js
+// ═══════════════════════════════════════════
     })();
 
 
-    // ══════════════════════════════════════════════════════
-    // DASHBOARD RENDER
-    // ══════════════════════════════════════════════════════
-    (function() {
-      var catColors = {
-        CSPM: 'oklch(0.58 0.2 220)', KSPM: 'oklch(0.58 0.18 280)',
-        DSPM: 'oklch(0.58 0.2 180)', VULN: 'oklch(0.58 0.22 15)',
-        NEXP: 'oklch(0.68 0.18 40)', EAPM: 'oklch(0.72 0.16 80)',
-        HSPM: 'oklch(0.62 0.17 155)', SECR: 'oklch(0.62 0.18 300)',
-        EOLM: 'oklch(0.6 0.02 220)'
-      };
-
-      function renderDashboard() {
-        var el = document.getElementById('dashboard-content');
-        if (!el) return;
-
-        if (!findings.length) {
-          el.innerHTML = '<div class="empty-state">' +
-            '<div class="empty-state-icon">▦</div>' +
-            '<div class="empty-state-text">לוח הבקרה יוצג כאן לאחר הוספת ממצאים</div>' +
-            '<div class="empty-state-actions">' +
-              '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'nav-finding-form\').click()">➕ הוסף ממצא</button>' +
-              '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'nav-wizi\').click()">🔍 ייבא מ-Wizi</button>' +
-            '</div></div>';
-          return;
-        }
-
-        // Count by severity
-        var sevCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-        var catCounts = {};
-        findings.forEach(function(f) {
-          if (sevCounts[f.severity] !== undefined) sevCounts[f.severity]++;
-          var cat = f.category || 'CSPM';
-          catCounts[cat] = (catCounts[cat] || 0) + 1;
-        });
-
-        // KPI row
-        var kpiHtml = '<div class="dashboard-kpi-grid">' +
-          '<div class="kpi-card"><div class="kpi-label">סה"כ ממצאים</div><div class="kpi-value kpi-total">' + findings.length + '</div></div>' +
-          '<div class="kpi-card"><div class="kpi-label">קריטי</div><div class="kpi-value kpi-critical">' + sevCounts.critical + '</div></div>' +
-          '<div class="kpi-card"><div class="kpi-label">גבוה</div><div class="kpi-value kpi-high">' + sevCounts.high + '</div></div>' +
-          '<div class="kpi-card"><div class="kpi-label">בינוני</div><div class="kpi-value kpi-medium">' + sevCounts.medium + '</div></div>' +
-          '<div class="kpi-card"><div class="kpi-label">נמוך</div><div class="kpi-value kpi-low">' + sevCounts.low + '</div></div>' +
-        '</div>';
-
-        // Category bar chart
-        var maxCat = Math.max.apply(null, Object.values(catCounts));
-        var catBars = Object.keys(catCounts).sort(function(a,b){ return catCounts[b]-catCounts[a]; }).map(function(cat) {
-          var pct = Math.round((catCounts[cat] / maxCat) * 100);
-          var color = catColors[cat] || 'var(--accent)';
-          return '<div class="cat-bar-row">' +
-            '<span class="cat-bar-label">' + cat + '</span>' +
-            '<div class="cat-bar-track"><div class="cat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
-            '<span class="cat-bar-count">' + catCounts[cat] + '</span>' +
-          '</div>';
-        }).join('');
-
-        // Donut SVG
-        var sevOrder = ['critical','high','medium','low','info'];
-        var sevColors = {
-          critical: 'var(--sev-critical-color)', high: 'var(--sev-high-color)',
-          medium: 'var(--sev-medium-color)', low: 'var(--sev-low-color)', info: 'var(--sev-info-color)'
-        };
-        var sevLabels = { critical:'קריטי', high:'גבוה', medium:'בינוני', low:'נמוך', info:'מידע' };
-        var total = findings.length;
-        var cx = 60, cy = 60, outerR = 44, innerR = 28;
-        var angle = -Math.PI / 2;
-        var paths = '';
-        var legend = '';
-        sevOrder.forEach(function(k) {
-          var n = sevCounts[k];
-          if (!n) return;
-          var sweep = (n / total) * 2 * Math.PI;
-          var x1 = cx + outerR * Math.cos(angle), y1 = cy + outerR * Math.sin(angle);
-          var x2 = cx + outerR * Math.cos(angle + sweep), y2 = cy + outerR * Math.sin(angle + sweep);
-          var ix1 = cx + innerR * Math.cos(angle + sweep), iy1 = cy + innerR * Math.sin(angle + sweep);
-          var ix2 = cx + innerR * Math.cos(angle), iy2 = cy + innerR * Math.sin(angle);
-          var large = sweep > Math.PI ? 1 : 0;
-          paths += '<path d="M' + x1.toFixed(1) + ',' + y1.toFixed(1) +
-            ' A' + outerR + ',' + outerR + ' 0 ' + large + ',1 ' + x2.toFixed(1) + ',' + y2.toFixed(1) +
-            ' L' + ix1.toFixed(1) + ',' + iy1.toFixed(1) +
-            ' A' + innerR + ',' + innerR + ' 0 ' + large + ',0 ' + ix2.toFixed(1) + ',' + iy2.toFixed(1) +
-            ' Z" fill="' + sevColors[k] + '"/>';
-          legend += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px;">' +
-            '<span style="width:10px;height:10px;border-radius:2px;background:' + sevColors[k] + ';flex-shrink:0;display:inline-block;"></span>' +
-            '<span style="color:var(--text-muted)">' + sevLabels[k] + '</span>' +
-            '<span style="color:var(--text);font-weight:600;margin-right:auto;">' + n + '</span></div>';
-          angle += sweep;
-        });
-        var donutSvg = '<div style="display:flex;align-items:center;gap:16px;">' +
-          '<svg width="120" height="120" viewBox="0 0 120 120">' + paths +
-          '<text x="60" y="56" text-anchor="middle" font-size="18" font-weight="800" fill="var(--text-heading)">' + total + '</text>' +
-          '<text x="60" y="70" text-anchor="middle" font-size="9" fill="var(--text-muted)">ממצאים</text>' +
-          '</svg><div style="flex:1">' + legend + '</div></div>';
-
-        // Charts row
-        var chartsHtml = '<div class="dashboard-charts-grid">' +
-          '<div class="dashboard-card"><div class="dashboard-card-title">התפלגות חומרה</div>' + donutSvg + '</div>' +
-          '<div class="dashboard-card"><div class="dashboard-card-title">פילוח קטגוריות</div>' + catBars + '</div>' +
-          '<div class="dashboard-card"><div class="dashboard-card-title">סיכום סיכון</div>' +
-            '<div style="font-size:28px;font-weight:800;color:var(--sev-' + (sevCounts.critical > 0 ? 'critical' : sevCounts.high > 0 ? 'high' : 'medium') + '-color);margin-bottom:8px;">' +
-            (sevCounts.critical > 0 ? 'קריטי' : sevCounts.high > 0 ? 'גבוה' : 'בינוני') + '</div>' +
-            '<div style="font-size:12px;color:var(--text-muted);line-height:1.7;">' +
-            (sevCounts.critical ? '• ' + sevCounts.critical + ' ממצאים קריטיים דורשים טיפול מיידי<br>' : '') +
-            (sevCounts.high ? '• ' + sevCounts.high + ' ממצאים בחומרה גבוהה<br>' : '') +
-            Object.keys(catCounts).slice(0,3).map(function(c){ return '• ' + catCounts[c] + ' ממצאי ' + c; }).join('<br>') +
-            '</div>' +
-          '</div>' +
-        '</div>';
-
-        // Recent findings table (last 5)
-        var recent = findings.slice(-5).reverse();
-        var sevMap = { critical:'קריטי', high:'גבוה', medium:'בינוני', low:'נמוך', info:'מידע' };
-        var rows = recent.map(function(f) {
-          var sev = f.severity || 'medium';
-          return '<tr>' +
-            '<td style="font-family:monospace;color:var(--accent);font-size:11px;">' + (f.id||'') + '</td>' +
-            '<td><span class="cat-badge" data-cat="' + (f.category||'CSPM') + '">' + (f.category||'CSPM') + '</span></td>' +
-            '<td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title||'') + '</td>' +
-            '<td><span class="severity-chip sev-' + sev + '">' + (sevMap[sev]||sev) + '</span></td>' +
-            '<td style="color:var(--text-muted);font-size:11px;">' + (f.owner||'—') + '</td>' +
-          '</tr>';
-        }).join('');
-
-        var tableHtml = '<div class="dashboard-table-card">' +
-          '<div class="dashboard-table-header">' +
-            '<span class="dashboard-card-title">ממצאים אחרונים</span>' +
-            '<span class="dashboard-show-all" onclick="document.getElementById(\'nav-findings-list\').click()">הצג הכל ←</span>' +
-          '</div>' +
-          '<table style="margin-top:0;border:none;border-radius:0;">' +
-            '<thead><tr><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody>' +
-          '</table>' +
-        '</div>';
-
-        el.innerHTML = kpiHtml + chartsHtml + tableHtml;
-      }
-
-      // Re-render dashboard whenever findings change
-      var _origRender = renderFindingsTable;
-      renderFindingsTable = function() {
-        _origRender();
-        renderDashboard();
-      };
-
-      // Wire dashboard nav item to also render
-      var dashNav = document.getElementById('nav-dashboard');
-      if (dashNav) {
-        dashNav.addEventListener('click', renderDashboard);
-      }
-
-      renderDashboard();
-    })();
-
-    // ══════════════════════════════════════════════════════
-    // SIDEBAR COLLAPSE
-    // ══════════════════════════════════════════════════════
-    (function() {
-      var sidebar = document.getElementById('sidebar');
-      var collapseBtn = document.getElementById('btn-sidebar-collapse');
-      if (!sidebar || !collapseBtn) return;
-
-      var collapsed = localStorage.getItem('cspm_sidebar_collapsed') === '1';
-      if (collapsed) sidebar.classList.add('collapsed');
-
-      collapseBtn.addEventListener('click', function() {
-        sidebar.classList.toggle('collapsed');
-        var isNowCollapsed = sidebar.classList.contains('collapsed');
-        try { localStorage.setItem('cspm_sidebar_collapsed', isNowCollapsed ? '1' : '0'); } catch(e) {}
-      });
-    })();
-
-    })();
