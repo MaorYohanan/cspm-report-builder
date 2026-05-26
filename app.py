@@ -200,15 +200,35 @@ def build_footer(meta: Dict[str, Any]) -> str:
 
 
 CLEAN_PRINT_CSS = r"""
+/* Hide HTML header/footer unconditionally — Playwright provides its own */
+.print-header, .print-footer {
+  display: none !important;
+  position: static !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+}
+
 @media print {
-  .print-header, .print-footer { display: none !important; }
   html, body { height: auto !important; }
   body { margin: 0 !important; padding: 0 !important; overflow: visible !important; }
   .report-content, .page-section, .finding-card { overflow: visible !important; }
-  .page-section { box-shadow: none !important; border-radius: 0 !important; }
+  .page-section { box-shadow: none !important; border-radius: 0 !important; padding-top:20mm !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
-  .finding-card { break-inside: avoid !important; page-break-inside: avoid !important; }
+  /* Findings intro: don't force page break after, so first finding shares the page */
+  .findings-intro { break-after: auto !important; page-break-after: auto !important; }
+  .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
+  .finding-page { padding-top: 20mm !important; }
+  .finding-card { break-inside: auto !important; page-break-inside: auto !important; overflow: visible !important; }
+  .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
+  .finding-section-title { break-after: avoid !important; page-break-after: avoid !important; }
+  .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
 }
 """
 
@@ -244,6 +264,10 @@ def render_pdf_from_html(html_content: str, meta: Dict[str, Any]) -> bytes:
                         page = browser.new_page()
                         page.goto(html_path.as_uri(), wait_until="load", timeout=30000)
                         page.add_style_tag(content=CLEAN_PRINT_CSS)
+                        # Remove HTML header/footer elements — Playwright provides its own
+                        page.evaluate("""() => {
+                            document.querySelectorAll('.print-header, .print-footer').forEach(el => el.remove());
+                        }""")
                         page.pdf(
                             path=str(pdf_path),
                             format="A4",
@@ -252,8 +276,8 @@ def render_pdf_from_html(html_content: str, meta: Dict[str, Any]) -> bytes:
                             header_template=header,
                             footer_template=footer,
                             margin={
-                                "top": "50mm",
-                                "bottom": "28mm",
+                                "top": "70mm",
+                                "bottom": "25mm",
                                 "left": "15mm",
                                 "right": "15mm",
                             },

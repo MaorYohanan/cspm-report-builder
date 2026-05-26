@@ -73,13 +73,13 @@ th, td { border: 1px solid #d1d5db; padding: 6px 8px; vertical-align: top; }
 th { background: #0b3c5d; color: #fff; font-weight: bold; }
 
 .finding-card {
-  break-inside: avoid;
+  break-inside: auto;
   border: 1px solid #e2e8f0;
   background: #f9fafb;
   border-radius: 6px;
   padding: 10px 12px;
   margin: 4mm 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .finding-header {

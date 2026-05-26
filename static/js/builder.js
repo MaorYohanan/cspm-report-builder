@@ -2672,7 +2672,7 @@
             : `<p class="muted">${t.noPolicies}</p>`;
 
           const recHtml = f.recs.length
-            ? `<ul>${f.recs.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
+            ? `<ul>${f.recs.map(r => `<li style="white-space:pre-wrap;">${escapeHtml(r)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
@@ -2691,6 +2691,7 @@
             : '';
 
           findingsCardsHtml += `
+          <section class="page-section finding-page">
           <div class="finding-wrap">
           ${catHeaderHtml}
           <div class="finding-card" id="${anchorId}">
@@ -2730,7 +2731,8 @@
             ${priorityHtml}
             ${evidenceHtml}
           </div>
-          </div>`;
+          </div>
+          </section>`;
           findingsCardsHtml += '\n';
           });
         });
@@ -3147,44 +3149,29 @@
   }
 
   /* --------- PRINT – יציב ל-PDF --------- */
+  /* Hide HTML header/footer unconditionally — Playwright provides its own */
+  .print-header, .print-footer {
+    display: none !important;
+  }
+
   @media print {
     body {
       background: #ffffff;
       margin: 0;
-      padding: 0;       /* לא סומכים על padding של body בפרינט */
-    }
-
-    /* האדר: פעם אחת בראש המסמך, לא קבוע מעל שאר הדפים */
-    .print-header {
-      position: static !important;
-      height: auto;
-      padding: 4mm 20mm 2mm;
-      z-index: 0;
-    }
-
-    /* הפוטר: קבוע בתחתית כל עמוד, מרחף מעל מרווח ה-@page התחתון */
-    .print-footer {
-      position: fixed !important;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 15mm;
-      padding: 3mm 20mm;
-      border-top: 1px solid #cbd5e1;
-      background: #f8fafc;
-      z-index: 10;
+      padding: 0;
     }
 
     .report-content {
       margin-top: 0;
       margin-bottom: 0;
-      padding: 0 15mm 0 15mm;
+      padding: 0 10mm;
     }
 
     .page-section {
       box-shadow: none;
-      margin: 0 auto 10mm auto;
+      margin: 0;
       border-radius: 0;
+      padding: 0 10mm;
       page-break-after: always;
     }
 
@@ -3192,25 +3179,51 @@
       page-break-after: auto;
     }
 
-    h1, h2, h3, h4 {
-      margin-top: 8px;  /* בפרינט אין header fixed מעליהם */
+    /* Findings intro section: don't break after, let first finding flow */
+    .findings-intro {
+      page-break-after: avoid !important;
+      break-after: avoid !important;
+    }
+
+    /* Each finding gets its own page */
+    .finding-page {
+      page-break-before: always;
+      page-break-after: auto;
+      padding: 0 10mm;
+    }
+
+    /* First finding flows after the intro on the same page */
+    .findings-intro + .finding-page {
+      page-break-before: auto !important;
     }
 
     .finding-wrap {
-      break-inside: avoid;
-      page-break-inside: avoid;
-      margin-top: 10px;
-      padding-top: 18mm;
+      margin-top: 0;
     }
 
-    .finding-wrap:first-child {
-      padding-top: 0;
-    }
-
+    /* Card keeps its style but can break across pages */
     .finding-card {
+      page-break-inside: auto;
+      break-inside: auto;
+      overflow: visible;
+    }
+
+    /* Keep these atomic units together */
+    .finding-header {
       page-break-inside: avoid;
       break-inside: avoid;
-      margin: 0 0 10px 0;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    .finding-section-title {
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    .finding-card li {
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
   }
 </style>
@@ -3351,13 +3364,13 @@
       ${catKeys.length > 1 ? '<h2>' + t.catBreakdown + '</h2>' + catMatrixHtml : ''}
     </section>
 
-    <section class="page-section">
+    <section class="page-section findings-intro">
       <h1 id="detailed-findings">${t.detailedFindings}</h1>
       <p>
         ${t.detailedFindingsText}
       </p>
-      ${findingsCardsHtml || '<p class="muted">' + t.noFindings + '</p>'}
     </section>
+    ${findingsCardsHtml || '<section class="page-section"><p class="muted">' + t.noFindings + '</p></section>'}
 
     <section class="page-section">
       <h1 id="recommendations">${t.recommendations}</h1>
@@ -6173,22 +6186,18 @@
       function extractRecommendations(rule, sevLabel) {
         var recs = [];
 
-        // 1. Use remediationInstructions if available (actual remediation steps)
+        // 1. Use remediationInstructions if available — keep as ONE recommendation
         var ri = (rule.remediationInstructions || '').trim();
         if (ri) {
-          // Extract code block contents and replace blocks with their content
+          // Strip markdown code block markers but keep the content
           var cleaned = ri
             .replace(/```(?:\w*\n)?([\s\S]*?)```/g, function(_, code) {
               return code.trim();
             })
-            .replace(/\s*\n\s*/g, '\n');     // normalize whitespace
-          var lines = cleaned.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
-          lines.forEach(function(line) {
-            // Skip very short lines, pure formatting, or "Note:" disclaimers
-            if (line.length < 15) return;
-            if (/^note:/i.test(line)) return;
-            recs.push(line);
-          });
+            .trim();
+          if (cleaned.length > 10) {
+            recs.push(cleaned);
+          }
         }
 
         // 2. Fallback: extract from description — but ONLY "It is recommended" sentences

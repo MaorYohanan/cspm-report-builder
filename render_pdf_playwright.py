@@ -68,7 +68,7 @@ def export_pdf(
     html_path: Path,
     pdf_path: Path,
     meta: Dict[str, Any],
-    margin_top_mm: int = 50,
+    margin_top_mm: int = 60,
     margin_bottom_mm: int = 28,
 ) -> None:
     html_path = html_path.resolve()
@@ -95,7 +95,10 @@ def export_pdf(
       .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
 
       /* Cards */
-      .finding-card { break-inside: avoid !important; page-break-inside: avoid !important; }
+      .finding-card { break-inside: auto !important; page-break-inside: auto !important; overflow: visible !important; }
+      .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
+      .finding-section-title { break-after: avoid !important; page-break-after: avoid !important; }
+      .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
     }
     """
 

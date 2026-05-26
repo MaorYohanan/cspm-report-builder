@@ -9,6 +9,9 @@ services:
       - ./index.html:/app/index.html
       - ./static:/app/static
       - ./assets:/app/assets
+      - ./app.py:/app/app.py
+      - ./templates:/app/templates
+      - ./render_pdf_playwright.py:/app/render_pdf_playwright.py
     environment:
       - PORT=8080
       - FLASK_DEBUG=0

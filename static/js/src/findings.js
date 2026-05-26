@@ -2574,10 +2574,9 @@
     }
 
     .finding-wrap {
-      break-inside: avoid;
-      page-break-inside: avoid;
+      break-inside: auto;
+      page-break-inside: auto;
       margin-top: 10px;
-      padding-top: 18mm;
     }
 
     .finding-wrap:first-child {
@@ -2585,9 +2584,27 @@
     }
 
     .finding-card {
-      page-break-inside: avoid;
-      break-inside: avoid;
+      page-break-inside: auto;
+      break-inside: auto;
       margin: 0 0 10px 0;
+      overflow: visible;
+    }
+
+    .finding-header {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    .finding-section-title {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
+    .finding-card li {
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
   }
 </style>
