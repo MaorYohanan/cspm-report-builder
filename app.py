@@ -225,7 +225,8 @@ CLEAN_PRINT_CSS = r"""
   .findings-intro { break-after: auto !important; page-break-after: auto !important; }
   .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
   .finding-page { padding-top: 20mm !important; }
-  .finding-card { break-inside: auto !important; page-break-inside: auto !important; overflow: visible !important; }
+  /* Cards now pre-split, each chunk fits on one page */
+  .finding-card { break-inside: avoid !important; page-break-inside: avoid !important; overflow: visible !important; }
   .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
   .finding-section-title { break-after: avoid !important; page-break-after: avoid !important; }
   .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
@@ -262,11 +263,111 @@ def render_pdf_from_html(html_content: str, meta: Dict[str, Any]) -> bytes:
                     
                     try:
                         page = browser.new_page()
+                        # A4 viewport at 96 DPI: 794 x 1123 px.
+                        # Set viewport to printable A4 width (after 15mm margins) so measurements match PDF.
+                        page.set_viewport_size({"width": 720, "height": 900})
                         page.goto(html_path.as_uri(), wait_until="load", timeout=30000)
                         page.add_style_tag(content=CLEAN_PRINT_CSS)
                         # Remove HTML header/footer elements — Playwright provides its own
                         page.evaluate("""() => {
                             document.querySelectorAll('.print-header, .print-footer').forEach(el => el.remove());
+                        }""")
+                        # Pre-render and measure: split long finding cards into multiple sections
+                        # so each split chunk becomes a new section (with padding-top from CSS).
+                        page.evaluate("""() => {
+                            // Available content height per page in pixels.
+                            // A4 = 297mm. Top margin 70mm + bottom 25mm = 95mm reserved.
+                            // Printable: 297 - 95 = 202mm. At 96 DPI: 202mm * 3.78 = ~764px.
+                            // Allow more height before splitting so we don't waste space.
+                            const MAX_CARD_HEIGHT_PX = 950;
+
+                            const cards = document.querySelectorAll('.finding-card');
+                            cards.forEach((card) => {
+                                if (card.offsetHeight <= MAX_CARD_HEIGHT_PX) return;
+
+                                // Card is too tall — split at section boundaries
+                                const parentSection = card.closest('.finding-page');
+                                if (!parentSection) return;
+
+                                // Identify split boundaries: each finding-section-title starts a logical block.
+                                // Group siblings between section titles.
+                                const children = Array.from(card.children);
+                                const headerEl = children.find(c => c.classList.contains('finding-header'));
+                                if (!headerEl) return;
+
+                                // Build chunks: header + sections, where each chunk fits on a page
+                                const chunks = [];
+                                let currentChunk = [headerEl];
+                                let currentHeight = headerEl.offsetHeight + 30; // approximate padding
+
+                                // Iterate through children after the header
+                                const headerIdx = children.indexOf(headerEl);
+                                const afterHeader = children.slice(headerIdx + 1);
+
+                                // Group by section: each "finding-section-title" + content until next title
+                                const sections = [];
+                                let currentSection = [];
+                                afterHeader.forEach((el) => {
+                                    if (el.classList.contains('finding-section-title') && currentSection.length) {
+                                        sections.push(currentSection);
+                                        currentSection = [];
+                                    }
+                                    currentSection.push(el);
+                                });
+                                if (currentSection.length) sections.push(currentSection);
+
+                                // Pack sections into chunks
+                                sections.forEach((section) => {
+                                    const sectionHeight = section.reduce((h, el) => h + el.offsetHeight, 0);
+                                    if (currentHeight + sectionHeight > MAX_CARD_HEIGHT_PX && currentChunk.length > 1) {
+                                        chunks.push(currentChunk);
+                                        currentChunk = [];
+                                        currentHeight = 30; // reset, no header on continuation
+                                    }
+                                    currentChunk = currentChunk.concat(section);
+                                    currentHeight += sectionHeight;
+                                });
+                                if (currentChunk.length) chunks.push(currentChunk);
+
+                                // If only one chunk, no split needed (just safety)
+                                if (chunks.length <= 1) return;
+
+                                // Get original finding info for continuation header
+                                const titleEl = card.querySelector('.finding-title');
+                                const idEl = card.querySelector('.finding-id');
+                                const sevEl = card.querySelector('.severity-badge');
+                                const titleText = titleEl ? titleEl.textContent : '';
+                                const idText = idEl ? idEl.textContent : '';
+                                const sevHTML = sevEl ? sevEl.outerHTML : '';
+
+                                // Replace the card with multiple chunked cards in their own page-sections
+                                const newCards = chunks.map((chunk, i) => {
+                                    const newSection = document.createElement('section');
+                                    newSection.className = 'page-section finding-page';
+
+                                    const newCard = document.createElement('div');
+                                    newCard.className = 'finding-card';
+
+                                    if (i === 0) {
+                                        // First chunk: keep original header + content
+                                        chunk.forEach(el => newCard.appendChild(el));
+                                    } else {
+                                        // Continuation chunks: add a "continued" header
+                                        const contHeader = document.createElement('div');
+                                        contHeader.className = 'finding-header';
+                                        contHeader.innerHTML = '<div><div class="finding-title">' + titleText + ' <span style="font-size:11px;color:#6b7280;font-weight:normal;">(המשך)</span></div><div class="finding-id">' + idText + '</div></div>' + sevHTML;
+                                        newCard.appendChild(contHeader);
+                                        chunk.forEach(el => newCard.appendChild(el));
+                                    }
+
+                                    newSection.appendChild(newCard);
+                                    return newSection;
+                                });
+
+                                // Insert new sections before the original and remove the original
+                                newCards.forEach(s => parentSection.parentNode.insertBefore(s, parentSection));
+                                parentSection.remove();
+                            });
                         }""")
                         page.pdf(
                             path=str(pdf_path),

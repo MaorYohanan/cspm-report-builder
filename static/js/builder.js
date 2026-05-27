@@ -569,9 +569,18 @@
         } else if (activeDetailTab === 'recs') {
           var recs = Array.isArray(f.recs) ? f.recs : (f.recs ? [f.recs] : []);
           if (recs.length) {
-            html = '<ul class="detail-list-content">';
-            recs.forEach(function(r, i) { html += '<li><strong>' + (i + 1) + '.</strong> ' + escapeHtml(r) + '</li>'; });
-            html += '</ul>';
+            // If recommendations look like split remediation lines (many short items, no Hebrew sentences),
+            // join them back into a single readable block
+            var looksLikeSplitRemediation = recs.length > 2 && recs.every(function(r) {
+              return r.length < 200 && !/^[\u0590-\u05FF]/.test(r); // short lines, not starting with Hebrew
+            });
+            if (looksLikeSplitRemediation) {
+              html = '<ul class="detail-list-content"><li style="white-space:pre-wrap;"><strong>1.</strong> ' + escapeHtml(recs.join('\n')) + '</li></ul>';
+            } else {
+              html = '<ul class="detail-list-content">';
+              recs.forEach(function(r, i) { html += '<li style="white-space:pre-wrap;"><strong>' + (i + 1) + '.</strong> ' + escapeHtml(r) + '</li>'; });
+              html += '</ul>';
+            }
           } else {
             html = '<div class="detail-content-block" style="color:var(--text-muted);">אין המלצות</div>';
           }
@@ -2671,8 +2680,12 @@
             ? `<ul class="tag-list">${f.policies.slice(0, 4).map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noPolicies}</p>`;
 
+          // Detect split-remediation arrays (legacy data): merge them back into a single readable bullet
+          const looksLikeSplitRem = f.recs.length > 2 && f.recs.every(r => r.length < 200 && !/^[\u0590-\u05FF]/.test(r));
           const recHtml = f.recs.length
-            ? `<ul>${f.recs.map(r => `<li style="white-space:pre-wrap;">${escapeHtml(r)}</li>`).join('')}</ul>`
+            ? (looksLikeSplitRem
+                ? `<ul><li style="white-space:pre-wrap;">${escapeHtml(f.recs.join('\n'))}</li></ul>`
+                : `<ul>${f.recs.map(r => `<li style="white-space:pre-wrap;">${escapeHtml(r)}</li>`).join('')}</ul>`)
             : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
