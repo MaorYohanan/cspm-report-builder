@@ -39,3 +39,7 @@ docker-compose.override.yml
 
 # Claude Code configuration and workflows
 .claude/
+
+# Node.js
+node_modules/
+coverage/
