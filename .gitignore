@@ -31,3 +31,8 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Documentation and review files
+*.md
+!README.md
+!AGENTS.md
