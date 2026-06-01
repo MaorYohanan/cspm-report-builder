@@ -885,7 +885,7 @@
           selected.forEach(function(item) {
             var sev = mapWiziSeverity(item.severity);
             if (sev === 'critical') { critCount++; highestSev = 'critical'; }
-            else highCount++;
+            else if (sev === 'high') highCount++;
 
             var asset = item.vulnerableAsset || {};
             var resName = asset.name || '';
@@ -2430,6 +2430,7 @@
 
       // ── Bulk Import ──
       var bulkImportResults = {};
+      var bulkSelectionState = {}; // Track which items are selected (query type -> Set of indices)
       var bulkImportRunning = false;
 
       function handleBulkImport() {
@@ -2612,6 +2613,12 @@
           var label = queryTypeLabels[qt];
           bulkPageState[qt] = { page: 0, pageSize: defaultPageSize };
 
+          // Initialize selection: select all items by default
+          bulkSelectionState[qt] = new Set();
+          for (var i = 0; i < nodes.length; i++) {
+            bulkSelectionState[qt].add(i);
+          }
+
           html += '<details class="bulk-section-card" data-qt="' + qt + '">';
           html += '<summary class="bulk-section-summary"><span class="bulk-section-icon">' + (qt === 'vulnerabilityFindings' ? '🛡️' : qt === 'configurationFindings' ? '⚙️' : qt === 'secretInstances' ? '🔑' : qt === 'excessiveAccessFindings' ? '👤' : qt === 'networkExposures' ? '🌐' : qt === 'hostConfigurationRuleAssessments' ? '🖥️' : qt === 'dataFindingsV2' ? '💾' : qt === 'inventoryFindings' ? '📦' : '📋') + '</span><span class="bulk-section-label">' + escapeHtml(label) + '</span><span class="bulk-section-count">' + nodes.length + '</span></summary>';
           html += '<div class="bulk-section-body" id="bulk-body-' + qt + '"></div>';
@@ -2679,7 +2686,8 @@
 
           // Table with sortable headers
           h += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
-          h += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '" checked></th>';
+          var allSelected = bulkSelectionState[qt] && bulkSelectionState[qt].size === nodes.length;
+          h += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '"' + (allSelected ? ' checked' : '') + '></th>';
           h += '<th class="sortable-th" data-sort-col="type" data-qt="' + qt + '">סוג' + sortIndicator('type') + '</th>';
           h += '<th class="sortable-th" data-sort-col="severity" data-qt="' + qt + '">חומרה' + sortIndicator('severity') + '</th>';
           h += '<th class="sortable-th" data-sort-col="title" data-qt="' + qt + '">כותרת' + sortIndicator('title') + '</th>';
@@ -2701,7 +2709,8 @@
             var subName = getNodeSubscriptionName(node, qt);
 
             h += '<tr>';
-            h += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + i + '" checked></td>';
+            var isSelected = bulkSelectionState[qt] && bulkSelectionState[qt].has(i);
+            h += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + i + '"' + (isSelected ? ' checked' : '') + '></td>';
             h += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
             h += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
             h += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
@@ -2755,13 +2764,43 @@
           if (sectionCheck) {
             sectionCheck.addEventListener('change', function() {
               var checked = sectionCheck.checked;
-              bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) { cb.checked = checked; });
+              var allNodes = bulkImportResults[qt];
+              if (checked) {
+                // Select ALL items across all pages
+                bulkSelectionState[qt] = new Set();
+                for (var i = 0; i < allNodes.length; i++) {
+                  bulkSelectionState[qt].add(i);
+                }
+              } else {
+                // Deselect ALL items
+                bulkSelectionState[qt] = new Set();
+              }
+              // Update visible checkboxes on current page
+              bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) {
+                var idx = parseInt(cb.getAttribute('data-node-index'));
+                cb.checked = bulkSelectionState[qt].has(idx);
+              });
               updateBulkSelectedCount();
             });
           }
           // Wire individual checkboxes
           bodyEl.querySelectorAll('.bulk-check').forEach(function(cb) {
-            cb.addEventListener('change', updateBulkSelectedCount);
+            cb.addEventListener('change', function() {
+              var idx = parseInt(cb.getAttribute('data-node-index'));
+              var qt = cb.getAttribute('data-query-type');
+              if (cb.checked) {
+                bulkSelectionState[qt].add(idx);
+              } else {
+                bulkSelectionState[qt].delete(idx);
+              }
+              // Update section checkbox state
+              var allNodes = bulkImportResults[qt];
+              var sectionCheck = bodyEl.querySelector('.bulk-section-check');
+              if (sectionCheck) {
+                sectionCheck.checked = bulkSelectionState[qt].size === allNodes.length;
+              }
+              updateBulkSelectedCount();
+            });
           });
           // Wire sortable headers
           bodyEl.querySelectorAll('.sortable-th').forEach(function(th) {
@@ -2789,8 +2828,15 @@
       }
 
       function updateBulkSelectedCount() {
-        var total = document.querySelectorAll('.bulk-check').length;
-        var checked = document.querySelectorAll('.bulk-check:checked').length;
+        var total = 0;
+        var checked = 0;
+        Object.keys(bulkImportResults || {}).forEach(function(qt) {
+          var nodes = bulkImportResults[qt];
+          if (nodes) {
+            total += nodes.length;
+            checked += (bulkSelectionState[qt] || new Set()).size;
+          }
+        });
         var countEl = document.getElementById('bulk-selected-count');
         if (countEl) countEl.textContent = checked + ' / ' + total + ' נבחרו';
       }
@@ -2808,21 +2854,24 @@
       };
 
       function importSelectedBulkFindings() {
-        var checked = document.querySelectorAll('.bulk-check:checked');
         var imported = 0;
         var skipped = 0;
         var consolidated = 0;
         var updated = 0;
 
-        // Collect selected items grouped by query type
+        // Collect selected items grouped by query type using selection state
         var selectedByType = {};
-        checked.forEach(function(cb) {
-          var queryType = cb.getAttribute('data-query-type');
-          var nodeIndex = parseInt(cb.getAttribute('data-node-index'), 10);
+        Object.keys(bulkSelectionState || {}).forEach(function(queryType) {
+          var selectedIndices = bulkSelectionState[queryType];
           var nodes = bulkImportResults[queryType];
-          if (!nodes || nodeIndex < 0 || nodeIndex >= nodes.length) return;
-          if (!selectedByType[queryType]) selectedByType[queryType] = [];
-          selectedByType[queryType].push(nodes[nodeIndex]);
+          if (!nodes || !selectedIndices || selectedIndices.size === 0) return;
+
+          selectedByType[queryType] = [];
+          selectedIndices.forEach(function(idx) {
+            if (idx >= 0 && idx < nodes.length) {
+              selectedByType[queryType].push(nodes[idx]);
+            }
+          });
         });
 
         // Build existing title index for consolidation
@@ -2867,7 +2916,7 @@
             newItems.forEach(function(item) {
               var sev = mapWiziSeverity(item.severity);
               if (sev === 'critical') critCount++;
-              else highCount++;
+              else if (sev === 'high') highCount++;
               if (sev === 'critical') highestSev = 'critical';
 
               var cveName = item.name || item.detailedName || '';

@@ -353,18 +353,18 @@ def api_wizi_issues():
 
 
 def build_bulk_filter(query_type, sub_ids, sub_ext_ids):
-    """Build a filterBy dict for a given query type with HIGH/CRITICAL/MEDIUM severity,
+    """Build a filterBy dict for a given query type with HIGH/CRITICAL severity,
     OPEN/IN_PROGRESS status (or FAIL for configurationFindings), and subscription filter."""
     filter_by = {}
 
-    # --- Severity filter: Include CRITICAL, HIGH, and MEDIUM (not just CRITICAL/HIGH) ---
+    # --- Severity filter: Only CRITICAL and HIGH (not MEDIUM or below) ---
     if query_type in ("issues", "configurationFindings", "vulnerabilityFindings", "hostConfigurationRuleAssessments"):
-        filter_by["severity"] = ["CRITICAL", "HIGH", "MEDIUM"]
+        filter_by["severity"] = ["CRITICAL", "HIGH"]
     elif query_type == "networkExposures":
         pass  # networkExposures has no severity filter
     else:
         # dataFindingsV2, secretInstances, excessiveAccessFindings, inventoryFindings
-        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH", "MEDIUM"]}
+        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
 
     # --- Status filter ---
     if query_type == "configurationFindings":
