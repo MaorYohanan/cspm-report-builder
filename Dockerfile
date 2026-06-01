@@ -46,28 +46,28 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy Python dependencies from builder stage
-COPY --from=python-builder /root/.local /root/.local
-
-# Copy frontend dependencies from frontend-builder (if any runtime assets needed)
-COPY --from=frontend-builder /app/node_modules ./node_modules
-
-# Make pip packages available
-ENV PATH=/root/.local/bin:$PATH
-
-# Install Playwright Chromium browser
-RUN playwright install chromium
-
-# Create non-root user for security
+# Create non-root user for security BEFORE copying dependencies
 RUN useradd -m -u 1000 -s /bin/bash appuser && \
     mkdir -p output uploads/states && \
     chown -R appuser:appuser /app
 
+# Copy Python dependencies from builder stage to appuser's home
+COPY --from=python-builder --chown=appuser:appuser /root/.local /home/appuser/.local
+
+# Copy frontend dependencies from frontend-builder (if any runtime assets needed)
+COPY --from=frontend-builder /app/node_modules ./node_modules
+
+# Make pip packages available for appuser
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Switch to non-root user BEFORE installing Playwright
+USER appuser
+
+# Install Playwright Chromium browser as appuser
+RUN playwright install chromium
+
 # Copy application source code (do this last for better layer caching)
 COPY --chown=appuser:appuser . .
-
-# Switch to non-root user
-USER appuser
 
 EXPOSE 8080
 
