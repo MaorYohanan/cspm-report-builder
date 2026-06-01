@@ -10,6 +10,21 @@ Built for security consultants who need to document CSPM/DSPM/KSPM findings acro
 
 ---
 
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [How It Works](#how-it-works)
+- [Wizi Integration](#wizi-integration)
+- [Optional Features](#optional-features)
+- [Configuration](#configuration)
+- [UI Features](#ui-features)
+- [Development](#development)
+- [API Endpoints](#api-endpoints)
+- [License](#license)
+
+---
+
 ## Quick Start
 
 ```bash
@@ -21,6 +36,71 @@ docker compose up --build
 Open [http://localhost:8080](http://localhost:8080).
 
 That's it. No database, no external dependencies beyond Docker.
+
+---
+
+## Architecture
+
+The application follows a layered architecture with clear separation of concerns:
+
+### Backend Architecture
+
+**Service Layer Pattern**
+- **Services** (`backend/services/`) — encapsulate business logic and external API integrations
+  - `wiz_service.py` — Wiz API authentication, GraphQL queries, finding retrieval
+  - `ai_service.py` — Gemini AI integration for text improvement
+  - `pdf_service.py` — PDF generation using Playwright and Jinja2 templates
+  
+**Flask Blueprints** (`backend/routes/`)
+- Modular route handlers for clean API organization
+  - `health.py` — health check endpoint
+  - `wiz.py` — Wiz API proxy endpoints
+  - `ai.py` — AI suggestion endpoints
+  - `reports.py` — PDF rendering endpoints
+  - `files.py` — file management endpoints
+
+**GraphQL Queries** (`backend/graphql/`)
+- `queries.py` — centralized GraphQL query definitions for Wiz API
+
+### Frontend Architecture
+
+**ES6 Module System**
+- Split monolithic JavaScript into focused modules
+- Two main feature domains:
+
+**Wizi Integration** (`static/js/wizi/`)
+- `api-client.js` — Wiz API HTTP client
+- `bulk-actions.js` — batch operations (delete, update)
+- `filters.js` — finding filtering logic
+- `subscription-manager.js` — subscription/project filtering
+- `ui-helpers.js` — DOM manipulation and UI updates
+- `index.js` — module orchestration
+
+**Findings Management** (`static/js/src/findings/`)
+- `export-handler.js` — JSON/PDF/HTML export logic
+- `filter-manager.js` — finding list filtering
+- `renderer.js` — HTML table rendering
+- `sort-manager.js` — sorting by severity/date/etc.
+- `state-manager.js` — auto-save and state persistence
+- `ui-components.js` — reusable UI components
+- `index.js` — module orchestration
+
+**Legacy Monolith**
+- `static/js/builder.js` — main app logic (being progressively refactored into modules)
+
+### Test Architecture
+
+**Backend Tests** (`tests/backend/unit/`)
+- `test_wiz_service.py` — Wiz API service tests
+- `test_ai_service.py` — AI service tests
+- `test_pdf_service.py` — PDF generation tests
+- Fixtures in `tests/backend/fixtures/`
+
+**Frontend Tests** (`tests/frontend/`)
+- Jest-based unit tests with jsdom
+- `__tests__/` — test files
+- `__mocks__/` — mock implementations
+- `findings/` — findings-specific test utilities
 
 ---
 
@@ -161,9 +241,55 @@ Supports two formats:
 
 ## Development
 
+### Getting Started
+
+**Prerequisites**
+- Python 3.12+
+- Node.js 18+ (for frontend tests)
+- Docker (optional, for containerized deployment)
+
+**Backend Setup**
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Run tests
+pytest tests/backend/
+
+# Run specific test file
+pytest tests/backend/unit/test_wiz_service.py
+```
+
+**Frontend Setup**
+
+```bash
+# Install Node dependencies
+npm install
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+**Running the Application**
+
+```bash
+# Docker (recommended)
+docker compose up --build
+
+# Local development
+python app.py
+```
+
 Frontend files (`index.html`, `static/`) are volume-mounted — edit and refresh.
 
-For backend changes (`app.py`):
+For backend changes, rebuild:
 
 ```bash
 docker compose up --build -d
@@ -172,14 +298,164 @@ docker compose up --build -d
 ### Project Structure
 
 ```
-app.py                    Flask backend, PDF rendering, Wiz API proxy
-index.html                Builder UI entry point
-static/js/builder.js      All UI logic, Wizi integration, import mapping
-static/css/builder.css    Styles (dark/light themes)
-assets/cover.png          Default report cover
-assets/report.css         Generated report stylesheet
-templates/report_template.html   Jinja2 PDF template
-render_pdf_playwright.py  Standalone CLI PDF renderer
+cspm-report-builder/
+├── app.py                          # Flask application entry point
+├── index.html                      # Builder UI entry point
+│
+├── backend/                        # Backend modules
+│   ├── services/                   # Business logic layer
+│   │   ├── wiz_service.py          # Wiz API integration
+│   │   ├── ai_service.py           # Gemini AI integration
+│   │   └── pdf_service.py          # PDF generation
+│   ├── routes/                     # Flask blueprints
+│   │   ├── health.py               # Health check endpoint
+│   │   ├── wiz.py                  # Wiz API proxy
+│   │   ├── ai.py                   # AI suggestions
+│   │   ├── reports.py              # PDF rendering
+│   │   └── files.py                # File management
+│   └── graphql/                    # GraphQL queries
+│       └── queries.py              # Wiz API queries
+│
+├── static/                         # Frontend assets
+│   ├── js/
+│   │   ├── builder.js              # Main app logic (legacy monolith)
+│   │   ├── wizi/                   # Wizi integration modules
+│   │   │   ├── api-client.js       # HTTP client
+│   │   │   ├── bulk-actions.js     # Batch operations
+│   │   │   ├── filters.js          # Filtering logic
+│   │   │   ├── subscription-manager.js
+│   │   │   ├── ui-helpers.js       # DOM helpers
+│   │   │   └── index.js            # Module entry
+│   │   └── src/                    # Core modules
+│   │       └── findings/           # Findings management
+│   │           ├── export-handler.js
+│   │           ├── filter-manager.js
+│   │           ├── renderer.js
+│   │           ├── sort-manager.js
+│   │           ├── state-manager.js
+│   │           ├── ui-components.js
+│   │           └── index.js
+│   └── css/
+│       └── builder.css             # Styles (dark/light themes)
+│
+├── tests/                          # Test suite
+│   ├── backend/                    # Backend tests
+│   │   ├── unit/                   # Unit tests
+│   │   │   ├── test_wiz_service.py
+│   │   │   ├── test_ai_service.py
+│   │   │   └── test_pdf_service.py
+│   │   └── fixtures/               # Test fixtures
+│   └── frontend/                   # Frontend tests
+│       ├── __tests__/              # Jest tests
+│       ├── __mocks__/              # Mock implementations
+│       └── findings/               # Findings test utils
+│
+├── templates/
+│   └── report_template.html        # Jinja2 PDF template
+│
+├── assets/
+│   ├── cover.png                   # Default report cover
+│   └── report.css                  # Generated report stylesheet
+│
+├── render_pdf_playwright.py        # Standalone CLI PDF renderer
+├── requirements.txt                # Python dependencies
+└── package.json                    # Node.js dependencies
+```
+
+### Adding New Features
+
+**Adding a New Service**
+
+1. Create service file in `backend/services/`:
+
+```python
+# backend/services/my_service.py
+class MyService:
+    def __init__(self):
+        pass
+    
+    def do_something(self):
+        # Business logic here
+        pass
+```
+
+2. Register in `backend/services/__init__.py`:
+
+```python
+from .my_service import MyService
+```
+
+3. Add unit tests in `tests/backend/unit/test_my_service.py`
+
+**Adding a New Route**
+
+1. Create blueprint in `backend/routes/`:
+
+```python
+# backend/routes/my_routes.py
+from flask import Blueprint, jsonify
+
+bp = Blueprint('my_routes', __name__)
+
+@bp.route('/api/my-endpoint', methods=['GET'])
+def my_endpoint():
+    return jsonify({'status': 'ok'})
+```
+
+2. Register blueprint in `app.py`:
+
+```python
+from backend.routes import my_routes
+app.register_blueprint(my_routes.bp)
+```
+
+3. Add integration tests
+
+**Adding a New Frontend Module**
+
+1. Create module in `static/js/src/` or `static/js/wizi/`:
+
+```javascript
+// static/js/src/my-feature/index.js
+export class MyFeature {
+    constructor() {
+        // Initialization
+    }
+    
+    doSomething() {
+        // Feature logic
+    }
+}
+```
+
+2. Import in `static/js/builder.js`:
+
+```javascript
+import { MyFeature } from './src/my-feature/index.js';
+```
+
+3. Add Jest tests in `tests/frontend/__tests__/`
+
+**Running Tests**
+
+```bash
+# All backend tests
+pytest tests/backend/
+
+# Specific test file
+pytest tests/backend/unit/test_wiz_service.py
+
+# With coverage
+pytest --cov=backend tests/backend/
+
+# All frontend tests
+npm test
+
+# Frontend tests in watch mode
+npm run test:watch
+
+# With coverage report
+npm run test:coverage
 ```
 
 ### API Endpoints

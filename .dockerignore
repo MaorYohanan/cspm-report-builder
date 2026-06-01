@@ -1,8 +1,50 @@
-__pycache__
+# Python cache and compiled files
+__pycache__/
 *.pyc
-.git
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Node modules
+node_modules/
+
+# Git files
+.git/
 .gitignore
+
+# Claude artifacts
+.claude/
+
+# Test and coverage files
+coverage/
+tests/
+*.test.js
+*.spec.js
+
+# Documentation (except README)
 *.md
-output/*.pdf
-output/*.html
+!README.md
+
+# Environment files
+.env
+.env.*
+
+# Output and uploads
+output/
 uploads/
+
+# Backup files
+*.bak
+*.swp
+*.swo
+*~
+
+# IDE files
+.vscode/
+.idea/
+*.iml

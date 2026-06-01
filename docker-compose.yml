@@ -1,29 +1,94 @@
+# CSPM Report Builder - Docker Compose Configuration
+#
+# Services:
+#   - cspm-report: Flask web application for building cloud security posture reports
+#                  with Wiz integration, AI writing assistant, and Hebrew PDF export
+#
+# Usage:
+#   Development: docker-compose up
+#   Production:  docker-compose up -d
+#   Rebuild:     docker-compose up --build
+#
+# Environment variables can be set in a .env file (see .env.example)
+
 services:
+  # Main Flask application server
+  # Provides web interface for report generation with Wiz/Wizi integration
   cspm-report:
     build: .
+    container_name: cspm-report-builder
+
+    # Network configuration
     ports:
       - "8080:8080"
+
+    # Volume mounts for development and data persistence
     volumes:
-      - ./output:/app/output
-      - ./uploads:/app/uploads
+      # Persistent data directories
+      - ./output:/app/output           # Generated PDF reports
+      - ./uploads:/app/uploads         # Uploaded Excel files and saved states
+
+      # Development hot-reload (mount source files)
+      # Comment out these lines in production for better security
       - ./index.html:/app/index.html
       - ./static:/app/static
       - ./assets:/app/assets
       - ./app.py:/app/app.py
       - ./templates:/app/templates
       - ./render_pdf_playwright.py:/app/render_pdf_playwright.py
+      - ./services:/app/services       # Service layer modules
+      - ./blueprints:/app/blueprints   # Flask blueprints
+
+    # Environment variables
+    # Override these in a .env file or via docker-compose override
     environment:
+      # Flask configuration
       - PORT=8080
-      - FLASK_DEBUG=0
-      # Set a token to protect the app (leave empty for open access)
-      # - APP_TOKEN=your-secret-token-here
-      - CLEANUP_DAYS=30
-      # Gemini API key for AI writing assistant (optional)
-      # Get one at https://aistudio.google.com/apikey
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+
+      # Security and access control
+      # Set APP_TOKEN to require Bearer token authentication
+      - APP_TOKEN=${APP_TOKEN:-}
+
+      # Rate limiting (POST/DELETE requests per IP)
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-30}
+      - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+
+      # File cleanup policy (delete old uploads/reports after N days)
+      - CLEANUP_DAYS=${CLEANUP_DAYS:-30}
+
+      # AI Writing Assistant (optional)
+      # Gemini API for AI-powered content generation
+      # Get your key at https://aistudio.google.com/apikey
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      # Wizi (Wiz) integration — service account credentials
+
+      # Wiz (Wizi) Cloud Security Integration (optional)
+      # Requires service account with READ permissions
       - WIZI_CLIENT_ID=${WIZI_CLIENT_ID:-}
       - WIZI_CLIENT_SECRET=${WIZI_CLIENT_SECRET:-}
       - WIZI_AUTH_URL=${WIZI_AUTH_URL:-https://auth.app.wiz.io/oauth/token}
       - WIZI_API_URL=${WIZI_API_URL:-https://api.il1.app.wiz.io/graphql}
+
+    # Health check configuration
+    # Ensures the Flask app is responding correctly
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/api/health', timeout=5).raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Restart policy
+    # unless-stopped: restart on failure, but not when manually stopped
     restart: unless-stopped
+
+    # Resource limits (optional, uncomment to enable)
+    # Prevents container from consuming excessive resources
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'
+    #       memory: 2G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 512M

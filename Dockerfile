@@ -1,8 +1,41 @@
-FROM python:3.12-slim
+# Stage 1: Frontend dependencies (if needed for build)
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
-# System deps for Playwright Chromium + Hebrew fonts
+# Copy package files for dependency caching
+COPY package*.json ./
+
+# Install only production dependencies (no devDependencies needed in runtime)
+RUN npm ci --omit=dev
+
+# Stage 2: Python dependencies builder
+FROM python:3.11-slim AS python-builder
+
+WORKDIR /app
+
+# Install system dependencies needed for building Python packages
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gcc \
+        libc-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 3: Final runtime image
+FROM python:3.11-slim
+
+# Labels for metadata
+LABEL maintainer="CSPM Report Builder Team" \
+      version="1.0.0" \
+      description="A self-hosted tool for building cloud security reports with Wiz integration and Hebrew PDF export"
+
+WORKDIR /app
+
+# Install only runtime system dependencies for Playwright Chromium + Hebrew fonts
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libnss3 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
@@ -10,19 +43,33 @@ RUN apt-get update && \
         libxrandr2 libgbm1 libpango-1.0-0 libcairo2 \
         libasound2t64 libxshmfence1 libxfixes3 libx11-xcb1 \
         fonts-noto fonts-noto-cjk fonts-unifont \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy Python dependencies from builder stage
+COPY --from=python-builder /root/.local /root/.local
 
-# Install only the Chromium browser (no system deps)
+# Copy frontend dependencies from frontend-builder (if any runtime assets needed)
+COPY --from=frontend-builder /app/node_modules ./node_modules
+
+# Make pip packages available
+ENV PATH=/root/.local/bin:$PATH
+
+# Install Playwright Chromium browser
 RUN playwright install chromium
 
-COPY . .
+# Create non-root user for security
+RUN useradd -m -u 1000 -s /bin/bash appuser && \
+    mkdir -p output uploads/states && \
+    chown -R appuser:appuser /app
 
-RUN mkdir -p output uploads/states
+# Copy application source code (do this last for better layer caching)
+COPY --chown=appuser:appuser . .
+
+# Switch to non-root user
+USER appuser
 
 EXPOSE 8080
 
-# Ensure writable dirs even when host volumes are mounted
-CMD ["sh", "-c", "chmod -R 777 /app/output /app/uploads 2>/dev/null; exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 app:app"]
+# Use exec form of CMD for proper signal handling
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "120", "app:app"]
