@@ -1083,7 +1083,7 @@
           // If multiple items with same rule, consolidate resources
           if (items.length > 1) {
             consolidated += items.length - 1;
-            
+
             // Extract all unique resource names
             var allResources = [];
             items.forEach(function(item) {
@@ -1092,19 +1092,68 @@
                 allResources.push(resourceName);
               }
             });
-            
+
+            // For vulnerabilities, also collect all affected packages/versions
+            if (wiziQueryType === 'vulnerabilityFindings') {
+              var allPackages = [];
+              var allVersions = [];
+              items.forEach(function(item) {
+                // Extract package name from vulnerableAsset
+                var asset = item.vulnerableAsset || {};
+                var pkg = asset.package || asset.name || null;
+                if (pkg && allPackages.indexOf(pkg) === -1) {
+                  allPackages.push(pkg);
+                }
+
+                // Extract affected version
+                var version = item.version || asset.version || null;
+                if (version && allVersions.indexOf(version) === -1) {
+                  allVersions.push(version);
+                }
+              });
+
+              // Add affected packages to technical details
+              if (allPackages.length > 0) {
+                var packageLineIndex = lastFinding.technical.findIndex(function(line) {
+                  return line.startsWith('Affected Package:') || line.startsWith('Package:');
+                });
+                var packageText = 'Affected Packages (' + allPackages.length + '): ' + allPackages.join(', ');
+                if (packageLineIndex >= 0) {
+                  lastFinding.technical[packageLineIndex] = packageText;
+                } else {
+                  lastFinding.technical.splice(1, 0, packageText);
+                }
+              }
+
+              // Add affected versions count
+              if (allVersions.length > 1) {
+                var versionLineIndex = lastFinding.technical.findIndex(function(line) {
+                  return line.startsWith('Affected Version:');
+                });
+                var versionText = 'Affected Versions (' + allVersions.length + '): ' + allVersions.join(', ');
+                if (versionLineIndex >= 0) {
+                  lastFinding.technical[versionLineIndex] = versionText;
+                } else {
+                  lastFinding.technical.splice(2, 0, versionText);
+                }
+              }
+
+              // Update instance count in impact
+              lastFinding.impact += ' — ' + items.length + ' מופעים זוהו';
+            }
+
             // If multiple resources, consolidate in Entity/Resource line
             if (allResources.length > 1) {
               var entityLineIndex = -1;
               for (var j = 0; j < lastFinding.technical.length; j++) {
-                if (lastFinding.technical[j].startsWith('Entity:') || 
+                if (lastFinding.technical[j].startsWith('Entity:') ||
                     lastFinding.technical[j].startsWith('Resource:') ||
                     lastFinding.technical[j].startsWith('Principal:')) {
                   entityLineIndex = j;
                   break;
                 }
               }
-              
+
               if (entityLineIndex >= 0) {
                 var prefix = lastFinding.technical[entityLineIndex].split(':')[0];
                 lastFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');

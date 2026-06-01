@@ -110,7 +110,47 @@ export function renderBulkResults(data, options) {
     if (nodes.length) {
       bulkImportResults[qt] = nodes;
       totalCount += nodes.length;
-      breakdownParts.push((queryTypeLabels[qt]) + ': ' + nodes.length);
+
+      // Count severities and unique items for better display
+      const sevCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+      const uniqueKeys = new Set();
+
+      nodes.forEach(node => {
+        const sev = mapWiziSeverity(node.severity);
+        sevCounts[sev] = (sevCounts[sev] || 0) + 1;
+
+        // Get unique key for consolidation preview (CVE name for vulns, rule ID for others)
+        let uniqueKey = null;
+        if (qt === 'vulnerabilityFindings') {
+          uniqueKey = node.name || node.detailedName;
+        } else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments') {
+          const rule = node.rule || {};
+          uniqueKey = rule.id || rule.shortId || rule.name;
+        } else if (qt === 'issues') {
+          const rules = node.sourceRules || [];
+          uniqueKey = rules.length ? rules[0].id : null;
+        }
+        if (uniqueKey) uniqueKeys.add(uniqueKey);
+      });
+
+      // Build severity breakdown string
+      const sevParts = [];
+      if (sevCounts.critical) sevParts.push(`${sevCounts.critical} קריטי`);
+      if (sevCounts.high) sevParts.push(`${sevCounts.high} גבוה`);
+      if (sevCounts.medium) sevParts.push(`${sevCounts.medium} בינוני`);
+      if (sevCounts.low) sevParts.push(`${sevCounts.low} נמוך`);
+
+      let breakdownText = (queryTypeLabels[qt]) + ': ' + nodes.length;
+      if (sevParts.length) {
+        breakdownText += ' (' + sevParts.join(', ') + ')';
+      }
+
+      // Show unique count if consolidation will happen
+      if (uniqueKeys.size > 0 && uniqueKeys.size < nodes.length) {
+        breakdownText += ` → ${uniqueKeys.size} ייחודיים`;
+      }
+
+      breakdownParts.push(breakdownText);
     }
   });
 
