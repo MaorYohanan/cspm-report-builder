@@ -316,11 +316,29 @@ def api_wizi_issues():
         variables["filterBy"] = filter_by
 
     try:
-        result = wiz._graphql(gql, variables)
-        if "errors" in result:
-            return jsonify({"error": result["errors"][0].get("message", "GraphQL error"), "details": result["errors"]}), 502
+        # Use paginated fetch if no "after" cursor (i.e., not manual pagination)
+        # This ensures we get ALL findings without 500 limit
+        if after is None:
+            # Fetch all findings with pagination handled automatically
+            all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by if filter_by else None)
+            response_data = {
+                "queryType": query_type,
+                root_key: {
+                    "nodes": all_nodes,
+                    "totalCount": len(all_nodes),
+                    "pageInfo": {
+                        "hasNextPage": False,
+                        "endCursor": None
+                    }
+                }
+            }
+        else:
+            # Manual pagination requested - use single page fetch
+            result = wiz._graphql(gql, variables)
+            if "errors" in result:
+                return jsonify({"error": result["errors"][0].get("message", "GraphQL error"), "details": result["errors"]}), 502
 
-        response_data = {"queryType": query_type, root_key: result.get("data", {}).get(root_key, {})}
+            response_data = {"queryType": query_type, root_key: result.get("data", {}).get(root_key, {})}
 
         # Add warning if subscription resolution failed
         if subscription_resolution_failed:
@@ -407,12 +425,11 @@ def api_wizi_bulk_fetch():
     for query_type, (gql, root_key) in QUERY_TYPE_MAP.items():
         try:
             filter_by = build_bulk_filter(query_type, resolved_sub_ids, resolved_sub_ext_ids)
-            variables = {"first": 500, "filterBy": filter_by}
-            result = wiz._graphql(gql, variables)
-            query_data = result.get("data", {}).get(root_key, {})
+            # Use paginated fetch to get ALL findings without 500 limit
+            all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by)
             results[query_type] = {
-                "nodes": query_data.get("nodes", []),
-                "totalCount": query_data.get("totalCount", 0),
+                "nodes": all_nodes,
+                "totalCount": len(all_nodes),
             }
         except Exception as e:
             errors[query_type] = str(e)
