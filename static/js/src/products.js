@@ -73,17 +73,18 @@ var ProductsPanel = {
 
   init: function() {
     var self = this;
-    var tabBtn = document.getElementById('tab-products');
-    if (tabBtn) {
-      tabBtn.addEventListener('click', function() {
-        self.showGrid();
-      });
-    }
-    // Export panel shortcut
+    // Wire export panel shortcut
     var saveBtn = document.getElementById('btn-save-as-version');
     if (saveBtn) {
       saveBtn.addEventListener('click', function() {
         self._exportShortcutFlow();
+      });
+    }
+    // Wire tab button — load grid on first click
+    var tabBtn = document.getElementById('tab-products');
+    if (tabBtn) {
+      tabBtn.addEventListener('click', function() {
+        self.showGrid();
       });
     }
   },
@@ -163,7 +164,8 @@ var ProductsPanel = {
         else if (action === 'edit') { self._loadProductAndEdit(id); }
         else if (action === 'delete') {
           var name = btn.getAttribute('data-name');
-          styledConfirm('מחיקת מוצר', 'האם למחוק את המוצר "' + name + '"?', function() {
+          styledConfirm('האם למחוק את המוצר "' + name + '"?', { title: 'מחיקת מוצר', danger: true, confirmText: 'מחק' }).then(function(confirmed) {
+            if (!confirmed) return;
             fetch('/api/products/' + encodeURIComponent(id), { method: 'DELETE' })
               .then(function(r) {
                 if (!r.ok) return r.json().then(function(b){ throw new Error(b.error||'שגיאה'); });
@@ -178,7 +180,7 @@ var ProductsPanel = {
   _loadTimeline: function(productId) {
     var self = this;
     fetch('/api/products/' + encodeURIComponent(productId))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ if (!r.ok) throw new Error('Product not found'); return r.json(); })
       .then(function(product){ self.showTimeline(product); })
       .catch(function(err){ showToast(err.message || 'שגיאת רשת', 'error'); });
   },
@@ -318,14 +320,16 @@ var ProductsPanel = {
         } else if (action === 'download') {
           self._downloadVersion(product.id, ver);
         } else if (action === 'publish') {
-          styledConfirm('פרסום גרסה', 'לפרסם את גרסה v' + ver + '? לא ניתן לבטל.', function(){
+          styledConfirm('לפרסם את גרסה v' + ver + '? לא ניתן לבטל.', { title: 'פרסום גרסה', confirmText: 'פרסם' }).then(function(confirmed) {
+            if (!confirmed) return;
             fetch('/api/products/' + encodeURIComponent(product.id) + '/versions/' + encodeURIComponent(ver) + '/publish', { method: 'POST' })
               .then(function(r){ if (!r.ok) return r.json().then(function(b){ throw new Error(b.error||'שגיאה'); }); return r.json(); })
               .then(function(){ self.showTimeline(product); })
               .catch(function(err){ showToast(err.message, 'error'); });
           });
         } else if (action === 'delver') {
-          styledConfirm('מחיקת גרסה', 'למחוק גרסה v' + ver + '?', function(){
+          styledConfirm('למחוק גרסה v' + ver + '?', { title: 'מחיקת גרסה', danger: true, confirmText: 'מחק' }).then(function(confirmed) {
+            if (!confirmed) return;
             fetch('/api/products/' + encodeURIComponent(product.id) + '/versions/' + encodeURIComponent(ver), { method: 'DELETE' })
               .then(function(r){ if (!r.ok) return r.json().then(function(b){ throw new Error(b.error||'שגיאה'); }); return r.json(); })
               .then(function(){ self.showTimeline(product); })
@@ -620,3 +624,6 @@ async function saveAsVersion(productId, versionType, notes) {
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// Wire up ProductsPanel on load
+ProductsPanel.init();
