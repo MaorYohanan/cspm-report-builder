@@ -747,9 +747,10 @@
           var pageInfo = resultSet.pageInfo || {};
 
           // Client-side subscription name filter
-          // Only apply for excessiveAccessFindings which doesn't support backend filtering
-          // All other query types use backend filtering (resolved_sub_ids/resolved_sub_ext_ids)
-          var needsClientFilter = subscription && qt === 'excessiveAccessFindings';
+          // NOTE: Server-side filtering by scope.id.equals now works for excessiveAccessFindings.
+          // This client filter is disabled — it was hiding results because excessiveAccessFindings
+          // nodes don't have a populated cloudAccount.name to match against.
+          var needsClientFilter = false;
           if (needsClientFilter) {
             var subFilter = subscription.toLowerCase();
             var beforeFilter = nodes.length;
@@ -1821,17 +1822,23 @@
         var recsText = (finding.recs || []).join('\n');
         if ((!recsText || recsText.length < 30) && !finding.description) return Promise.resolve(null);
         retries = retries || 0;
-        var cacheKey = (finding.title || '') + '|' + recsText.substring(0, 200);
+        // Read AI model from dropdown (פרטי דו"ח). Safe-falsy if element missing.
+        var _aiModelEl = document.getElementById('ai-model');
+        var _selModel = (_aiModelEl && _aiModelEl.value) ? _aiModelEl.value : '';
+        var cacheKey = (finding.title || '') + '|' + _selModel + '|' + recsText.substring(0, 200);
         if (_aiSummaryCache[cacheKey]) return Promise.resolve(_aiSummaryCache[cacheKey]);
+
+        var _reqBody = {
+          title: finding.title || '',
+          description: finding.description || '',
+          text: recsText
+        };
+        if (_selModel) _reqBody.model = _selModel;
 
         return fetch('/api/summarize-remediation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: finding.title || '',
-            description: finding.description || '',
-            text: recsText
-          })
+          body: JSON.stringify(_reqBody)
         })
         .then(function(r) {
           if ((r.status === 429 || r.status === 502) && retries < 3) {
@@ -2449,56 +2456,79 @@
         bulkImportRunning = true;
         btn.disabled = true;
         resultsDiv.innerHTML = '';
-        progressDiv.textContent = 'מבצע ייבוא מרוכז...';
+        progressDiv.textContent = '';
         actionsDiv.style.display = 'none';
+
         var bulkProg = document.getElementById('bulk-progress-bar');
         var bulkProgFill = document.getElementById('bulk-progress-fill');
         var bulkProgText = document.getElementById('bulk-progress-text');
-        if (bulkProg) { bulkProg.classList.add('active'); bulkProgFill.style.width = '30%'; bulkProgText.textContent = 'מייבא נתונים מ-Wizi...'; }
 
-        fetch('/api/wizi/bulk-fetch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: sub })
-        })
-        .then(function(resp) {
-          if (resp.status === 501) {
-            progressDiv.textContent = 'Wizi לא מוגדר';
-            return null;
+        // Ordered list of 9 query types with display labels (Hebrew + tag)
+        var stages = [
+          { qt: 'issues',                           label: 'Issues (כללי)' },
+          { qt: 'configurationFindings',            label: 'CSPM — Cloud Configuration' },
+          { qt: 'vulnerabilityFindings',            label: 'VULN — Vulnerabilities' },
+          { qt: 'hostConfigurationRuleAssessments', label: 'HSPM — Host Configuration' },
+          { qt: 'dataFindingsV2',                   label: 'DSPM — Data Findings' },
+          { qt: 'secretInstances',                  label: 'SECR — Secrets' },
+          { qt: 'excessiveAccessFindings',          label: 'EAPM — Excessive Access' },
+          { qt: 'networkExposures',                 label: 'NEXP — Network Exposure' },
+          { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' }
+        ];
+        var totalStages = stages.length;
+
+        if (bulkProg) {
+          bulkProg.classList.add('active');
+          bulkProgFill.style.width = '0%';
+          bulkProgText.textContent = 'מתחיל ייבוא...';
+        }
+
+        var aggregatedResults = {};
+        var aggregatedErrors = {};
+        var resolvedSubscription = null;
+
+        function setProgress(stageIdx, label, phase) {
+          // phase: 'start' (entering stage) or 'done' (just finished stage)
+          var displayedStep = (phase === 'done') ? (stageIdx + 1) : (stageIdx + 1);
+          var pct;
+          if (phase === 'start') {
+            // Starting stage N → already done (N-1)/total
+            pct = Math.round((stageIdx / totalStages) * 100);
+          } else {
+            // Finished stage N → done (N)/total
+            pct = Math.round(((stageIdx + 1) / totalStages) * 100);
           }
-          if (resp.status === 429) {
-            progressDiv.textContent = 'חריגה ממגבלת קצב בקשות';
-            return null;
+          if (bulkProgFill) bulkProgFill.style.width = pct + '%';
+          if (bulkProgText) {
+            var prefix = 'שלב ' + displayedStep + '/' + totalStages + ': ';
+            bulkProgText.textContent = prefix + label + ' (' + pct + '%)';
           }
-          if (!resp.ok) {
-            return resp.json().then(function(err) {
-              progressDiv.textContent = err.error || 'שגיאה בשליפת נתונים';
-              return null;
-            });
-          }
-          return resp.json();
-        })
-        .then(function(data) {
-          if (data) {
-            renderBulkResults(data);
+        }
+
+        function fetchStage(stageIdx) {
+          if (stageIdx >= totalStages) {
+            // All stages done → finalize
+            if (bulkProgFill) bulkProgFill.style.width = '100%';
+            if (bulkProgText) bulkProgText.textContent = 'הושלם — מציג תוצאות...';
+            var finalData = {
+              results: aggregatedResults,
+              resolvedSubscription: resolvedSubscription || {},
+              errors: aggregatedErrors
+            };
+            renderBulkResults(finalData);
             // Auto-fill report details from bulk import results
             if (!document.getElementById('report-client').value.trim()) {
-              var resolved = data.resolvedSubscription || {};
-              // Use resolved externalIds for client name (cloud provider subscription IDs)
+              var resolved = finalData.resolvedSubscription || {};
               var clientName = (resolved.externalIds || []).join(', ') || (resolved.names || []).join(', ');
-
-              // Detect cloud platforms and key topics from results
               var clouds = {};
               var topics = {};
-              var results = data.results || {};
-              Object.keys(results).forEach(function(qt) {
-                var nodes = (results[qt] || {}).nodes || [];
+              Object.keys(aggregatedResults).forEach(function(qt) {
+                var nodes = (aggregatedResults[qt] || {}).nodes || [];
                 if (!nodes.length) return;
                 var d = extractWiziAutoFillData(nodes, qt);
                 if (d.cloud) d.cloud.split(', ').forEach(function(c) { clouds[c] = true; });
                 if (d.keyTopics) d.keyTopics.split('\n').forEach(function(t) { topics[t] = true; });
               });
-
               var mergedData = {
                 subscription: clientName,
                 cloud: Object.keys(clouds).join(', '),
@@ -2508,17 +2538,60 @@
                 showWiziAutoFillBanner(mergedData);
               }
             }
+            btn.disabled = false;
+            bulkImportRunning = false;
+            if (bulkProg) {
+              // Briefly show 100% then hide
+              setTimeout(function() { bulkProg.classList.remove('active'); }, 800);
+            }
+            return;
           }
-        })
-        .catch(function() {
-          progressDiv.textContent = 'שגיאת רשת';
-        })
-        .finally(function() {
-          btn.disabled = false;
-          bulkImportRunning = false;
-          var bulkProg = document.getElementById('bulk-progress-bar');
-          if (bulkProg) bulkProg.classList.remove('active');
-        });
+
+          var stage = stages[stageIdx];
+          setProgress(stageIdx, stage.label, 'start');
+
+          fetch('/api/wizi/bulk-fetch-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription: sub, queryType: stage.qt })
+          })
+          .then(function(resp) {
+            if (resp.status === 501) { progressDiv.textContent = 'Wizi לא מוגדר'; return { _abort: true }; }
+            if (resp.status === 429) { progressDiv.textContent = 'חריגה ממגבלת קצב בקשות'; return { _abort: true }; }
+            if (!resp.ok) {
+              return resp.json().catch(function() { return {}; }).then(function(err) {
+                aggregatedErrors[stage.qt] = err.error || ('HTTP ' + resp.status);
+                return { _stageError: true };
+              });
+            }
+            return resp.json();
+          })
+          .then(function(data) {
+            if (data && data._abort) {
+              btn.disabled = false;
+              bulkImportRunning = false;
+              if (bulkProg) bulkProg.classList.remove('active');
+              return;
+            }
+            if (data && !data._stageError) {
+              if (data.resolvedSubscription && !resolvedSubscription) {
+                resolvedSubscription = data.resolvedSubscription;
+              }
+              if (data.result) {
+                aggregatedResults[stage.qt] = data.result;
+              }
+            }
+            setProgress(stageIdx, stage.label, 'done');
+            fetchStage(stageIdx + 1);
+          })
+          .catch(function(e) {
+            aggregatedErrors[stage.qt] = 'שגיאת רשת';
+            setProgress(stageIdx, stage.label, 'done');
+            fetchStage(stageIdx + 1);
+          });
+        }
+
+        fetchStage(0);
       }
 
       function renderBulkResults(data) {
@@ -2570,8 +2643,11 @@
           var r = results[qt] || {};
           var nodes = r.nodes || [];
 
-          // Client-side subscription filter for excessiveAccessFindings (no server-side filter)
-          if (qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
+          // Client-side subscription filter for excessiveAccessFindings
+          // DISABLED: Server-side filter (scope.id.equals) now handles this.
+          // Client filter was removing all results because excessiveAccessFindings
+          // nodes have empty cloudAccount.name and externalId fields.
+          if (false && qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
             nodes = nodes.filter(function(n) {
               var p = n.principal || {};
               var pca = p.cloudAccount || {};

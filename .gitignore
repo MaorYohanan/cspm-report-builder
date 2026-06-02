@@ -40,6 +40,10 @@ docker-compose.override.yml
 # Claude Code configuration and workflows
 .claude/
 
+# Debug artifacts (logs, ad-hoc scripts kept locally)
+debug/
+introspect_excessive_access.py
+
 # Node.js
 node_modules/
 coverage/

@@ -32,9 +32,10 @@ from flask import (
 
 # Import blueprints
 from backend.routes.wiz import wiz_bp
-from backend.routes.ai import ai_bp
+from backend.routes.ai import ai_bp, GEMINI_MODELS, GEMINI_DEFAULT_MODEL
 from backend.routes.reports import reports_bp
 from backend.routes.files import files_bp
+from backend.routes.introspect import introspect_bp
 
 app = Flask(
     __name__,
@@ -60,6 +61,7 @@ app.register_blueprint(wiz_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(files_bp)
+app.register_blueprint(introspect_bp)
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -169,12 +171,6 @@ def api_health():
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     WIZI_CLIENT_ID = os.environ.get("WIZI_CLIENT_ID", "")
     WIZI_CLIENT_SECRET = os.environ.get("WIZI_CLIENT_SECRET", "")
-    GEMINI_MODELS = [
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-        "gemini-2.5-pro",
-    ]
-    GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0]
 
     result = {"status": "ok", "ai_enabled": bool(GEMINI_API_KEY), "wizi_enabled": bool(WIZI_CLIENT_ID and WIZI_CLIENT_SECRET)}
     if GEMINI_API_KEY:

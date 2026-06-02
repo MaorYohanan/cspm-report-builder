@@ -1716,6 +1716,30 @@
         enrichFindingsWithAiSummaries(toEnrich);
       });
 
+      // AI enrich selected findings (same pattern as btn-ai-enrich-all but for selection)
+      var _btnAiEnrichSelected = document.getElementById('btn-ai-enrich-selected');
+      if (_btnAiEnrichSelected) {
+        _btnAiEnrichSelected.addEventListener('click', function() {
+          var indices = getSelectedFindingIndices();
+          if (!indices.length) {
+            showToast('לא נבחרו ממצאים', 'warning');
+            return;
+          }
+          var selected = indices.map(function(idx) { return findings[idx]; });
+          var toEnrich = selected.filter(function(f) {
+            if (!f.recs || !f.recs.length) return false;
+            if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
+            if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
+            return true;
+          });
+          if (!toEnrich.length) {
+            showToast('הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+            return;
+          }
+          enrichFindingsWithAiSummaries(toEnrich);
+        });
+      }
+
       // Clear form
       document.getElementById('btn-clear-form').addEventListener('click', function() {
         resetEditState();

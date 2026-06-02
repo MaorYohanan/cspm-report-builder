@@ -454,22 +454,10 @@
         var f = findings[idx];
         var sev = severityMap[f.severity] || severityMap.medium;
 
-        // Severity bar
-        var sevBar = document.getElementById('detail-severity-bar');
-        if (sevBar) {
-          sevBar.className = 'detail-severity-bar ' + sev.class;
-        }
-
-        // Position indicator
-        var posEl = document.getElementById('detail-position');
-        if (posEl) {
-          posEl.textContent = 'ממצא ' + (idx + 1) + ' מתוך ' + findings.length;
-        }
-
         // Header
         var headerEl = document.getElementById('findings-detail-header');
         headerEl.innerHTML =
-          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
             '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
             '<span class="tag-inline">' + (f.category || 'CSPM') + '</span>' +
             '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + (f.id || '') + '</span>' +
@@ -483,11 +471,10 @@
               '</div>' +
             '</span>' +
           '</div>' +
-          '<div style="font-size:18px;font-weight:700;color:var(--text-heading);margin-bottom:6px;line-height:1.4;">' + escapeHtml(f.title || '') + '</div>' +
-          '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:12px;flex-wrap:wrap;">' +
-            (f.owner ? '<span>👤 ' + escapeHtml(f.owner) + '</span>' : '') +
-            (f.priority ? '<span>⏱ ' + escapeHtml(f.priority) + '</span>' : '') +
-            (f.category ? '<span>📂 ' + escapeHtml(f.category) + '</span>' : '') +
+          '<div style="font-size:17px;font-weight:700;color:var(--text-heading);margin-bottom:4px;">' + escapeHtml(f.title || '') + '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);">' +
+            (f.owner ? '👤 ' + escapeHtml(f.owner) : '') +
+            (f.priority ? ' · ⏱ ' + escapeHtml(f.priority) : '') +
           '</div>';
 
         // Wire detail actions dropdown
@@ -546,143 +533,20 @@
         var f = findings[selectedFindingIndex];
         if (!f) return;
 
-        var html = '';
-
+        var content = '';
         if (activeDetailTab === 'description') {
-          var desc = f.description || 'אין תיאור';
-          html = '<div class="detail-content-block">' + escapeHtml(desc) + '</div>';
-
+          content = f.description || 'אין תיאור';
         } else if (activeDetailTab === 'impact') {
-          var impact = f.impact || 'אין השפעה מוגדרת';
-          html = '<div class="detail-content-block">' + escapeHtml(impact) + '</div>';
-
+          content = f.impact || 'אין השפעה מוגדרת';
         } else if (activeDetailTab === 'technical') {
-          var tech = Array.isArray(f.technical) ? f.technical : (f.technical ? [f.technical] : []);
-          if (tech.length) {
-            html = '<ul class="detail-list-content">';
-            tech.forEach(function(line) { html += '<li>' + escapeHtml(line) + '</li>'; });
-            html += '</ul>';
-          } else {
-            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין פרטים טכניים</div>';
-          }
-
+          content = Array.isArray(f.technical) ? f.technical.join('\n') : (f.technical || 'אין פרטים טכניים');
         } else if (activeDetailTab === 'recs') {
-          var recs = Array.isArray(f.recs) ? f.recs : (f.recs ? [f.recs] : []);
-          if (recs.length) {
-            // If recommendations look like split remediation lines (many short items, no Hebrew sentences),
-            // join them back into a single readable block
-            var looksLikeSplitRemediation = recs.length > 2 && recs.every(function(r) {
-              return r.length < 200 && !/^[\u0590-\u05FF]/.test(r); // short lines, not starting with Hebrew
-            });
-            if (looksLikeSplitRemediation) {
-              html = '<ul class="detail-list-content"><li style="white-space:pre-wrap;"><strong>1.</strong> ' + escapeHtml(recs.join('\n')) + '</li></ul>';
-            } else {
-              html = '<ul class="detail-list-content">';
-              recs.forEach(function(r, i) { html += '<li style="white-space:pre-wrap;"><strong>' + (i + 1) + '.</strong> ' + escapeHtml(r) + '</li>'; });
-              html += '</ul>';
-            }
-          } else {
-            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין המלצות</div>';
-          }
-
+          content = Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || 'אין המלצות');
         } else if (activeDetailTab === 'policies') {
-          var policies = Array.isArray(f.policies) && f.policies.length ? f.policies : [];
-          if (policies.length) {
-            html = '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
-            policies.forEach(function(p) { html += '<span class="tag-inline">' + escapeHtml(p) + '</span>'; });
-            html += '</div>';
-          } else {
-            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין תקנים מקושרים</div>';
-          }
-
-        } else if (activeDetailTab === 'evidence') {
-          var evidence = Array.isArray(f.evidence) ? f.evidence : [];
-          if (evidence.length) {
-            html = '<div class="detail-evidence-grid">';
-            evidence.forEach(function(src, i) {
-              html += '<div class="detail-evidence-thumb" data-evidence-idx="' + i + '"><img src="' + src + '" alt="הוכחה ' + (i + 1) + '"></div>';
-            });
-            html += '</div>';
-          } else {
-            html = '<div class="detail-content-block" style="color:var(--text-muted);">אין הוכחות מצורפות</div>';
-          }
-
-        } else if (activeDetailTab === 'info') {
-          html = '<div class="detail-info-grid">';
-          html += '<div class="detail-info-item"><span class="detail-info-label">מזהה</span><span class="detail-info-value">' + escapeHtml(f.id || '—') + '</span></div>';
-          html += '<div class="detail-info-item"><span class="detail-info-label">קטגוריה</span><span class="detail-info-value">' + escapeHtml(f.category || '—') + '</span></div>';
-          html += '<div class="detail-info-item"><span class="detail-info-label">חומרה</span><span class="detail-info-value">' + escapeHtml((severityMap[f.severity] || {}).text || f.severity || '—') + '</span></div>';
-          html += '<div class="detail-info-item"><span class="detail-info-label">עדיפות</span><span class="detail-info-value">' + escapeHtml(f.priority || '—') + '</span></div>';
-          html += '<div class="detail-info-item"><span class="detail-info-label">בעלים</span><span class="detail-info-value">' + escapeHtml(f.owner || '—') + '</span></div>';
-          html += '<div class="detail-info-item"><span class="detail-info-label">הוכחות</span><span class="detail-info-value">' + (Array.isArray(f.evidence) ? f.evidence.length : 0) + ' תמונות</span></div>';
-          html += '</div>';
-
-        } else if (activeDetailTab === 'notes') {
-          var notes = Array.isArray(f.notes) ? f.notes : [];
-          html = '<div class="detail-notes-container">';
-          html += '<div class="detail-notes-messages" id="detail-notes-messages">';
-          if (notes.length) {
-            notes.forEach(function(note, i) {
-              html += '<div class="detail-note-msg"><span class="note-delete" data-note-idx="' + i + '" title="מחק">✕</span>' + escapeHtml(note.text) + '<span class="note-time">' + (note.time || '') + '</span></div>';
-            });
-          } else {
-            html += '<div style="text-align:center;color:var(--text-muted);font-size:12px;padding:20px;">אין הערות עדיין</div>';
-          }
-          html += '</div>';
-          html += '<div class="detail-notes-input"><input type="text" id="detail-note-input" placeholder="הוסף הערה..." dir="rtl"><button id="btn-add-note">שלח</button></div>';
-          html += '</div>';
+          content = Array.isArray(f.policies) && f.policies.length ? f.policies.join('\n') : 'אין תקנים';
         }
 
-        bodyEl.innerHTML = html;
-
-        // Wire evidence lightbox
-        if (activeDetailTab === 'evidence') {
-          bodyEl.querySelectorAll('.detail-evidence-thumb').forEach(function(thumb) {
-            thumb.addEventListener('click', function() {
-              var img = thumb.querySelector('img');
-              if (!img) return;
-              var overlay = document.createElement('div');
-              overlay.className = 'detail-evidence-full';
-              overlay.innerHTML = '<img src="' + img.src + '">';
-              overlay.addEventListener('click', function() { overlay.remove(); });
-              document.body.appendChild(overlay);
-            });
-          });
-        }
-
-        // Wire notes
-        if (activeDetailTab === 'notes') {
-          var noteInput = document.getElementById('detail-note-input');
-          var btnAddNote = document.getElementById('btn-add-note');
-          function addNote() {
-            var text = (noteInput.value || '').trim();
-            if (!text) return;
-            if (!f.notes) f.notes = [];
-            var now = new Date();
-            var time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ' ' + String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0');
-            f.notes.push({ text: text, time: time });
-            renderDetailTab();
-            autoSave();
-          }
-          if (btnAddNote) btnAddNote.addEventListener('click', addNote);
-          if (noteInput) noteInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') addNote(); });
-
-          // Wire note delete
-          bodyEl.querySelectorAll('.note-delete').forEach(function(btn) {
-            btn.addEventListener('click', function() {
-              var idx = parseInt(btn.getAttribute('data-note-idx'));
-              if (f.notes && !isNaN(idx)) {
-                f.notes.splice(idx, 1);
-                renderDetailTab();
-                autoSave();
-              }
-            });
-          });
-
-          // Scroll to bottom
-          var msgsEl = document.getElementById('detail-notes-messages');
-          if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
-        }
+        bodyEl.innerHTML = '<div class="detail-content-block">' + escapeHtml(content) + '</div>';
       }
 
       // Wire detail tabs
@@ -748,42 +612,6 @@
       });
       if (btnDetailEdit) btnDetailEdit.addEventListener('click', function() {
         if (selectedFindingIndex !== null) startEditFinding(selectedFindingIndex);
-      });
-
-      // Copy finding to clipboard
-      var btnDetailCopy = document.getElementById('btn-detail-copy');
-      if (btnDetailCopy) btnDetailCopy.addEventListener('click', function() {
-        if (selectedFindingIndex === null) return;
-        var f = findings[selectedFindingIndex];
-        var text = [
-          'מזהה: ' + (f.id || ''),
-          'כותרת: ' + (f.title || ''),
-          'חומרה: ' + ((severityMap[f.severity] || {}).text || ''),
-          'קטגוריה: ' + (f.category || ''),
-          'בעלים: ' + (f.owner || ''),
-          'עדיפות: ' + (f.priority || ''),
-          '',
-          'תיאור: ' + (f.description || ''),
-          '',
-          'השפעה: ' + (f.impact || ''),
-          '',
-          'המלצות:',
-          (Array.isArray(f.recs) ? f.recs.map(function(r, i) { return (i + 1) + '. ' + r; }).join('\n') : '')
-        ].join('\n');
-        navigator.clipboard.writeText(text).then(function() {
-          showToast('הועתק ללוח', 'success');
-        });
-      });
-
-      // Expand/collapse detail pane
-      var btnDetailExpand = document.getElementById('btn-detail-expand');
-      if (btnDetailExpand) btnDetailExpand.addEventListener('click', function() {
-        var pane = document.getElementById('findings-detail-pane');
-        if (pane) {
-          pane.classList.toggle('expanded');
-          btnDetailExpand.textContent = pane.classList.contains('expanded') ? '⛶' : '⛶';
-          btnDetailExpand.title = pane.classList.contains('expanded') ? 'צמצם' : 'הרחב';
-        }
       });
       if (btnDetailDelete) btnDetailDelete.addEventListener('click', function() {
         if (selectedFindingIndex !== null) {
@@ -1785,7 +1613,7 @@
           return true;
         });
         if (!selected.length) {
-          showToast('כל הממצאים הנבחרים כבר כוללים שיפור AI', 'info');
+          showToast('כל הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
           return;
         }
         enrichFindingsWithAiSummaries(selected);
@@ -2318,16 +2146,16 @@
           return true;
         });
         if (!toEnrich.length) {
-          showToast('כל הממצאים כבר כוללים שיפור AI', 'info');
+          showToast('כל הממצאים כבר כוללים סיכום AI', 'info');
           return;
         }
         enrichFindingsWithAiSummaries(toEnrich);
       });
 
-      // AI enrich selected findings only
-      var btnAiEnrichSelected = document.getElementById('btn-ai-enrich-selected');
-      if (btnAiEnrichSelected) {
-        btnAiEnrichSelected.addEventListener('click', function() {
+      // AI enrich selected findings (same pattern as btn-ai-enrich-all but for selection)
+      var _btnAiEnrichSelected = document.getElementById('btn-ai-enrich-selected');
+      if (_btnAiEnrichSelected) {
+        _btnAiEnrichSelected.addEventListener('click', function() {
           var indices = getSelectedFindingIndices();
           if (!indices.length) {
             showToast('לא נבחרו ממצאים', 'warning');
@@ -2341,7 +2169,7 @@
             return true;
           });
           if (!toEnrich.length) {
-            showToast('הממצאים הנבחרים כבר כוללים שיפור AI', 'info');
+            showToast('הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
             return;
           }
           enrichFindingsWithAiSummaries(toEnrich);
@@ -2680,12 +2508,8 @@
             ? `<ul class="tag-list">${f.policies.slice(0, 4).map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noPolicies}</p>`;
 
-          // Detect split-remediation arrays (legacy data): merge them back into a single readable bullet
-          const looksLikeSplitRem = f.recs.length > 2 && f.recs.every(r => r.length < 200 && !/^[\u0590-\u05FF]/.test(r));
           const recHtml = f.recs.length
-            ? (looksLikeSplitRem
-                ? `<ul><li style="white-space:pre-wrap;">${escapeHtml(f.recs.join('\n'))}</li></ul>`
-                : `<ul>${f.recs.map(r => `<li style="white-space:pre-wrap;">${escapeHtml(r)}</li>`).join('')}</ul>`)
+            ? `<ul>${f.recs.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
@@ -2704,7 +2528,6 @@
             : '';
 
           findingsCardsHtml += `
-          <section class="page-section finding-page">
           <div class="finding-wrap">
           ${catHeaderHtml}
           <div class="finding-card" id="${anchorId}">
@@ -2744,8 +2567,7 @@
             ${priorityHtml}
             ${evidenceHtml}
           </div>
-          </div>
-          </section>`;
+          </div>`;
           findingsCardsHtml += '\n';
           });
         });
@@ -3162,29 +2984,44 @@
   }
 
   /* --------- PRINT – יציב ל-PDF --------- */
-  /* Hide HTML header/footer unconditionally — Playwright provides its own */
-  .print-header, .print-footer {
-    display: none !important;
-  }
-
   @media print {
     body {
       background: #ffffff;
       margin: 0;
-      padding: 0;
+      padding: 0;       /* לא סומכים על padding של body בפרינט */
+    }
+
+    /* האדר: פעם אחת בראש המסמך, לא קבוע מעל שאר הדפים */
+    .print-header {
+      position: static !important;
+      height: auto;
+      padding: 4mm 20mm 2mm;
+      z-index: 0;
+    }
+
+    /* הפוטר: קבוע בתחתית כל עמוד, מרחף מעל מרווח ה-@page התחתון */
+    .print-footer {
+      position: fixed !important;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 15mm;
+      padding: 3mm 20mm;
+      border-top: 1px solid #cbd5e1;
+      background: #f8fafc;
+      z-index: 10;
     }
 
     .report-content {
       margin-top: 0;
       margin-bottom: 0;
-      padding: 0 10mm;
+      padding: 0 15mm 0 15mm;
     }
 
     .page-section {
       box-shadow: none;
-      margin: 0;
+      margin: 0 auto 10mm auto;
       border-radius: 0;
-      padding: 0 10mm;
       page-break-after: always;
     }
 
@@ -3192,51 +3029,42 @@
       page-break-after: auto;
     }
 
-    /* Findings intro section: don't break after, let first finding flow */
-    .findings-intro {
-      page-break-after: avoid !important;
-      break-after: avoid !important;
-    }
-
-    /* Each finding gets its own page */
-    .finding-page {
-      page-break-before: always;
-      page-break-after: auto;
-      padding: 0 10mm;
-    }
-
-    /* First finding flows after the intro on the same page */
-    .findings-intro + .finding-page {
-      page-break-before: auto !important;
+    h1, h2, h3, h4 {
+      margin-top: 8px;  /* בפרינט אין header fixed מעליהם */
     }
 
     .finding-wrap {
-      margin-top: 0;
+      break-inside: auto;
+      page-break-inside: auto;
+      margin-top: 10px;
     }
 
-    /* Card keeps its style but can break across pages */
+    .finding-wrap:first-child {
+      padding-top: 0;
+    }
+
     .finding-card {
       page-break-inside: auto;
       break-inside: auto;
+      margin: 0 0 10px 0;
       overflow: visible;
     }
 
-    /* Keep these atomic units together */
     .finding-header {
-      page-break-inside: avoid;
       break-inside: avoid;
-      page-break-after: avoid;
+      page-break-inside: avoid;
       break-after: avoid;
+      page-break-after: avoid;
     }
 
     .finding-section-title {
-      page-break-after: avoid;
       break-after: avoid;
+      page-break-after: avoid;
     }
 
     .finding-card li {
-      page-break-inside: avoid;
       break-inside: avoid;
+      page-break-inside: avoid;
     }
   }
 </style>
@@ -3377,13 +3205,13 @@
       ${catKeys.length > 1 ? '<h2>' + t.catBreakdown + '</h2>' + catMatrixHtml : ''}
     </section>
 
-    <section class="page-section findings-intro">
+    <section class="page-section">
       <h1 id="detailed-findings">${t.detailedFindings}</h1>
       <p>
         ${t.detailedFindingsText}
       </p>
+      ${findingsCardsHtml || '<p class="muted">' + t.noFindings + '</p>'}
     </section>
-    ${findingsCardsHtml || '<section class="page-section"><p class="muted">' + t.noFindings + '</p></section>'}
 
     <section class="page-section">
       <h1 id="recommendations">${t.recommendations}</h1>
@@ -4349,13 +4177,30 @@
             aiEnabled = true;
             // Populate model dropdown
             if (d.ai_models && d.ai_models.length && aiModelSelect) {
+              // Read previously-saved model (may be empty / stale / invalid)
+              var _savedAiModel = '';
+              try { _savedAiModel = localStorage.getItem('cspm.aiModel') || ''; } catch (e) {}
+
+              // Append all options first (don't set "selected" yet — we'll set .value once at the end)
               d.ai_models.forEach(function(m) {
                 var opt = document.createElement('option');
                 opt.value = m;
                 opt.textContent = m;
-                if (m === d.ai_default_model) opt.selected = true;
                 aiModelSelect.appendChild(opt);
               });
+
+              // Selection priority: saved (if still valid) → server default → first option (browser default)
+              if (_savedAiModel && d.ai_models.indexOf(_savedAiModel) !== -1) {
+                aiModelSelect.value = _savedAiModel;
+              } else if (d.ai_default_model && d.ai_models.indexOf(d.ai_default_model) !== -1) {
+                aiModelSelect.value = d.ai_default_model;
+              }
+
+              // Persist any future change to localStorage
+              aiModelSelect.addEventListener('change', function() {
+                try { localStorage.setItem('cspm.aiModel', aiModelSelect.value); } catch (e) {}
+              });
+
               aiModelRow.style.display = '';
             }
             aiFields.forEach(attachAiButton);
@@ -5220,9 +5065,10 @@
           var pageInfo = resultSet.pageInfo || {};
 
           // Client-side subscription name filter
-          // Only apply for excessiveAccessFindings which doesn't support backend filtering
-          // All other query types use backend filtering (resolved_sub_ids/resolved_sub_ext_ids)
-          var needsClientFilter = subscription && qt === 'excessiveAccessFindings';
+          // NOTE: Server-side filtering by scope.id.equals now works for excessiveAccessFindings.
+          // This client filter is disabled — it was hiding results because excessiveAccessFindings
+          // nodes don't have a populated cloudAccount.name to match against.
+          var needsClientFilter = false;
           if (needsClientFilter) {
             var subFilter = subscription.toLowerCase();
             var beforeFilter = nodes.length;
@@ -6248,18 +6094,22 @@
       function extractRecommendations(rule, sevLabel) {
         var recs = [];
 
-        // 1. Use remediationInstructions if available — keep as ONE recommendation
+        // 1. Use remediationInstructions if available (actual remediation steps)
         var ri = (rule.remediationInstructions || '').trim();
         if (ri) {
-          // Strip markdown code block markers but keep the content
+          // Extract code block contents and replace blocks with their content
           var cleaned = ri
             .replace(/```(?:\w*\n)?([\s\S]*?)```/g, function(_, code) {
               return code.trim();
             })
-            .trim();
-          if (cleaned.length > 10) {
-            recs.push(cleaned);
-          }
+            .replace(/\s*\n\s*/g, '\n');     // normalize whitespace
+          var lines = cleaned.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
+          lines.forEach(function(line) {
+            // Skip very short lines, pure formatting, or "Note:" disclaimers
+            if (line.length < 15) return;
+            if (/^note:/i.test(line)) return;
+            recs.push(line);
+          });
         }
 
         // 2. Fallback: extract from description — but ONLY "It is recommended" sentences
@@ -6290,17 +6140,23 @@
         var recsText = (finding.recs || []).join('\n');
         if ((!recsText || recsText.length < 30) && !finding.description) return Promise.resolve(null);
         retries = retries || 0;
-        var cacheKey = (finding.title || '') + '|' + recsText.substring(0, 200);
+        // Read AI model from dropdown (פרטי דו"ח). Safe-falsy if element missing.
+        var _aiModelEl = document.getElementById('ai-model');
+        var _selModel = (_aiModelEl && _aiModelEl.value) ? _aiModelEl.value : '';
+        var cacheKey = (finding.title || '') + '|' + _selModel + '|' + recsText.substring(0, 200);
         if (_aiSummaryCache[cacheKey]) return Promise.resolve(_aiSummaryCache[cacheKey]);
+
+        var _reqBody = {
+          title: finding.title || '',
+          description: finding.description || '',
+          text: recsText
+        };
+        if (_selModel) _reqBody.model = _selModel;
 
         return fetch('/api/summarize-remediation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: finding.title || '',
-            description: finding.description || '',
-            text: recsText
-          })
+          body: JSON.stringify(_reqBody)
         })
         .then(function(r) {
           if ((r.status === 429 || r.status === 502) && retries < 3) {
@@ -6339,7 +6195,7 @@
         var container = document.createElement('div');
         container.className = 'ai-progress-container';
         container.innerHTML =
-          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 משפר המלצות באמצעות AI</span></div>' +
+          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 מייצר סיכומי AI להמלצות</span></div>' +
           '<div class="ai-progress-track"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>' +
           '<div class="ai-progress-label"><span id="ai-progress-label">0 / ' + toEnrich.length + '</span><button class="ai-progress-abort" id="ai-progress-abort">ביטול</button></div>';
         document.body.appendChild(container);
@@ -6364,7 +6220,7 @@
           if (aborted) {
             container.querySelector('.ai-spinner').style.display = 'none';
             container.querySelector('.ai-progress-header span:last-child').textContent = '⏹ בוטל';
-            labelEl.textContent = enriched + ' המלצות שופרו';
+            labelEl.textContent = enriched + ' סיכומים נוספו';
             container.querySelector('#ai-progress-abort').style.display = 'none';
             setTimeout(function() {
               if (container.parentNode) container.parentNode.removeChild(container);
@@ -6376,8 +6232,8 @@
             // Done — show completion briefly then remove
             fillEl.style.width = '100%';
             container.querySelector('.ai-spinner').style.display = 'none';
-            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ שיפור המלצות הושלם';
-            labelEl.textContent = enriched + ' המלצות שופרו';
+            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ סיכומי AI הושלמו';
+            labelEl.textContent = enriched + ' סיכומים נוספו';
             container.querySelector('#ai-progress-abort').style.display = 'none';
             setTimeout(function() {
               if (container.parentNode) container.parentNode.removeChild(container);
@@ -6918,56 +6774,79 @@
         bulkImportRunning = true;
         btn.disabled = true;
         resultsDiv.innerHTML = '';
-        progressDiv.textContent = 'מבצע ייבוא מרוכז...';
+        progressDiv.textContent = '';
         actionsDiv.style.display = 'none';
+
         var bulkProg = document.getElementById('bulk-progress-bar');
         var bulkProgFill = document.getElementById('bulk-progress-fill');
         var bulkProgText = document.getElementById('bulk-progress-text');
-        if (bulkProg) { bulkProg.classList.add('active'); bulkProgFill.style.width = '30%'; bulkProgText.textContent = 'מייבא נתונים מ-Wizi...'; }
 
-        fetch('/api/wizi/bulk-fetch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: sub })
-        })
-        .then(function(resp) {
-          if (resp.status === 501) {
-            progressDiv.textContent = 'Wizi לא מוגדר';
-            return null;
+        // Ordered list of 9 query types with display labels (Hebrew + tag)
+        var stages = [
+          { qt: 'issues',                           label: 'Issues (כללי)' },
+          { qt: 'configurationFindings',            label: 'CSPM — Cloud Configuration' },
+          { qt: 'vulnerabilityFindings',            label: 'VULN — Vulnerabilities' },
+          { qt: 'hostConfigurationRuleAssessments', label: 'HSPM — Host Configuration' },
+          { qt: 'dataFindingsV2',                   label: 'DSPM — Data Findings' },
+          { qt: 'secretInstances',                  label: 'SECR — Secrets' },
+          { qt: 'excessiveAccessFindings',          label: 'EAPM — Excessive Access' },
+          { qt: 'networkExposures',                 label: 'NEXP — Network Exposure' },
+          { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' }
+        ];
+        var totalStages = stages.length;
+
+        if (bulkProg) {
+          bulkProg.classList.add('active');
+          bulkProgFill.style.width = '0%';
+          bulkProgText.textContent = 'מתחיל ייבוא...';
+        }
+
+        var aggregatedResults = {};
+        var aggregatedErrors = {};
+        var resolvedSubscription = null;
+
+        function setProgress(stageIdx, label, phase) {
+          // phase: 'start' (entering stage) or 'done' (just finished stage)
+          var displayedStep = (phase === 'done') ? (stageIdx + 1) : (stageIdx + 1);
+          var pct;
+          if (phase === 'start') {
+            // Starting stage N → already done (N-1)/total
+            pct = Math.round((stageIdx / totalStages) * 100);
+          } else {
+            // Finished stage N → done (N)/total
+            pct = Math.round(((stageIdx + 1) / totalStages) * 100);
           }
-          if (resp.status === 429) {
-            progressDiv.textContent = 'חריגה ממגבלת קצב בקשות';
-            return null;
+          if (bulkProgFill) bulkProgFill.style.width = pct + '%';
+          if (bulkProgText) {
+            var prefix = 'שלב ' + displayedStep + '/' + totalStages + ': ';
+            bulkProgText.textContent = prefix + label + ' (' + pct + '%)';
           }
-          if (!resp.ok) {
-            return resp.json().then(function(err) {
-              progressDiv.textContent = err.error || 'שגיאה בשליפת נתונים';
-              return null;
-            });
-          }
-          return resp.json();
-        })
-        .then(function(data) {
-          if (data) {
-            renderBulkResults(data);
+        }
+
+        function fetchStage(stageIdx) {
+          if (stageIdx >= totalStages) {
+            // All stages done → finalize
+            if (bulkProgFill) bulkProgFill.style.width = '100%';
+            if (bulkProgText) bulkProgText.textContent = 'הושלם — מציג תוצאות...';
+            var finalData = {
+              results: aggregatedResults,
+              resolvedSubscription: resolvedSubscription || {},
+              errors: aggregatedErrors
+            };
+            renderBulkResults(finalData);
             // Auto-fill report details from bulk import results
             if (!document.getElementById('report-client').value.trim()) {
-              var resolved = data.resolvedSubscription || {};
-              // Use resolved externalIds for client name (cloud provider subscription IDs)
+              var resolved = finalData.resolvedSubscription || {};
               var clientName = (resolved.externalIds || []).join(', ') || (resolved.names || []).join(', ');
-
-              // Detect cloud platforms and key topics from results
               var clouds = {};
               var topics = {};
-              var results = data.results || {};
-              Object.keys(results).forEach(function(qt) {
-                var nodes = (results[qt] || {}).nodes || [];
+              Object.keys(aggregatedResults).forEach(function(qt) {
+                var nodes = (aggregatedResults[qt] || {}).nodes || [];
                 if (!nodes.length) return;
                 var d = extractWiziAutoFillData(nodes, qt);
                 if (d.cloud) d.cloud.split(', ').forEach(function(c) { clouds[c] = true; });
                 if (d.keyTopics) d.keyTopics.split('\n').forEach(function(t) { topics[t] = true; });
               });
-
               var mergedData = {
                 subscription: clientName,
                 cloud: Object.keys(clouds).join(', '),
@@ -6977,17 +6856,60 @@
                 showWiziAutoFillBanner(mergedData);
               }
             }
+            btn.disabled = false;
+            bulkImportRunning = false;
+            if (bulkProg) {
+              // Briefly show 100% then hide
+              setTimeout(function() { bulkProg.classList.remove('active'); }, 800);
+            }
+            return;
           }
-        })
-        .catch(function() {
-          progressDiv.textContent = 'שגיאת רשת';
-        })
-        .finally(function() {
-          btn.disabled = false;
-          bulkImportRunning = false;
-          var bulkProg = document.getElementById('bulk-progress-bar');
-          if (bulkProg) bulkProg.classList.remove('active');
-        });
+
+          var stage = stages[stageIdx];
+          setProgress(stageIdx, stage.label, 'start');
+
+          fetch('/api/wizi/bulk-fetch-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscription: sub, queryType: stage.qt })
+          })
+          .then(function(resp) {
+            if (resp.status === 501) { progressDiv.textContent = 'Wizi לא מוגדר'; return { _abort: true }; }
+            if (resp.status === 429) { progressDiv.textContent = 'חריגה ממגבלת קצב בקשות'; return { _abort: true }; }
+            if (!resp.ok) {
+              return resp.json().catch(function() { return {}; }).then(function(err) {
+                aggregatedErrors[stage.qt] = err.error || ('HTTP ' + resp.status);
+                return { _stageError: true };
+              });
+            }
+            return resp.json();
+          })
+          .then(function(data) {
+            if (data && data._abort) {
+              btn.disabled = false;
+              bulkImportRunning = false;
+              if (bulkProg) bulkProg.classList.remove('active');
+              return;
+            }
+            if (data && !data._stageError) {
+              if (data.resolvedSubscription && !resolvedSubscription) {
+                resolvedSubscription = data.resolvedSubscription;
+              }
+              if (data.result) {
+                aggregatedResults[stage.qt] = data.result;
+              }
+            }
+            setProgress(stageIdx, stage.label, 'done');
+            fetchStage(stageIdx + 1);
+          })
+          .catch(function(e) {
+            aggregatedErrors[stage.qt] = 'שגיאת רשת';
+            setProgress(stageIdx, stage.label, 'done');
+            fetchStage(stageIdx + 1);
+          });
+        }
+
+        fetchStage(0);
       }
 
       function renderBulkResults(data) {
@@ -7039,8 +6961,11 @@
           var r = results[qt] || {};
           var nodes = r.nodes || [];
 
-          // Client-side subscription filter for excessiveAccessFindings (no server-side filter)
-          if (qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
+          // Client-side subscription filter for excessiveAccessFindings
+          // DISABLED: Server-side filter (scope.id.equals) now handles this.
+          // Client filter was removing all results because excessiveAccessFindings
+          // nodes have empty cloudAccount.name and externalId fields.
+          if (false && qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
             nodes = nodes.filter(function(n) {
               var p = n.principal || {};
               var pca = p.cloudAccount || {};
@@ -7053,47 +6978,7 @@
           if (nodes.length) {
             bulkImportResults[qt] = nodes;
             totalCount += nodes.length;
-
-            // Count severities and unique items for better display
-            var sevCounts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-            var uniqueKeys = new Set();
-
-            nodes.forEach(function(node) {
-              var sev = mapWiziSeverity(node.severity);
-              sevCounts[sev] = (sevCounts[sev] || 0) + 1;
-
-              // Get unique key for consolidation preview (CVE name for vulns, rule ID for others)
-              var uniqueKey = null;
-              if (qt === 'vulnerabilityFindings') {
-                uniqueKey = node.name || node.detailedName;
-              } else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments') {
-                var rule = node.rule || {};
-                uniqueKey = rule.id || rule.shortId || rule.name;
-              } else if (qt === 'issues') {
-                var rules = node.sourceRules || [];
-                uniqueKey = rules.length ? rules[0].id : null;
-              }
-              if (uniqueKey) uniqueKeys.add(uniqueKey);
-            });
-
-            // Build severity breakdown string
-            var sevParts = [];
-            if (sevCounts.critical) sevParts.push(sevCounts.critical + ' קריטי');
-            if (sevCounts.high) sevParts.push(sevCounts.high + ' גבוה');
-            if (sevCounts.medium) sevParts.push(sevCounts.medium + ' בינוני');
-            if (sevCounts.low) sevParts.push(sevCounts.low + ' נמוך');
-
-            var breakdownText = (queryTypeLabels[qt]) + ': ' + nodes.length;
-            if (sevParts.length) {
-              breakdownText += ' (' + sevParts.join(', ') + ')';
-            }
-
-            // Show unique count if consolidation will happen
-            if (uniqueKeys.size > 0 && uniqueKeys.size < nodes.length) {
-              breakdownText += ' → ' + uniqueKeys.size + ' ייחודיים';
-            }
-
-            breakdownParts.push(breakdownText);
+            breakdownParts.push((queryTypeLabels[qt]) + ': ' + nodes.length);
           }
         });
 

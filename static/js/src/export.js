@@ -851,13 +851,30 @@
             aiEnabled = true;
             // Populate model dropdown
             if (d.ai_models && d.ai_models.length && aiModelSelect) {
+              // Read previously-saved model (may be empty / stale / invalid)
+              var _savedAiModel = '';
+              try { _savedAiModel = localStorage.getItem('cspm.aiModel') || ''; } catch (e) {}
+
+              // Append all options first (don't set "selected" yet — we'll set .value once at the end)
               d.ai_models.forEach(function(m) {
                 var opt = document.createElement('option');
                 opt.value = m;
                 opt.textContent = m;
-                if (m === d.ai_default_model) opt.selected = true;
                 aiModelSelect.appendChild(opt);
               });
+
+              // Selection priority: saved (if still valid) → server default → first option (browser default)
+              if (_savedAiModel && d.ai_models.indexOf(_savedAiModel) !== -1) {
+                aiModelSelect.value = _savedAiModel;
+              } else if (d.ai_default_model && d.ai_models.indexOf(d.ai_default_model) !== -1) {
+                aiModelSelect.value = d.ai_default_model;
+              }
+
+              // Persist any future change to localStorage
+              aiModelSelect.addEventListener('change', function() {
+                try { localStorage.setItem('cspm.aiModel', aiModelSelect.value); } catch (e) {}
+              });
+
               aiModelRow.style.display = '';
             }
             aiFields.forEach(attachAiButton);
