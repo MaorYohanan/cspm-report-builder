@@ -97,6 +97,14 @@
         </button>
       </nav>
 
+      <div class="sidebar-section-label section-products" data-collapse="nav-products">מוצרים <span class="section-chevron">‹</span></div>
+      <nav class="sidebar-nav" id="nav-products">
+        <button class="sidebar-item" role="tab" aria-selected="false"
+                aria-controls="panel-products" id="tab-products" title="מוצרים">
+          <span class="sidebar-item-icon icon-products">📦</span> מוצרים
+        </button>
+      </nav>
+
       <div class="sidebar-footer">
         <div class="sidebar-utils">
           <button class="btn-icon" id="btn-theme-toggle" title="החלף ערכת נושא">🌙</button>
@@ -570,6 +578,7 @@
             <div class="export-card-header">☁️ שמירה בשרת</div>
             <div class="export-card-body">
               <button class="btn btn-secondary" id="btn-save-state-cloud">☁️ שמור בשרת</button>
+              <button class="btn btn-secondary" id="btn-save-as-version">📦 שמור כגרסת מוצר</button>
             </div>
           </div>
         </div>
@@ -747,6 +756,13 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/builder.js?v=90"></script>
+  <!-- Panel: מוצרים -->
+  <section class="tab-panel" id="panel-products" role="tabpanel" aria-labelledby="tab-products" style="display:none;">
+    <div id="products-panel-content">
+      <!-- Content rendered dynamically by products.js -->
+    </div>
+  </section>
+
+  <script type="module" src="/static/js/builder.js?v=91"></script>
 </body>
 </html>
