@@ -647,6 +647,7 @@ def save_version(product_id: str):
         report_version = str(snapshot["meta"].get("reportVersion", "1.0"))
 
     version_data = {
+        **snapshot,
         "version": version_str,
         "reportVersion": report_version,
         "versionNotes": notes,
@@ -655,7 +656,6 @@ def save_version(product_id: str):
         "savedAt": now,
         "publishedAt": None,
         "riskScore": risk_score,
-        **snapshot,
     }
 
     ver_file = product_dir / f"v{version_str}.json"
