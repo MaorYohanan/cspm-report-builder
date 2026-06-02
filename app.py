@@ -35,7 +35,6 @@ from backend.routes.wiz import wiz_bp
 from backend.routes.ai import ai_bp, GEMINI_MODELS, GEMINI_DEFAULT_MODEL
 from backend.routes.reports import reports_bp
 from backend.routes.files import files_bp
-from backend.routes.introspect import introspect_bp
 
 app = Flask(
     __name__,
@@ -61,7 +60,6 @@ app.register_blueprint(wiz_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(files_bp)
-app.register_blueprint(introspect_bp)
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
