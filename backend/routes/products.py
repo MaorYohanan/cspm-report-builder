@@ -738,9 +738,6 @@ def delete_version(product_id: str, ver: str):
     except Exception:
         return jsonify({"error": "Failed to read version"}), 500
 
-    if data.get("status") == "published":
-        return jsonify({"error": "Cannot delete a published version"}), 409
-
     deleted_meta = {
         "version": data.get("version"),
         "reportVersion": data.get("reportVersion"),

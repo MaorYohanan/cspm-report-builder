@@ -196,6 +196,15 @@
     <section class="tab-panel" id="panel-report-details" role="tabpanel" aria-labelledby="tab-report-details">
       <div class="section-body report-form">
 
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);">
+          <button class="btn btn-secondary btn-sm" id="btn-save-defaults">💾 שמור כברירת מחדל</button>
+          <button class="btn btn-secondary btn-sm" id="btn-load-defaults">📂 טען ברירת מחדל</button>
+          <button class="btn btn-danger btn-sm" id="btn-clear-defaults">✕ מחק ברירת מחדל</button>
+          <span id="defaults-status" class="muted small-text"></span>
+          <div style="flex:1;"></div>
+          <button class="btn btn-secondary btn-sm" id="btn-save-as-version-details">📦 שמור כגרסת מוצר</button>
+        </div>
+
         <details class="form-collapse" open>
           <summary class="form-collapse-title">פרטי לקוח</summary>
           <div class="report-form-grid">
@@ -309,15 +318,6 @@
           </div>
         </details>
 
-        <details class="defaults-section">
-          <summary class="defaults-summary">💾 ברירות מחדל</summary>
-          <div class="defaults-bar">
-            <button class="btn btn-secondary btn-sm" id="btn-save-defaults">שמור כברירת מחדל</button>
-            <button class="btn btn-secondary btn-sm" id="btn-load-defaults">טען ברירת מחדל</button>
-            <button class="btn btn-danger btn-sm" id="btn-clear-defaults">מחק ברירת מחדל</button>
-            <span id="defaults-status" class="muted small-text"></span>
-          </div>
-        </details>
       </div>
     </section>
 
@@ -763,6 +763,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/builder.js?v=92"></script>
+  <script type="module" src="/static/js/builder.js?v=93"></script>
 </body>
 </html>

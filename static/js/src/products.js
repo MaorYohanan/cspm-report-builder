@@ -80,6 +80,13 @@ var ProductsPanel = {
         self._exportShortcutFlow();
       });
     }
+    // Wire report-details panel shortcut (same flow)
+    var saveBtn2 = document.getElementById('btn-save-as-version-details');
+    if (saveBtn2) {
+      saveBtn2.addEventListener('click', function() {
+        self._exportShortcutFlow();
+      });
+    }
     // Wire tab button — load grid on first click
     var tabBtn = document.getElementById('tab-products');
     if (tabBtn) {
@@ -263,8 +270,8 @@ var ProductsPanel = {
         html += '<button class="btn btn-secondary btn-sm" data-action="download" data-ver="' + _esc(v.version) + '">הורד</button>';
         if (v.status === 'draft') {
           html += '<button class="btn btn-primary btn-sm" data-action="publish" data-ver="' + _esc(v.version) + '">פרסם</button>';
-          html += '<button class="btn btn-danger btn-sm" data-action="delver" data-ver="' + _esc(v.version) + '">מחק</button>';
         }
+        html += '<button class="btn btn-danger btn-sm" data-action="delver" data-ver="' + _esc(v.version) + '">מחק</button>';
         html += '</div></div>';
       });
       html += '</div>';
