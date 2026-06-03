@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=34">
+  <link rel="stylesheet" href="/static/css/builder.css?v=35">
 </head>
 <body>
   <!-- Toast container -->
@@ -424,6 +424,18 @@
         <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
         <span class="kbd-hint">Ctrl+Enter</span>
         <span id="edit-state" class="muted small-text"></span>
+
+        <!-- Exception toggle -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;">
+            <input type="checkbox" id="f-exception" style="width:16px;height:16px;accent-color:var(--warning);cursor:pointer;">
+            <span style="font-size:13px;font-weight:600;color:var(--warning);">⚠ מוחרג — ממצא זה אושר כחריגה</span>
+          </label>
+          <div id="f-exception-reason-wrap" style="display:none;margin-top:8px;">
+            <label for="f-exception-reason">סיבת ההחרגה (אופציונלי)</label>
+            <textarea id="f-exception-reason" rows="2" placeholder="לדוגמה: אושר ע״י CISO ב-01/01/2025 — גישה ציבורית נדרשת לאתר סטטי"></textarea>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -455,6 +467,10 @@
                 <option value="low">נמוך</option>
                 <option value="info">מידע</option>
               </select>
+              <label style="display:flex;align-items:center;gap:5px;font-size:11px;cursor:pointer;color:var(--text-muted);margin-top:4px;">
+                <input type="checkbox" id="findings-filter-show-exceptions" style="accent-color:var(--warning);">
+                הצג מוחרגים בלבד
+              </label>
             </div>
           </div>
           <div id="category-badges" class="category-badges"></div>
@@ -534,6 +550,7 @@
               <button class="findings-detail-tab" data-detail-tab="evidence">הוכחות</button>
               <button class="findings-detail-tab" data-detail-tab="info">מידע נוסף</button>
               <button class="findings-detail-tab" data-detail-tab="notes">הערות</button>
+              <button class="findings-detail-tab" data-detail-tab="exception">מוחרג</button>
             </div>
             <div class="findings-detail-body" id="findings-detail-body"></div>
             <div class="findings-detail-footer">

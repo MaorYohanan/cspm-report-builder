@@ -92,10 +92,10 @@
         <tr><th>רמת חומרה</th><th>מספר ממצאים</th><th>הערות</th></tr>
       </thead>
       <tbody>
-        <tr><td>קריטי</td><td>{{ counts.critical }}</td><td>חשיפה ישירה/השפעה חמורה.</td></tr>
-        <tr><td>גבוה</td><td>{{ counts.high }}</td><td>סיכון מוגבר לדליפה/השבתה.</td></tr>
-        <tr><td>בינוני</td><td>{{ counts.medium }}</td><td>פערי best practices.</td></tr>
-        <tr><td>נמוך</td><td>{{ counts.low }}</td><td>שיפורי הקשחה.</td></tr>
+        <tr><td>קריטי</td><td>{{ counts.critical }}{% if counts.critical_exc %} <span style="font-size:10px;color:#888;">(כולל {{ counts.critical_exc }} מוחרגים)</span>{% endif %}</td><td>חשיפה ישירה/השפעה חמורה.</td></tr>
+        <tr><td>גבוה</td><td>{{ counts.high }}{% if counts.high_exc %} <span style="font-size:10px;color:#888;">(כולל {{ counts.high_exc }} מוחרגים)</span>{% endif %}</td><td>סיכון מוגבר לדליפה/השבתה.</td></tr>
+        <tr><td>בינוני</td><td>{{ counts.medium }}{% if counts.medium_exc %} <span style="font-size:10px;color:#888;">(כולל {{ counts.medium_exc }} מוחרגים)</span>{% endif %}</td><td>פערי best practices.</td></tr>
+        <tr><td>נמוך</td><td>{{ counts.low }}{% if counts.low_exc %} <span style="font-size:10px;color:#888;">(כולל {{ counts.low_exc }} מוחרגים)</span>{% endif %}</td><td>שיפורי הקשחה.</td></tr>
         <tr><td>מידע</td><td>{{ counts.info }}</td><td>מידע לתכנון עתידי.</td></tr>
       </tbody>
     </table>
@@ -126,6 +126,13 @@
             </div>
             <div class="severity-badge {{ f.sev_class }}">{{ f.sev_text }}</div>
           </div>
+
+          {% if f.is_exception %}
+          <div class="exception-banner-pdf">
+            ⚠ ממצא מוחרג — אושר כחריגה מדיניות
+            {% if f.exception_reason %}<div class="exception-reason-pdf">{{ f.exception_reason }}</div>{% endif %}
+          </div>
+          {% endif %}
 
           <div class="finding-section-title"><strong>תיאור הממצא</strong></div>
           <p>{{ f.description or "" }}</p>
@@ -191,7 +198,7 @@
               <td>{{ f.sev_text }}</td>
               <td>Owner / Team</td>
               <td>{{ f.due_date or "DD/MM/YYYY" }}</td>
-              <td>פתוח</td>
+              <td>{% if f.is_exception %}מוחרג{% else %}פתוח{% endif %}</td>
             </tr>
           {% endfor %}
         {% else %}

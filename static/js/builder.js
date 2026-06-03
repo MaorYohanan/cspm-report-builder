@@ -544,6 +544,15 @@
           content = Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || 'אין המלצות');
         } else if (activeDetailTab === 'policies') {
           content = Array.isArray(f.policies) && f.policies.length ? f.policies.join('\n') : 'אין תקנים';
+        } else if (activeDetailTab === 'exception') {
+          var isExc = !!(f.exception && f.exception.active);
+          var reason = (f.exception && f.exception.reason) || '';
+          bodyEl.innerHTML = isExc
+            ? '<div class="exception-banner"><span class="badge-exception" style="font-size:12px;padding:3px 10px;">⚠ מוחרג</span>' +
+              (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">לא הוזנה סיבה.</div>') +
+              '</div>'
+            : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג.</div>';
+          return;
         }
 
         bodyEl.innerHTML = '<div class="detail-content-block">' + escapeHtml(content) + '</div>';
@@ -1060,6 +1069,17 @@
       prioritySelect.addEventListener('change', updatePriorityCustomVisibility);
       updatePriorityCustomVisibility();
 
+      // Exception checkbox toggle
+      (function() {
+        var excCheck = document.getElementById('f-exception');
+        var excReasonWrap = document.getElementById('f-exception-reason-wrap');
+        if (excCheck && excReasonWrap) {
+          excCheck.addEventListener('change', function() {
+            excReasonWrap.style.display = this.checked ? '' : 'none';
+          });
+        }
+      })();
+
       // --- Ctrl+Enter shortcut ---
       document.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -1220,7 +1240,10 @@
               : splitLines(f.recs || ''),
             priority: f.priority || '',
             owner: f.owner || '',
-            evidence: Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : [])
+            evidence: Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []),
+            exception: (f.exception && typeof f.exception === 'object')
+              ? { active: !!f.exception.active, reason: f.exception.reason || '' }
+              : { active: false, reason: '' }
           });
         });
 
@@ -1301,12 +1324,14 @@
               var searchText = (document.getElementById('findings-search').value || '').toLowerCase();
               var filterCat = document.getElementById('findings-filter-category').value;
               var filterSev = document.getElementById('findings-filter-severity').value;
+              var filterExcOnly = !!(document.getElementById('findings-filter-show-exceptions') || {}).checked;
 
               var filtered = [];
               findings.forEach(function(f, idx) {
                 if (searchText && (f.title || '').toLowerCase().indexOf(searchText) < 0 && (f.id || '').toLowerCase().indexOf(searchText) < 0) return;
                 if (filterCat && f.category !== filterCat) return;
                 if (filterSev && f.severity !== filterSev) return;
+                if (filterExcOnly && !(f.exception && f.exception.active)) return;
                 filtered.push({ f: f, idx: idx });
               });
 
@@ -1356,12 +1381,15 @@
                 var f = item.f;
                 var idx = item.idx;
                 const sev = severityMap[f.severity] || severityMap.medium;
+                var isExc = !!(f.exception && f.exception.active);
+                var excBadge = isExc ? ' <span class="badge-exception">מוחרג</span>' : '';
+                var rowStyle = isExc ? ' style="opacity:0.65;"' : '';
 
-                html += '<tr data-idx="' + idx + '">' +
+                html += '<tr data-idx="' + idx + '"' + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
                   '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (f.id || '') + '</td>' +
-                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title || '') + '</td>' +
+                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title || '') + excBadge + '</td>' +
                   '<td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td>' +
                   '</tr>';
               });
@@ -1624,6 +1652,8 @@
       document.getElementById('findings-search').addEventListener('input', renderFindingsTable);
       document.getElementById('findings-filter-category').addEventListener('change', renderFindingsTable);
       document.getElementById('findings-filter-severity').addEventListener('change', renderFindingsTable);
+      var excFilterEl = document.getElementById('findings-filter-show-exceptions');
+      if (excFilterEl) excFilterEl.addEventListener('change', renderFindingsTable);
 
       // ── Category count badges ──
       function renderCategoryBadges() {
@@ -1809,6 +1839,13 @@
         evidenceInput.value = '';
         clearEvidencePreview();
         updatePriorityCustomVisibility();
+        // Clear exception fields
+        var excCheck = document.getElementById('f-exception');
+        var excReasonWrap = document.getElementById('f-exception-reason-wrap');
+        var excReason = document.getElementById('f-exception-reason');
+        if (excCheck) excCheck.checked = false;
+        if (excReasonWrap) excReasonWrap.style.display = 'none';
+        if (excReason) excReason.value = '';
         prefillId();
       }
 
@@ -1828,6 +1865,17 @@
         document.getElementById('f-policies').value = Array.isArray(f.policies) ? f.policies.join('\n') : f.policies;
         document.getElementById('f-recs').value = Array.isArray(f.recs) ? f.recs.join('\n') : f.recs;
         document.getElementById('f-owner').value = f.owner || '';
+
+        // Restore exception state
+        var excCheck = document.getElementById('f-exception');
+        var excReasonWrap = document.getElementById('f-exception-reason-wrap');
+        var excReason = document.getElementById('f-exception-reason');
+        if (excCheck) {
+          var isExc = !!(f.exception && f.exception.active);
+          excCheck.checked = isExc;
+          if (excReasonWrap) excReasonWrap.style.display = isExc ? '' : 'none';
+          if (excReason) excReason.value = (f.exception && f.exception.reason) || '';
+        }
 
         const knownPriorities = ['', 'מיידי (0–7 ימים)', 'גבוהה (עד 30 ימים)', 'בינונית (30–60 ימים)', 'נמוכה (60–120 ימים)', 'למעקב'];
         if (knownPriorities.includes(f.priority)) {
@@ -2016,7 +2064,15 @@
             recs,
             priority,
             owner,
-            evidence
+            evidence,
+            exception: (function() {
+              var excCheck = document.getElementById('f-exception');
+              var excReason = document.getElementById('f-exception-reason');
+              if (excCheck && excCheck.checked) {
+                return { active: true, reason: (excReason ? excReason.value.trim() : '') };
+              }
+              return { active: false, reason: '' };
+            })()
           };
 
           if (editingIndex === null) {
@@ -2453,6 +2509,15 @@
         const infoCount  = countSeverity('info');
         const riskScore  = calcRiskScore();
 
+        // Exception counts per severity (for summary table annotation)
+        function countExcBySeverity(key) {
+          return findings.filter(function(f){ return f.severity === key && f.exception && f.exception.active; }).length;
+        }
+        const critExc = countExcBySeverity('critical');
+        const highExc = countExcBySeverity('high');
+        const medExc  = countExcBySeverity('medium');
+        const lowExc  = countExcBySeverity('low');
+
         // Group findings by category
         var findingsByCategory = {};
         findings.forEach(function(f) {
@@ -2531,7 +2596,7 @@
           findingsCardsHtml += `
           <div class="finding-wrap">
           ${catHeaderHtml}
-          <div class="finding-card" id="${anchorId}">
+          <div class="finding-card${(f.exception && f.exception.active) ? ' finding-card-exception' : ''}" id="${anchorId}">
             <div class="finding-header">
               <div>
                 <div class="finding-title">${escapeHtml(f.title)}</div>
@@ -2539,6 +2604,12 @@
               </div>
               <div class="severity-badge ${sev.class}">${sevText(f.severity)}</div>
             </div>
+
+            ${(f.exception && f.exception.active) ? `
+            <div class="exception-banner-pdf">
+              ⚠ ממצא מוחרג — אושר כחריגה מדיניות
+              ${f.exception.reason ? '<div class="exception-reason-pdf">' + escapeHtml(f.exception.reason) + '</div>' : ''}
+            </div>` : ''}
 
             <div class="finding-section-title">${t.findingDesc}</div>
             ${Array.isArray(f.description)
@@ -2594,7 +2665,7 @@
               '<td>' + sevText(f.severity) + '</td>' +
               '<td>' + (escapeHtml(f.owner) || t.ownerPlaceholder) + '</td>' +
               '<td>' + dueDate + '</td>' +
-              '<td>' + t.statusOpen + '</td>' +
+              '<td>' + ((f.exception && f.exception.active) ? 'מוחרג' : t.statusOpen) + '</td>' +
             '</tr>'
           );
         }).join('\n');
@@ -2625,11 +2696,6 @@
 
 <style>
   * { box-sizing: border-box; }
-
-  @page {
-    size: A4;
-    margin: 0 0 20mm 0;  /* בלי מרווח למעלה, 20mm מרווח לתחתית בשביל הפוטר */
-  }
 
   body {
     margin: 0;
@@ -2896,6 +2962,36 @@
     border: 1px solid #e2e8f0;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
     overflow: hidden;
+  }
+
+  .finding-card-exception {
+    border-color: #bbf7d0;
+  }
+
+  .exception-banner-pdf {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #f0fdf4;
+    border: 1px solid #22c55e;
+    border-right: 5px solid #16a34a;
+    border-radius: 5px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #15803d;
+    letter-spacing: 0.2px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .exception-reason-pdf {
+    font-size: 11px;
+    font-weight: 400;
+    color: #166534;
+    line-height: 1.5;
+    margin-top: 3px;
   }
 
   .finding-header {
@@ -3174,22 +3270,22 @@
         <tbody>
           <tr>
             <td>${t.critical}</td>
-            <td>${critCount}</td>
+            <td>${critCount}${critExc ? ' <span style="font-size:10px;color:#888;">(כולל ' + critExc + ' מוחרגים)</span>' : ''}</td>
             <td>${t.critNote}</td>
           </tr>
           <tr>
             <td>${t.high}</td>
-            <td>${highCount}</td>
+            <td>${highCount}${highExc ? ' <span style="font-size:10px;color:#888;">(כולל ' + highExc + ' מוחרגים)</span>' : ''}</td>
             <td>${t.highNote}</td>
           </tr>
           <tr>
             <td>${t.medium}</td>
-            <td>${medCount}</td>
+            <td>${medCount}${medExc ? ' <span style="font-size:10px;color:#888;">(כולל ' + medExc + ' מוחרגים)</span>' : ''}</td>
             <td>${t.medNote}</td>
           </tr>
           <tr>
             <td>${t.low}</td>
-            <td>${lowCount}</td>
+            <td>${lowCount}${lowExc ? ' <span style="font-size:10px;color:#888;">(כולל ' + lowExc + ' מוחרגים)</span>' : ''}</td>
             <td>${t.lowNote}</td>
           </tr>
           <tr>
@@ -8394,7 +8490,8 @@ function _initRiskTooltip() {
     + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.62 0.17 155);"></span>0 – 10 &nbsp;&nbsp;סיכון נמוך</div>'
     + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.72 0.16 60);"></span>11 – 30 &nbsp;סיכון בינוני</div>'
     + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.58 0.22 15);"></span>31+ &nbsp;&nbsp;&nbsp;&nbsp;סיכון גבוה</div>'
-    + '</div>';
+    + '</div>'
+    + '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:10px;color:var(--text-dim);">ממצאים מוחרגים אינם נספרים בציון.</div>';
   document.body.appendChild(_riskTooltipEl);
 
   document.addEventListener('mouseover', function(e) {
