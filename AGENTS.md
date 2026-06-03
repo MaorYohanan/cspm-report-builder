@@ -167,3 +167,20 @@ Things that DON'T exist (confirmed via API errors):
 - Current versions: JS `?v=46`, CSS `?v=18`
 - `.env` file is gitignored — never commit credentials
 - The tool is branded "Wizi" (rebranded from Wiz) in the UI — keep it public-ready with no org-specific references
+
+## PDF Rendering — DO NOT CHANGE THESE VALUES
+
+**This combination is the result of extensive trial-and-error tuning. Changing any one of these values will cause page header overlap, content cut-off, or excessive blank space between header and content.**
+
+In `backend/services/pdf_service.py`:
+
+| Setting | Value | Why |
+|---|---|---|
+| Playwright `margin.top` | `30mm` | Matches actual header HTML height (~14mm) plus breathing room. Higher values create huge blank space; lower values overlap the header. |
+| Playwright `margin.bottom` | `20mm` | Matches footer height plus breathing room. |
+| Playwright `margin.left/right` | `10mm` | Maximizes usable content width. |
+| `MAX_CARD_HEIGHT_PX` | `900` | Calibrated to printable height: A4 (297mm) − 50mm margins = 247mm = ~933px at 96 DPI. 900px gives safety margin. Lower → over-splits short cards. Higher → cards overflow next page header. |
+| `page.emulate_media(media="print")` | required | Without this, `@media print` rules in `CLEAN_PRINT_CSS` are ignored and styles never apply. |
+| `.page-section` / `.finding-page` `padding-top` (in `CLEAN_PRINT_CSS`) | `4mm` | Small inner spacing. The 30mm Playwright top margin already handles outer spacing. |
+
+**If the PDF rendering looks wrong, do NOT change these values without first reading the discussion in commit history about page header overlap.**

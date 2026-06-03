@@ -3,6 +3,19 @@ PDF Service - Handles PDF and HTML rendering for CSPM reports.
 
 This service encapsulates the PDF generation logic using Playwright,
 including header/footer templates and page splitting for long findings.
+
+⚠️  CRITICAL — DO NOT CHANGE THESE VALUES WITHOUT UNDERSTANDING WHY:
+
+  - page.pdf margin.top=30mm   → matches header HTML height (~14mm) plus gap
+  - page.pdf margin.bottom=20mm → matches footer height plus gap
+  - page.pdf margin.left/right=10mm → max content width
+  - MAX_CARD_HEIGHT_PX=900      → printable area at A4 = ~933px, 900 = safety
+  - page.emulate_media("print") → REQUIRED, without it @media print is ignored
+  - .page-section / .finding-page padding-top: 4mm in CLEAN_PRINT_CSS
+
+  These values were tuned together. Changing any one will break the layout
+  (header overlap, content cut-off, or huge blank space). See AGENTS.md
+  "PDF Rendering" section for the full rationale.
 """
 
 from __future__ import annotations
@@ -44,13 +57,13 @@ class PDFService:
   html, body { height: auto !important; }
   body { margin: 0 !important; padding: 0 !important; overflow: visible !important; }
   .report-content, .page-section, .finding-card { overflow: visible !important; }
-  .page-section { box-shadow: none !important; border-radius: 0 !important; padding-top:20mm !important; }
+  .page-section { box-shadow: none !important; border-radius: 0 !important; padding-top: 4mm !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
   /* Findings intro: don't force page break after, so first finding shares the page */
   .findings-intro { break-after: auto !important; page-break-after: auto !important; }
   .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
-  .finding-page { padding-top: 20mm !important; }
+  .finding-page { padding-top: 4mm !important; }
   /* Cards now pre-split, each chunk fits on one page */
   .finding-card { break-inside: avoid !important; page-break-inside: avoid !important; overflow: visible !important; }
   .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
@@ -194,6 +207,8 @@ class PDFService:
                             # so measurements match PDF.
                             page.set_viewport_size({"width": 720, "height": 900})
                             page.goto(html_path.as_uri(), wait_until="load", timeout=30000)
+                            # Force print media so @media print rules apply
+                            page.emulate_media(media="print")
                             page.add_style_tag(content=self.CLEAN_PRINT_CSS)
 
                             # Remove HTML header/footer elements — Playwright provides its own
@@ -207,10 +222,10 @@ class PDFService:
                             # (with padding-top from CSS).
                             page.evaluate("""() => {
                                 // Available content height per page in pixels.
-                                // A4 = 297mm. Top margin 70mm + bottom 25mm = 95mm reserved.
-                                // Printable: 297 - 95 = 202mm. At 96 DPI: 202mm * 3.78 = ~764px.
-                                // Allow more height before splitting so we don't waste space.
-                                const MAX_CARD_HEIGHT_PX = 950;
+                                // A4 = 297mm. Playwright top margin 30mm + bottom 20mm = 50mm.
+                                // Printable: 297 - 50 = 247mm. At 96 DPI: ~933px.
+                                // Use 900px to give safety margin.
+                                const MAX_CARD_HEIGHT_PX = 900;
 
                                 const cards = document.querySelectorAll('.finding-card');
                                 cards.forEach((card) => {
@@ -328,10 +343,10 @@ class PDFService:
                                 header_template=header,
                                 footer_template=footer,
                                 margin={
-                                    "top": "70mm",
-                                    "bottom": "25mm",
-                                    "left": "15mm",
-                                    "right": "15mm",
+                                    "top": "30mm",
+                                    "bottom": "20mm",
+                                    "left": "10mm",
+                                    "right": "10mm",
                                 },
                             )
                         except PlaywrightError as e:

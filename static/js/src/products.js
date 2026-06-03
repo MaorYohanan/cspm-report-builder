@@ -674,7 +674,8 @@ function _initRiskTooltip() {
     + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.62 0.17 155);"></span>0 – 10 &nbsp;&nbsp;סיכון נמוך</div>'
     + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.72 0.16 60);"></span>11 – 30 &nbsp;סיכון בינוני</div>'
     + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.58 0.22 15);"></span>31+ &nbsp;&nbsp;&nbsp;&nbsp;סיכון גבוה</div>'
-    + '</div>';
+    + '</div>'
+    + '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:10px;color:var(--text-dim);">ממצאים מוחרגים אינם נספרים בציון.</div>';
   document.body.appendChild(_riskTooltipEl);
 
   document.addEventListener('mouseover', function(e) {

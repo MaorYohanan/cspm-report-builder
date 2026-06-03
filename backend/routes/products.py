@@ -193,12 +193,17 @@ def _compute_risk_score(snapshot: dict) -> int:
     """Compute the risk score from a snapshot dict.
 
     ``Critical×4 + High×3 + Medium×2 + Low×1``; unrecognised severities
-    contribute 0.
+    contribute 0.  Findings marked as exceptions (exception.active == True)
+    are excluded from the score.
     """
     findings = snapshot.get("findings", [])
     total = 0
     for f in findings:
         if not isinstance(f, dict):
+            continue
+        # Skip מוחרג (approved exception) findings
+        exc = f.get("exception")
+        if isinstance(exc, dict) and exc.get("active"):
             continue
         severity = str(f.get("severity", "")).lower()
         total += _SEVERITY_WEIGHTS.get(severity, 0)

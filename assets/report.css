@@ -114,3 +114,31 @@ img { max-width: 100%; height: auto; }
 .cover-subtitle { font-size: 16px; color:#1f2937; margin-bottom: 8mm; }
 .cover-meta { font-size: 14px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:10px 12px; }
 .cover-badge { margin-top: 10mm; padding:10px 15px; border-radius:6px; background:#0b3c5d; color:#fff; font-size:12px; }
+
+/* ── Exception (מוחרג) banner in PDF ── */
+.exception-banner-pdf {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #f0fdf4;
+  border: 1px solid #22c55e;
+  border-right: 5px solid #16a34a;
+  border-radius: 5px;
+  padding: 9px 14px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #15803d;
+  letter-spacing: 0.2px;
+}
+
+.exception-reason-pdf {
+  font-size: 11px;
+  font-weight: 400;
+  color: #166534;
+  line-height: 1.5;
+}
+
+.finding-card-exception {
+  border-color: #bbf7d0;
+}
