@@ -7793,6 +7793,8 @@ var ProductsPanel = {
 
   init: function() {
     var self = this;
+    // Initialise global risk score tooltip (body-level, never clipped)
+    _initRiskTooltip();
     // Wire export panel shortcut
     var saveBtn = document.getElementById('btn-save-as-version');
     if (saveBtn) {
@@ -7839,40 +7841,48 @@ var ProductsPanel = {
     if (!container) return;
 
     var html = '<div class="section-body">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
-    html += '<h2 style="margin:0;">📦 מוצרים</h2>';
-    html += '<button class="btn btn-primary" id="btn-products-new">+ מוצר חדש</button>';
+    html += '<div class="products-header">';
+    html += '<h2>📦 מוצרים</h2>';
+    html += '<button class="btn btn-primary btn-sm" id="btn-products-new" style="margin-top:0;">+ מוצר חדש</button>';
     html += '</div>';
 
     if (!products || products.length === 0) {
-      html += '<p class="muted" style="text-align:center;padding:40px 0;">אין מוצרים רשומים. לחץ על "+ מוצר חדש" להוספה.</p>';
+      html += '<div class="products-empty">';
+      html += '<div class="products-empty-icon">📦</div>';
+      html += '<div class="products-empty-text">אין מוצרים רשומים עדיין.<br>לחץ על "+ מוצר חדש" כדי להתחיל.</div>';
+      html += '<button class="btn btn-primary" id="btn-products-new-empty" style="margin-top:0;">+ מוצר חדש</button>';
+      html += '</div>';
     } else {
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;">';
+      html += '<div class="products-grid">';
       products.forEach(function(p) {
-        var riskClass = 'badge-success';
         var rs = p.latestRiskScore || 0;
-        if (rs > 30) riskClass = 'badge-danger';
-        else if (rs > 10) riskClass = 'badge-warning';
-        html += '<div class="export-card" style="position:relative;">';
-        html += '<div class="export-card-header" style="font-size:15px;">' + _esc(p.name || '') + '</div>';
-        html += '<div class="export-card-body" style="font-size:13px;">';
-        html += '<div><span class="muted">בעלים:</span> ' + _esc(p.owner || '—') + '</div>';
-        html += '<div><span class="badge badge-secondary">' + _esc(p.env || '') + '</span></div>';
+        var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : p.latestVersion ? 'risk-low' : 'risk-none';
+        html += '<div class="product-card">';
+        html += '<div class="product-card-accent ' + riskClass + '"></div>';
+        html += '<div class="product-card-body">';
+        html += '<div class="product-card-name" title="' + _esc(p.name || '') + '">' + _esc(p.name || '') + '</div>';
+        html += '<div class="product-card-meta">';
+        html += '<span>' + _esc(p.owner || '—') + '</span>';
+        if (p.env) html += '<span>·</span><span class="env-badge">' + _esc(p.env) + '</span>';
+        html += '</div>';
+        html += '<div class="product-card-stats">';
         if (p.latestVersion) {
-          html += '<div style="margin-top:6px;"><span class="badge badge-primary">v' + _esc(p.latestVersion) + '</span> ';
-          html += '<span class="badge ' + riskClass + '">סיכון: ' + rs + '</span></div>';
+          html += '<span class="product-stat-chip version">v' + _esc(p.latestVersion) + '</span>';
+          html += _riskInfoTooltip() + '<span class="product-stat-chip ' + riskClass + '">סיכון ' + rs + '</span>';
         } else {
-          html += '<div style="margin-top:6px;"><span class="muted small-text">אין גרסאות</span></div>';
+          html += '<span class="product-stat-chip no-version">אין גרסאות</span>';
         }
         if (p.lastChecked) {
-          html += '<div class="muted small-text" style="margin-top:4px;">עדכון אחרון: ' + _esc(p.lastChecked.slice(0,10)) + '</div>';
+          html += '<span class="product-stat-chip no-version" style="margin-right:auto;">' + _esc(p.lastChecked.slice(0,10)) + '</span>';
         }
-        html += '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">';
-        html += '<button class="btn btn-secondary btn-sm" data-action="timeline" data-id="' + _esc(p.id) + '">פתח היסטוריה</button>';
-        html += '<button class="btn btn-secondary btn-sm" data-action="edit" data-id="' + _esc(p.id) + '">ערוך</button>';
-        html += '<button class="btn btn-danger btn-sm" data-action="delete" data-id="' + _esc(p.id) + '" data-name="' + _esc(p.name || '') + '">מחק</button>';
         html += '</div>';
-        html += '</div></div>';
+        html += '</div>';
+        html += '<div class="product-card-footer">';
+        html += '<button class="btn btn-secondary" data-action="timeline" data-id="' + _esc(p.id) + '">📋 היסטוריה</button>';
+        html += '<button class="btn btn-secondary" data-action="edit" data-id="' + _esc(p.id) + '">✏️ ערוך</button>';
+        html += '<button class="btn btn-danger" data-action="delete" data-id="' + _esc(p.id) + '" data-name="' + _esc(p.name || '') + '">🗑</button>';
+        html += '</div>';
+        html += '</div>';
       });
       html += '</div>';
     }
@@ -7881,17 +7891,18 @@ var ProductsPanel = {
 
     var newBtn = document.getElementById('btn-products-new');
     if (newBtn) newBtn.addEventListener('click', function() { self.showForm(null); });
+    var newBtnEmpty = document.getElementById('btn-products-new-empty');
+    if (newBtnEmpty) newBtnEmpty.addEventListener('click', function() { self.showForm(null); });
 
     container.querySelectorAll('[data-action]').forEach(function(btn) {
       btn.addEventListener('click', function() {
         var action = btn.getAttribute('data-action');
         var id = btn.getAttribute('data-id');
-        var product = (products || []).find(function(p){ return p.id === id; });
         if (action === 'timeline') { self._loadTimeline(id); }
         else if (action === 'edit') { self._loadProductAndEdit(id); }
         else if (action === 'delete') {
           var name = btn.getAttribute('data-name');
-          styledConfirm('האם למחוק את המוצר "' + name + '"?', { title: 'מחיקת מוצר', danger: true, confirmText: 'מחק' }).then(function(confirmed) {
+          styledConfirm('האם למחוק את המוצר "' + name + '" וכל גרסאותיו?', { title: 'מחיקת מוצר', danger: true, confirmText: 'מחק' }).then(function(confirmed) {
             if (!confirmed) return;
             fetch('/api/products/' + encodeURIComponent(id), { method: 'DELETE' })
               .then(function(r) {
@@ -7943,55 +7954,68 @@ var ProductsPanel = {
     if (!container) return;
 
     var html = '<div class="section-body">';
-    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">';
-    html += '<button class="btn btn-secondary btn-sm" id="btn-products-back">← חזור</button>';
-    html += '<h2 style="margin:0;">📦 ' + _esc(product.name || '') + ' — היסטוריה</h2>';
+
+    // Header
+    html += '<div class="timeline-header">';
+    html += '<button class="btn btn-secondary btn-sm" id="btn-products-back" style="margin-top:0;">← חזור</button>';
+    html += '<h2>📦 ' + _esc(product.name || '') + '</h2>';
     html += '</div>';
 
-    // New check button
-    html += '<div style="margin-bottom:12px;display:flex;gap:8px;">';
-    html += '<button class="btn btn-secondary btn-sm" id="btn-products-new-check">🔍 בדיקה חדשה</button>';
+    // Action bar
+    html += '<div class="timeline-actions">';
+    html += '<button class="btn btn-primary btn-sm" id="btn-products-save-major" style="margin-top:0;">⬆ Major</button>';
+    html += '<button class="btn btn-secondary btn-sm" id="btn-products-save-minor" style="margin-top:0;">↑ Minor</button>';
+    html += '<button class="btn btn-secondary btn-sm" id="btn-products-new-check" style="margin-top:0;">🔍 בדיקה חדשה</button>';
     html += '</div>';
 
-    // Inline save form (hidden initially)
-    html += '<div id="products-save-form" style="display:none;background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;">';
-    html += '<div style="margin-bottom:8px;font-weight:600;" id="products-save-form-title">שמור גרסה</div>';
-    html += '<textarea id="products-save-notes" maxlength="500" rows="2" placeholder="הערות גרסה..." style="width:100%;box-sizing:border-box;"></textarea>';
-    html += '<div style="margin-top:8px;display:flex;gap:6px;">';
-    html += '<button class="btn btn-primary btn-sm" id="btn-products-save-confirm">שמור</button>';
-    html += '<button class="btn btn-secondary btn-sm" id="btn-products-save-cancel">ביטול</button>';
+    // Inline save form
+    html += '<div class="timeline-save-form" id="products-save-form">';
+    html += '<div class="timeline-save-form-title" id="products-save-form-title">שמור גרסה</div>';
+    html += '<textarea id="products-save-notes" maxlength="500" rows="2" placeholder="הערות גרסה (אופציונלי)..."></textarea>';
+    html += '<div class="product-form-actions" style="margin-top:8px;">';
+    html += '<button class="btn btn-primary btn-sm" id="btn-products-save-confirm" style="margin-top:0;">שמור</button>';
+    html += '<button class="btn btn-secondary btn-sm" id="btn-products-save-cancel" style="margin-top:0;">ביטול</button>';
     html += '</div></div>';
 
-    // Save buttons
-    html += '<div style="margin-bottom:16px;display:flex;gap:8px;">';
-    html += '<button class="btn btn-primary btn-sm" id="btn-products-save-major">שמור גרסה חדשה (Major)</button>';
-    html += '<button class="btn btn-secondary btn-sm" id="btn-products-save-minor">שמור תיקון קטן (Minor)</button>';
-    html += '</div>';
+    // Diff panel placeholder
+    html += '<div id="products-diff-panel"></div>';
 
+    // Version list
     if (!versions || versions.length === 0) {
-      html += '<p class="muted">אין גרסאות שמורות.</p>';
+      html += '<div class="products-empty" style="padding:40px 0;">';
+      html += '<div class="products-empty-icon" style="font-size:36px;">📄</div>';
+      html += '<div class="products-empty-text">אין גרסאות שמורות עדיין.<br>לחץ על "Major" או "Minor" כדי לשמור גרסה.</div>';
+      html += '</div>';
     } else {
-      html += '<div id="products-diff-panel" style="display:none;"></div>';
-      html += '<div style="display:flex;flex-direction:column;gap:10px;" id="products-version-list">';
+      html += '<div class="timeline-list">';
       versions.forEach(function(v) {
-        var statusBadge = v.status === 'published'
-          ? '<span class="badge badge-success">PUBLISHED</span>'
-          : '<span class="badge badge-warning">DRAFT</span>';
-        html += '<div class="export-card" style="padding:10px 14px;">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">';
-        html += '<div style="font-weight:600;">v' + _esc(v.version || '') + ' ' + statusBadge + '</div>';
-        html += '<div class="muted small-text">' + _esc((v.savedAt||'').slice(0,10)) + '</div>';
+        var isDraft = v.status === 'draft';
+        var statusClass = isDraft ? 'draft' : 'published';
+        var statusLabel = isDraft ? 'DRAFT' : 'PUBLISHED';
+        var rs = v.riskScore || 0;
+        var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : 'risk-low';
+
+        html += '<div class="version-row">';
+        html += '<div class="version-row-strip ' + statusClass + '"></div>';
+        html += '<div class="version-row-body">';
+        html += '<div class="version-row-info">';
+        html += '<div class="version-row-top">';
+        html += '<span class="version-number">v' + _esc(v.version || '') + '</span>';
+        html += '<span class="badge badge-' + statusClass + '">' + statusLabel + '</span>';
+        html += _riskInfoTooltip() + '<span class="product-stat-chip ' + riskClass + '" style="font-size:10px;">סיכון ' + rs + '</span>';
         html += '</div>';
-        if (v.versionNotes) html += '<div style="margin-top:4px;font-size:13px;">' + _esc(v.versionNotes) + '</div>';
-        html += '<div style="margin-top:4px;" class="muted small-text">סיכון: ' + (v.riskScore||0) + '</div>';
-        html += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">';
-        html += '<button class="btn btn-secondary btn-sm" data-action="load" data-ver="' + _esc(v.version) + '">טען לעורך</button>';
-        html += '<button class="btn btn-secondary btn-sm" data-action="compare" data-ver="' + _esc(v.version) + '">השוואה</button>';
-        html += '<button class="btn btn-secondary btn-sm" data-action="download" data-ver="' + _esc(v.version) + '">הורד</button>';
-        if (v.status === 'draft') {
-          html += '<button class="btn btn-primary btn-sm" data-action="publish" data-ver="' + _esc(v.version) + '">פרסם</button>';
+        if (v.versionNotes) html += '<div class="version-notes">' + _esc(v.versionNotes) + '</div>';
+        html += '<div class="version-date">' + _esc((v.savedAt || '').replace('T', ' ').slice(0, 16)) + '</div>';
+        html += '</div>';
+        html += '<div class="version-row-actions">';
+        html += '<button class="btn btn-secondary btn-sm" data-action="load" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="טען לעורך">טען</button>';
+        html += '<button class="btn btn-secondary btn-sm" data-action="compare" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="השוואה">⇄</button>';
+        html += '<button class="btn btn-secondary btn-sm" data-action="download" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="הורד JSON">⬇</button>';
+        if (isDraft) {
+          html += '<button class="btn btn-primary btn-sm" data-action="publish" data-ver="' + _esc(v.version) + '" style="margin-top:0;">פרסם</button>';
         }
-        html += '<button class="btn btn-danger btn-sm" data-action="delver" data-ver="' + _esc(v.version) + '">מחק</button>';
+        html += '<button class="btn btn-danger btn-sm" data-action="delver" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="מחק גרסה">🗑</button>';
+        html += '</div>';
         html += '</div></div>';
       });
       html += '</div>';
@@ -8002,7 +8026,7 @@ var ProductsPanel = {
     // Back button
     document.getElementById('btn-products-back').addEventListener('click', function(){ self.showGrid(); });
 
-    // New check (Wiz pre-fill)
+    // New check
     document.getElementById('btn-products-new-check').addEventListener('click', function(){
       self._newCheckWithPrefill(product);
     });
@@ -8012,22 +8036,22 @@ var ProductsPanel = {
     var savePendingType = null;
     document.getElementById('btn-products-save-major').addEventListener('click', function(){
       savePendingType = 'major';
-      document.getElementById('products-save-form-title').textContent = 'שמור גרסה חדשה (Major)';
-      saveForm.style.display = '';
+      document.getElementById('products-save-form-title').textContent = '⬆ שמור גרסה ראשית (Major)';
+      saveForm.classList.add('visible');
     });
     document.getElementById('btn-products-save-minor').addEventListener('click', function(){
       savePendingType = 'minor';
-      document.getElementById('products-save-form-title').textContent = 'שמור תיקון קטן (Minor)';
-      saveForm.style.display = '';
+      document.getElementById('products-save-form-title').textContent = '↑ שמור תיקון קטן (Minor)';
+      saveForm.classList.add('visible');
     });
     document.getElementById('btn-products-save-cancel').addEventListener('click', function(){
-      saveForm.style.display = 'none';
+      saveForm.classList.remove('visible');
       savePendingType = null;
     });
     document.getElementById('btn-products-save-confirm').addEventListener('click', function(){
       var notes = document.getElementById('products-save-notes').value;
       saveAsVersion(product.id, savePendingType, notes).then(function(){
-        saveForm.style.display = 'none';
+        saveForm.classList.remove('visible');
         self.showTimeline(product);
       }).catch(function(err){ showToast(err.message || 'שגיאת שמירה', 'error'); });
     });
@@ -8039,7 +8063,7 @@ var ProductsPanel = {
         var ver = btn.getAttribute('data-ver');
         if (action === 'load') {
           self.fetchVersion(product.id, ver).then(function(data){
-            try { applySnapshot(data); showToast('גרסה ' + ver + ' נטענה לעורך', 'success'); }
+            try { applySnapshot(data); showToast('גרסה v' + ver + ' נטענה לעורך', 'success'); }
             catch(e){ showToast('שגיאה בטעינת הגרסה', 'error'); }
           }).catch(function(err){ showToast(err.message, 'error'); });
         } else if (action === 'compare') {
@@ -8134,36 +8158,34 @@ var ProductsPanel = {
     var diff = computeDiff(baseline.findings || [], target.findings || []);
     var delta = computeRiskDelta(baseline, target);
 
-    var html = '<div class="export-card" style="padding:12px;margin-bottom:14px;">';
-    html += '<h3 style="margin-top:0;">השוואה: v' + _esc(baseline.version||'') + ' → v' + _esc(target.version||'') + '</h3>';
-
-    // Risk delta
     var bScore = (typeof baseline.riskScore === 'number') ? baseline.riskScore : 'N/A';
     var tScore = (typeof target.riskScore === 'number') ? target.riskScore : 'N/A';
-    var deltaStr = delta !== null ? (delta >= 0 ? '+' + delta : '' + delta) : 'N/A';
-    html += '<div style="margin-bottom:10px;font-weight:600;">סיכון: ' + bScore + ' → ' + tScore + ', ' + deltaStr + '</div>';
+    var deltaStr = delta !== null ? (delta > 0 ? '+' + delta : '' + delta) : 'N/A';
+    var deltaColor = delta === null ? '' : delta > 0 ? 'color:oklch(0.58 0.22 15)' : delta < 0 ? 'color:oklch(0.62 0.17 155)' : '';
+
+    var html = '<div class="diff-panel">';
+    html += '<div class="diff-summary">';
+    html += '<div class="diff-summary-title">⇄ השוואה: v' + _esc(baseline.version||'') + ' → v' + _esc(target.version||'') + '</div>';
+    html += _riskInfoTooltip() + '<div class="diff-risk-delta" style="' + deltaColor + '">סיכון: ' + bScore + ' → ' + tScore + ' (' + deltaStr + ')</div>';
+    html += '</div>';
 
     if (diff.added.length === 0 && diff.resolved.length === 0 && diff.changed.length === 0) {
-      html += '<p class="muted">לא נמצאו שינויים בממצאים.</p>';
+      html += '<div class="muted" style="text-align:center;padding:12px 0;">לא נמצאו שינויים בממצאים</div>';
     } else {
       diff.added.forEach(function(f){
-        html += '<div style="border-right:3px solid #4caf50;padding:4px 8px;margin-bottom:4px;">'
-          + '<span class="badge badge-success">חדש</span> ' + _esc(f.id||'') + ' — ' + _esc(f.title||'') + '</div>';
+        html += '<div class="diff-row added"><span class="diff-badge added">חדש</span><span>' + _esc(f.id||'') + '</span><span class="muted" style="flex:1;">— ' + _esc(f.title||'') + '</span></div>';
       });
       diff.resolved.forEach(function(f){
-        html += '<div style="border-right:3px solid #f44336;padding:4px 8px;margin-bottom:4px;">'
-          + '<span class="badge badge-danger">נסגר</span> ' + _esc(f.id||'') + ' — ' + _esc(f.title||'') + '</div>';
+        html += '<div class="diff-row resolved"><span class="diff-badge resolved">נסגר</span><span>' + _esc(f.id||'') + '</span><span class="muted" style="flex:1;">— ' + _esc(f.title||'') + '</span></div>';
       });
       diff.changed.forEach(function(c){
-        html += '<div style="border-right:3px solid #ff9800;padding:4px 8px;margin-bottom:4px;">'
-          + '<span class="badge badge-warning">שינוי</span> ' + _esc(c.after.id||'') + ' — '
-          + _esc(c.before.severity||'') + ' → ' + _esc(c.after.severity||'') + '</div>';
+        html += '<div class="diff-row changed"><span class="diff-badge changed">שינוי</span><span>' + _esc(c.after.id||'') + '</span><span class="muted" style="flex:1;">— ' + _esc(c.before.severity||'') + ' → ' + _esc(c.after.severity||'') + '</span></div>';
       });
     }
     html += '</div>';
 
     var diffPanel = document.getElementById('products-diff-panel');
-    if (diffPanel) { diffPanel.style.display = ''; diffPanel.innerHTML = html; }
+    if (diffPanel) { diffPanel.innerHTML = html; }
   },
 
   // ── Create / Edit Form ───────────────────────────────────────────────────
@@ -8178,38 +8200,36 @@ var ProductsPanel = {
     var p = product || {};
 
     var html = '<div class="section-body">';
-    html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">';
-    html += '<button class="btn btn-secondary btn-sm" id="btn-form-back">← חזור</button>';
-    html += '<h2 style="margin:0;">' + (isEdit ? 'עריכת מוצר' : 'מוצר חדש') + '</h2>';
+    html += '<div class="timeline-header">';
+    html += '<button class="btn btn-secondary btn-sm" id="btn-form-back" style="margin-top:0;">← חזור</button>';
+    html += '<h2>' + (isEdit ? '✏️ עריכת מוצר' : '📦 מוצר חדש') + '</h2>';
     html += '</div>';
-    html += '<div style="max-width:520px;display:flex;flex-direction:column;gap:12px;">';
 
-    // Name
+    html += '<div style="max-width:560px;">';
+    html += '<div class="product-form-grid">';
+
     html += '<div class="form-field"><label for="pf-name">שם מוצר *</label>';
     html += '<input type="text" id="pf-name" maxlength="100" value="' + _esc(p.name||'') + '" placeholder="לדוגמה: ERP System">';
-    html += '<span class="muted small-text" id="pf-name-err" style="color:var(--danger-color);display:none;"></span></div>';
+    html += '<span id="pf-name-err" style="font-size:11px;color:var(--danger);display:none;"></span></div>';
 
-    // Owner
     html += '<div class="form-field"><label for="pf-owner">איש קשר</label>';
-    html += '<input type="text" id="pf-owner" maxlength="100" value="' + _esc(p.owner||'') + '"></div>';
+    html += '<input type="text" id="pf-owner" maxlength="100" value="' + _esc(p.owner||'') + '" placeholder="שם הבעלים"></div>';
 
-    // Email
     html += '<div class="form-field"><label for="pf-email">אימייל</label>';
-    html += '<input type="text" id="pf-email" maxlength="254" value="' + _esc(p.ownerEmail||'') + '">';
-    html += '<span class="muted small-text" id="pf-email-err" style="color:var(--danger-color);display:none;"></span></div>';
+    html += '<input type="text" id="pf-email" maxlength="254" value="' + _esc(p.ownerEmail||'') + '" placeholder="owner@example.com">';
+    html += '<span id="pf-email-err" style="font-size:11px;color:var(--danger);display:none;"></span></div>';
 
-    // Env
     html += '<div class="form-field"><label for="pf-env">סביבה</label>';
-    html += '<input type="text" id="pf-env" maxlength="100" value="' + _esc(p.env||'') + '"></div>';
+    html += '<input type="text" id="pf-env" maxlength="100" value="' + _esc(p.env||'') + '" placeholder="AWS Production"></div>';
 
-    // Subscription IDs
     var subsVal = (p.subscriptionIds || []).join(', ');
-    html += '<div class="form-field"><label for="pf-subs">Subscription IDs (מופרדים בפסיק)</label>';
+    html += '<div class="form-field product-form-grid-wide"><label for="pf-subs">Subscription IDs <span class="muted" style="font-weight:400;">(מופרדים בפסיק)</span></label>';
     html += '<input type="text" id="pf-subs" value="' + _esc(subsVal) + '" placeholder="sub-001, sub-002"></div>';
 
-    html += '<div style="display:flex;gap:8px;">';
-    html += '<button class="btn btn-primary" id="btn-pf-save">שמור מוצר</button>';
-    html += '<button class="btn btn-secondary" id="btn-pf-cancel">ביטול</button>';
+    html += '</div>';
+    html += '<div class="product-form-actions">';
+    html += '<button class="btn btn-primary" id="btn-pf-save" style="margin-top:0;">שמור מוצר</button>';
+    html += '<button class="btn btn-secondary" id="btn-pf-cancel" style="margin-top:0;">ביטול</button>';
     html += '</div>';
     html += '</div></div>';
     container.innerHTML = html;
@@ -8350,6 +8370,64 @@ async function saveAsVersion(productId, versionType, notes) {
 // Helper: escape HTML
 function _esc(str) {
   return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Helper: risk score info tooltip HTML — renders a single ⓘ button;
+// the actual tooltip is shown/hidden via _initRiskTooltip() which
+// appends a single global element to document.body (never clipped).
+function _riskInfoTooltip() {
+  return '<i class="risk-info-btn" data-risk-info="1">ⓘ</i>';
+}
+
+// Single global tooltip element — created once, positioned on demand.
+var _riskTooltipEl = null;
+function _initRiskTooltip() {
+  if (_riskTooltipEl) return;
+  _riskTooltipEl = document.createElement('div');
+  _riskTooltipEl.id = 'risk-info-tooltip-global';
+  _riskTooltipEl.innerHTML =
+    '<div class="risk-info-tooltip-title">🔢 חישוב ציון סיכון</div>'
+    + '<div class="risk-info-tooltip-formula">'
+    + 'קריטי 1 = 4 נק׳<br>גבוה 1 &nbsp;&nbsp;&nbsp;= 3 נק׳<br>בינוני 1 = 2 נק׳<br>נמוך 1 &nbsp;&nbsp;&nbsp;= 1 נק׳'
+    + '</div>'
+    + '<div class="risk-info-tooltip-levels">'
+    + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.62 0.17 155);"></span>0 – 10 &nbsp;&nbsp;סיכון נמוך</div>'
+    + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.72 0.16 60);"></span>11 – 30 &nbsp;סיכון בינוני</div>'
+    + '<div class="risk-info-level"><span class="risk-info-dot" style="background:oklch(0.58 0.22 15);"></span>31+ &nbsp;&nbsp;&nbsp;&nbsp;סיכון גבוה</div>'
+    + '</div>';
+  document.body.appendChild(_riskTooltipEl);
+
+  document.addEventListener('mouseover', function(e) {
+    var btn = e.target.closest('[data-risk-info]');
+    if (!btn) return;
+    var rect = btn.getBoundingClientRect();
+    var tip = _riskTooltipEl;
+    tip.style.display = 'block';
+    // Position above the button; flip below if not enough space
+    var tipH = tip.offsetHeight || 160;
+    var top = rect.top - tipH - 8;
+    if (top < 8) top = rect.bottom + 8; // flip below
+    var right = window.innerWidth - rect.right;
+    // Don't go off left edge
+    var left = rect.right - 220;
+    if (left < 8) left = 8;
+    tip.style.top = top + 'px';
+    tip.style.left = left + 'px';
+    tip.style.right = 'auto';
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    if (e.target.closest('[data-risk-info]') && !e.relatedTarget?.closest('[data-risk-info]')) {
+      _riskTooltipEl.style.display = 'none';
+    }
+  });
+
+  // Also hide when mouse moves away completely
+  document.addEventListener('mousemove', function(e) {
+    if (!e.target.closest('[data-risk-info]') && _riskTooltipEl.style.display === 'block') {
+      _riskTooltipEl.style.display = 'none';
+    }
+  });
 }
 
 // Wire up ProductsPanel on load
