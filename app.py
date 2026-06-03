@@ -35,6 +35,8 @@ from backend.routes.wiz import wiz_bp
 from backend.routes.ai import ai_bp, GEMINI_MODELS, GEMINI_DEFAULT_MODEL
 from backend.routes.reports import reports_bp
 from backend.routes.files import files_bp
+from backend.routes.products import products_bp
+from backend.routes import products as products_module
 
 app = Flask(
     __name__,
@@ -55,11 +57,17 @@ for d in (UPLOAD_DIR, OUTPUT_DIR, STATES_DIR):
 from backend.routes import files
 files.init_directories(BASE_DIR, STATES_DIR, OUTPUT_DIR)
 
+# Initialize products blueprint
+PRODUCTS_DIR = UPLOAD_DIR / "products"
+PRODUCTS_DIR.mkdir(parents=True, exist_ok=True)
+products_module.init_products_dir(PRODUCTS_DIR)
+
 # Register blueprints
 app.register_blueprint(wiz_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(files_bp)
+app.register_blueprint(products_bp)
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH

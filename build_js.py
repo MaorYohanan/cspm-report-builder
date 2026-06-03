@@ -15,6 +15,7 @@ FILE_ORDER = [
     'findings.js',    # Findings table, detail pane, form, batch, drag-drop
     'export.js',      # Report HTML builder, PDF, CSV, JSON, autosave
     'wizi.js',        # Wizi API integration, import functions, bulk import
+    'products.js',    # Product Registry: grid, timeline, form, diff, version management
     'init.js',        # Final initialization, event wiring, IIFE close
 ]
 

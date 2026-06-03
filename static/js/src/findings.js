@@ -213,7 +213,8 @@
           'tab-finding-form': 'הוספת / עריכת ממצא',
           'tab-export': 'ייצוא דו"ח',
           'tab-cloud-manager': 'קבצי שרת',
-          'tab-wizi': 'Wiz Import'
+          'tab-wizi': 'Wiz Import',
+          'tab-products': 'מוצרים'
         };
         var titleEl = document.getElementById('content-title');
         if (titleEl && titleMap[tabId]) titleEl.textContent = titleMap[tabId];
