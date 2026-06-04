@@ -3,26 +3,8 @@
   "version": "1.0.0",
   "description": "A self-hosted tool for building cloud security reports. Connects to Wiz, imports findings, and exports professional Hebrew PDF reports.",
   "main": "index.js",
-  "directories": {
-    "test": "tests"
-  },
-  "scripts": {
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:frontend": "jest --testPathPattern=tests/frontend"
-  },
+  "scripts": {},
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "devDependencies": {
-    "@babel/core": "^7.24.0",
-    "@babel/preset-env": "^7.24.0",
-    "@testing-library/dom": "^10.0.0",
-    "@testing-library/jest-dom": "^6.4.0",
-    "babel-jest": "^29.7.0",
-    "fast-check": "^4.7.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
-  }
+  "license": "ISC"
 }
