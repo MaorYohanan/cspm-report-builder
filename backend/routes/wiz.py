@@ -6,6 +6,7 @@ Handles all /api/wizi/* endpoints for Wiz integration.
 from __future__ import annotations
 
 import os
+import re
 import urllib.error
 import sys
 import json
@@ -17,6 +18,7 @@ from backend.graphql.queries import (
     CLOUD_CONFIG_RULES_QUERY,
     CONFIG_FINDINGS_QUERY,
     DATA_FINDINGS_QUERY,
+    END_OF_LIFE_QUERY,
     EXCESSIVE_ACCESS_QUERY,
     HOST_CONFIG_QUERY,
     INVENTORY_FINDINGS_QUERY,
@@ -25,11 +27,20 @@ from backend.graphql.queries import (
     PROJECTS_QUERY,
     QUERY_TYPE_MAP,
     SECRET_INSTANCES_QUERY,
+    SOFTWARE_SUPPLY_CHAIN_QUERY,
     VULN_FINDINGS_QUERY,
 )
 from backend.services.wiz_service import WizService
 
 wiz_bp = Blueprint('wiz', __name__, url_prefix='/api/wizi')
+
+
+def _safe_int(value: object, default: int) -> int:
+    """Parse an int from user input without raising on bad values."""
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return default
 
 # Wiz service configuration
 WIZI_CLIENT_ID = os.environ.get("WIZI_CLIENT_ID", "")
@@ -41,12 +52,19 @@ WIZI_API_URL = os.environ.get("WIZI_API_URL", "https://api.il1.app.wiz.io/graphq
 _wiz_service: Optional[WizService] = None
 
 
+_COMMENT_RE = re.compile(r"#[^\n]*")
+
+
 def get_wiz_service() -> WizService:
     """Get or create the Wiz service instance."""
     global _wiz_service
     if _wiz_service is None:
         if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
             raise RuntimeError("Wiz credentials not configured")
+        if not WIZI_AUTH_URL.startswith("https://"):
+            raise RuntimeError(f"WIZI_AUTH_URL must use https://, got: {WIZI_AUTH_URL!r}")
+        if not WIZI_API_URL.startswith("https://"):
+            raise RuntimeError(f"WIZI_API_URL must use https://, got: {WIZI_API_URL!r}")
         _wiz_service = WizService(
             client_id=WIZI_CLIENT_ID,
             client_secret=WIZI_CLIENT_SECRET,
@@ -66,6 +84,8 @@ WIZI_SECRET_INSTANCES_QUERY = SECRET_INSTANCES_QUERY
 WIZI_EXCESSIVE_ACCESS_QUERY = EXCESSIVE_ACCESS_QUERY
 WIZI_NETWORK_EXPOSURE_QUERY = NETWORK_EXPOSURE_QUERY
 WIZI_INVENTORY_FINDINGS_QUERY = INVENTORY_FINDINGS_QUERY
+WIZI_END_OF_LIFE_QUERY = END_OF_LIFE_QUERY
+WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY = SOFTWARE_SUPPLY_CHAIN_QUERY
 WIZI_PROJECTS_QUERY = PROJECTS_QUERY
 
 
@@ -121,9 +141,9 @@ def api_wizi_graphql_proxy():
     if not query:
         return jsonify({"error": "No query provided"}), 400
 
-    # Block mutations — this is a read-only proxy
-    query_stripped = query.strip().lower()
-    if query_stripped.startswith("mutation"):
+    # Block mutations — strip line comments first so "# bypass\nmutation{}" can't sneak past
+    query_no_comments = _COMMENT_RE.sub("", query)
+    if re.search(r"\bmutation\b", query_no_comments, re.IGNORECASE):
         return jsonify({"error": "Mutations are not allowed"}), 403
 
     # Limit query size to prevent abuse
@@ -154,6 +174,49 @@ def api_wizi_discover():
         return jsonify({"error": str(e)}), 502
 
 
+@wiz_bp.route("/introspect-type")
+def api_wizi_introspect_type():
+    """Introspect a specific GraphQL type or check root query fields.
+
+    Query params:
+      type=<TypeName>   — returns inputFields for an input type
+      query=1           — returns all root query field names (to check if a query exists)
+    """
+    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+        return jsonify({"error": "Wizi integration not configured"}), 501
+
+    type_name = request.args.get("type", "").strip()
+    check_query = request.args.get("query", "")
+
+    try:
+        wiz = get_wiz_service()
+        if check_query:
+            # List all root query field names so the caller can check which exist
+            q = "{ __schema { queryType { fields(includeDeprecated: true) { name } } } }"
+            result = wiz._graphql(q)
+            fields = result.get("data", {}).get("__schema", {}).get("queryType", {}).get("fields", [])
+            return jsonify({"queryFields": [f["name"] for f in fields]})
+        if type_name:
+            if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", type_name):
+                return jsonify({"error": "Invalid type name"}), 400
+            q = """
+            query IntrospectType {
+              __type(name: "%s") {
+                name kind
+                inputFields {
+                  name
+                  type { name kind ofType { name kind ofType { name kind } } }
+                }
+              }
+            }
+            """ % type_name
+            result = wiz._graphql(q)
+            return jsonify(result.get("data", {}))
+        return jsonify({"error": "Provide ?type=TypeName or ?query=1"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+
+
 @wiz_bp.route("/issues", methods=["POST"])
 def api_wizi_issues():
     """Fetch findings from Wizi with optional filters and pagination."""
@@ -162,7 +225,7 @@ def api_wizi_issues():
 
     data = request.get_json(silent=True) or {}
     query_type = data.get("queryType", "issues")
-    first = min(int(data.get("first", 100)), 500)
+    first = min(_safe_int(data.get("first"), 100), 500)
     after = data.get("after") or None
     severity = data.get("severity") or None
     status = data.get("status") or None
@@ -202,6 +265,7 @@ def api_wizi_issues():
             # Log error but continue - client-side filter will still apply
 
     filter_by: Dict[str, Any] = {}
+    gql_root_key = None  # override for when gql root key differs from the HTTP response key
 
     if query_type == "configurationFindings":
         if severity:
@@ -321,6 +385,33 @@ def api_wizi_issues():
         gql = WIZI_INVENTORY_FINDINGS_QUERY
         root_key = "inventoryFindings"
 
+    elif query_type == "endOfLifeFindings":
+        # EOL findings are vulnerabilityFindings with isEndOfLife=True
+        filter_by["isEndOfLife"] = True
+        if severity:
+            filter_by["severity"] = as_list(severity)
+        if status:
+            filter_by["status"] = as_list(status)
+        if resolved_sub_ext_ids:
+            filter_by["subscriptionExternalId"] = resolved_sub_ext_ids
+        if project_id:
+            filter_by["projectIdV2"] = {"equals": as_list(project_id)}
+        gql = WIZI_VULN_FINDINGS_QUERY
+        root_key = "endOfLifeFindings"
+        gql_root_key = "vulnerabilityFindings"
+
+    elif query_type == "softwareSupplyChainFindings":
+        if severity:
+            filter_by["severity"] = eq_wrap(severity)
+        if status:
+            filter_by["status"] = eq_wrap(status)
+        # SoftwareSupplyChainFindingFilters has no resource.subscriptionId field —
+        # subscription filtering is not supported directly for this query type.
+        if project_id:
+            filter_by["project"] = {"equals": as_list(project_id)}
+        gql = WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY
+        root_key = "softwareSupplyChainFindings"
+
     else:
         # Default: issues
         if severity:
@@ -378,9 +469,11 @@ def api_wizi_issues():
             # Manual pagination requested - use single page fetch
             result = wiz._graphql(gql, variables)
             if "errors" in result:
-                return jsonify({"error": result["errors"][0].get("message", "GraphQL error"), "details": result["errors"]}), 502
+                errors = result["errors"] or []
+                msg = errors[0].get("message", "GraphQL error") if errors else "GraphQL error"
+                return jsonify({"error": msg, "details": errors}), 502
 
-            response_data = {"queryType": query_type, root_key: result.get("data", {}).get(root_key, {})}
+            response_data = {"queryType": query_type, root_key: result.get("data", {}).get(gql_root_key or root_key, {})}
 
             # === DEBUG: Log results for manual pagination too ===
             if query_type == "excessiveAccessFindings":
@@ -409,21 +502,21 @@ def build_bulk_filter(query_type, sub_ids, sub_ext_ids, sub_names=None):
     # --- Severity filter: Only CRITICAL and HIGH (not MEDIUM or below) ---
     if query_type in ("issues", "configurationFindings", "vulnerabilityFindings", "hostConfigurationRuleAssessments"):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
-    elif query_type == "networkExposures":
-        pass  # networkExposures has no severity filter
+    elif query_type in ("networkExposures", "excessiveAccessFindings", "endOfLifeFindings"):
+        pass  # Non-standard schemas or all severities relevant (EOL findings are often MEDIUM)
     else:
-        # dataFindingsV2, secretInstances, excessiveAccessFindings, inventoryFindings
+        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
 
     # --- Status filter ---
     if query_type == "configurationFindings":
         filter_by["result"] = ["FAIL"]
-    elif query_type == "networkExposures":
-        pass  # networkExposures has no status filter
-    elif query_type in ("issues", "vulnerabilityFindings", "hostConfigurationRuleAssessments"):
+    elif query_type in ("networkExposures", "excessiveAccessFindings"):
+        pass  # Non-standard filter schemas (no status field)
+    elif query_type in ("issues", "vulnerabilityFindings", "hostConfigurationRuleAssessments", "endOfLifeFindings"):
         filter_by["status"] = ["OPEN", "IN_PROGRESS"]
     else:
-        # dataFindingsV2, secretInstances, excessiveAccessFindings, inventoryFindings
+        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
         filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
 
     # --- Subscription filter (only if IDs are available) ---
@@ -440,25 +533,20 @@ def build_bulk_filter(query_type, sub_ids, sub_ext_ids, sub_names=None):
     elif query_type == "secretInstances" and sub_ext_ids:
         filter_by["cloudAccount"] = {"equals": sub_ext_ids}
     elif query_type == "excessiveAccessFindings":
-        # === DEBUG LOGGING START ===
-        print("\n" + "="*80, file=sys.stderr)
-        print("[DEBUG EXCESSIVE ACCESS] Bulk Import Filter", file=sys.stderr)
-        print(f"  sub_ids: {sub_ids!r}", file=sys.stderr)
-        print(f"  sub_ext_ids: {sub_ext_ids!r}", file=sys.stderr)
-        print(f"  sub_names: {sub_names!r}", file=sys.stderr)
-        # === DEBUG LOGGING END ===
-
-        # Filter by scope.id.equals (discovered from Wiz browser dev tools)
+        # ExcessiveAccessFindingFilters uses scope.id.equals for subscription;
+        # severity/status are not valid fields in this filter type (causes 400)
         if sub_ids:
             filter_by["scope"] = {"id": {"equals": sub_ids}}
-            print(f"[DEBUG] Added filter: scope.id.equals = {sub_ids}", file=sys.stderr)
-
-        print(f"[DEBUG] Full filter_by: {json.dumps(filter_by, indent=2)}", file=sys.stderr)
-        print("="*80 + "\n", file=sys.stderr)
     elif query_type == "networkExposures" and sub_ext_ids:
         filter_by["cloudAccount"] = sub_ext_ids
     elif query_type == "inventoryFindings" and sub_ids:
         filter_by["resource"] = {"subscriptionId": {"equals": sub_ids}}
+    elif query_type == "endOfLifeFindings":
+        # EOL findings are vulnerabilityFindings with isEndOfLife=True
+        filter_by["isEndOfLife"] = True
+        if sub_ext_ids:
+            filter_by["subscriptionExternalId"] = sub_ext_ids
+    # softwareSupplyChainFindings has no resource.subscriptionId filter — skip
 
     return filter_by
 
@@ -599,8 +687,8 @@ def api_wizi_find_by_id():
     data = request.get_json(silent=True) or {}
     finding_id = (data.get("id") or "").strip()
     subscription_filter = (data.get("subscription") or "").strip()
-    page_size = int(data.get("pageSize") or 5)
-    page = int(data.get("page") or 0)
+    page_size = _safe_int(data.get("pageSize"), 5)
+    page = _safe_int(data.get("page"), 0)
     if not finding_id:
         return jsonify({"error": "No finding ID provided"}), 400
 
@@ -626,6 +714,8 @@ def api_wizi_find_by_id():
         ("excessiveAccessFindings", "excessiveAccessFindings", WIZI_EXCESSIVE_ACCESS_QUERY),
         ("networkExposures", "networkExposures", WIZI_NETWORK_EXPOSURE_QUERY),
         ("inventoryFindings", "inventoryFindings", WIZI_INVENTORY_FINDINGS_QUERY),
+        ("endOfLifeFindings", "vulnerabilityFindings", WIZI_VULN_FINDINGS_QUERY),
+        ("softwareSupplyChainFindings", "softwareSupplyChainFindings", WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY),
     ]
 
     def _add_sub_filter(filter_by: dict, qt: str) -> dict:
@@ -651,6 +741,9 @@ def api_wizi_find_by_id():
             filter_by["cloudAccount"] = resolved_sub_ext_ids
         elif qt == "inventoryFindings" and resolved_sub_ids:
             filter_by["resource"] = {"subscriptionId": {"equals": resolved_sub_ids}}
+        elif qt == "endOfLifeFindings" and resolved_sub_ext_ids:
+            filter_by["subscriptionExternalId"] = resolved_sub_ext_ids
+
         return filter_by
 
     def _client_side_sub_filter(nodes: list) -> list:
@@ -716,6 +809,8 @@ def api_wizi_find_by_id():
     for qt, root_key, gql in queries:
         try:
             filter_by: Dict[str, Any] = {"id": finding_id}
+            if qt == "endOfLifeFindings":
+                filter_by["isEndOfLife"] = True
             filter_by = _add_sub_filter(filter_by, qt)
             variables: Dict[str, Any] = {"first": 1, "filterBy": filter_by}
             result = wiz._graphql(gql, variables)

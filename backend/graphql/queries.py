@@ -175,6 +175,49 @@ query InventoryFindings($first: Int, $after: String, $filterBy: InventoryFinding
 }
 """
 
+END_OF_LIFE_QUERY = """
+query EndOfLifeFindings($first: Int, $after: String, $filterBy: EndOfLifeFindingFilters) {
+  endOfLifeFindings(first: $first, after: $after, filterBy: $filterBy) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id severity status
+      technology { name version endOfLifeDate vendorSupportStatus }
+      resource {
+        name nativeType region cloudPlatform
+        cloudAccount { name externalId cloudProvider }
+      }
+    }
+  }
+}
+"""
+
+SOFTWARE_SUPPLY_CHAIN_QUERY = """
+query SoftwareSupplyChainFindings($first: Int, $after: String, $filterBy: SoftwareSupplyChainFindingFilters) {
+  softwareSupplyChainFindings(first: $first, after: $after, filterBy: $filterBy) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id severity status
+      name
+      # SoftwareSupplyChainFinding uses component{Name,Version}; alias to
+      # package{Name,Version} so the existing frontend reads (item.packageName /
+      # item.packageVersion in wizi.js / builder.js) keep working unchanged.
+      packageName: componentName
+      packageVersion: componentVersion
+      # SoftwareSupplyChainFindingResource is a slim shape — only id/type/name/
+      # subscription, no nativeType/region/cloudPlatform/cloudAccount. The
+      # frontend already falls back from resource.cloudAccount → resource.subscription
+      # and uses `|| ''` for the missing fields, so this renders cleanly.
+      resource {
+        id type name
+        subscription { name externalId cloudProvider }
+      }
+    }
+  }
+}
+"""
+
 # ---------------------------------------------------------------------------
 # Metadata Queries
 # ---------------------------------------------------------------------------
@@ -244,4 +287,6 @@ QUERY_TYPE_MAP = {
     "excessiveAccessFindings": (EXCESSIVE_ACCESS_QUERY, "excessiveAccessFindings"),
     "networkExposures": (NETWORK_EXPOSURE_QUERY, "networkExposures"),
     "inventoryFindings": (INVENTORY_FINDINGS_QUERY, "inventoryFindings"),
+    "endOfLifeFindings": (VULN_FINDINGS_QUERY, "vulnerabilityFindings"),
+    "softwareSupplyChainFindings": (SOFTWARE_SUPPLY_CHAIN_QUERY, "softwareSupplyChainFindings"),
 }

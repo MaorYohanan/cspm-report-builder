@@ -525,6 +525,17 @@
             row.classList.toggle('active-row', parseInt(row.getAttribute('data-idx')) === idx);
           });
         }
+
+        // Sync exception button label/style to current finding
+        var _excBtn = document.getElementById('btn-detail-exception');
+        if (_excBtn) {
+          var _isExc = !!(f.exception && f.exception.active);
+          _excBtn.textContent = _isExc ? '✓ בטל החרגה' : '⚠ החרג';
+          _excBtn.className = 'btn btn-sm ' + (_isExc ? 'btn-exception-active' : 'btn-exception');
+        }
+        // Close the inline dialog when switching findings
+        var _excDlg = document.getElementById('detail-exception-dialog');
+        if (_excDlg) _excDlg.style.display = 'none';
       }
 
       function renderDetailTab() {
@@ -552,6 +563,57 @@
               (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">לא הוזנה סיבה.</div>') +
               '</div>'
             : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג.</div>';
+          return;
+        } else if (activeDetailTab === 'notes') {
+          var notes = Array.isArray(f.notes) ? f.notes : (f.notes = []);
+          var notesHtml = '<div class="detail-notes-container"><div class="detail-notes-messages" id="detail-notes-messages">';
+          if (!notes.length) {
+            notesHtml += '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0;">אין הערות עדיין</div>';
+          } else {
+            notes.forEach(function(n, i) {
+              notesHtml += '<div class="detail-note-msg">' +
+                '<span class="note-delete" data-note-idx="' + i + '" title="מחק">✕</span>' +
+                escapeHtml(n.text || '') +
+                '<span class="note-time">' + escapeHtml(n.time || '') + '</span>' +
+                '</div>';
+            });
+          }
+          notesHtml += '</div><div class="detail-notes-input">' +
+            '<input type="text" id="detail-note-input" placeholder="הוסף הערה..." dir="rtl">' +
+            '<button id="btn-add-note">שלח</button>' +
+            '</div></div>';
+          bodyEl.innerHTML = notesHtml;
+
+          var msgEl = document.getElementById('detail-notes-messages');
+          if (msgEl) msgEl.scrollTop = msgEl.scrollHeight;
+
+          bodyEl.querySelectorAll('.note-delete').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var idx = parseInt(btn.getAttribute('data-note-idx'));
+              if (!isNaN(idx)) {
+                f.notes.splice(idx, 1);
+                renderDetailTab();
+                autoSave();
+              }
+            });
+          });
+
+          function addNote() {
+            var noteInput = document.getElementById('detail-note-input');
+            var text = noteInput ? noteInput.value.trim() : '';
+            if (!text) return;
+            if (!Array.isArray(f.notes)) f.notes = [];
+            var now = new Date();
+            var timeStr = now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+            f.notes.push({ text: text, time: timeStr });
+            renderDetailTab();
+            autoSave();
+          }
+
+          var addBtn = document.getElementById('btn-add-note');
+          var noteInput = document.getElementById('detail-note-input');
+          if (addBtn) addBtn.addEventListener('click', addNote);
+          if (noteInput) noteInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') addNote(); });
           return;
         }
 
@@ -632,6 +694,60 @@
           promptReorderAfterDelete();
         }
       });
+
+      // ── Exception toggle ──
+      var btnDetailException = document.getElementById('btn-detail-exception');
+      var detailExceptionDialog = document.getElementById('detail-exception-dialog');
+      var btnExceptionConfirm = document.getElementById('btn-exception-confirm');
+      var btnExceptionCancel = document.getElementById('btn-exception-cancel');
+
+      if (btnDetailException) {
+        btnDetailException.addEventListener('click', function() {
+          if (selectedFindingIndex === null || !findings[selectedFindingIndex]) return;
+          var f = findings[selectedFindingIndex];
+          if (f.exception && f.exception.active) {
+            // Already excepted — immediately toggle off
+            f.exception = { active: false, reason: '' };
+            if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+            btnDetailException.textContent = '⚠ החרג';
+            btnDetailException.className = 'btn btn-sm btn-exception';
+            renderDetailTab();
+            renderFindingsTable();
+            autoSave();
+            showToast('ההחרגה בוטלה', 'info');
+          } else {
+            // Not excepted — show reason dialog, pre-fill if re-excepting
+            var inp = document.getElementById('detail-exception-reason-input');
+            if (inp) inp.value = (f.exception && f.exception.reason) || '';
+            if (detailExceptionDialog) detailExceptionDialog.style.display = '';
+          }
+        });
+      }
+
+      if (btnExceptionConfirm) {
+        btnExceptionConfirm.addEventListener('click', function() {
+          if (selectedFindingIndex === null || !findings[selectedFindingIndex]) return;
+          var inp = document.getElementById('detail-exception-reason-input');
+          var reason = inp ? inp.value.trim() : '';
+          findings[selectedFindingIndex].exception = { active: true, reason: reason };
+          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+          var excBtn = document.getElementById('btn-detail-exception');
+          if (excBtn) {
+            excBtn.textContent = '✓ בטל החרגה';
+            excBtn.className = 'btn btn-sm btn-exception-active';
+          }
+          renderDetailTab();
+          renderFindingsTable();
+          autoSave();
+          showToast('הממצא סומן כמוחרג', 'success');
+        });
+      }
+
+      if (btnExceptionCancel) {
+        btnExceptionCancel.addEventListener('click', function() {
+          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+        });
+      }
 
       // ── Tab navigation ──
       function switchToTab(tabId) {
@@ -1158,7 +1274,13 @@
             reportVersion: document.getElementById('report-version').value,
             reportLang: document.getElementById('report-lang').value
           },
-          findings: findings,  // JSON.stringify יעשה deep copy
+          // Strip _wizSourceId (transient client-side dedup tag) before serializing
+          findings: findings.map(function(f) {
+            if (!f || typeof f !== 'object' || !('_wizSourceId' in f)) return f;
+            var copy = Object.assign({}, f);
+            delete copy._wizSourceId;
+            return copy;
+          }),
           // Save in-progress form draft so refresh doesn't lose work
           formDraft: {
             editingIndex: editingIndex,
@@ -1243,7 +1365,8 @@
             evidence: Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []),
             exception: (f.exception && typeof f.exception === 'object')
               ? { active: !!f.exception.active, reason: f.exception.reason || '' }
-              : { active: false, reason: '' }
+              : { active: false, reason: '' },
+            notes: Array.isArray(f.notes) ? f.notes : []
           });
         });
 
@@ -2072,7 +2195,8 @@
                 return { active: true, reason: (excReason ? excReason.value.trim() : '') };
               }
               return { active: false, reason: '' };
-            })()
+            })(),
+            notes: editingIndex !== null ? (findings[editingIndex].notes || []) : []
           };
 
           if (editingIndex === null) {
@@ -4491,6 +4615,18 @@
           { value: 'IN_PROGRESS', text: 'In Progress', selected: false },
           { value: 'RESOLVED', text: 'Resolved', selected: false },
           { value: 'REJECTED', text: 'Rejected', selected: false }
+        ],
+        endOfLifeFindings: [
+          { value: 'OPEN', text: 'Open', selected: true },
+          { value: 'IN_PROGRESS', text: 'In Progress', selected: false },
+          { value: 'RESOLVED', text: 'Resolved', selected: false },
+          { value: 'REJECTED', text: 'Rejected', selected: false }
+        ],
+        softwareSupplyChainFindings: [
+          { value: 'OPEN', text: 'Open', selected: true },
+          { value: 'IN_PROGRESS', text: 'In Progress', selected: false },
+          { value: 'RESOLVED', text: 'Resolved', selected: false },
+          { value: 'REJECTED', text: 'Rejected', selected: false }
         ]
       };
 
@@ -4551,6 +4687,20 @@
           { value: 'LOW', text: 'Low', selected: false }
         ],
         inventoryFindings: [
+          { value: 'CRITICAL', text: 'Critical', selected: true },
+          { value: 'HIGH', text: 'High', selected: true },
+          { value: 'MEDIUM', text: 'Medium', selected: false },
+          { value: 'LOW', text: 'Low', selected: false },
+          { value: 'INFORMATIONAL', text: 'Informational', selected: false }
+        ],
+        endOfLifeFindings: [
+          { value: 'CRITICAL', text: 'Critical', selected: true },
+          { value: 'HIGH', text: 'High', selected: true },
+          { value: 'MEDIUM', text: 'Medium', selected: false },
+          { value: 'LOW', text: 'Low', selected: false },
+          { value: 'INFORMATIONAL', text: 'Informational', selected: false }
+        ],
+        softwareSupplyChainFindings: [
           { value: 'CRITICAL', text: 'Critical', selected: true },
           { value: 'HIGH', text: 'High', selected: true },
           { value: 'MEDIUM', text: 'Medium', selected: false },
@@ -4825,7 +4975,9 @@
           secretInstances: renderWiziSecretTable,
           excessiveAccessFindings: renderWiziExcessiveAccessTable,
           networkExposures: renderWiziNetworkTable,
-          inventoryFindings: renderWiziInventoryTable
+          inventoryFindings: renderWiziInventoryTable,
+          endOfLifeFindings: renderWiziEolTable,
+          softwareSupplyChainFindings: renderWiziSscTable
         };
         var fn = renderers[wiziQueryType] || renderWiziIssuesTable;
         fn();
@@ -5105,6 +5257,72 @@
         wireWiziCheckboxes();
       }
 
+      function renderWiziEolTable() {
+        var html = '<table><caption>ממצאי Wizi — End of Life Findings — סמן לייבוא</caption><thead><tr>' +
+          '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
+          '<th>Technology / Finding</th><th>חומרה</th><th>Asset</th><th>Type</th><th>Subscription</th><th>Fix</th><th>סטטוס</th>' +
+          '</tr></thead><tbody>';
+        wiziIssues.forEach(function(item, idx) {
+          var sev = (item.severity || 'MEDIUM').toUpperCase();
+          var sevClass = 'sev-' + mapWiziSeverity(sev);
+          var asset = item.vulnerableAsset || {};
+          var tech = item.technology || {};
+          var res = item.resource || {};
+          var ca = res.cloudAccount || {};
+          var techLabel = item.detailedName || tech.name || item.name || 'N/A';
+          if (!item.detailedName && tech.version) techLabel += ' ' + tech.version;
+          var assetName = asset.name || res.name || 'N/A';
+          var assetType = asset.type || res.nativeType || '';
+          var subName = asset.subscriptionName || ca.name || res.cloudPlatform || '';
+          var eolDate = tech.endOfLifeDate || '';
+          var fixBadge = item.hasFix != null
+            ? (item.hasFix ? '<span class="severity-chip sev-low">יש תיקון</span>' : '<span class="muted">אין</span>')
+            : (eolDate ? '<span class="muted">' + escapeHtml(eolDate) + '</span>' : '');
+          html += '<tr>' +
+            '<td><input type="checkbox" class="wizi-check" data-idx="' + idx + '" checked></td>' +
+            '<td title="' + escapeHtml(tech.vendorSupportStatus || item.CVEDescription || '') + '">' + escapeHtml(techLabel) + '</td>' +
+            '<td><span class="severity-chip ' + sevClass + '">' + sev + '</span></td>' +
+            '<td>' + escapeHtml(assetName) + '</td>' +
+            '<td><span class="muted">' + escapeHtml(assetType) + '</span></td>' +
+            '<td>' + escapeHtml(subName) + '</td>' +
+            '<td>' + fixBadge + '</td>' +
+            '<td>' + escapeHtml(item.status || '') + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        wiziResults.innerHTML = html;
+        wiziActionsDiv.style.display = '';
+        wireWiziCheckboxes();
+      }
+
+      function renderWiziSscTable() {
+        var html = '<table><caption>ממצאי Wizi — Software Supply Chain — סמן לייבוא</caption><thead><tr>' +
+          '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
+          '<th>Package</th><th>Version</th><th>חומרה</th><th>Resource</th><th>Cloud</th><th>Region</th><th>סטטוס</th>' +
+          '</tr></thead><tbody>';
+        wiziIssues.forEach(function(item, idx) {
+          var sev = (item.severity || 'MEDIUM').toUpperCase();
+          var sevClass = 'sev-' + mapWiziSeverity(sev);
+          var res = item.resource || {};
+          var ca = res.cloudAccount || {};
+          var pkgLabel = item.packageName || item.name || 'N/A';
+          html += '<tr>' +
+            '<td><input type="checkbox" class="wizi-check" data-idx="' + idx + '" checked></td>' +
+            '<td>' + escapeHtml(pkgLabel) + '</td>' +
+            '<td><span class="muted">' + escapeHtml(item.packageVersion || '') + '</span></td>' +
+            '<td><span class="severity-chip ' + sevClass + '">' + sev + '</span></td>' +
+            '<td>' + escapeHtml(res.name || 'N/A') + '</td>' +
+            '<td>' + escapeHtml(ca.name || res.cloudPlatform || '') + '</td>' +
+            '<td>' + escapeHtml(res.region || '') + '</td>' +
+            '<td>' + escapeHtml(item.status || '') + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        wiziResults.innerHTML = html;
+        wiziActionsDiv.style.display = '';
+        wireWiziCheckboxes();
+      }
+
       wiziFetchBtn.addEventListener('click', function() {
         wiziIssues = [];
         wiziEndCursor = null;
@@ -5195,11 +5413,11 @@
             hostConfigurationRuleAssessments: 'host config findings',
             dataFindingsV2: 'data findings', secretInstances: 'secrets',
             excessiveAccessFindings: 'excessive access findings',
-            networkExposures: 'network exposures', inventoryFindings: 'inventory findings'
+            networkExposures: 'network exposures', inventoryFindings: 'inventory findings',
+            endOfLifeFindings: 'end of life findings'
           };
           var countText = 'נמצאו ' + wiziIssues.length + ' ' + (typeLabels[qt] || 'ממצאים');
           if (resultSet.totalCount) countText += ' (מתוך ' + resultSet.totalCount + ')';
-          if (subFilter) countText += ' [סינון: ' + subscription + ']';
           if (wiziHasNextPage) countText += ' — יש עוד';
           wiziStatusMsg.textContent = countText;
 
@@ -5233,7 +5451,13 @@
           var es = node.entitySnapshot || {};
           subName = es.subscriptionName || '';
         }
-        else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings') {
+        else if (qt === 'endOfLifeFindings') {
+          var asset = node.vulnerableAsset || {};
+          var res = node.resource || {};
+          var sub = res.subscription || res.cloudAccount || {};
+          subName = asset.subscriptionName || sub.name || '';
+        }
+        else if (qt === 'configurationFindings' || qt === 'hostConfigurationRuleAssessments' || qt === 'inventoryFindings' || qt === 'softwareSupplyChainFindings') {
           var res = node.resource || {};
           var sub = res.subscription || res.cloudAccount || {};
           subName = sub.name || '';
@@ -5472,7 +5696,9 @@
             secretInstances: importSecretFinding,
             excessiveAccessFindings: importExcessiveAccessFinding,
             networkExposures: importNetworkExposureFinding,
-            inventoryFindings: importInventoryFinding
+            inventoryFindings: importInventoryFinding,
+            endOfLifeFindings: importEndOfLifeFinding,
+            softwareSupplyChainFindings: importSscFinding
           };
           var fn = importers[wiziQueryType] || importIssueFinding;
           
@@ -5639,7 +5865,7 @@
           vulnerabilityFindings: 'VULN', hostConfigurationRuleAssessments: 'HSPM',
           dataFindingsV2: 'DSPM', secretInstances: 'SECR',
           excessiveAccessFindings: 'EAPM', networkExposures: 'NEXP',
-          inventoryFindings: 'EOLM'
+          inventoryFindings: 'EOLM', endOfLifeFindings: 'EOLM'
         };
 
         if (!nodes.length) {
@@ -5658,7 +5884,9 @@
             secretInstances: importSecretFinding,
             excessiveAccessFindings: importExcessiveAccessFinding,
             networkExposures: importNetworkExposureFinding,
-            inventoryFindings: importInventoryFinding
+            inventoryFindings: importInventoryFinding,
+            endOfLifeFindings: importEndOfLifeFinding,
+            softwareSupplyChainFindings: importSscFinding
           };
           var fn = importers[qt] || importIssueFinding;
           fn(nodes[0]);
@@ -5733,7 +5961,9 @@
               secretInstances: importSecretFinding,
               excessiveAccessFindings: importExcessiveAccessFinding,
               networkExposures: importNetworkExposureFinding,
-              inventoryFindings: importInventoryFinding
+              inventoryFindings: importInventoryFinding,
+              endOfLifeFindings: importEndOfLifeFinding,
+              softwareSupplyChainFindings: importSscFinding
             };
             var fn = importers[qt] || importIssueFinding;
             fn(node);
@@ -5843,6 +6073,21 @@
           var rule = item.rule || {};
           return rule.name || item.name || '';
         }
+        if (qt === 'endOfLifeFindings') {
+          var asset = item.vulnerableAsset || {};
+          var tech = item.technology || {};
+          var res = item.resource || {};
+          var techLabel = item.detailedName || tech.name || item.name || '';
+          if (!item.detailedName && tech.version) techLabel += ' ' + tech.version;
+          var resourceName = asset.name || res.name || '';
+          return techLabel + (resourceName ? ' — ' + resourceName : '');
+        }
+        if (qt === 'softwareSupplyChainFindings') {
+          var pkgName = item.packageName || item.name || '';
+          var pkgVer = item.packageVersion || '';
+          var res = item.resource || {};
+          return pkgName + (pkgVer ? ' ' + pkgVer : '') + (res.name ? ' — ' + res.name : '');
+        }
         if (qt === 'vulnerabilityFindings') return item.name || item.detailedName || '';
         if (qt === 'dataFindingsV2') return item.name || (item.dataClassifier || {}).name || '';
         if (qt === 'secretInstances') return item.name || (item.rule || {}).name || '';
@@ -5876,6 +6121,16 @@
         if (qt === 'excessiveAccessFindings') {
           // Use finding name as rule ID (same excessive access type)
           return item.name || null;
+        }
+        if (qt === 'endOfLifeFindings') {
+          var asset = item.vulnerableAsset || {};
+          var tech = item.technology || {};
+          var techName = item.detailedName || tech.name || item.name || '';
+          var techVersion = item.version || tech.version || '';
+          return techName + (techVersion ? '@' + techVersion : '');
+        }
+        if (qt === 'softwareSupplyChainFindings') {
+          return (item.packageName || item.name || '') + (item.packageVersion ? '@' + item.packageVersion : '');
         }
         if (qt === 'networkExposures') {
           // Network exposures don't have rules, use exposure type + port range
@@ -5938,13 +6193,35 @@
           if (ca.name) lines.push('Account: ' + ca.name);
         }
         
+        else if (qt === 'endOfLifeFindings') {
+          var tech = item.technology || {};
+          var res = item.resource || {};
+          var ca = res.cloudAccount || {};
+          if (res.name) lines.push('Resource: ' + res.name);
+          if (ca.name) lines.push('Account: ' + ca.name);
+          if (res.region) lines.push('Region: ' + res.region);
+          if (tech.name) lines.push('Technology: ' + tech.name);
+          if (tech.version) lines.push('Version: ' + tech.version);
+          if (tech.endOfLifeDate) lines.push('EOL Date: ' + tech.endOfLifeDate);
+        }
+
+        else if (qt === 'softwareSupplyChainFindings') {
+          var res = item.resource || {};
+          var ca = res.cloudAccount || {};
+          if (res.name) lines.push('Resource: ' + res.name);
+          if (ca.name) lines.push('Account: ' + ca.name);
+          if (res.region) lines.push('Region: ' + res.region);
+          if (item.packageName || item.name) lines.push('Package: ' + (item.packageName || item.name));
+          if (item.packageVersion) lines.push('Version: ' + item.packageVersion);
+        }
+
         else if (qt === 'networkExposures') {
           var entity = item.exposedEntity || {};
           if (entity.name) lines.push('Entity: ' + entity.name);
           if (entity.type) lines.push('Type: ' + entity.type);
           if (item.sourceIpRange) lines.push('Source IP: ' + item.sourceIpRange);
         }
-        
+
         return lines;
       }
 
@@ -5983,6 +6260,15 @@
           var ge = principal.graphEntity || {};
           return ge.name || null;
         }
+        else if (qt === 'endOfLifeFindings') {
+          var asset = item.vulnerableAsset || {};
+          var res = item.resource || {};
+          return asset.name || res.name || null;
+        }
+        else if (qt === 'softwareSupplyChainFindings') {
+          var res = item.resource || {};
+          return res.name || null;
+        }
         else if (qt === 'networkExposures') {
           var entity = item.exposedEntity || {};
           return entity.name || null;
@@ -6007,6 +6293,13 @@
             if (sub.externalId) subscriptions[sub.externalId] = true;
             else if (sub.name) subscriptions[sub.name] = true;
             if (sub.cloudProvider) clouds[sub.cloudProvider] = true;
+            else if (res.cloudPlatform) clouds[res.cloudPlatform] = true;
+          } else if (qt === 'endOfLifeFindings' || qt === 'softwareSupplyChainFindings') {
+            var res = n.resource || {};
+            var ca = res.cloudAccount || {};
+            if (ca.externalId) subscriptions[ca.externalId] = true;
+            else if (ca.name) subscriptions[ca.name] = true;
+            if (ca.cloudProvider) clouds[ca.cloudProvider] = true;
             else if (res.cloudPlatform) clouds[res.cloudPlatform] = true;
           } else if (qt === 'vulnerabilityFindings') {
             var asset = n.vulnerableAsset || {};
@@ -6045,6 +6338,8 @@
         if (qt === 'excessiveAccessFindings') topics['הרשאות יתר (Excessive Access)'] = true;
         if (qt === 'networkExposures') topics['חשיפה לאינטרנט (Network Exposure)'] = true;
         if (qt === 'inventoryFindings') topics['משאבים בסוף חיים (EOL)'] = true;
+        if (qt === 'endOfLifeFindings') topics['רכיבים בסוף חיים (End of Life)'] = true;
+        if (qt === 'softwareSupplyChainFindings') topics['שרשרת אספקה (Software Supply Chain)'] = true;
 
         return {
           subscription: Object.keys(subscriptions).join(', '),
@@ -6736,6 +7031,13 @@
         if (ge.name) technical.push('Principal: ' + ge.name);
         if (ge.type) technical.push('Principal Type: ' + ge.type);
         if (item.remediationType) technical.push('Remediation Type: ' + item.remediationType);
+        var policies = Array.isArray(item.involvedPolicies) ? item.involvedPolicies : [];
+        if (policies.length) {
+          technical.push('Involved Policies:');
+          policies.forEach(function(p) {
+            technical.push('  • ' + (p.name || p) + (p.type ? ' (' + p.type + ')' : ''));
+          });
+        }
 
         // Recommendations — remediationInstructions is on the node itself (not rule)
         var recs = extractRecommendations(
@@ -6850,6 +7152,111 @@
         });
       }
 
+      function importEndOfLifeFinding(item) {
+        var sev = mapWiziSeverity(item.severity);
+        var cat = 'EOLM';
+        var id = generateNextId(cat);
+        var tech = item.technology || {};
+        var asset = item.vulnerableAsset || {};
+        var res = item.resource || {};
+        var ca = res.cloudAccount || {};
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+
+        // Support both old endOfLifeFindings schema (tech.name) and vuln-based schema (detailedName)
+        var techLabel = item.detailedName || tech.name || 'End of Life Asset';
+        if (!item.detailedName && tech.version) techLabel += ' ' + tech.version;
+        var resourceName = asset.name || res.name || '';
+        var subscriptionName = asset.subscriptionName || ca.name || '';
+        var eolDate = tech.endOfLifeDate || '';
+        var vendorStatus = tech.vendorSupportStatus || '';
+
+        var title = techLabel + (resourceName ? ' — ' + resourceName : '');
+
+        var description = techLabel + ' הגיע לסוף תמיכה (EOL)';
+        if (eolDate) description += ' בתאריך ' + eolDate;
+        if (vendorStatus) description += '. סטטוס תמיכת ספק: ' + vendorStatus;
+
+        var impact = 'רכיב בסוף חיים ברמת ' + sevLabel;
+        if (resourceName) impact += ' — ' + resourceName;
+        if (eolDate) impact += ' (EOL: ' + eolDate + ')';
+
+        var technical = [];
+        var cloud = subscriptionName || res.cloudPlatform || '';
+        if (cloud) technical.push('Subscription: ' + cloud);
+        if (resourceName) technical.push('Resource: ' + resourceName);
+        var assetType = asset.type || res.nativeType || '';
+        if (assetType) technical.push('Type: ' + assetType);
+        if (item.version || tech.version) technical.push('Version: ' + (item.version || tech.version));
+        if (eolDate) technical.push('EOL Date: ' + eolDate);
+        if (vendorStatus) technical.push('Vendor Support Status: ' + vendorStatus);
+        if (item.hasFix) technical.push('Fix Available: Yes' + (item.fixedVersion ? ' (' + item.fixedVersion + ')' : ''));
+
+        var recs = [
+          'לשדרג את ' + techLabel + ' לגרסה נתמכת בהקדם',
+          'לתכנן מיגרציה בהתאם ללוח הזמנים של הספק',
+          'לבחון חשיפות אבטחה הנובעות מחוסר עדכוני אבטחה ב-EOL'
+        ];
+
+        findings.push({
+          id: id, category: cat,
+          title: title, severity: sev,
+          description: description, impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
+          owner: subscriptionName,
+          evidence: [],
+          exception: { active: false, reason: '' }
+        });
+      }
+
+      function importSscFinding(item) {
+        var sev = mapWiziSeverity(item.severity);
+        var cat = 'EOLM';
+        var id = generateNextId(cat);
+        var res = item.resource || {};
+        var ca = res.cloudAccount || {};
+        var sevLabel = (severityMap[sev] || {}).text || sev;
+
+        var pkgName = item.packageName || item.name || 'Software Package';
+        var pkgVersion = item.packageVersion || '';
+
+        var title = pkgName + (pkgVersion ? ' ' + pkgVersion : '') + (res.name ? ' — ' + res.name : '');
+
+        var description = 'ממצא אבטחה בשרשרת האספקה: ' + pkgName;
+        if (pkgVersion) description += ' גרסה ' + pkgVersion;
+        if (res.name) description += ' ב-' + res.name;
+
+        var impact = 'רכיב תוכנה ברמת ' + sevLabel;
+        if (res.name) impact += ' — ' + res.name;
+
+        var technical = [];
+        if (res.cloudPlatform) technical.push('Cloud: ' + res.cloudPlatform);
+        if (ca.name) technical.push('Account: ' + ca.name);
+        if (res.region) technical.push('Region: ' + res.region);
+        if (res.name) technical.push('Resource: ' + res.name);
+        if (res.nativeType) technical.push('Type: ' + res.nativeType);
+        if (pkgName) technical.push('Package: ' + pkgName);
+        if (pkgVersion) technical.push('Version: ' + pkgVersion);
+
+        var recs = [
+          'לעדכן את ' + pkgName + ' לגרסה נתמכת ומאובטחת',
+          'לבחון את תלויות שרשרת האספקה ולצמצם חשיפה',
+          'לבדוק אם קיימים ניצולים ידועים (CVEs) עבור גרסה זו'
+        ];
+
+        findings.push({
+          id: id, category: cat,
+          title: title, severity: sev,
+          description: description, impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
+          owner: ca.name || '',
+          evidence: [],
+          exception: { active: false, reason: '' },
+          notes: []
+        });
+      }
+
       // ── Bulk Import ──
       var bulkImportResults = {};
       var bulkSelectionState = {}; // Track which items are selected (query type -> Set of indices)
@@ -6888,7 +7295,9 @@
           { qt: 'secretInstances',                  label: 'SECR — Secrets' },
           { qt: 'excessiveAccessFindings',          label: 'EAPM — Excessive Access' },
           { qt: 'networkExposures',                 label: 'NEXP — Network Exposure' },
-          { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' }
+          { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' },
+          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' },
+          { qt: 'softwareSupplyChainFindings',       label: 'EOL — Software Supply Chain' }
         ];
         var totalStages = stages.length;
 
@@ -7023,7 +7432,9 @@
           'secretInstances': 'SECR — Secrets',
           'excessiveAccessFindings': 'EAPM — Excessive Access',
           'networkExposures': 'NEXP — Network Exposure',
-          'inventoryFindings': 'EOLM — Inventory / EOL'
+          'inventoryFindings': 'EOLM — Inventory / EOL',
+          'endOfLifeFindings': 'EOL — End of Life Findings',
+          'softwareSupplyChainFindings': 'EOL — Software Supply Chain'
         };
 
         var resolved = data.resolvedSubscription || {};
@@ -7111,7 +7522,7 @@
           }
 
           html += '<details class="bulk-section-card" data-qt="' + qt + '">';
-          html += '<summary class="bulk-section-summary"><span class="bulk-section-icon">' + (qt === 'vulnerabilityFindings' ? '🛡️' : qt === 'configurationFindings' ? '⚙️' : qt === 'secretInstances' ? '🔑' : qt === 'excessiveAccessFindings' ? '👤' : qt === 'networkExposures' ? '🌐' : qt === 'hostConfigurationRuleAssessments' ? '🖥️' : qt === 'dataFindingsV2' ? '💾' : qt === 'inventoryFindings' ? '📦' : '📋') + '</span><span class="bulk-section-label">' + escapeHtml(label) + '</span><span class="bulk-section-count">' + nodes.length + '</span></summary>';
+          html += '<summary class="bulk-section-summary"><span class="bulk-section-icon">' + (qt === 'vulnerabilityFindings' ? '🛡️' : qt === 'configurationFindings' ? '⚙️' : qt === 'secretInstances' ? '🔑' : qt === 'excessiveAccessFindings' ? '👤' : qt === 'networkExposures' ? '🌐' : qt === 'hostConfigurationRuleAssessments' ? '🖥️' : qt === 'dataFindingsV2' ? '💾' : qt === 'inventoryFindings' ? '📦' : qt === 'endOfLifeFindings' ? '🔚' : qt === 'softwareSupplyChainFindings' ? '🔗' : '📋') + '</span><span class="bulk-section-label">' + escapeHtml(label) + '</span><span class="bulk-section-count">' + nodes.length + '</span></summary>';
           html += '<div class="bulk-section-body" id="bulk-body-' + qt + '"></div>';
           html += '</details>';
         });
@@ -7125,7 +7536,7 @@
           if (col === 'title') return (getWiziItemTitle(node, qt) || '').toLowerCase();
           if (col === 'subscription') return (getNodeSubscriptionName(node, qt) || '').toLowerCase();
           if (col === 'resource') {
-            if (qt === 'vulnerabilityFindings') return ((node.vulnerableAsset || {}).name || '').toLowerCase();
+            if (qt === 'vulnerabilityFindings' || qt === 'endOfLifeFindings') return ((node.vulnerableAsset || {}).name || '').toLowerCase();
             if (qt === 'secretInstances') return ((node.resource || {}).name || '').toLowerCase();
             return '';
           }
@@ -7182,7 +7593,7 @@
           h += '<th class="sortable-th" data-sort-col="type" data-qt="' + qt + '">סוג' + sortIndicator('type') + '</th>';
           h += '<th class="sortable-th" data-sort-col="severity" data-qt="' + qt + '">חומרה' + sortIndicator('severity') + '</th>';
           h += '<th class="sortable-th" data-sort-col="title" data-qt="' + qt + '">כותרת' + sortIndicator('title') + '</th>';
-          if (qt === 'vulnerabilityFindings') {
+          if (qt === 'vulnerabilityFindings' || qt === 'endOfLifeFindings') {
             h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
             h += '<th class="sortable-th" data-sort-col="resourceType" data-qt="' + qt + '">סוג משאב' + sortIndicator('resourceType') + '</th>';
           }
@@ -7205,7 +7616,7 @@
             h += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
             h += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
             h += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
-            if (qt === 'vulnerabilityFindings') {
+            if (qt === 'vulnerabilityFindings' || qt === 'endOfLifeFindings') {
               var asset = node.vulnerableAsset || {};
               h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(asset.name || '') + '">' + escapeHtml(asset.name || '—') + '</td>';
               h += '<td>' + escapeHtml(asset.type || '—') + '</td>';
@@ -7341,7 +7752,9 @@
         'secretInstances': importSecretFinding,
         'excessiveAccessFindings': importExcessiveAccessFinding,
         'networkExposures': importNetworkExposureFinding,
-        'inventoryFindings': importInventoryFinding
+        'inventoryFindings': importInventoryFinding,
+        'endOfLifeFindings': importEndOfLifeFinding,
+        'softwareSupplyChainFindings': importSscFinding
       };
 
       function importSelectedBulkFindings() {
@@ -8400,10 +8813,10 @@ var ProductsPanel = {
 
     var modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    modal.innerHTML = '<div style="background:var(--card-bg);border-radius:10px;padding:24px;min-width:320px;">'
+    modal.innerHTML = '<div style="background:var(--card-bg);border-radius:10px;padding:24px;min-width:340px;max-width:420px;">'
       + '<h3 style="margin-top:0;">שמור כגרסת מוצר</h3>'
       + '<div style="margin-bottom:10px;"><label>מוצר:</label><select id="picker-product" style="width:100%;margin-top:4px;"><option value="">-- בחר מוצר --</option>' + opts + '</select></div>'
-      + '<div style="margin-bottom:10px;"><label>סוג גרסה:</label><select id="picker-type" style="width:100%;margin-top:4px;"><option value="minor">תיקון קטן (Minor)</option><option value="major">גרסה חדשה (Major)</option></select></div>'
+      + '<div id="picker-type-area" style="margin-bottom:10px;"><p class="muted" style="margin:6px 0 0;">בחר מוצר כדי להמשיך…</p></div>'
       + '<div style="margin-bottom:12px;"><label>הערות:</label><textarea id="picker-notes" rows="2" maxlength="500" style="width:100%;box-sizing:border-box;margin-top:4px;"></textarea></div>'
       + '<div style="display:flex;gap:8px;">'
       + '<button class="btn btn-primary btn-sm" id="btn-picker-confirm" disabled>שמור</button>'
@@ -8412,13 +8825,68 @@ var ProductsPanel = {
     document.body.appendChild(modal);
 
     var confirmBtn = document.getElementById('btn-picker-confirm');
+    var typeArea = document.getElementById('picker-type-area');
+
+    function renderTypeArea(latestVer, status) {
+      var html = '';
+      if (!latestVer) {
+        html += '<label>סוג גרסה:</label>';
+        html += '<select id="picker-type" style="width:100%;margin-top:4px;">'
+              + '<option value="minor">תיקון קטן (Minor)</option>'
+              + '<option value="major">גרסה חדשה (Major)</option>'
+              + '</select>';
+        html += '<p class="muted" style="margin:6px 0 0;font-size:0.85em;">מוצר חדש — תיווצר גרסה v1.0</p>';
+      } else if (status === 'draft') {
+        html += '<label>סוג גרסה:</label>';
+        html += '<select id="picker-type" style="width:100%;margin-top:4px;">'
+              + '<option value="draft" selected>עדכן טיוטה (v' + _esc(latestVer) + ')</option>'
+              + '</select>';
+        html += '<p class="muted" style="margin:6px 0 0;font-size:0.85em;">טיוטה קיימת — שמירה תעדכן אותה. ליצירת גרסה חדשה יש לפרסם תחילה.</p>';
+      } else {
+        html += '<label>סוג גרסה:</label>';
+        html += '<select id="picker-type" style="width:100%;margin-top:4px;">'
+              + '<option value="minor">תיקון קטן (Minor)</option>'
+              + '<option value="major">גרסה חדשה (Major)</option>'
+              + '</select>';
+        html += '<p class="muted" style="margin:6px 0 0;font-size:0.85em;">גרסה אחרונה: v' + _esc(latestVer) + ' (פורסם)</p>';
+      }
+      typeArea.innerHTML = html;
+    }
+
     document.getElementById('picker-product').addEventListener('change', function(){
-      confirmBtn.disabled = !this.value;
+      var productId = this.value;
+      if (!productId) {
+        confirmBtn.disabled = true;
+        typeArea.innerHTML = '<p class="muted" style="margin:6px 0 0;">בחר מוצר כדי להמשיך…</p>';
+        return;
+      }
+      confirmBtn.disabled = true;
+      typeArea.innerHTML = '<p class="muted" style="margin:6px 0 0;">טוען גרסאות…</p>';
+      self.fetchVersions(productId).then(function(versions){
+        // versions are sorted savedAt-desc by the server; pick the highest by (major,minor)
+        var latest = null;
+        (versions || []).forEach(function(v){
+          if (!v || !v.version) return;
+          var parts = String(v.version).split('.');
+          if (parts.length !== 2) return;
+          var key = [parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0];
+          if (!latest || key[0] > latest._k[0] || (key[0] === latest._k[0] && key[1] > latest._k[1])) {
+            latest = { version: v.version, status: v.status, _k: key };
+          }
+        });
+        renderTypeArea(latest && latest.version, latest && latest.status);
+        confirmBtn.disabled = false;
+      }).catch(function(){
+        // Fail-soft: fall back to minor/major picker so the modal isn't blocked
+        renderTypeArea(null, null);
+        confirmBtn.disabled = false;
+      });
     });
     document.getElementById('btn-picker-cancel').addEventListener('click', function(){ document.body.removeChild(modal); });
     confirmBtn.addEventListener('click', function(){
       var productId = document.getElementById('picker-product').value;
-      var versionType = document.getElementById('picker-type').value;
+      var typeEl = document.getElementById('picker-type');
+      var versionType = typeEl ? typeEl.value : 'minor';
       var notes = document.getElementById('picker-notes').value;
       saveAsVersion(productId, versionType, notes)
         .then(function(){ document.body.removeChild(modal); })

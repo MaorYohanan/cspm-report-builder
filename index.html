@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=35">
+  <link rel="stylesheet" href="/static/css/builder.css?v=38">
 </head>
 <body>
   <!-- Toast container -->
@@ -553,11 +553,22 @@
               <button class="findings-detail-tab" data-detail-tab="exception">מוחרג</button>
             </div>
             <div class="findings-detail-body" id="findings-detail-body"></div>
+            <div id="detail-exception-dialog" class="detail-exception-dialog" style="display:none;">
+              <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;">סיבת ההחרגה (אופציונלי)</label>
+              <textarea id="detail-exception-reason-input" rows="2"
+                placeholder="לדוג׳: אושר על ידי CISO, סיכון מקובל..."
+                style="width:100%;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-input);color:var(--text);font-family:inherit;box-sizing:border-box;"></textarea>
+              <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end;">
+                <button class="btn btn-secondary btn-sm" id="btn-exception-cancel">ביטול</button>
+                <button class="btn btn-sm btn-exception-active" id="btn-exception-confirm">⚠ אשר החרגה</button>
+              </div>
+            </div>
             <div class="findings-detail-footer">
               <button class="btn btn-secondary btn-sm" id="btn-detail-prev">הבא →</button>
               <button class="btn btn-secondary btn-sm" id="btn-detail-next">← הקודם</button>
               <button class="btn btn-secondary btn-sm" id="btn-detail-copy" title="העתק לקליפבורד">📋 העתק</button>
               <button class="btn btn-secondary btn-sm" id="btn-detail-expand" title="הרחב">⛶</button>
+              <button class="btn btn-sm btn-exception" id="btn-detail-exception" title="סמן כמוחרג">⚠ החרג</button>
               <button class="btn btn-primary btn-sm" id="btn-detail-edit">ערוך</button>
               <button class="btn btn-danger btn-sm" id="btn-detail-delete">מחק</button>
             </div>
@@ -697,6 +708,7 @@
               <option value="excessiveAccessFindings">EAPM — Excessive Access</option>
               <option value="networkExposures">NEXP — Network Exposure</option>
               <option value="inventoryFindings">EOLM — Inventory / EOL</option>
+              <option value="softwareSupplyChainFinding">EOL — Software Supply Chain</option>
             </select>
           </div>
           <div class="col">
@@ -780,6 +792,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/builder.js?v=93"></script>
+  <script type="module" src="/static/js/builder.js?v=98"></script>
 </body>
 </html>
