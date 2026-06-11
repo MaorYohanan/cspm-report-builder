@@ -4696,7 +4696,7 @@
         endOfLifeFindings: [
           { value: 'CRITICAL', text: 'Critical', selected: true },
           { value: 'HIGH', text: 'High', selected: true },
-          { value: 'MEDIUM', text: 'Medium', selected: false },
+          { value: 'MEDIUM', text: 'Medium', selected: true },
           { value: 'LOW', text: 'Low', selected: false },
           { value: 'INFORMATIONAL', text: 'Informational', selected: false }
         ],
@@ -5269,6 +5269,7 @@
           var tech = item.technology || {};
           var res = item.resource || {};
           var ca = res.cloudAccount || {};
+          // detailedName has specific tech info (e.g. "Windows Server 2012 R2 on My-SP-App")
           var techLabel = item.detailedName || tech.name || item.name || 'N/A';
           if (!item.detailedName && tech.version) techLabel += ' ' + tech.version;
           var assetName = asset.name || res.name || 'N/A';
@@ -5559,6 +5560,67 @@
           autoSave();
           switchToTab('tab-findings-list');
           showToast('יובאו ' + selected.length + ' פגיעויות כממצא מאוחד', 'success');
+          return;
+        }
+
+        // Special case: aggregate EOL findings into a single combined finding
+        if (wiziQueryType === 'endOfLifeFindings') {
+          var eolId = generateNextId('EOLM');
+          var highestEolSev = 'medium';
+          var eolTechLines = [];
+          var eolSubscriptions = [];
+          var eolResources = [];
+
+          selected.forEach(function(item) {
+            var sev = mapWiziSeverity(item.severity);
+            if (sev === 'critical') highestEolSev = 'critical';
+            else if (sev === 'high' && highestEolSev !== 'critical') highestEolSev = 'high';
+
+            var tech = item.technology || {};
+            var techName = item.detailedName || tech.name || item.name || '';
+            if (!item.detailedName && tech.version) techName += ' ' + tech.version;
+            var eolDate = tech.endOfLifeDate || '';
+            var techLine = '- ' + techName + (eolDate ? ', EOL date ' + eolDate : '') + '.';
+            if (techName && eolTechLines.indexOf(techLine) === -1) eolTechLines.push(techLine);
+
+            var asset = item.vulnerableAsset || {};
+            var res = item.resource || {};
+            var ca = res.cloudAccount || {};
+            var subName = asset.subscriptionName || ca.name || '';
+            if (subName && eolSubscriptions.indexOf(subName) === -1) eolSubscriptions.push(subName);
+
+            var resName = asset.name || res.name || '';
+            if (resName && eolResources.indexOf(resName) === -1) eolResources.push(resName);
+          });
+
+          var eolTechnical = eolTechLines.slice();
+          if (eolSubscriptions.length) eolTechnical.push('Subscription: ' + eolSubscriptions.join(', '));
+
+          findings.push({
+            id: eolId, category: 'EOLM',
+            title: 'רכיבים בסוף חיים (End of Life)',
+            severity: highestEolSev,
+            description: 'זוהו ' + selected.length + ' רכיבים שהגיעו לסוף תמיכה (EOL)',
+            impact: 'רכיבים בסוף חיים — ' + selected.length + ' ממצאים',
+            technical: eolTechnical,
+            policies: [],
+            recs: [
+              'לשדרג את הרכיבים שהגיעו לסוף תמיכה לגרסאות נתמכות',
+              'לתכנן מיגרציה בהתאם ללוחות הזמנים של הספקים',
+              'לבחון חשיפות אבטחה הנובעות מחוסר עדכוני אבטחה ב-EOL'
+            ],
+            priority: '',
+            owner: eolSubscriptions.join(', '),
+            evidence: [],
+            exception: { active: false, reason: '' },
+            notes: []
+          });
+
+          renderFindingsTable();
+          prefillId();
+          autoSave();
+          switchToTab('tab-findings-list');
+          showToast('יובאו ' + selected.length + ' ממצאות EOL כממצא מאוחד', 'success');
           return;
         }
 
@@ -7515,11 +7577,8 @@
           var label = queryTypeLabels[qt];
           bulkPageState[qt] = { page: 0, pageSize: defaultPageSize };
 
-          // Initialize selection: select all items by default
+          // Initialize selection: nothing selected by default (user picks explicitly)
           bulkSelectionState[qt] = new Set();
-          for (var i = 0; i < nodes.length; i++) {
-            bulkSelectionState[qt].add(i);
-          }
 
           html += '<details class="bulk-section-card" data-qt="' + qt + '">';
           html += '<summary class="bulk-section-summary"><span class="bulk-section-icon">' + (qt === 'vulnerabilityFindings' ? '🛡️' : qt === 'configurationFindings' ? '⚙️' : qt === 'secretInstances' ? '🔑' : qt === 'excessiveAccessFindings' ? '👤' : qt === 'networkExposures' ? '🌐' : qt === 'hostConfigurationRuleAssessments' ? '🖥️' : qt === 'dataFindingsV2' ? '💾' : qt === 'inventoryFindings' ? '📦' : qt === 'endOfLifeFindings' ? '🔚' : qt === 'softwareSupplyChainFindings' ? '🔗' : '📋') + '</span><span class="bulk-section-label">' + escapeHtml(label) + '</span><span class="bulk-section-count">' + nodes.length + '</span></summary>';
@@ -7786,6 +7845,99 @@
           existingTitles[lowerTitle] = true;
           existingFindingsByTitle[lowerTitle] = f;
         });
+
+        // Special case: aggregate ALL EOL findings (endOfLifeFindings + inventoryFindings) into one combined finding
+        var allEolItems = [];
+        ['endOfLifeFindings', 'inventoryFindings'].forEach(function(qt) {
+          if (selectedByType[qt] && selectedByType[qt].length) {
+            selectedByType[qt].forEach(function(item) {
+              allEolItems.push({ item: item, qt: qt });
+            });
+            delete selectedByType[qt];
+          }
+        });
+
+        if (allEolItems.length > 0) {
+          var eolHighestSev = 'medium';
+          var eolTechLines = [];
+          var eolSubs = [];
+          var eolResArr = [];
+
+          allEolItems.forEach(function(entry) {
+            var item = entry.item;
+            var qt = entry.qt;
+            var sev = mapWiziSeverity(item.severity);
+            if (sev === 'critical') eolHighestSev = 'critical';
+            else if (sev === 'high' && eolHighestSev !== 'critical') eolHighestSev = 'high';
+
+            var techLine;
+            if (qt === 'endOfLifeFindings') {
+              var tech = item.technology || {};
+              var techName = item.detailedName || tech.name || item.name || '';
+              if (!item.detailedName && tech.version) techName += ' ' + tech.version;
+              var eolDate = tech.endOfLifeDate || '';
+              techLine = '- ' + techName + (eolDate ? ', EOL date ' + eolDate : '') + '.';
+            } else {
+              var rule = item.rule || {};
+              var res = item.resource || {};
+              var techName = rule.name || item.name || '';
+              techLine = '- ' + techName + (res.name ? ' (' + res.name + ')' : '') + '.';
+            }
+
+            if (techLine && eolTechLines.indexOf(techLine) === -1) eolTechLines.push(techLine);
+
+            var subName = getNodeSubscriptionName(item, entry.qt);
+            if (subName && eolSubs.indexOf(subName) === -1) eolSubs.push(subName);
+
+            var resName = extractResourceName(item, entry.qt);
+            if (resName && eolResArr.indexOf(resName) === -1) eolResArr.push(resName);
+          });
+
+          var eolTechnical = eolTechLines.slice();
+          if (eolSubs.length) eolTechnical.push('Subscription: ' + eolSubs.join(', '));
+
+          var eolTitle = 'רכיבים בסוף חיים (End of Life)';
+          var eolTitleLower = eolTitle.toLowerCase();
+
+          if (existingTitles[eolTitleLower]) {
+            var existingEol = existingFindingsByTitle[eolTitleLower];
+            eolTechLines.forEach(function(line) {
+              if (existingEol.technical.indexOf(line) === -1) existingEol.technical.push(line);
+            });
+            var existingSubs = existingEol.owner ? existingEol.owner.split(',').map(function(s) { return s.trim(); }) : [];
+            eolSubs.forEach(function(s) {
+              if (existingSubs.indexOf(s) === -1) existingSubs.push(s);
+            });
+            existingEol.owner = existingSubs.filter(Boolean).join(', ');
+            updated++;
+          } else {
+            var eolCat = 'EOLM';
+            var eolId = generateNextId(eolCat);
+            findings.push({
+              id: eolId, category: eolCat,
+              title: eolTitle,
+              severity: eolHighestSev,
+              description: 'זוהו ' + allEolItems.length + ' רכיבים שהגיעו לסוף תמיכה (EOL)',
+              impact: 'רכיבים בסוף חיים — ' + allEolItems.length + ' ממצאים',
+              technical: eolTechnical,
+              policies: [],
+              recs: [
+                'לשדרג את הרכיבים שהגיעו לסוף תמיכה לגרסאות נתמכות',
+                'לתכנן מיגרציה בהתאם ללוחות הזמנים של הספקים',
+                'לבחון חשיפות אבטחה הנובעות מחוסר עדכוני אבטחה ב-EOL'
+              ],
+              priority: '',
+              owner: eolSubs.join(', '),
+              evidence: [],
+              exception: { active: false, reason: '' },
+              notes: []
+            });
+            existingTitles[eolTitleLower] = true;
+            existingFindingsByTitle[eolTitleLower] = findings[findings.length - 1];
+            imported++;
+            if (allEolItems.length > 1) consolidated += allEolItems.length - 1;
+          }
+        }
 
         // Process each query type
         Object.keys(selectedByType).forEach(function(queryType) {
@@ -8170,13 +8322,37 @@
         btnBulkSelectAll.addEventListener('click', function() {
           var resultsDiv = document.getElementById('bulk-import-results');
           if (!resultsDiv) return;
-          var allChecks = resultsDiv.querySelectorAll('.bulk-check');
-          var allChecked = true;
-          for (var i = 0; i < allChecks.length; i++) {
-            if (!allChecks[i].checked) { allChecked = false; break; }
-          }
-          var newState = !allChecked;
-          allChecks.forEach(function(cb) { cb.checked = newState; });
+
+          // Check if ALL items across all pages/sections are selected
+          var allSelected = true;
+          Object.keys(bulkImportResults || {}).forEach(function(qt) {
+            var nodes = bulkImportResults[qt];
+            if (nodes && nodes.length) {
+              var sel = bulkSelectionState[qt];
+              if (!sel || sel.size < nodes.length) allSelected = false;
+            }
+          });
+
+          var newState = !allSelected;
+
+          // Update bulkSelectionState for ALL items (not just visible page)
+          Object.keys(bulkImportResults || {}).forEach(function(qt) {
+            var nodes = bulkImportResults[qt];
+            if (!nodes) return;
+            bulkSelectionState[qt] = new Set();
+            if (newState) {
+              for (var i = 0; i < nodes.length; i++) {
+                bulkSelectionState[qt].add(i);
+              }
+            }
+          });
+
+          // Update visible checkboxes to match
+          resultsDiv.querySelectorAll('.bulk-check').forEach(function(cb) {
+            var qt = cb.getAttribute('data-query-type');
+            var idx = parseInt(cb.getAttribute('data-node-index'));
+            cb.checked = bulkSelectionState[qt] && bulkSelectionState[qt].has(idx);
+          });
           resultsDiv.querySelectorAll('.bulk-section-check').forEach(function(cb) { cb.checked = newState; });
           updateBulkSelectedCount();
         });
