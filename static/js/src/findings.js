@@ -89,6 +89,17 @@
             row.classList.toggle('active-row', parseInt(row.getAttribute('data-idx')) === idx);
           });
         }
+
+        // Sync exception button label/style to current finding
+        var _excBtn = document.getElementById('btn-detail-exception');
+        if (_excBtn) {
+          var _isExc = !!(f.exception && f.exception.active);
+          _excBtn.textContent = _isExc ? '✓ בטל החרגה' : '⚠ החרג';
+          _excBtn.className = 'btn btn-sm ' + (_isExc ? 'btn-exception-active' : 'btn-exception');
+        }
+        // Close the inline dialog when switching findings
+        var _excDlg = document.getElementById('detail-exception-dialog');
+        if (_excDlg) _excDlg.style.display = 'none';
       }
 
       function renderDetailTab() {
@@ -116,6 +127,57 @@
               (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">לא הוזנה סיבה.</div>') +
               '</div>'
             : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג.</div>';
+          return;
+        } else if (activeDetailTab === 'notes') {
+          var notes = Array.isArray(f.notes) ? f.notes : (f.notes = []);
+          var notesHtml = '<div class="detail-notes-container"><div class="detail-notes-messages" id="detail-notes-messages">';
+          if (!notes.length) {
+            notesHtml += '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0;">אין הערות עדיין</div>';
+          } else {
+            notes.forEach(function(n, i) {
+              notesHtml += '<div class="detail-note-msg">' +
+                '<span class="note-delete" data-note-idx="' + i + '" title="מחק">✕</span>' +
+                escapeHtml(n.text || '') +
+                '<span class="note-time">' + escapeHtml(n.time || '') + '</span>' +
+                '</div>';
+            });
+          }
+          notesHtml += '</div><div class="detail-notes-input">' +
+            '<input type="text" id="detail-note-input" placeholder="הוסף הערה..." dir="rtl">' +
+            '<button id="btn-add-note">שלח</button>' +
+            '</div></div>';
+          bodyEl.innerHTML = notesHtml;
+
+          var msgEl = document.getElementById('detail-notes-messages');
+          if (msgEl) msgEl.scrollTop = msgEl.scrollHeight;
+
+          bodyEl.querySelectorAll('.note-delete').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              var idx = parseInt(btn.getAttribute('data-note-idx'));
+              if (!isNaN(idx)) {
+                f.notes.splice(idx, 1);
+                renderDetailTab();
+                autoSave();
+              }
+            });
+          });
+
+          function addNote() {
+            var noteInput = document.getElementById('detail-note-input');
+            var text = noteInput ? noteInput.value.trim() : '';
+            if (!text) return;
+            if (!Array.isArray(f.notes)) f.notes = [];
+            var now = new Date();
+            var timeStr = now.toLocaleDateString('he-IL') + ' ' + now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+            f.notes.push({ text: text, time: timeStr });
+            renderDetailTab();
+            autoSave();
+          }
+
+          var addBtn = document.getElementById('btn-add-note');
+          var noteInput = document.getElementById('detail-note-input');
+          if (addBtn) addBtn.addEventListener('click', addNote);
+          if (noteInput) noteInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') addNote(); });
           return;
         }
 
@@ -196,6 +258,60 @@
           promptReorderAfterDelete();
         }
       });
+
+      // ── Exception toggle ──
+      var btnDetailException = document.getElementById('btn-detail-exception');
+      var detailExceptionDialog = document.getElementById('detail-exception-dialog');
+      var btnExceptionConfirm = document.getElementById('btn-exception-confirm');
+      var btnExceptionCancel = document.getElementById('btn-exception-cancel');
+
+      if (btnDetailException) {
+        btnDetailException.addEventListener('click', function() {
+          if (selectedFindingIndex === null || !findings[selectedFindingIndex]) return;
+          var f = findings[selectedFindingIndex];
+          if (f.exception && f.exception.active) {
+            // Already excepted — immediately toggle off
+            f.exception = { active: false, reason: '' };
+            if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+            btnDetailException.textContent = '⚠ החרג';
+            btnDetailException.className = 'btn btn-sm btn-exception';
+            renderDetailTab();
+            renderFindingsTable();
+            autoSave();
+            showToast('ההחרגה בוטלה', 'info');
+          } else {
+            // Not excepted — show reason dialog, pre-fill if re-excepting
+            var inp = document.getElementById('detail-exception-reason-input');
+            if (inp) inp.value = (f.exception && f.exception.reason) || '';
+            if (detailExceptionDialog) detailExceptionDialog.style.display = '';
+          }
+        });
+      }
+
+      if (btnExceptionConfirm) {
+        btnExceptionConfirm.addEventListener('click', function() {
+          if (selectedFindingIndex === null || !findings[selectedFindingIndex]) return;
+          var inp = document.getElementById('detail-exception-reason-input');
+          var reason = inp ? inp.value.trim() : '';
+          findings[selectedFindingIndex].exception = { active: true, reason: reason };
+          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+          var excBtn = document.getElementById('btn-detail-exception');
+          if (excBtn) {
+            excBtn.textContent = '✓ בטל החרגה';
+            excBtn.className = 'btn btn-sm btn-exception-active';
+          }
+          renderDetailTab();
+          renderFindingsTable();
+          autoSave();
+          showToast('הממצא סומן כמוחרג', 'success');
+        });
+      }
+
+      if (btnExceptionCancel) {
+        btnExceptionCancel.addEventListener('click', function() {
+          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+        });
+      }
 
       // ── Tab navigation ──
       function switchToTab(tabId) {
@@ -722,7 +838,13 @@
             reportVersion: document.getElementById('report-version').value,
             reportLang: document.getElementById('report-lang').value
           },
-          findings: findings,  // JSON.stringify יעשה deep copy
+          // Strip _wizSourceId (transient client-side dedup tag) before serializing
+          findings: findings.map(function(f) {
+            if (!f || typeof f !== 'object' || !('_wizSourceId' in f)) return f;
+            var copy = Object.assign({}, f);
+            delete copy._wizSourceId;
+            return copy;
+          }),
           // Save in-progress form draft so refresh doesn't lose work
           formDraft: {
             editingIndex: editingIndex,
@@ -807,7 +929,8 @@
             evidence: Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []),
             exception: (f.exception && typeof f.exception === 'object')
               ? { active: !!f.exception.active, reason: f.exception.reason || '' }
-              : { active: false, reason: '' }
+              : { active: false, reason: '' },
+            notes: Array.isArray(f.notes) ? f.notes : []
           });
         });
 
@@ -1636,7 +1759,8 @@
                 return { active: true, reason: (excReason ? excReason.value.trim() : '') };
               }
               return { active: false, reason: '' };
-            })()
+            })(),
+            notes: editingIndex !== null ? (findings[editingIndex].notes || []) : []
           };
 
           if (editingIndex === null) {
@@ -2082,9 +2206,28 @@
         const medExc  = countExcBySeverity('medium');
         const lowExc  = countExcBySeverity('low');
 
+        // Apply current UI sort order before grouping (mirrors the findings table display)
+        var sortedFindings = findings.slice();
+        if (findingsSortState.col) {
+          var _sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+          sortedFindings.sort(function(a, b) {
+            var va, vb;
+            var col = findingsSortState.col;
+            if (col === 'id') { va = a.id || ''; vb = b.id || ''; }
+            else if (col === 'category') { va = a.category || ''; vb = b.category || ''; }
+            else if (col === 'title') { va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); }
+            else if (col === 'severity') { va = _sevOrder[a.severity] || 9; vb = _sevOrder[b.severity] || 9; }
+            else if (col === 'owner') { va = (a.owner || '').toLowerCase(); vb = (b.owner || '').toLowerCase(); }
+            else { va = ''; vb = ''; }
+            if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
+            if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+            return 0;
+          });
+        }
+
         // Group findings by category
         var findingsByCategory = {};
-        findings.forEach(function(f) {
+        sortedFindings.forEach(function(f) {
           var cat = f.category || 'CSPM';
           if (!findingsByCategory[cat]) findingsByCategory[cat] = [];
           findingsByCategory[cat].push(f);
@@ -2185,15 +2328,14 @@
               ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
               : '<p>' + escapeHtml(f.impact) + '</p>'}
 
-            <div class="two-column">
-              <div>
-                <div class="finding-section-title">${t.findingTech}</div>
-                ${technicalHtml}
-              </div>
-              <div>
-                <div class="finding-section-title">${t.findingPolicies}</div>
-                ${policyHtml}
-              </div>
+            <div class="detail-box">
+              <div class="finding-section-title">${t.findingTech}</div>
+              ${technicalHtml}
+            </div>
+
+            <div class="detail-box">
+              <div class="finding-section-title">${t.findingPolicies}</div>
+              ${policyHtml}
             </div>
 
             <div class="finding-section-title">${t.findingRecs}</div>
@@ -2634,6 +2776,17 @@
     border-radius: 4px;
     border: 1px solid #e5e7eb;
     padding: 6px;
+    overflow: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .detail-box {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px;
+    margin-top: 4px;
     overflow: hidden;
     word-wrap: break-word;
     overflow-wrap: break-word;

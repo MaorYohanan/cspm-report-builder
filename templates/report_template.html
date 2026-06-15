@@ -140,23 +140,22 @@
           <div class="finding-section-title"><strong>השפעה עסקית / סיכון</strong></div>
           <p>{{ f.impact or "" }}</p>
 
-          <div class="two-column">
-            <div>
-              <div class="finding-section-title"><strong>פרטים טכניים</strong></div>
-              {% if f.technical %}
-                <ul>{% for x in f.technical %}<li>{{ x }}</li>{% endfor %}</ul>
-              {% else %}
-                <p class="muted">לא סופקו פרטים טכניים.</p>
-              {% endif %}
-            </div>
-            <div>
-              <div class="finding-section-title"><strong>חוקים / מדיניות רלוונטיים</strong></div>
-              {% if f.policies %}
-                <ul class="tag-list">{% for x in f.policies %}<li>{{ x }}</li>{% endfor %}</ul>
-              {% else %}
-                <p class="muted">לא סומנו מדיניות / תקנים.</p>
-              {% endif %}
-            </div>
+          <div>
+            <div class="finding-section-title"><strong>פרטים טכניים</strong></div>
+            {% if f.technical %}
+              <ul>{% for x in f.technical %}<li>{{ x }}</li>{% endfor %}</ul>
+            {% else %}
+              <p class="muted">לא סופקו פרטים טכניים.</p>
+            {% endif %}
+          </div>
+
+          <div>
+            <div class="finding-section-title"><strong>חוקים / מדיניות רלוונטיים</strong></div>
+            {% if f.policies %}
+              <ul class="tag-list">{% for x in f.policies %}<li>{{ x }}</li>{% endfor %}</ul>
+            {% else %}
+              <p class="muted">לא סומנו מדיניות / תקנים.</p>
+            {% endif %}
           </div>
 
           <div class="finding-section-title"><strong>המלצות</strong></div>

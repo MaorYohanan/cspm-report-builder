@@ -2642,9 +2642,28 @@
         const medExc  = countExcBySeverity('medium');
         const lowExc  = countExcBySeverity('low');
 
+        // Apply current UI sort order before grouping (mirrors the findings table display)
+        var sortedFindings = findings.slice();
+        if (findingsSortState.col) {
+          var _sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+          sortedFindings.sort(function(a, b) {
+            var va, vb;
+            var col = findingsSortState.col;
+            if (col === 'id') { va = a.id || ''; vb = b.id || ''; }
+            else if (col === 'category') { va = a.category || ''; vb = b.category || ''; }
+            else if (col === 'title') { va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); }
+            else if (col === 'severity') { va = _sevOrder[a.severity] || 9; vb = _sevOrder[b.severity] || 9; }
+            else if (col === 'owner') { va = (a.owner || '').toLowerCase(); vb = (b.owner || '').toLowerCase(); }
+            else { va = ''; vb = ''; }
+            if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
+            if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+            return 0;
+          });
+        }
+
         // Group findings by category
         var findingsByCategory = {};
-        findings.forEach(function(f) {
+        sortedFindings.forEach(function(f) {
           var cat = f.category || 'CSPM';
           if (!findingsByCategory[cat]) findingsByCategory[cat] = [];
           findingsByCategory[cat].push(f);
@@ -2745,15 +2764,14 @@
               ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
               : '<p>' + escapeHtml(f.impact) + '</p>'}
 
-            <div class="two-column">
-              <div>
-                <div class="finding-section-title">${t.findingTech}</div>
-                ${technicalHtml}
-              </div>
-              <div>
-                <div class="finding-section-title">${t.findingPolicies}</div>
-                ${policyHtml}
-              </div>
+            <div class="detail-box">
+              <div class="finding-section-title">${t.findingTech}</div>
+              ${technicalHtml}
+            </div>
+
+            <div class="detail-box">
+              <div class="finding-section-title">${t.findingPolicies}</div>
+              ${policyHtml}
             </div>
 
             <div class="finding-section-title">${t.findingRecs}</div>
@@ -3194,6 +3212,17 @@
     border-radius: 4px;
     border: 1px solid #e5e7eb;
     padding: 6px;
+    overflow: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .detail-box {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px;
+    margin-top: 4px;
     overflow: hidden;
     word-wrap: break-word;
     overflow-wrap: break-word;
@@ -5595,6 +5624,7 @@
 
           var eolTechnical = eolTechLines.slice();
           if (eolSubscriptions.length) eolTechnical.push('Subscription: ' + eolSubscriptions.join(', '));
+          if (eolResources.length) eolTechnical.push('Affected Resources: ' + eolResources.join(', '));
 
           findings.push({
             id: eolId, category: 'EOLM',
@@ -7895,6 +7925,7 @@
 
           var eolTechnical = eolTechLines.slice();
           if (eolSubs.length) eolTechnical.push('Subscription: ' + eolSubs.join(', '));
+          if (eolResArr.length) eolTechnical.push('Affected Resources: ' + eolResArr.join(', '));
 
           var eolTitle = 'רכיבים בסוף חיים (End of Life)';
           var eolTitleLower = eolTitle.toLowerCase();
@@ -7909,6 +7940,16 @@
               if (existingSubs.indexOf(s) === -1) existingSubs.push(s);
             });
             existingEol.owner = existingSubs.filter(Boolean).join(', ');
+            var resLineIdx = existingEol.technical.findIndex(function(l) { return l.startsWith('Affected Resources:'); });
+            var existingRes = resLineIdx >= 0
+              ? existingEol.technical[resLineIdx].replace('Affected Resources:', '').split(',').map(function(s) { return s.trim(); }).filter(Boolean)
+              : [];
+            eolResArr.forEach(function(r) { if (existingRes.indexOf(r) === -1) existingRes.push(r); });
+            if (existingRes.length) {
+              var newResLine = 'Affected Resources: ' + existingRes.join(', ');
+              if (resLineIdx >= 0) existingEol.technical[resLineIdx] = newResLine;
+              else existingEol.technical.push(newResLine);
+            }
             updated++;
           } else {
             var eolCat = 'EOLM';
