@@ -2273,8 +2273,10 @@
           const sev = severityMap[f.severity] || severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
 
+          const liDir = text => /^[a-zA-Z]/.test((text || '').replace(/^[^a-zA-Z֐-׿]+/, '')) ? 'dir="ltr" style="text-align:left;"' : '';
+
           const technicalHtml = f.technical.length
-            ? `<ul>${f.technical.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`
+            ? `<ul>${f.technical.map(item => `<li ${liDir(item)}>${escapeHtml(item)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noTech}</p>`;
 
           const policyHtml = f.policies.length
@@ -2282,7 +2284,7 @@
             : `<p class="muted">${t.noPolicies}</p>`;
 
           const recHtml = f.recs.length
-            ? `<ul>${f.recs.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`
+            ? `<ul>${f.recs.map(r => `<li ${liDir(r)}>${escapeHtml(r)}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
