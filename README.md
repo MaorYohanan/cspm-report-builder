@@ -405,12 +405,6 @@ cspm-report-builder/
 └── output/                         # Generated PDFs (gitignored)
 ```
 
-### Specs
-
-Implementation plans for features live under `.kiro/specs/`:
-- `product-registry/` — requirements, design, tasks (all complete + regression suite)
-- `subscription-bulk-import/` — same structure, all complete
-
 ---
 
 ## API Reference
@@ -434,6 +428,7 @@ All endpoints return JSON unless noted. When `APP_TOKEN` is set, all routes exce
 | `POST` | `/api/wizi/bulk-fetch` | Fetch all 10 query types for one subscription |
 | `POST` | `/api/wizi/bulk-fetch-single` | Fetch one query type with paginated results |
 | `POST` | `/api/wizi/find-by-id` | Multi-strategy search (UUID, shortId, free-text) |
+| `POST` | `/api/wizi/ignore-issue` | Ignore/suppress a finding in Wiz by ID for a given query type |
 | `POST` | `/api/suggest` | Gemini-based phrasing improvement |
 | `POST` | `/api/summarize-remediation` | Gemini-based remediation summarization |
 | `POST` | `/api/render-pdf` | Render HTML → PDF, return binary |

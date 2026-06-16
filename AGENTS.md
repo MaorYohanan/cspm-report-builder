@@ -39,13 +39,21 @@ A single-page web app (Flask + vanilla JS) that builds Hebrew-language cloud sec
 
 | File | Purpose | Size |
 |---|---|---|
-| `app.py` | Flask backend: all API endpoints, Wiz OAuth/GraphQL, PDF rendering, rate limiting, auth | ~1250 lines |
-| `index.html` | Single-page UI: tabs, forms, modals, all HTML structure | ~490 lines |
-| `static/js/builder.js` | All client-side logic: findings CRUD, Wiz integration, import mapping, auto-save, export | ~4900 lines |
-| `static/css/builder.css` | Styles: dark/light themes, RTL layout, responsive design | ~1800 lines |
+| `app.py` | Flask entry point: blueprint registration, auth/rate-limit middleware, `/`, `/assets/<file>`, `/api/health` | ~230 lines |
+| `backend/routes/wiz.py` | Wiz proxy blueprint (`/api/wizi/*`) — all Wiz endpoints including ignore mutations | ~600 lines |
+| `backend/routes/ai.py` | Gemini proxy (`/api/suggest`, `/api/summarize-remediation`) | — |
+| `backend/routes/reports.py` | PDF rendering (`/api/render-pdf`, `/api/upload-html`) | — |
+| `backend/routes/files.py` | State + output file CRUD | — |
+| `backend/routes/products.py` | Product registry CRUD + versioning | — |
+| `backend/services/wiz_service.py` | OAuth2 + GraphQL execution + auto-pagination | — |
+| `backend/services/ai_service.py` | Gemini calls with retry + model fallback | — |
+| `backend/services/pdf_service.py` | Playwright → PDF (DO NOT change tuned values) | — |
+| `backend/graphql/queries.py` | All Wiz GraphQL query strings, mutation strings, `QUERY_TYPE_MAP` | — |
+| `index.html` | Single-page UI: tabs, forms, modals, all HTML structure | ~800 lines |
+| `static/js/builder.js` | Built artifact — concatenated from `src/*.js` via `build_js.py` | ~9300 lines |
+| `static/css/builder.css` | Styles: dark/light themes, RTL layout, responsive design | ~3300 lines |
 | `templates/report_template.html` | Jinja2 template for PDF report (cover, TOC, findings, charts) | ~200 lines |
 | `assets/report.css` | Stylesheet embedded in generated reports | ~300 lines |
-| `render_pdf_playwright.py` | Standalone CLI PDF renderer (also used by app.py) | ~100 lines |
 
 ## Key Patterns
 
@@ -77,9 +85,10 @@ A single-page web app (Flask + vanilla JS) that builds Hebrew-language cloud sec
 
 ### Wiz API Integration
 
-- OAuth2 client_credentials flow → `_wizi_get_token()`
-- All queries go through `_wizi_graphql(query, variables)`
-- 9 query types, each with its own GraphQL query constant (`WIZI_ISSUES_QUERY`, `WIZI_CONFIG_FINDINGS_QUERY`, etc.)
+- OAuth2 client_credentials flow → `WizService._get_token()`
+- All queries go through `WizService.graphql(query, variables)`
+- 11 query types, each with its own GraphQL query constant in `backend/graphql/queries.py` (`ISSUES_QUERY`, `CONFIG_FINDINGS_QUERY`, etc.) plus `QUERY_TYPE_MAP` for dispatch
+- Ignore/suppress mutations live in `backend/routes/wiz.py` (`POST /api/wizi/ignore-issue`) — dispatches to the correct per-type mutation; `networkExposures` has no mutation in the Wiz schema
 - Subscription filtering resolves text → cloud account UUIDs/externalIds via `cloudAccounts` query
 - Find-by-ID runs 6 search strategies in sequence
 
@@ -98,6 +107,8 @@ Each query type uses a different field for subscription filtering:
 | `excessiveAccessFindings` | _(no server filter, client-side only)_ | — |
 | `networkExposures` | `cloudAccount` | externalId |
 | `inventoryFindings` | `resource.subscriptionId.equals` | UUID |
+| `endOfLifeFindings` | `subscriptionExternalId` | externalId |
+| `softwareSupplyChainFindings` | `resource.subscriptionId` | UUID |
 
 ### Project Filter Field Mapping
 
@@ -114,6 +125,8 @@ Each query type uses a different field for project filtering:
 | `excessiveAccessFindings` | `project` | `[id]` |
 | `networkExposures` | `projectId` | `id` (scalar) |
 | `inventoryFindings` | `projects` | `{equals: [id]}` |
+| `endOfLifeFindings` | `projectIdV2` | `{equals: [id]}` |
+| `softwareSupplyChainFindings` | `projectId` | `[id]` |
 
 ### Import Functions
 
@@ -127,6 +140,8 @@ Each query type has a dedicated `import*Finding()` function in `builder.js` that
 - `importDataFinding`, `importSecretFinding` — hardcoded Hebrew recommendations (no remediation field available)
 - `importNetworkExposureFinding` — no severity from API, inferred from `sourceIpRange` containing `0.0.0.0`
 - `importInventoryFinding` — `InventoryRule` has no `remediationInstructions` or `shortId`
+- `importEndOfLifeFinding` — uses `technology.name/version/endOfLifeDate` for description; severity comes from node directly
+- `importSoftwareSupplyChainFinding` — API returns `componentName`/`componentVersion` aliased to `packageName`/`packageVersion` in the query; resource has no `cloudAccount` field, uses `resource.subscription` instead
 
 ### Recommendation Extraction
 
@@ -146,6 +161,7 @@ Things that DON'T exist (confirmed via API errors):
 - `DataFindingLocation` has no `region` field
 - `dataFindings` is deprecated (use `dataFindingsV2`)
 - No `subscriptions` root query exists
+- `networkExposures` has no ignore/suppress mutation in the Wiz GraphQL schema (confirmed via introspection); the `POST /api/wizi/ignore-issue` endpoint returns `notSupported: true` for this type
 
 ## Security
 
@@ -164,7 +180,7 @@ Things that DON'T exist (confirmed via API errors):
 - Frontend files are volume-mounted in docker-compose — edit and refresh
 - Only `app.py` changes require `docker compose up --build -d`
 - Cache busting: `index.html` uses `?v=N` on CSS/JS includes — bump after changes
-- Current versions: JS `?v=46`, CSS `?v=18`
+- Current versions: JS `?v=99`, CSS `?v=38`
 - `.env` file is gitignored — never commit credentials
 - The tool is branded "Wizi" (rebranded from Wiz) in the UI — keep it public-ready with no org-specific references
 
