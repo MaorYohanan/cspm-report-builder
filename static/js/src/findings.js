@@ -822,8 +822,9 @@
         const snapshot = {
           version: 1,
           meta: {
-            client:      document.getElementById('report-client').value,
-            env:         document.getElementById('report-env').value,
+            client:          document.getElementById('report-client').value,
+            subscriptionIds: document.getElementById('report-subscription-ids').value,
+            env:             document.getElementById('report-env').value,
             range:       document.getElementById('report-range').value,
             consultant:  document.getElementById('report-consultant').value,
             reportDate:  getDateAsDDMMYYYY(),
@@ -879,8 +880,9 @@
 
         const m = snapshot.meta;
 
-        document.getElementById('report-client').value      = m.client      || '';
-        document.getElementById('report-env').value         = m.env         || '';
+        document.getElementById('report-client').value           = m.client          || '';
+        document.getElementById('report-subscription-ids').value = m.subscriptionIds || '';
+        document.getElementById('report-env').value               = m.env             || '';
         document.getElementById('report-range').value       = m.range       || '';
         syncPickersFromRange(m.range || '');
         document.getElementById('report-consultant').value  = m.consultant  || '';
@@ -2176,8 +2178,9 @@
       function buildReportHtml() {
         const lang = document.getElementById('report-lang').value || 'he';
         const t = i18n[lang] || i18n.he;
-        const client      = document.getElementById('report-client').value.trim();
-        const env         = document.getElementById('report-env').value.trim();
+        const client          = document.getElementById('report-client').value.trim();
+        const subscriptionIds = document.getElementById('report-subscription-ids').value.trim();
+        const env             = document.getElementById('report-env').value.trim();
         const range       = document.getElementById('report-range').value.trim();
         const consultant  = document.getElementById('report-consultant').value.trim();
         const reportDate  = getDateAsDDMMYYYY();
@@ -2908,6 +2911,7 @@
 
         <div class="cover-meta">
           <p><strong>${t.clientLabel}:</strong> ${escapeHtml(client || '__________')}</p>
+          ${subscriptionIds ? `<p><strong>Subscription IDs:</strong> ${escapeHtml(subscriptionIds).replace(/\n/g, ', ')}</p>` : ''}
           <p><strong>${t.envLabel}:</strong> ${escapeHtml(env || '__________')}</p>
           <p><strong>${t.rangeLabel}:</strong> ${escapeHtml(range || '__________')}</p>
           <p><strong>${t.consultantLabel}:</strong> ${escapeHtml(consultant || '__________')}</p>

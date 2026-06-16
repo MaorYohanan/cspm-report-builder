@@ -69,11 +69,12 @@ def api_upload_html():
         f = request.files["file"]
         content = f.read()
         original_name = _safe_filename(f.filename or "report.html")
+        if Path(original_name).suffix.lower() != ".html":
+            return jsonify({"error": "Only .html files are accepted"}), 400
     else:
         content = request.get_data()
         original_name = "report.html"
 
-    # Only allow .html suffix for safety
     stem = Path(original_name).stem
     out_name = f"{stem}_{uuid.uuid4().hex[:8]}.html"
     out_path = OUTPUT_DIR / out_name

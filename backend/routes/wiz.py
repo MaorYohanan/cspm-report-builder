@@ -21,11 +21,20 @@ from backend.graphql.queries import (
     END_OF_LIFE_QUERY,
     EXCESSIVE_ACCESS_QUERY,
     HOST_CONFIG_QUERY,
+    IGNORE_CONFIG_FINDING_MUTATION,
+    IGNORE_DATA_FINDING_MUTATION,
+    IGNORE_EXCESSIVE_ACCESS_MUTATION,
+    IGNORE_HOST_CONFIG_MUTATION,
+    IGNORE_INVENTORY_FINDING_MUTATION,
+    IGNORE_SECRET_INSTANCE_MUTATION,
+    IGNORE_SSC_FINDING_MUTATION,
+    IGNORE_VULN_FINDING_MUTATION,
     INVENTORY_FINDINGS_QUERY,
     ISSUES_QUERY,
     NETWORK_EXPOSURE_QUERY,
     PROJECTS_QUERY,
     QUERY_TYPE_MAP,
+    REJECT_ISSUE_MUTATION,
     SECRET_INSTANCES_QUERY,
     SOFTWARE_SUPPLY_CHAIN_QUERY,
     VULN_FINDINGS_QUERY,
@@ -904,3 +913,102 @@ def api_wizi_find_by_id():
         pass
 
     return jsonify({"error": "Finding not found", "id": finding_id}), 404
+
+
+_DEFAULT_IGNORE_NOTE = "Marked as ignored via CSPM Report Builder"
+
+# Finding types that use { id, patch: { status, resolutionReason, note } }
+_PATCH_IGNORE = {
+    "configurationFindings":            IGNORE_CONFIG_FINDING_MUTATION,
+    "vulnerabilityFindings":            IGNORE_VULN_FINDING_MUTATION,
+    "endOfLifeFindings":                IGNORE_VULN_FINDING_MUTATION,
+    "hostConfigurationRuleAssessments": IGNORE_HOST_CONFIG_MUTATION,
+    "inventoryFindings":                IGNORE_INVENTORY_FINDING_MUTATION,
+    "softwareSupplyChainFindings":      IGNORE_SSC_FINDING_MUTATION,
+    "excessiveAccessFindings":          IGNORE_EXCESSIVE_ACCESS_MUTATION,
+}
+
+# Finding types that use flat { id, status, resolutionReason[, note] }
+# Value: (mutation, include_note_field)
+_FLAT_IGNORE = {
+    "dataFindingsV2":  (IGNORE_DATA_FINDING_MUTATION, True),
+    "secretInstances": (IGNORE_SECRET_INSTANCE_MUTATION, False),  # no note field in schema
+}
+
+
+@wiz_bp.route("/ignore-issue", methods=["POST"])
+def api_wizi_ignore_issue():
+    """Reject/ignore a Wiz finding by setting its status to REJECTED.
+
+    Dispatches to the correct Wiz mutation based on queryType.
+    networkExposures has no mutation in the Wiz schema — returns notSupported.
+
+    Accepts JSON: { issueId: "<uuid>", reason: "<optional text>", queryType: "<type>" }
+    """
+    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+        return jsonify({"error": "Wizi integration not configured"}), 501
+
+    data = request.get_json(force=True) or {}
+    issue_id = (data.get("issueId") or "").strip()
+    reason = (data.get("reason") or "").strip()
+    query_type = (data.get("queryType") or "issues").strip()
+
+    if not issue_id:
+        return jsonify({"error": "issueId is required"}), 400
+
+    try:
+        wiz = get_wiz_service()
+
+        if query_type == "issues":
+            mutation = REJECT_ISSUE_MUTATION
+            variables = {"input": {
+                "ids": [issue_id],
+                "patch": {
+                    "status": "REJECTED",
+                    "note": reason or _DEFAULT_IGNORE_NOTE,
+                }
+            }}
+
+        elif query_type in _PATCH_IGNORE:
+            mutation = _PATCH_IGNORE[query_type]
+            variables = {"input": {
+                "id": issue_id,
+                "patch": {
+                    "status": "REJECTED",
+                    "resolutionReason": "RISK_ACCEPTED",
+                    "note": reason or _DEFAULT_IGNORE_NOTE,
+                }
+            }}
+
+        elif query_type in _FLAT_IGNORE:
+            mutation, include_note = _FLAT_IGNORE[query_type]
+            inp: Dict[str, Any] = {
+                "id": issue_id,
+                "status": "REJECTED",
+                "resolutionReason": "RISK_ACCEPTED",
+            }
+            if include_note:
+                inp["note"] = reason or _DEFAULT_IGNORE_NOTE
+            variables = {"input": inp}
+
+        else:
+            # networkExposures — Wiz has no mutation for this type
+            return jsonify({
+                "notSupported": True,
+                "queryType": query_type,
+                "message": "Network Exposures אינם ניתנים להחרגה דרך API. נהל מ-Wiz Portal.",
+            })
+
+        result = wiz._graphql(mutation, variables)
+        if "errors" in result:
+            errors = result.get("errors") or []
+            msg = errors[0].get("message", "GraphQL error") if errors else "GraphQL error"
+            return jsonify({"error": msg}), 502
+
+        return jsonify({"success": True, "issueId": issue_id})
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return jsonify({"error": f"Wiz API error: {e.code}", "details": body}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502

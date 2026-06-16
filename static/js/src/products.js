@@ -584,10 +584,10 @@ var ProductsPanel = {
 
     var modal = document.createElement('div');
     modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    modal.innerHTML = '<div style="background:var(--card-bg);border-radius:10px;padding:24px;min-width:320px;">'
+    modal.innerHTML = '<div style="background:var(--card-bg);border-radius:10px;padding:24px;min-width:340px;max-width:420px;">'
       + '<h3 style="margin-top:0;">שמור כגרסת מוצר</h3>'
       + '<div style="margin-bottom:10px;"><label>מוצר:</label><select id="picker-product" style="width:100%;margin-top:4px;"><option value="">-- בחר מוצר --</option>' + opts + '</select></div>'
-      + '<div style="margin-bottom:10px;"><label>סוג גרסה:</label><select id="picker-type" style="width:100%;margin-top:4px;"><option value="minor">תיקון קטן (Minor)</option><option value="major">גרסה חדשה (Major)</option></select></div>'
+      + '<div id="picker-type-area" style="margin-bottom:10px;"><p class="muted" style="margin:6px 0 0;">בחר מוצר כדי להמשיך…</p></div>'
       + '<div style="margin-bottom:12px;"><label>הערות:</label><textarea id="picker-notes" rows="2" maxlength="500" style="width:100%;box-sizing:border-box;margin-top:4px;"></textarea></div>'
       + '<div style="display:flex;gap:8px;">'
       + '<button class="btn btn-primary btn-sm" id="btn-picker-confirm" disabled>שמור</button>'
@@ -596,13 +596,68 @@ var ProductsPanel = {
     document.body.appendChild(modal);
 
     var confirmBtn = document.getElementById('btn-picker-confirm');
+    var typeArea = document.getElementById('picker-type-area');
+
+    function renderTypeArea(latestVer, status) {
+      var html = '';
+      if (!latestVer) {
+        html += '<label>סוג גרסה:</label>';
+        html += '<select id="picker-type" style="width:100%;margin-top:4px;">'
+              + '<option value="minor">תיקון קטן (Minor)</option>'
+              + '<option value="major">גרסה חדשה (Major)</option>'
+              + '</select>';
+        html += '<p class="muted" style="margin:6px 0 0;font-size:0.85em;">מוצר חדש — תיווצר גרסה v1.0</p>';
+      } else if (status === 'draft') {
+        html += '<label>סוג גרסה:</label>';
+        html += '<select id="picker-type" style="width:100%;margin-top:4px;">'
+              + '<option value="draft" selected>עדכן טיוטה (v' + _esc(latestVer) + ')</option>'
+              + '</select>';
+        html += '<p class="muted" style="margin:6px 0 0;font-size:0.85em;">טיוטה קיימת — שמירה תעדכן אותה. ליצירת גרסה חדשה יש לפרסם תחילה.</p>';
+      } else {
+        html += '<label>סוג גרסה:</label>';
+        html += '<select id="picker-type" style="width:100%;margin-top:4px;">'
+              + '<option value="minor">תיקון קטן (Minor)</option>'
+              + '<option value="major">גרסה חדשה (Major)</option>'
+              + '</select>';
+        html += '<p class="muted" style="margin:6px 0 0;font-size:0.85em;">גרסה אחרונה: v' + _esc(latestVer) + ' (פורסם)</p>';
+      }
+      typeArea.innerHTML = html;
+    }
+
     document.getElementById('picker-product').addEventListener('change', function(){
-      confirmBtn.disabled = !this.value;
+      var productId = this.value;
+      if (!productId) {
+        confirmBtn.disabled = true;
+        typeArea.innerHTML = '<p class="muted" style="margin:6px 0 0;">בחר מוצר כדי להמשיך…</p>';
+        return;
+      }
+      confirmBtn.disabled = true;
+      typeArea.innerHTML = '<p class="muted" style="margin:6px 0 0;">טוען גרסאות…</p>';
+      self.fetchVersions(productId).then(function(versions){
+        // versions are sorted savedAt-desc by the server; pick the highest by (major,minor)
+        var latest = null;
+        (versions || []).forEach(function(v){
+          if (!v || !v.version) return;
+          var parts = String(v.version).split('.');
+          if (parts.length !== 2) return;
+          var key = [parseInt(parts[0], 10) || 0, parseInt(parts[1], 10) || 0];
+          if (!latest || key[0] > latest._k[0] || (key[0] === latest._k[0] && key[1] > latest._k[1])) {
+            latest = { version: v.version, status: v.status, _k: key };
+          }
+        });
+        renderTypeArea(latest && latest.version, latest && latest.status);
+        confirmBtn.disabled = false;
+      }).catch(function(){
+        // Fail-soft: fall back to minor/major picker so the modal isn't blocked
+        renderTypeArea(null, null);
+        confirmBtn.disabled = false;
+      });
     });
     document.getElementById('btn-picker-cancel').addEventListener('click', function(){ document.body.removeChild(modal); });
     confirmBtn.addEventListener('click', function(){
       var productId = document.getElementById('picker-product').value;
-      var versionType = document.getElementById('picker-type').value;
+      var typeEl = document.getElementById('picker-type');
+      var versionType = typeEl ? typeEl.value : 'minor';
       var notes = document.getElementById('picker-notes').value;
       saveAsVersion(productId, versionType, notes)
         .then(function(){ document.body.removeChild(modal); })

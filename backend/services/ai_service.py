@@ -231,11 +231,23 @@ class GeminiService:
         target_model = model or self.default_model
 
         if enable_fallback:
-            # Try requested model first, then fall back to others
-            models_to_try = [target_model] if target_model in self.models else []
-            for m in self.models:
-                if m not in models_to_try:
-                    models_to_try.append(m)
+            # Try requested model first, then fall back to others.
+            if target_model in self.models:
+                models_to_try = [target_model]
+                for m in self.models:
+                    if m not in models_to_try:
+                        models_to_try.append(m)
+            else:
+                # Requested model isn't in the whitelist (stale client, typo, etc.)
+                # — fall back to the full whitelist instead of silently skipping
+                # straight to whatever happens to be first in self.models without
+                # any log trail.
+                print(
+                    f"[GeminiService] Requested model {target_model!r} not in "
+                    f"whitelist {self.models}; using full fallback list",
+                    flush=True,
+                )
+                models_to_try = list(self.models)
         else:
             # Only try the requested model
             models_to_try = [target_model]
@@ -279,14 +291,18 @@ class GeminiService:
                         print(f"[GeminiService] {try_model}: rate limited (429), trying next model", flush=True)
                         break
                     elif e.code == 400:
-                        # Bad request - check if content was blocked
+                        # Bad request - check if content was blocked.
+                        # Parse separately so a malformed (non-JSON) error body
+                        # falls through to the generic 400 handler instead of
+                        # leaking a JSONDecodeError to the caller.
                         try:
                             error_data = json.loads(error_body)
+                        except json.JSONDecodeError:
+                            error_data = None
+                        if isinstance(error_data, dict):
                             block_reason = error_data.get("error", {}).get("message", "")
                             if "blocked" in block_reason.lower():
                                 raise RuntimeError(f"Content blocked: {block_reason}")
-                        except (json.JSONDecodeError, RuntimeError):
-                            raise
                         # Other 400 errors - don't retry
                         raise RuntimeError(f"API error {e.code}: {error_body}")
                     elif e.code >= 500:

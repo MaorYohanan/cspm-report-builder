@@ -47,3 +47,6 @@ introspect_excessive_access.py
 # Node.js
 node_modules/
 coverage/
+
+# Kiro configuration and workflows
+.kiro/

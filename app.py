@@ -118,8 +118,13 @@ def check_auth() -> bool:
     header = request.headers.get("Authorization", "")
     if header.startswith("Bearer "):
         return hmac.compare_digest(header[7:], APP_TOKEN)
-    # Also check query param for browser-based downloads
-    return hmac.compare_digest(request.args.get("token", ""), APP_TOKEN)
+    # Fallback for browser-initiated GET downloads (<a href> can't set headers).
+    # Only honoured on GET so token isn't logged with side-effecting requests.
+    if request.method == "GET":
+        token = request.args.get("token", "")
+        if token:
+            return hmac.compare_digest(token, APP_TOKEN)
+    return False
 
 
 @app.before_request

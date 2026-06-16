@@ -35,9 +35,7 @@ services:
       - ./assets:/app/assets
       - ./app.py:/app/app.py
       - ./templates:/app/templates
-      - ./render_pdf_playwright.py:/app/render_pdf_playwright.py
-      - ./services:/app/services       # Service layer modules
-      - ./blueprints:/app/blueprints   # Flask blueprints
+      - ./backend:/app/backend          # Backend routes and services
 
     # Environment variables
     # Override these in a .env file or via docker-compose override

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import threading
 import unicodedata
 import uuid
 from pathlib import Path
@@ -15,6 +17,43 @@ PRODUCTS_DIR: Path | None = None
 
 # Set to True when the products directory cannot be created at startup.
 _storage_error: bool = False
+
+# Per-product locks guarding the read-modify-write critical sections in
+# save_version / publish_version / delete_version. Without this, two concurrent
+# saves can both pass the latest-version check and overwrite each other's files.
+# In-process only — multi-worker deployments (e.g. gunicorn --workers=N>1) still
+# need an external lock, but this prevents the common single-worker race.
+_product_locks_registry_lock = threading.Lock()
+_product_locks: dict[str, threading.Lock] = {}
+
+
+def _get_product_lock(product_id: str) -> threading.Lock:
+    """Return the (lazily-created) lock for *product_id*."""
+    with _product_locks_registry_lock:
+        lock = _product_locks.get(product_id)
+        if lock is None:
+            lock = threading.Lock()
+            _product_locks[product_id] = lock
+        return lock
+
+
+def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
+    """Write *content* to *path* atomically (write to temp + os.replace).
+
+    Prevents readers from seeing a half-written file if the process crashes
+    mid-write.
+    """
+    tmp = path.with_name(f"{path.name}.tmp.{uuid.uuid4().hex[:8]}")
+    try:
+        tmp.write_text(content, encoding=encoding)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def init_products_dir(products_dir: Path) -> None:
@@ -518,28 +557,42 @@ def delete_product(product_id: str):
 # ---------------------------------------------------------------------------
 
 
-def _next_version(product_dir: Path, requested_type: str) -> str:
-    """Compute the next version string for a save request.
+def _latest_version_status(product_dir: Path) -> tuple[str | None, str | None]:
+    """Return ``(version_string, status)`` for the highest-numbered version.
 
-    Rules (per requirements 4.1 – 4.4):
-    - No existing versions → "1.0"
-    - Latest is a draft   → return same version string (overwrite)
-    - Latest is published + major → (M+1).0
-    - Latest is published + minor → M.(m+1), rolls to (M+1).0 if m+1 >= 10
+    status is "draft", "published", or None when the file is missing/unreadable.
+    Returns ``(None, None)`` when no version files exist.
     """
     latest_ver_str, _ = _scan_latest_version(product_dir)
-
     if latest_ver_str is None:
-        return "1.0"
-
+        return None, None
     ver_file = product_dir / f"v{latest_ver_str}.json"
     try:
         data = json.loads(ver_file.read_text(encoding="utf-8"))
     except Exception:
+        return latest_ver_str, None
+    return latest_ver_str, data.get("status")
+
+
+def _next_version(product_dir: Path, requested_type: str) -> str:
+    """Compute the next version string for a save request.
+
+    Rules:
+    - No existing versions → "1.0" (minor/major only; "draft" is rejected upstream)
+    - requested_type == "draft" → return existing draft's version string (overwrite)
+    - Latest is published + major → (M+1).0
+    - Latest is published + minor → M.(m+1), rolls to (M+1).0 if m+1 >= 10
+
+    Conflict cases (draft-vs-new-version, or "draft" with no draft present)
+    are validated in ``save_version`` before this function is called.
+    """
+    latest_ver_str, status = _latest_version_status(product_dir)
+
+    if latest_ver_str is None:
         return "1.0"
 
-    if data.get("status") == "draft":
-        return latest_ver_str  # overwrite same version
+    if requested_type == "draft":
+        return latest_ver_str  # overwrite existing draft
 
     # Latest is published — compute increment
     parts = latest_ver_str.split(".")
@@ -623,8 +676,8 @@ def save_version(product_id: str):
             return jsonify({"error": f"Missing required field: {field}"}), 400
 
     version_type = data["type"]
-    if version_type not in ("major", "minor"):
-        return jsonify({"error": "type: must be 'major' or 'minor'"}), 400
+    if version_type not in ("major", "minor", "draft"):
+        return jsonify({"error": "type: must be 'major', 'minor', or 'draft'"}), 400
 
     notes = data["notes"]
     snapshot = data["snapshot"]
@@ -641,40 +694,54 @@ def save_version(product_id: str):
     if len(raw_body) > 50 * 1024 * 1024:
         return jsonify({"error": "Snapshot too large"}), 413
 
-    version_str = _next_version(product_dir, version_type)
+    # Serialise concurrent saves for this product so two requests can't both pass
+    # the latest-version check and race the file write.
+    with _get_product_lock(safe_id):
+        # State-machine: protect the "one active draft" invariant
+        latest_ver_str, latest_status = _latest_version_status(product_dir)
+        if version_type == "draft":
+            if latest_ver_str is None or latest_status != "draft":
+                return jsonify({"error": "אין טיוטה לעדכון"}), 400
+        else:  # minor / major
+            if latest_status == "draft":
+                return jsonify({
+                    "error": "יש לפרסם או למחוק את הטיוטה הקיימת לפני יצירת גרסה חדשה"
+                }), 409
 
-    risk_score = _compute_risk_score(snapshot)
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        version_str = _next_version(product_dir, version_type)
 
-    # Determine reportVersion from snapshot meta if present
-    report_version = "1.0"
-    if isinstance(snapshot.get("meta"), dict):
-        report_version = str(snapshot["meta"].get("reportVersion", "1.0"))
+        risk_score = _compute_risk_score(snapshot)
+        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    version_data = {
-        **snapshot,
-        "version": version_str,
-        "reportVersion": report_version,
-        "versionNotes": notes,
-        "versionType": version_type,
-        "status": "draft",
-        "savedAt": now,
-        "publishedAt": None,
-        "riskScore": risk_score,
-    }
+        # Determine reportVersion from snapshot meta if present
+        report_version = "1.0"
+        if isinstance(snapshot.get("meta"), dict):
+            report_version = str(snapshot["meta"].get("reportVersion", "1.0"))
 
-    ver_file = product_dir / f"v{version_str}.json"
-    ver_file.write_text(json.dumps(version_data, ensure_ascii=False), encoding="utf-8")
+        version_data = {
+            **snapshot,
+            "version": version_str,
+            "reportVersion": report_version,
+            "versionNotes": notes,
+            "versionType": version_type,
+            "status": "draft",
+            "savedAt": now,
+            "publishedAt": None,
+            "riskScore": risk_score,
+        }
 
-    # Update meta.json
-    meta_path = product_dir / "meta.json"
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except Exception:
-        meta = {}
-    meta["latestVersion"] = version_str
-    meta["latestRiskScore"] = risk_score
-    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        ver_file = product_dir / f"v{version_str}.json"
+        _atomic_write_text(ver_file, json.dumps(version_data, ensure_ascii=False))
+
+        # Update meta.json
+        meta_path = product_dir / "meta.json"
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            meta = {}
+        meta["latestVersion"] = version_str
+        meta["latestRiskScore"] = risk_score
+        _atomic_write_text(meta_path, json.dumps(meta, ensure_ascii=False, indent=2))
 
     return jsonify({
         "version": version_str,
@@ -738,35 +805,38 @@ def delete_version(product_id: str, ver: str):
     if not ver_file.exists():
         return jsonify({"error": "Version not found"}), 404
 
-    try:
-        data = json.loads(ver_file.read_text(encoding="utf-8"))
-    except Exception:
-        return jsonify({"error": "Failed to read version"}), 500
+    with _get_product_lock(safe_id):
+        # Read metadata for the response. If the file is corrupted, allow deletion
+        # anyway with a minimal stub so the user can recover from a stuck state
+        # without manual filesystem surgery.
+        try:
+            data = json.loads(ver_file.read_text(encoding="utf-8"))
+            deleted_meta = {
+                "version": data.get("version"),
+                "reportVersion": data.get("reportVersion"),
+                "versionNotes": data.get("versionNotes"),
+                "versionType": data.get("versionType"),
+                "status": data.get("status"),
+                "savedAt": data.get("savedAt"),
+                "publishedAt": data.get("publishedAt"),
+                "riskScore": data.get("riskScore"),
+            }
+        except Exception:
+            deleted_meta = {"version": ver, "corrupted": True}
 
-    deleted_meta = {
-        "version": data.get("version"),
-        "reportVersion": data.get("reportVersion"),
-        "versionNotes": data.get("versionNotes"),
-        "versionType": data.get("versionType"),
-        "status": data.get("status"),
-        "savedAt": data.get("savedAt"),
-        "publishedAt": data.get("publishedAt"),
-        "riskScore": data.get("riskScore"),
-    }
+        ver_file.unlink()
 
-    ver_file.unlink()
+        # Update meta.json to reflect the new latest (or null if none remain)
+        meta_path = product_dir / "meta.json"
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            meta = {}
 
-    # Update meta.json to reflect the new latest (or null if none remain)
-    meta_path = product_dir / "meta.json"
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except Exception:
-        meta = {}
-
-    new_latest_ver, new_latest_risk = _scan_latest_version(product_dir)
-    meta["latestVersion"] = new_latest_ver
-    meta["latestRiskScore"] = new_latest_risk if new_latest_ver is not None else None
-    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        new_latest_ver, new_latest_risk = _scan_latest_version(product_dir)
+        meta["latestVersion"] = new_latest_ver
+        meta["latestRiskScore"] = new_latest_risk if new_latest_ver is not None else None
+        _atomic_write_text(meta_path, json.dumps(meta, ensure_ascii=False, indent=2))
 
     return jsonify(deleted_meta), 200
 
@@ -792,19 +862,20 @@ def publish_version(product_id: str, ver: str):
     if not ver_file.exists():
         return jsonify({"error": "Version not found"}), 404
 
-    try:
-        data = json.loads(ver_file.read_text(encoding="utf-8"))
-    except Exception:
-        return jsonify({"error": "Failed to read version"}), 500
+    with _get_product_lock(safe_id):
+        try:
+            data = json.loads(ver_file.read_text(encoding="utf-8"))
+        except Exception:
+            return jsonify({"error": "Failed to read version"}), 500
 
-    if data.get("status") == "published":
-        return jsonify({"error": "Version already published"}), 409
+        if data.get("status") == "published":
+            return jsonify({"error": "Version already published"}), 409
 
-    now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-    data["status"] = "published"
-    data["publishedAt"] = now
+        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+        data["status"] = "published"
+        data["publishedAt"] = now
 
-    ver_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        _atomic_write_text(ver_file, json.dumps(data, ensure_ascii=False))
 
     return jsonify({
         "version": data.get("version"),

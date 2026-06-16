@@ -9,11 +9,14 @@ and managing OAuth authentication.
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
+
+_log = logging.getLogger(__name__)
 
 from backend.graphql.queries import (
     CLOUD_ACCOUNTS_QUERY,
@@ -249,17 +252,56 @@ class WizService:
         all_nodes: List[Dict[str, Any]] = []
         after: Optional[str] = None
 
+        _filter_rejected = False
         while True:
             variables: Dict[str, Any] = {"first": min(page_size, 500)}
             if after:
                 variables["after"] = after
-            if filters:
+            if filters and not _filter_rejected:
                 variables["filterBy"] = filters
 
-            result = self._graphql(query, variables)
+            try:
+                result = self._graphql(query, variables)
+            except urllib.error.HTTPError as http_err:
+                if http_err.code != 400:
+                    raise
+                try:
+                    err_body = http_err.read().decode("utf-8", errors="replace")
+                except Exception:
+                    err_body = "<unreadable>"
+                if filters and not _filter_rejected:
+                    # Filter schema rejected — retry without filters from the start.
+                    # Discard any pages already fetched under the filtered run to avoid
+                    # (a) duplicating page-1 rows and (b) returning a silently mixed
+                    # filtered/unfiltered dataset.
+                    _log.warning(
+                        "Wiz 400 for '%s' with filters; dropping filters and "
+                        "restarting pagination from page 1. %d nodes from filtered "
+                        "pass discarded. err=%s",
+                        query_type, len(all_nodes), err_body[:200],
+                    )
+                    _filter_rejected = True
+                    after = None
+                    all_nodes = []
+                    try:
+                        result = self._graphql(query, {"first": min(page_size, 500)})
+                    except urllib.error.HTTPError as bare_err:
+                        try:
+                            bare_body = bare_err.read().decode("utf-8", errors="replace")
+                        except Exception:
+                            bare_body = err_body
+                        raise RuntimeError(
+                            f"Wiz 400 for '{query_type}' (query invalid): {bare_body[:400]}"
+                        ) from bare_err
+                else:
+                    # No filters and still 400 — query type unsupported or field names wrong
+                    raise RuntimeError(
+                        f"Wiz 400 for '{query_type}' (no filter): {err_body[:400]}"
+                    ) from http_err
 
             if "errors" in result:
-                error_msg = result["errors"][0].get("message", "GraphQL error")
+                errors = result["errors"] or []
+                error_msg = errors[0].get("message", "GraphQL error") if errors else "GraphQL error"
                 raise RuntimeError(f"GraphQL error: {error_msg}")
 
             data = result.get("data", {}).get(root_key, {})

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from flask import Blueprint, jsonify, request
 
 from backend.services import GeminiService
@@ -19,19 +20,22 @@ GEMINI_MODELS = [
 GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0]  # gemini-2.5-flash
 
 _gemini_service: GeminiService | None = None
+_gemini_lock = threading.Lock()
 
 
 def get_gemini_service() -> GeminiService:
-    """Get or create the Gemini service instance."""
+    """Get or create the Gemini service instance (thread-safe)."""
     global _gemini_service
     if _gemini_service is None:
-        if not GEMINI_API_KEY:
-            raise RuntimeError("Gemini API key not configured")
-        _gemini_service = GeminiService(
-            api_key=GEMINI_API_KEY,
-            models=GEMINI_MODELS,
-            default_model=GEMINI_DEFAULT_MODEL,
-        )
+        with _gemini_lock:
+            if _gemini_service is None:
+                if not GEMINI_API_KEY:
+                    raise RuntimeError("Gemini API key not configured")
+                _gemini_service = GeminiService(
+                    api_key=GEMINI_API_KEY,
+                    models=GEMINI_MODELS,
+                    default_model=GEMINI_DEFAULT_MODEL,
+                )
     return _gemini_service
 
 

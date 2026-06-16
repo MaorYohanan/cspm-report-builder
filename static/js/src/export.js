@@ -70,7 +70,7 @@
 
         // Clear all meta fields
         var metaFields = [
-          'report-client', 'report-env', 'report-range', 'report-consultant',
+          'report-client', 'report-subscription-ids', 'report-env', 'report-range', 'report-consultant',
           'report-risk', 'report-exec-summary', 'report-key-topics',
           'report-team-name', 'report-org-name', 'report-footer-text',
           'report-cover-note', 'report-version', 'report-lang'
@@ -539,7 +539,7 @@
       const defaultsStatus = document.getElementById('defaults-status');
 
       const defaultFields = [
-        'report-client', 'report-env', 'report-consultant',
+        'report-client', 'report-subscription-ids', 'report-env', 'report-consultant',
         'report-team-name', 'report-org-name', 'report-footer-text',
         'report-cover-note', 'report-lang', 'report-exec-summary',
         'report-key-topics'

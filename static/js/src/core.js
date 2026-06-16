@@ -46,11 +46,23 @@
       var toastContainer = document.getElementById('toast-container');
       function showToast(message, type) {
         type = type || 'info';
+        var duration = type === 'error' ? 10000 : 3200;
         var el = document.createElement('div');
         el.className = 'toast toast-' + type;
-        el.textContent = message;
+        el.style.display = 'flex';
+        el.style.alignItems = 'flex-start';
+        el.style.gap = '8px';
+        var text = document.createElement('span');
+        text.style.flex = '1';
+        text.textContent = message;
+        var closeBtn = document.createElement('button');
+        closeBtn.textContent = '×';
+        closeBtn.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:16px;line-height:1;padding:0;opacity:0.8;flex-shrink:0;';
+        closeBtn.addEventListener('click', function() { if (el.parentNode) el.parentNode.removeChild(el); });
+        el.appendChild(text);
+        el.appendChild(closeBtn);
         toastContainer.appendChild(el);
-        setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 3200);
+        setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, duration);
       }
 
       function styledConfirm(message, opts) {

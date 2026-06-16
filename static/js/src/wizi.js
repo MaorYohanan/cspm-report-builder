@@ -444,6 +444,42 @@
         fn();
       }
 
+      function doWizIgnore(wizId, btn, queryType) {
+        queryType = queryType || wiziQueryType;
+        var reason = prompt('הזן סיבת ההתעלמות (אופציונלי):', '');
+        if (reason === null) return; // user cancelled
+        btn.disabled = true;
+        btn.textContent = '⏳';
+        fetch('/api/wizi/ignore-issue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ issueId: wizId, reason: reason, queryType: queryType })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.notSupported) {
+            showToast(data.message || 'ניהול ממצאים מסוג זה אינו נתמך ישירות — נהל מ-Wiz Portal.', 'info');
+            btn.disabled = false;
+            btn.textContent = '🚫';
+          } else if (data.error) {
+            showToast('שגיאה: ' + data.error, 'error');
+            btn.disabled = false;
+            btn.textContent = '🚫';
+          } else {
+            var tr = btn.closest('tr');
+            if (tr) { tr.style.opacity = '0.4'; tr.style.textDecoration = 'line-through'; }
+            btn.textContent = '✓';
+            btn.title = 'הוחרג ב-Wiz';
+            showToast('הממצא הוחרג ב-Wiz בהצלחה', 'success');
+          }
+        })
+        .catch(function(err) {
+          showToast('שגיאת רשת: ' + err.message, 'error');
+          btn.disabled = false;
+          btn.textContent = '🚫';
+        });
+      }
+
       function wireWiziCheckboxes() {
         var checkAll = document.getElementById('wizi-check-all');
         if (checkAll) {
@@ -456,13 +492,18 @@
         wiziResults.addEventListener('change', function(e) {
           if (e.target.classList.contains('wizi-check')) updateWiziSelectedCount();
         });
+        wiziResults.addEventListener('click', function(e) {
+          var btn = e.target.closest('.btn-wiz-ignore');
+          if (!btn) return;
+          doWizIgnore(btn.dataset.wizId, btn);
+        });
         updateWiziSelectedCount();
       }
 
       function renderWiziIssuesTable() {
         var html = '<table><caption>ממצאי Wizi — Issues — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>Control ID</th><th>חומרה</th><th>Entity</th><th>Subscription</th><th>Cloud</th><th>Region</th><th>סטטוס</th>' +
+          '<th>Rule</th><th>Control ID</th><th>חומרה</th><th>Entity</th><th>Subscription</th><th>Cloud</th><th>Region</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(issue, idx) {
@@ -483,6 +524,7 @@
             '<td>' + (entity.cloudPlatform || '') + '</td>' +
             '<td>' + (entity.region || '') + '</td>' +
             '<td>' + (issue.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (issue.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
 
@@ -495,7 +537,7 @@
       function renderWiziConfigTable() {
         var html = '<table><caption>ממצאי Wizi — Configuration Findings — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>ID</th><th>חומרה</th><th>תוצאה</th><th>Resource</th><th>Subscription</th><th>Region</th>' +
+          '<th>Rule</th><th>ID</th><th>חומרה</th><th>תוצאה</th><th>Resource</th><th>Subscription</th><th>Region</th><th></th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(item, idx) {
@@ -516,6 +558,7 @@
             '<td>' + (resource.name || 'N/A') + '</td>' +
             '<td>' + (sub.name || '') + '</td>' +
             '<td>' + (resource.region || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
 
@@ -528,7 +571,7 @@
       function renderWiziVulnTable() {
         var html = '<table><caption>ממצאי Wizi — Vulnerability Findings — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>CVE / Name</th><th>חומרה</th><th>Score</th><th>משאב</th><th>סוג משאב</th><th>Exploit</th><th>Fix</th><th>Fixed Version</th><th>סטטוס</th>' +
+          '<th>CVE / Name</th><th>חומרה</th><th>Score</th><th>משאב</th><th>סוג משאב</th><th>Exploit</th><th>Fix</th><th>Fixed Version</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(item, idx) {
@@ -550,6 +593,7 @@
             '<td>' + fixBadge + '</td>' +
             '<td>' + (item.fixedVersion || '—') + '</td>' +
             '<td>' + (item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
 
@@ -562,7 +606,7 @@
       function renderWiziHostConfigTable() {
         var html = '<table><caption>ממצאי Wizi — Host Configuration — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>חומרה</th><th>תוצאה</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th>' +
+          '<th>Rule</th><th>חומרה</th><th>תוצאה</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -581,6 +625,7 @@
             '<td><span class="muted">' + (res.nativeType || '') + '</span></td>' +
             '<td>' + (res.cloudPlatform || '') + '</td>' +
             '<td>' + (res.region || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -592,7 +637,7 @@
       function renderWiziDataTable() {
         var html = '<table><caption>ממצאי Wizi — Data Findings — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Classifier</th><th>חומרה</th><th>Entity</th><th>Cloud Account</th><th>סטטוס</th>' +
+          '<th>Classifier</th><th>חומרה</th><th>Entity</th><th>Cloud Account</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -607,6 +652,7 @@
             '<td>' + (entity.name || 'N/A') + '<br><span class="muted">' + (entity.type || '') + '</span></td>' +
             '<td>' + (account.name || '') + '<br><span class="muted">' + (account.cloudProvider || '') + '</span></td>' +
             '<td>' + (item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -618,7 +664,7 @@
       function renderWiziSecretTable() {
         var html = '<table><caption>ממצאי Wizi — Secrets — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Secret</th><th>חומרה</th><th>Type</th><th>Resource</th><th>Path</th><th>סטטוס</th>' +
+          '<th>Secret</th><th>חומרה</th><th>Type</th><th>Resource</th><th>Path</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -633,6 +679,7 @@
             '<td>' + (res.name || 'N/A') + '<br><span class="muted">' + (res.nativeType || '') + '</span></td>' +
             '<td class="muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="' + (item.path || '').replace(/"/g, '&quot;') + '">' + (item.path || '') + '</td>' +
             '<td>' + (item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -644,7 +691,7 @@
       function renderWiziExcessiveAccessTable() {
         var html = '<table><caption>ממצאי Wizi — Excessive Access — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Finding</th><th>חומרה</th><th>Principal</th><th>Cloud</th><th>Remediation</th><th>סטטוס</th>' +
+          '<th>Finding</th><th>חומרה</th><th>Principal</th><th>Cloud</th><th>Remediation</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -660,6 +707,7 @@
             '<td>' + (item.cloudPlatform || '') + '</td>' +
             '<td><span class="muted">' + (item.remediationType || '') + '</span></td>' +
             '<td>' + (item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -671,7 +719,7 @@
       function renderWiziNetworkTable() {
         var html = '<table><caption>ממצאי Wizi — Network Exposure — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Exposed Entity</th><th>Type</th><th>Source IP</th><th>Port Range</th><th>Exposure Type</th>' +
+          '<th>Exposed Entity</th><th>Type</th><th>Source IP</th><th>Port Range</th><th>Exposure Type</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var entity = item.exposedEntity || {};
@@ -682,6 +730,7 @@
             '<td>' + (item.sourceIpRange || '') + '</td>' +
             '<td>' + (item.portRange || '') + '</td>' +
             '<td>' + (item.type || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -693,7 +742,7 @@
       function renderWiziInventoryTable() {
         var html = '<table><caption>ממצאי Wizi — Inventory / EOL — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>חומרה</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th>סטטוס</th>' +
+          '<th>Rule</th><th>חומרה</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -710,6 +759,7 @@
             '<td>' + (ca.name || res.cloudPlatform || '') + '</td>' +
             '<td>' + (res.region || '') + '</td>' +
             '<td>' + (item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -721,7 +771,7 @@
       function renderWiziEolTable() {
         var html = '<table><caption>ממצאי Wizi — End of Life Findings — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Technology / Finding</th><th>חומרה</th><th>Asset</th><th>Type</th><th>Subscription</th><th>Fix</th><th>סטטוס</th>' +
+          '<th>Technology / Finding</th><th>חומרה</th><th>Asset</th><th>Type</th><th>Subscription</th><th>Fix</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -749,6 +799,7 @@
             '<td>' + escapeHtml(subName) + '</td>' +
             '<td>' + fixBadge + '</td>' +
             '<td>' + escapeHtml(item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -760,7 +811,7 @@
       function renderWiziSscTable() {
         var html = '<table><caption>ממצאי Wizi — Software Supply Chain — סמן לייבוא</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Package</th><th>Version</th><th>חומרה</th><th>Resource</th><th>Cloud</th><th>Region</th><th>סטטוס</th>' +
+          '<th>Package</th><th>Version</th><th>חומרה</th><th>Resource</th><th>Cloud</th><th>Region</th><th>סטטוס</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -777,6 +828,7 @@
             '<td>' + escapeHtml(ca.name || res.cloudPlatform || '') + '</td>' +
             '<td>' + escapeHtml(res.region || '') + '</td>' +
             '<td>' + escapeHtml(item.status || '') + '</td>' +
+            '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (item.id || '') + '" title="Ignore in Wiz">🚫</button></td>' +
             '</tr>';
         });
         html += '</tbody></table>';
@@ -3121,6 +3173,7 @@
             h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
           }
           h += '<th class="sortable-th" data-sort-col="subscription" data-qt="' + qt + '">Subscription' + sortIndicator('subscription') + '</th>';
+          h += '<th></th>';
           h += '</tr></thead><tbody>';
 
           for (var i = start; i < end; i++) {
@@ -3146,6 +3199,7 @@
               h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(res.name || '') + '">' + escapeHtml(res.name || '—') + '</td>';
             }
             h += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '—') + '</td>';
+            h += '<td><button class="btn-wiz-ignore btn-sm" data-wiz-id="' + (node.id || '') + '" title="Ignore in Wiz">🚫</button></td>';
             h += '</tr>';
           }
 
@@ -3161,6 +3215,13 @@
           }
 
           bodyEl.innerHTML = h;
+
+          // Wire ignore buttons (qt is in closure scope — no data-query-type needed)
+          bodyEl.querySelectorAll('.btn-wiz-ignore').forEach(function(ignoreBtn) {
+            ignoreBtn.addEventListener('click', function() {
+              doWizIgnore(ignoreBtn.dataset.wizId, ignoreBtn, qt);
+            });
+          });
 
           // Wire pagination events
           bodyEl.querySelectorAll('.bulk-page-btn').forEach(function(btn) {

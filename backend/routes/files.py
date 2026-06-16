@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import json
+import logging
+import re
 import uuid
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
+
+_log = logging.getLogger(__name__)
+
+# State IDs are uuid4().hex[:12] — exactly 12 lowercase hex chars
+_STATE_ID_RE = re.compile(r"^[0-9a-f]{12}$")
 
 files_bp = Blueprint('files', __name__)
 
@@ -55,8 +62,9 @@ def api_upload_state():
 @files_bp.route("/api/download-state/<state_id>")
 def api_download_state(state_id: str):
     """Download a previously uploaded state file."""
-    safe_id = _safe_filename(state_id)
-    filename = f"state_{safe_id}.json"
+    if not _STATE_ID_RE.match(state_id):
+        return jsonify({"error": "State not found"}), 404
+    filename = f"state_{state_id}.json"
     path = STATES_DIR / filename
     if not path.exists():
         return jsonify({"error": "State not found"}), 404
@@ -69,17 +77,21 @@ def api_list_states():
     """List all uploaded state files."""
     states = []
     for f in sorted(STATES_DIR.glob("state_*.json")):
+        corrupted = False
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
             meta = data.get("meta", {})
-        except Exception:
+        except Exception as exc:
+            _log.warning("Could not read state file %s: %s", f.name, exc)
             meta = {}
+            corrupted = True
         states.append({
             "id": f.stem.replace("state_", ""),
             "filename": f.name,
             "client": meta.get("client", ""),
             "reportDate": meta.get("reportDate", ""),
             "size": f.stat().st_size,
+            "corrupted": corrupted,
         })
     return jsonify(states)
 
@@ -87,8 +99,9 @@ def api_list_states():
 @files_bp.route("/api/delete-state/<state_id>", methods=["DELETE"])
 def api_delete_state(state_id: str):
     """Delete a state file."""
-    safe_id = _safe_filename(state_id)
-    path = STATES_DIR / f"state_{safe_id}.json"
+    if not _STATE_ID_RE.match(state_id):
+        return jsonify({"error": "State not found"}), 404
+    path = STATES_DIR / f"state_{state_id}.json"
     if not path.exists():
         return jsonify({"error": "State not found"}), 404
     path.unlink()

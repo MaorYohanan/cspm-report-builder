@@ -274,6 +274,87 @@ query {
 """
 
 # ---------------------------------------------------------------------------
+# Mutations
+# ---------------------------------------------------------------------------
+
+REJECT_ISSUE_MUTATION = """
+mutation UpdateIssues($input: UpdateIssuesInput!) {
+  updateIssues(input: $input) {
+    issues {
+      id
+      status
+    }
+  }
+}
+"""
+
+# Patch pattern — input: { id, patch: { status, resolutionReason, note } }
+IGNORE_CONFIG_FINDING_MUTATION = """
+mutation IgnoreConfigFinding($input: UpdateFindingInput!) {
+  updateCloudConfigurationFinding(input: $input) {
+    configurationFinding { id status }
+  }
+}
+"""
+
+IGNORE_VULN_FINDING_MUTATION = """
+mutation IgnoreVulnFinding($input: UpdateFindingInput!) {
+  updateVulnerabilityFinding(input: $input) {
+    vulnerabilityFinding { id status }
+  }
+}
+"""
+
+IGNORE_HOST_CONFIG_MUTATION = """
+mutation IgnoreHostConfig($input: UpdateFindingInput!) {
+  updateHostConfigurationRuleAssessment(input: $input) {
+    hostConfigurationRuleAssessment { id status }
+  }
+}
+"""
+
+IGNORE_INVENTORY_FINDING_MUTATION = """
+mutation IgnoreInventoryFinding($input: UpdateFindingInput!) {
+  updateInventoryFinding(input: $input) {
+    inventoryFinding { id status }
+  }
+}
+"""
+
+IGNORE_SSC_FINDING_MUTATION = """
+mutation IgnoreSscFinding($input: UpdateFindingInput!) {
+  updateSoftwareSupplyChainFinding(input: $input) {
+    softwareSupplyChainFinding { id status }
+  }
+}
+"""
+
+IGNORE_EXCESSIVE_ACCESS_MUTATION = """
+mutation IgnoreExcessiveAccess($input: UpdateExcessiveAccessFindingInput!) {
+  updateExcessiveAccessFinding(input: $input) {
+    excessiveAccessFinding { id status }
+  }
+}
+"""
+
+# Flat pattern — input: { id, status, resolutionReason, note? }
+IGNORE_DATA_FINDING_MUTATION = """
+mutation IgnoreDataFinding($input: UpdateDataFindingInput!) {
+  updateDataFinding(input: $input) {
+    dataFinding { id status }
+  }
+}
+"""
+
+IGNORE_SECRET_INSTANCE_MUTATION = """
+mutation IgnoreSecretInstance($input: UpdateSecretInstanceInput!) {
+  updateSecretInstance(input: $input) {
+    secretInstance { id status }
+  }
+}
+"""
+
+# ---------------------------------------------------------------------------
 # Query Type Mapping
 # ---------------------------------------------------------------------------
 
