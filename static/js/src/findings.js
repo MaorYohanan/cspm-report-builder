@@ -839,11 +839,12 @@
             reportVersion: document.getElementById('report-version').value,
             reportLang: document.getElementById('report-lang').value
           },
-          // Strip _wizSourceId (transient client-side dedup tag) before serializing
+          // Strip transient client-side fields before serializing
           findings: findings.map(function(f) {
-            if (!f || typeof f !== 'object' || !('_wizSourceId' in f)) return f;
+            if (!f || typeof f !== 'object') return f;
             var copy = Object.assign({}, f);
             delete copy._wizSourceId;
+            delete copy.notes;
             return copy;
           }),
           // Save in-progress form draft so refresh doesn't lose work
@@ -1992,11 +1993,12 @@
       function calcRiskScore() {
         var weights = { critical: 10, high: 7, medium: 4, low: 1, info: 0 };
         var total = 0;
-        var maxPossible = findings.length * 10;
-        findings.forEach(function(f) {
+        var scored = findings.filter(function(f) { return !(f.exception && f.exception.active); });
+        var maxPossible = scored.length * 10;
+        scored.forEach(function(f) {
           total += weights[f.severity] || 0;
         });
-        if (!findings.length) return { score: 0, percent: 0, label: '—', level: '' };
+        if (!scored.length) return { score: 0, percent: 0, label: '—', level: '' };
         var percent = Math.round((total / maxPossible) * 100);
         var label, level;
         if (percent >= 75) { label = 'קריטית'; level = 'critical'; }

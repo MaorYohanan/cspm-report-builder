@@ -917,6 +917,11 @@ def api_wizi_find_by_id():
 
 _DEFAULT_IGNORE_NOTE = "Marked as ignored via CSPM Report Builder"
 
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    re.IGNORECASE,
+)
+
 # Finding types that use { id, patch: { status, resolutionReason, note } }
 _PATCH_IGNORE = {
     "configurationFindings":            IGNORE_CONFIG_FINDING_MUTATION,
@@ -934,6 +939,11 @@ _FLAT_IGNORE = {
     "dataFindingsV2":  (IGNORE_DATA_FINDING_MUTATION, True),
     "secretInstances": (IGNORE_SECRET_INSTANCE_MUTATION, False),  # no note field in schema
 }
+
+# Explicit allowlist of all queryType values accepted by api_wizi_ignore_issue.
+# "networkExposures" has no Wiz mutation and returns notSupported, but is a
+# valid client value — any other string is rejected with 400.
+_ALLOWED_QUERY_TYPES = {"issues", "networkExposures"} | set(_PATCH_IGNORE) | set(_FLAT_IGNORE)
 
 
 @wiz_bp.route("/ignore-issue", methods=["POST"])
@@ -955,6 +965,10 @@ def api_wizi_ignore_issue():
 
     if not issue_id:
         return jsonify({"error": "issueId is required"}), 400
+    if not _UUID_RE.match(issue_id):
+        return jsonify({"error": "issueId must be a valid UUID"}), 400
+    if query_type not in _ALLOWED_QUERY_TYPES:
+        return jsonify({"error": f"Unknown queryType: {query_type}"}), 400
 
     try:
         wiz = get_wiz_service()

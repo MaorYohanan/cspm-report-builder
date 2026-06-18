@@ -143,7 +143,7 @@
           <div>
             <div class="finding-section-title"><strong>פרטים טכניים</strong></div>
             {% if f.technical %}
-              <ul>{% for x in f.technical %}<li>{{ x }}</li>{% endfor %}</ul>
+              <ul>{% for x in f.technical %}<li{% if x[:1]|lower in 'abcdefghijklmnopqrstuvwxyz' %} dir="ltr" style="text-align:left;"{% endif %}>{{ x }}</li>{% endfor %}</ul>
             {% else %}
               <p class="muted">לא סופקו פרטים טכניים.</p>
             {% endif %}
@@ -160,7 +160,7 @@
 
           <div class="finding-section-title"><strong>המלצות</strong></div>
           {% if f.recs %}
-            <ul>{% for x in f.recs %}<li>{{ x }}</li>{% endfor %}</ul>
+            <ul>{% for x in f.recs %}<li{% if x[:1]|lower in 'abcdefghijklmnopqrstuvwxyz' %} dir="ltr" style="text-align:left;"{% endif %}>{{ x }}</li>{% endfor %}</ul>
           {% else %}
             <p class="muted">לא סופקו המלצות.</p>
           {% endif %}

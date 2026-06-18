@@ -2440,11 +2440,12 @@
       function calcRiskScore() {
         var weights = { critical: 10, high: 7, medium: 4, low: 1, info: 0 };
         var total = 0;
-        var maxPossible = findings.length * 10;
-        findings.forEach(function(f) {
+        var scored = findings.filter(function(f) { return !(f.exception && f.exception.active); });
+        var maxPossible = scored.length * 10;
+        scored.forEach(function(f) {
           total += weights[f.severity] || 0;
         });
-        if (!findings.length) return { score: 0, percent: 0, label: '—', level: '' };
+        if (!scored.length) return { score: 0, percent: 0, label: '—', level: '' };
         var percent = Math.round((total / maxPossible) * 100);
         var label, level;
         if (percent >= 75) { label = 'קריטית'; level = 'critical'; }
