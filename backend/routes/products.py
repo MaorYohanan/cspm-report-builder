@@ -887,3 +887,129 @@ def publish_version(product_id: str, ver: str):
         "publishedAt": now,
         "riskScore": data.get("riskScore"),
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# Product Memory endpoints
+# ---------------------------------------------------------------------------
+
+_MEMORY_FILE = "memory.json"
+_MAX_MEMORY_ENTRIES = 2000
+_MAX_SUBSCRIPTION_LEN = 200
+_MAX_TITLE_LEN = 500
+_MAX_REASON_LEN = 1000
+
+
+def _load_memory(product_dir: Path) -> dict:
+    """Load memory.json for a product; return empty structure on any error."""
+    mem_path = product_dir / _MEMORY_FILE
+    if not mem_path.exists():
+        return {"version": 1, "entries": {}}
+    try:
+        data = json.loads(mem_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("entries"), dict):
+            return {"version": 1, "entries": {}}
+        return data
+    except Exception:
+        return {"version": 1, "entries": {}}
+
+
+def _save_memory(product_dir: Path, memory: dict) -> None:
+    _atomic_write_text(product_dir / _MEMORY_FILE, json.dumps(memory, ensure_ascii=False))
+
+
+def _memory_key(subscription: str, title: str) -> str:
+    return subscription.lower().strip() + "::" + title.lower().strip()
+
+
+@products_bp.route("/api/products/<product_id>/memory", methods=["GET"])
+def get_memory(product_id: str):
+    """Return the product memory (excepted/deleted finding history)."""
+    if _storage_error:
+        return jsonify({"error": "Products storage unavailable"}), 500
+
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product_dir = PRODUCTS_DIR / safe_id
+    if not product_dir.is_dir():
+        return jsonify({"error": "Product not found"}), 404
+
+    return jsonify(_load_memory(product_dir)), 200
+
+
+@products_bp.route("/api/products/<product_id>/memory/entry", methods=["POST"])
+def upsert_memory_entry(product_id: str):
+    """Upsert a single memory entry (exception or deletion record)."""
+    if _storage_error:
+        return jsonify({"error": "Products storage unavailable"}), 500
+
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product_dir = PRODUCTS_DIR / safe_id
+    if not product_dir.is_dir():
+        return jsonify({"error": "Product not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    subscription = data.get("subscription", "")
+    title = data.get("title", "")
+    reason = data.get("reason", "")
+    source = data.get("source", "excepted")
+
+    if not isinstance(subscription, str) or not subscription.strip():
+        return jsonify({"error": "subscription: required non-empty string"}), 400
+    if not isinstance(title, str) or not title.strip():
+        return jsonify({"error": "title: required non-empty string"}), 400
+    if len(subscription) > _MAX_SUBSCRIPTION_LEN:
+        return jsonify({"error": "subscription: too long"}), 400
+    if len(title) > _MAX_TITLE_LEN:
+        return jsonify({"error": "title: too long"}), 400
+    if not isinstance(reason, str) or len(reason) > _MAX_REASON_LEN:
+        reason = ""
+    if source not in ("excepted", "deleted"):
+        source = "excepted"
+    if _contains_traversal(subscription) or _contains_traversal(title):
+        return jsonify({"error": "Invalid field value"}), 400
+
+    with _get_product_lock(safe_id):
+        memory = _load_memory(product_dir)
+        if len(memory["entries"]) >= _MAX_MEMORY_ENTRIES:
+            return jsonify({"error": "Memory limit reached"}), 429
+        key = _memory_key(subscription, title)
+        memory["entries"][key] = {"exception": True, "reason": reason, "source": source}
+        _save_memory(product_dir, memory)
+
+    return jsonify({"ok": True, "key": key}), 200
+
+
+@products_bp.route("/api/products/<product_id>/memory/entry", methods=["DELETE"])
+def delete_memory_entry(product_id: str):
+    """Remove a memory entry (e.g. when un-excepting a finding)."""
+    if _storage_error:
+        return jsonify({"error": "Products storage unavailable"}), 500
+
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product_dir = PRODUCTS_DIR / safe_id
+    if not product_dir.is_dir():
+        return jsonify({"error": "Product not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    subscription = data.get("subscription", "")
+    title = data.get("title", "")
+
+    if not isinstance(subscription, str) or not isinstance(title, str):
+        return jsonify({"error": "subscription and title required"}), 400
+
+    with _get_product_lock(safe_id):
+        memory = _load_memory(product_dir)
+        key = _memory_key(subscription, title)
+        memory["entries"].pop(key, None)
+        _save_memory(product_dir, memory)
+
+    return jsonify({"ok": True}), 200

@@ -194,6 +194,29 @@
         });
       });
 
+      // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
+      function saveToProductMemory(f, source, reason) {
+        if (!f || !f._sourceSubscription || !f.title) return;
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
+        if (!product || !product.id) return;
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, reason: reason || '', source: source || 'excepted' })
+        }).catch(function() {});
+      }
+
+      function removeFromProductMemory(f) {
+        if (!f || !f._sourceSubscription || !f.title) return;
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
+        if (!product || !product.id) return;
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title })
+        }).catch(function() {});
+      }
+
       // Wire detail footer buttons
       var btnDetailPrev = document.getElementById('btn-detail-prev');
       var btnDetailNext = document.getElementById('btn-detail-next');
@@ -250,6 +273,8 @@
       });
       if (btnDetailDelete) btnDetailDelete.addEventListener('click', function() {
         if (selectedFindingIndex !== null) {
+          var _f = findings[selectedFindingIndex];
+          saveToProductMemory(_f, 'deleted', (_f.exception && _f.exception.reason) || '');
           findings.splice(selectedFindingIndex, 1);
           selectedFindingIndex = null;
           showFindingDetail(null);
@@ -271,6 +296,7 @@
           var f = findings[selectedFindingIndex];
           if (f.exception && f.exception.active) {
             // Already excepted — immediately toggle off
+            removeFromProductMemory(f);
             f.exception = { active: false, reason: '' };
             if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
             btnDetailException.textContent = '⚠ החרג';
@@ -294,6 +320,7 @@
           var inp = document.getElementById('detail-exception-reason-input');
           var reason = inp ? inp.value.trim() : '';
           findings[selectedFindingIndex].exception = { active: true, reason: reason };
+          saveToProductMemory(findings[selectedFindingIndex], 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           var excBtn = document.getElementById('btn-detail-exception');
           if (excBtn) {
@@ -807,6 +834,7 @@
             icon: '🗑️', title: 'מחיקת ממצא', confirmText: 'מחק', cancelText: 'ביטול', danger: true
           }).then(function(yes) {
             if (yes) {
+              saveToProductMemory(findings[kbSelectedIdx], 'deleted', (findings[kbSelectedIdx].exception && findings[kbSelectedIdx].exception.reason) || '');
               findings.splice(kbSelectedIdx, 1);
               if (kbSelectedIdx >= findings.length) kbSelectedIdx = findings.length - 1;
               renderFindingsTable();
@@ -1109,6 +1137,7 @@
                   if (Number.isNaN(idx)) return;
 
                   if (action === 'delete') {
+                    saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
                     findings.splice(idx, 1);
                     if (editingIndex === idx) resetEditState();
                     else if (editingIndex !== null && idx < editingIndex) editingIndex--;
@@ -1309,7 +1338,10 @@
           icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
         }).then(function(yes) {
           if (!yes) return;
-          indices.forEach(function(idx) { findings.splice(idx, 1); });
+          indices.forEach(function(idx) {
+            saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
+            findings.splice(idx, 1);
+          });
           editingIndex = null;
           renderFindingsTable();
           autoSave();
@@ -1855,7 +1887,10 @@
             icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
           }).then(function(yes) {
             if (!yes) return;
-            indices.forEach(function(idx) { findings.splice(idx, 1); });
+            indices.forEach(function(idx) {
+              saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
+              findings.splice(idx, 1);
+            });
             editingIndex = null;
             renderFindingsTable();
             autoSave();

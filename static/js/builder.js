@@ -642,6 +642,29 @@
         });
       });
 
+      // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
+      function saveToProductMemory(f, source, reason) {
+        if (!f || !f._sourceSubscription || !f.title) return;
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
+        if (!product || !product.id) return;
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, reason: reason || '', source: source || 'excepted' })
+        }).catch(function() {});
+      }
+
+      function removeFromProductMemory(f) {
+        if (!f || !f._sourceSubscription || !f.title) return;
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
+        if (!product || !product.id) return;
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title })
+        }).catch(function() {});
+      }
+
       // Wire detail footer buttons
       var btnDetailPrev = document.getElementById('btn-detail-prev');
       var btnDetailNext = document.getElementById('btn-detail-next');
@@ -698,6 +721,8 @@
       });
       if (btnDetailDelete) btnDetailDelete.addEventListener('click', function() {
         if (selectedFindingIndex !== null) {
+          var _f = findings[selectedFindingIndex];
+          saveToProductMemory(_f, 'deleted', (_f.exception && _f.exception.reason) || '');
           findings.splice(selectedFindingIndex, 1);
           selectedFindingIndex = null;
           showFindingDetail(null);
@@ -719,6 +744,7 @@
           var f = findings[selectedFindingIndex];
           if (f.exception && f.exception.active) {
             // Already excepted — immediately toggle off
+            removeFromProductMemory(f);
             f.exception = { active: false, reason: '' };
             if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
             btnDetailException.textContent = '⚠ החרג';
@@ -742,6 +768,7 @@
           var inp = document.getElementById('detail-exception-reason-input');
           var reason = inp ? inp.value.trim() : '';
           findings[selectedFindingIndex].exception = { active: true, reason: reason };
+          saveToProductMemory(findings[selectedFindingIndex], 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           var excBtn = document.getElementById('btn-detail-exception');
           if (excBtn) {
@@ -1255,6 +1282,7 @@
             icon: '🗑️', title: 'מחיקת ממצא', confirmText: 'מחק', cancelText: 'ביטול', danger: true
           }).then(function(yes) {
             if (yes) {
+              saveToProductMemory(findings[kbSelectedIdx], 'deleted', (findings[kbSelectedIdx].exception && findings[kbSelectedIdx].exception.reason) || '');
               findings.splice(kbSelectedIdx, 1);
               if (kbSelectedIdx >= findings.length) kbSelectedIdx = findings.length - 1;
               renderFindingsTable();
@@ -1287,11 +1315,12 @@
             reportVersion: document.getElementById('report-version').value,
             reportLang: document.getElementById('report-lang').value
           },
-          // Strip _wizSourceId (transient client-side dedup tag) before serializing
+          // Strip transient client-side fields before serializing
           findings: findings.map(function(f) {
-            if (!f || typeof f !== 'object' || !('_wizSourceId' in f)) return f;
+            if (!f || typeof f !== 'object') return f;
             var copy = Object.assign({}, f);
             delete copy._wizSourceId;
+            delete copy.notes;
             return copy;
           }),
           // Save in-progress form draft so refresh doesn't lose work
@@ -1556,6 +1585,7 @@
                   if (Number.isNaN(idx)) return;
 
                   if (action === 'delete') {
+                    saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
                     findings.splice(idx, 1);
                     if (editingIndex === idx) resetEditState();
                     else if (editingIndex !== null && idx < editingIndex) editingIndex--;
@@ -1756,7 +1786,10 @@
           icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
         }).then(function(yes) {
           if (!yes) return;
-          indices.forEach(function(idx) { findings.splice(idx, 1); });
+          indices.forEach(function(idx) {
+            saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
+            findings.splice(idx, 1);
+          });
           editingIndex = null;
           renderFindingsTable();
           autoSave();
@@ -2302,7 +2335,10 @@
             icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
           }).then(function(yes) {
             if (!yes) return;
-            indices.forEach(function(idx) { findings.splice(idx, 1); });
+            indices.forEach(function(idx) {
+              saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
+              findings.splice(idx, 1);
+            });
             editingIndex = null;
             renderFindingsTable();
             autoSave();
@@ -3665,7 +3701,7 @@
 
         // Clear all meta fields
         var metaFields = [
-          'report-client', 'report-env', 'report-range', 'report-consultant',
+          'report-client', 'report-subscription-ids', 'report-env', 'report-range', 'report-consultant',
           'report-risk', 'report-exec-summary', 'report-key-topics',
           'report-team-name', 'report-org-name', 'report-footer-text',
           'report-cover-note', 'report-version', 'report-lang'
@@ -4134,7 +4170,7 @@
       const defaultsStatus = document.getElementById('defaults-status');
 
       const defaultFields = [
-        'report-client', 'report-env', 'report-consultant',
+        'report-client', 'report-subscription-ids', 'report-env', 'report-consultant',
         'report-team-name', 'report-org-name', 'report-footer-text',
         'report-cover-note', 'report-lang', 'report-exec-summary',
         'report-key-topics'
@@ -5034,7 +5070,7 @@
       function doWizIgnore(wizId, btn, queryType) {
         queryType = queryType || wiziQueryType;
         var reason = prompt('הזן סיבת ההתעלמות (אופציונלי):', '');
-        if (reason === null) return;
+        if (reason === null) return; // user cancelled
         btn.disabled = true;
         btn.textContent = '⏳';
         fetch('/api/wizi/ignore-issue', {
@@ -5601,6 +5637,7 @@
 
       wiziImportBtn.addEventListener('click', function() {
         var beforeCount = findings.length;
+        var subscription = wiziProjectInput.value.trim() || wiziSubInput.value.trim() || '';
         var selected = [];
         document.querySelectorAll('.wizi-check:checked').forEach(function(cb) {
           var idx = parseInt(cb.getAttribute('data-idx'));
@@ -5695,7 +5732,6 @@
 
           var eolTechnical = eolTechLines.slice();
           if (eolSubscriptions.length) eolTechnical.push('Subscription: ' + eolSubscriptions.join(', '));
-          if (eolResources.length) eolTechnical.push('Affected Resources: ' + eolResources.join(', '));
 
           findings.push({
             id: eolId, category: 'EOLM',
@@ -5743,25 +5779,50 @@
         var skipped = 0;
         var consolidated = 0;
         var updated = 0;
+
+        // For secrets: merge any existing SECR findings that share a title into one
+        // before building the dedup map. This handles findings from older imports
+        // that were keyed per-path and left multiple stale entries.
+        if (wiziQueryType === 'secretInstances') {
+          var secrByTitle = {};
+          var secrToRemove = [];
+          for (var i = 0; i < findings.length; i++) {
+            var f = findings[i];
+            if (f.category !== 'SECR') continue;
+            var tkey = (f.title || '').toLowerCase();
+            if (!secrByTitle[tkey]) {
+              secrByTitle[tkey] = i;
+            } else {
+              var pf = findings[secrByTitle[tkey]];
+              var pPaths = getSecrPaths(pf);
+              getSecrPaths(f).forEach(function(p) { if (pPaths.indexOf(p) === -1) pPaths.push(p); });
+              writeSecrPaths(pf, pPaths);
+              secrToRemove.push(i);
+            }
+          }
+          for (var ri = secrToRemove.length - 1; ri >= 0; ri--) findings.splice(secrToRemove[ri], 1);
+        }
+
         var existingTitles = {};
         var existingFindingsByTitle = {};
-        findings.forEach(function(f) { 
-          var lowerTitle = (f.title || '').toLowerCase();
-          existingTitles[lowerTitle] = true;
-          existingFindingsByTitle[lowerTitle] = f;
+        findings.forEach(function(f) {
+          var key = getFindingDedupeKey(f);
+          existingTitles[key] = true;
+          existingFindingsByTitle[key] = f;
         });
 
         Object.keys(groupedByRule).forEach(function(ruleId) {
           var items = groupedByRule[ruleId];
           var firstItem = items[0];
-          
-          // Check if finding with same title already exists
+
+          // Check if finding with same title (and path for SECR) already exists
           var title = getWiziItemTitle(firstItem, wiziQueryType);
           var lowerTitle = title ? title.toLowerCase() : null;
-          
-          if (lowerTitle && existingTitles[lowerTitle]) {
+          var dedupeKey = getItemDedupeKey(firstItem, wiziQueryType);
+
+          if (dedupeKey && existingTitles[dedupeKey]) {
             // Finding exists - append new resources and subscriptions
-            var existingFinding = existingFindingsByTitle[lowerTitle];
+            var existingFinding = existingFindingsByTitle[dedupeKey];
             
             // Extract all unique resource names from new items
             var newResources = [];
@@ -5846,7 +5907,17 @@
                 existingFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
               }
             }
-            
+
+            // SECR: merge paths from the new items into the existing finding
+            if (wiziQueryType === 'secretInstances') {
+              var existingPaths = getSecrPaths(existingFinding);
+              var mergedPaths = existingPaths.slice();
+              items.forEach(function(item) {
+                if (item.path && mergedPaths.indexOf(item.path) === -1) mergedPaths.push(item.path);
+              });
+              if (mergedPaths.length > existingPaths.length) writeSecrPaths(existingFinding, mergedPaths);
+            }
+
             updated++;
             return;
           }
@@ -5971,21 +6042,36 @@
             if (allSubscriptions.length > 1) {
               var subLineIndex = -1;
               for (var k = 0; k < lastFinding.technical.length; k++) {
-                if (lastFinding.technical[k].startsWith('Subscription:') || 
+                if (lastFinding.technical[k].startsWith('Subscription:') ||
                     lastFinding.technical[k].startsWith('Account:')) {
                   subLineIndex = k;
                   break;
                 }
               }
-              
+
               if (subLineIndex >= 0) {
                 var subPrefix = lastFinding.technical[subLineIndex].split(':')[0];
                 lastFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
               }
             }
+
+            // SECR: consolidate all unique paths and record instance count
+            if (wiziQueryType === 'secretInstances') {
+              var allPaths = [];
+              items.forEach(function(item) {
+                if (item.path && allPaths.indexOf(item.path) === -1) allPaths.push(item.path);
+              });
+              writeSecrPaths(lastFinding, allPaths);
+              lastFinding.description = lastFinding.description.replace(/ — \d+ מופעים זוהו$/, '');
+              lastFinding.description += ' — ' + items.length + ' מופעים זוהו';
+            }
           }
-          
-          if (title) existingTitles[title.toLowerCase()] = true;
+
+          var newDedupeKey = getItemDedupeKey(firstItem, wiziQueryType);
+          if (newDedupeKey) {
+            existingTitles[newDedupeKey] = true;
+            existingFindingsByTitle[newDedupeKey] = findings[findings.length - 1];
+          }
         });
 
         renderFindingsTable();
@@ -5998,8 +6084,16 @@
         if (skipped) msg += ' (' + skipped + ' כפולים דולגו)';
         showToast(msg, 'success');
 
-        // Enrich newly imported findings with AI remediation summaries
+        // Stamp source subscription and apply product memory
         var newFindings = findings.slice(beforeCount);
+        if (subscription) {
+          newFindings.forEach(function(f) {
+            if (!f._sourceSubscription) f._sourceSubscription = subscription;
+          });
+        }
+        applyProductMemory(newFindings, subscription);
+
+        // Enrich newly imported findings with AI remediation summaries
         if (newFindings.length) {
           styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
             icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
@@ -6279,7 +6373,7 @@
         }
         if (qt === 'secretInstances') {
           var rule = item.rule || {};
-          return rule.id || rule.name || item.type || null;
+          return item.name || rule.name || item.type || null;
         }
         if (qt === 'excessiveAccessFindings') {
           // Use finding name as rule ID (same excessive access type)
@@ -6300,6 +6394,56 @@
           return item.type + '_' + (item.portRange || 'any');
         }
         return null;
+      }
+
+      // ── Helpers: SECR path utilities ──
+      function getSecrFindingPath(finding) {
+        var tech = finding.technical || [];
+        for (var i = 0; i < tech.length; i++) {
+          if (tech[i].startsWith('Path:')) return tech[i].substring(5).trim();
+        }
+        return '';
+      }
+
+      function getSecrPaths(finding) {
+        var paths = [];
+        (finding.technical || []).forEach(function(line) {
+          if (line.startsWith('Affected Paths')) {
+            var ci = line.indexOf(':');
+            if (ci >= 0) line.substring(ci + 1).split(',').forEach(function(p) {
+              p = p.trim(); if (p) paths.push(p);
+            });
+          } else if (line.startsWith('Path:')) {
+            var p = line.substring(5).trim();
+            if (p) paths.push(p);
+          }
+        });
+        return paths;
+      }
+
+      function writeSecrPaths(finding, paths) {
+        var idx = -1;
+        for (var i = 0; i < finding.technical.length; i++) {
+          if (finding.technical[i].startsWith('Path:') || finding.technical[i].startsWith('Affected Paths')) {
+            idx = i; break;
+          }
+        }
+        var text = paths.length > 1
+          ? 'Affected Paths (' + paths.length + '): ' + paths.join(', ')
+          : (paths.length === 1 ? 'Path: ' + paths[0] : null);
+        if (text) {
+          if (idx >= 0) finding.technical[idx] = text;
+          else finding.technical.push(text);
+        }
+      }
+
+      function getFindingDedupeKey(finding) {
+        return (finding.title || '').toLowerCase();
+      }
+
+      function getItemDedupeKey(item, qt) {
+        var title = getWiziItemTitle(item, qt);
+        return title ? title.toLowerCase() : null;
       }
 
       // ── Helper: extract resource info for consolidation ──
@@ -7134,9 +7278,7 @@
         var title = item.name || rule.name || 'Secret Finding ' + item.id;
 
         // Description
-        var description = 'זוהה סוד חשוף מסוג ' + (item.type || 'לא ידוע');
-        if (res.name) description += ' במשאב ' + res.name;
-        if (item.path) description += ' (נתיב: ' + item.path + ')';
+        var description = 'זוהה סוד חשוף מסוג ' + (item.type || title || 'לא ידוע');
 
         // Impact
         var sevLabel = (severityMap[sev] || {}).text || sev;
@@ -7947,13 +8089,34 @@
           });
         });
 
+        // For secrets: merge any existing SECR findings that share a title into one
+        if (selectedByType['secretInstances'] && selectedByType['secretInstances'].length) {
+          var bSecrByTitle = {};
+          var bSecrToRemove = [];
+          for (var bsi = 0; bsi < findings.length; bsi++) {
+            var bsf = findings[bsi];
+            if (bsf.category !== 'SECR') continue;
+            var bsKey = (bsf.title || '').toLowerCase();
+            if (!bSecrByTitle[bsKey]) {
+              bSecrByTitle[bsKey] = bsi;
+            } else {
+              var bpf = findings[bSecrByTitle[bsKey]];
+              var bpPaths = getSecrPaths(bpf);
+              getSecrPaths(bsf).forEach(function(p) { if (bpPaths.indexOf(p) === -1) bpPaths.push(p); });
+              writeSecrPaths(bpf, bpPaths);
+              bSecrToRemove.push(bsi);
+            }
+          }
+          for (var bri = bSecrToRemove.length - 1; bri >= 0; bri--) findings.splice(bSecrToRemove[bri], 1);
+        }
+
         // Build existing title index for consolidation
         var existingTitles = {};
         var existingFindingsByTitle = {};
         findings.forEach(function(f) {
-          var lowerTitle = (f.title || '').toLowerCase();
-          existingTitles[lowerTitle] = true;
-          existingFindingsByTitle[lowerTitle] = f;
+          var key = getFindingDedupeKey(f);
+          existingTitles[key] = true;
+          existingFindingsByTitle[key] = f;
         });
 
         // Special case: aggregate ALL EOL findings (endOfLifeFindings + inventoryFindings) into one combined finding
@@ -8005,7 +8168,6 @@
 
           var eolTechnical = eolTechLines.slice();
           if (eolSubs.length) eolTechnical.push('Subscription: ' + eolSubs.join(', '));
-          if (eolResArr.length) eolTechnical.push('Affected Resources: ' + eolResArr.join(', '));
 
           var eolTitle = 'רכיבים בסוף חיים (End of Life)';
           var eolTitleLower = eolTitle.toLowerCase();
@@ -8020,16 +8182,6 @@
               if (existingSubs.indexOf(s) === -1) existingSubs.push(s);
             });
             existingEol.owner = existingSubs.filter(Boolean).join(', ');
-            var resLineIdx = existingEol.technical.findIndex(function(l) { return l.startsWith('Affected Resources:'); });
-            var existingRes = resLineIdx >= 0
-              ? existingEol.technical[resLineIdx].replace('Affected Resources:', '').split(',').map(function(s) { return s.trim(); }).filter(Boolean)
-              : [];
-            eolResArr.forEach(function(r) { if (existingRes.indexOf(r) === -1) existingRes.push(r); });
-            if (existingRes.length) {
-              var newResLine = 'Affected Resources: ' + existingRes.join(', ');
-              if (resLineIdx >= 0) existingEol.technical[resLineIdx] = newResLine;
-              else existingEol.technical.push(newResLine);
-            }
             updated++;
           } else {
             var eolCat = 'EOLM';
@@ -8250,12 +8402,13 @@
               return;
             }
 
-            // Check if finding with same title already exists — merge into it
+            // Check if finding with same title (and path for SECR) already exists — merge into it
             var title = getWiziItemTitle(firstItem, queryType);
             var lowerTitle = title ? title.toLowerCase() : null;
+            var dedupeKey = getItemDedupeKey(firstItem, queryType);
 
-            if (lowerTitle && existingTitles[lowerTitle]) {
-              var existingFinding = existingFindingsByTitle[lowerTitle];
+            if (dedupeKey && existingTitles[dedupeKey]) {
+              var existingFinding = existingFindingsByTitle[dedupeKey];
 
               // Extract all unique resource names from new items
               var newResources = [];
@@ -8333,6 +8486,16 @@
                 }
               }
 
+              // SECR: merge paths from new items into existing finding
+              if (queryType === 'secretInstances') {
+                var existingPaths = getSecrPaths(existingFinding);
+                var mergedPaths = existingPaths.slice();
+                ruleItems.forEach(function(item) {
+                  if (item.path && mergedPaths.indexOf(item.path) === -1) mergedPaths.push(item.path);
+                });
+                if (mergedPaths.length > existingPaths.length) writeSecrPaths(existingFinding, mergedPaths);
+              }
+
               updated++;
               return;
             }
@@ -8405,9 +8568,24 @@
                   lastFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
                 }
               }
+
+              // SECR: consolidate all unique paths and record instance count
+              if (queryType === 'secretInstances') {
+                var allPaths = [];
+                ruleItems.forEach(function(item) {
+                  if (item.path && allPaths.indexOf(item.path) === -1) allPaths.push(item.path);
+                });
+                writeSecrPaths(lastFinding, allPaths);
+                lastFinding.description = lastFinding.description.replace(/ — \d+ מופעים זוהו$/, '');
+                lastFinding.description += ' — ' + ruleItems.length + ' מופעים זוהו';
+              }
             }
 
-            if (title) existingTitles[title.toLowerCase()] = true;
+            var newDedupeKey = getItemDedupeKey(firstItem, queryType);
+            if (newDedupeKey) {
+              existingTitles[newDedupeKey] = true;
+              existingFindingsByTitle[newDedupeKey] = findings[findings.length - 1];
+            }
           });
         });
 
@@ -8436,6 +8614,39 @@
             handleBulkImport();
           }
         });
+      }
+
+      // ── Product Memory: auto-except previously handled findings ──
+      function applyProductMemory(newFindings, subscription) {
+        if (!newFindings || !newFindings.length) return;
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
+        if (!product || !product.id) return;
+        if (!subscription) return;
+
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory')
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) {
+            if (!data || !data.entries) return;
+            var entries = data.entries;
+            var subKey = subscription.toLowerCase().trim();
+            var matched = 0;
+            newFindings.forEach(function(f) {
+              if (!f.title) return;
+              var key = subKey + '::' + f.title.toLowerCase().trim();
+              var entry = entries[key];
+              if (!entry) return;
+              if (!(f.exception && f.exception.active)) {
+                f.exception = { active: true, reason: entry.reason || '' };
+                matched++;
+              }
+            });
+            if (matched > 0) {
+              renderFindingsTable();
+              autoSave();
+              showToast(matched + ' ממצאים סומנו כמוחרגים אוטומטית על פי היסטוריה קודמת', 'info');
+            }
+          })
+          .catch(function() {});
       }
 
       var btnBulkSelectAll = document.getElementById('btn-bulk-select-all');
@@ -8491,6 +8702,8 @@
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
           var beforeCount = findings.length;
+          var bulkSubscription = (document.getElementById('bulk-import-sub') || {}).value || '';
+          bulkSubscription = bulkSubscription.trim();
           var result = importSelectedBulkFindings();
           if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
             showToast('לא נבחרו ממצאים לייבוא', 'warning');
@@ -8507,8 +8720,16 @@
           autoSave();
           switchToTab('tab-findings-list');
 
-          // Enrich newly imported findings with AI remediation summaries
+          // Stamp source subscription and apply product memory
           var newFindings = findings.slice(beforeCount);
+          if (bulkSubscription) {
+            newFindings.forEach(function(f) {
+              if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;
+            });
+          }
+          applyProductMemory(newFindings, bulkSubscription);
+
+          // Enrich newly imported findings with AI remediation summaries
           if (newFindings.length) {
             styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
               icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
