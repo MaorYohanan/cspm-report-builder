@@ -1014,6 +1014,7 @@
 
       wiziImportBtn.addEventListener('click', function() {
         var beforeCount = findings.length;
+        var subscription = wiziProjectInput.value.trim() || wiziSubInput.value.trim() || '';
         var selected = [];
         document.querySelectorAll('.wizi-check:checked').forEach(function(cb) {
           var idx = parseInt(cb.getAttribute('data-idx'));
@@ -1155,25 +1156,50 @@
         var skipped = 0;
         var consolidated = 0;
         var updated = 0;
+
+        // For secrets: merge any existing SECR findings that share a title into one
+        // before building the dedup map. This handles findings from older imports
+        // that were keyed per-path and left multiple stale entries.
+        if (wiziQueryType === 'secretInstances') {
+          var secrByTitle = {};
+          var secrToRemove = [];
+          for (var i = 0; i < findings.length; i++) {
+            var f = findings[i];
+            if (f.category !== 'SECR') continue;
+            var tkey = (f.title || '').toLowerCase();
+            if (!secrByTitle[tkey]) {
+              secrByTitle[tkey] = i;
+            } else {
+              var pf = findings[secrByTitle[tkey]];
+              var pPaths = getSecrPaths(pf);
+              getSecrPaths(f).forEach(function(p) { if (pPaths.indexOf(p) === -1) pPaths.push(p); });
+              writeSecrPaths(pf, pPaths);
+              secrToRemove.push(i);
+            }
+          }
+          for (var ri = secrToRemove.length - 1; ri >= 0; ri--) findings.splice(secrToRemove[ri], 1);
+        }
+
         var existingTitles = {};
         var existingFindingsByTitle = {};
-        findings.forEach(function(f) { 
-          var lowerTitle = (f.title || '').toLowerCase();
-          existingTitles[lowerTitle] = true;
-          existingFindingsByTitle[lowerTitle] = f;
+        findings.forEach(function(f) {
+          var key = getFindingDedupeKey(f);
+          existingTitles[key] = true;
+          existingFindingsByTitle[key] = f;
         });
 
         Object.keys(groupedByRule).forEach(function(ruleId) {
           var items = groupedByRule[ruleId];
           var firstItem = items[0];
-          
-          // Check if finding with same title already exists
+
+          // Check if finding with same title (and path for SECR) already exists
           var title = getWiziItemTitle(firstItem, wiziQueryType);
           var lowerTitle = title ? title.toLowerCase() : null;
-          
-          if (lowerTitle && existingTitles[lowerTitle]) {
+          var dedupeKey = getItemDedupeKey(firstItem, wiziQueryType);
+
+          if (dedupeKey && existingTitles[dedupeKey]) {
             // Finding exists - append new resources and subscriptions
-            var existingFinding = existingFindingsByTitle[lowerTitle];
+            var existingFinding = existingFindingsByTitle[dedupeKey];
             
             // Extract all unique resource names from new items
             var newResources = [];
@@ -1258,7 +1284,17 @@
                 existingFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
               }
             }
-            
+
+            // SECR: merge paths from the new items into the existing finding
+            if (wiziQueryType === 'secretInstances') {
+              var existingPaths = getSecrPaths(existingFinding);
+              var mergedPaths = existingPaths.slice();
+              items.forEach(function(item) {
+                if (item.path && mergedPaths.indexOf(item.path) === -1) mergedPaths.push(item.path);
+              });
+              if (mergedPaths.length > existingPaths.length) writeSecrPaths(existingFinding, mergedPaths);
+            }
+
             updated++;
             return;
           }
@@ -1383,21 +1419,36 @@
             if (allSubscriptions.length > 1) {
               var subLineIndex = -1;
               for (var k = 0; k < lastFinding.technical.length; k++) {
-                if (lastFinding.technical[k].startsWith('Subscription:') || 
+                if (lastFinding.technical[k].startsWith('Subscription:') ||
                     lastFinding.technical[k].startsWith('Account:')) {
                   subLineIndex = k;
                   break;
                 }
               }
-              
+
               if (subLineIndex >= 0) {
                 var subPrefix = lastFinding.technical[subLineIndex].split(':')[0];
                 lastFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
               }
             }
+
+            // SECR: consolidate all unique paths and record instance count
+            if (wiziQueryType === 'secretInstances') {
+              var allPaths = [];
+              items.forEach(function(item) {
+                if (item.path && allPaths.indexOf(item.path) === -1) allPaths.push(item.path);
+              });
+              writeSecrPaths(lastFinding, allPaths);
+              lastFinding.description = lastFinding.description.replace(/ — \d+ מופעים זוהו$/, '');
+              lastFinding.description += ' — ' + items.length + ' מופעים זוהו';
+            }
           }
-          
-          if (title) existingTitles[title.toLowerCase()] = true;
+
+          var newDedupeKey = getItemDedupeKey(firstItem, wiziQueryType);
+          if (newDedupeKey) {
+            existingTitles[newDedupeKey] = true;
+            existingFindingsByTitle[newDedupeKey] = findings[findings.length - 1];
+          }
         });
 
         renderFindingsTable();
@@ -1410,8 +1461,16 @@
         if (skipped) msg += ' (' + skipped + ' כפולים דולגו)';
         showToast(msg, 'success');
 
-        // Enrich newly imported findings with AI remediation summaries
+        // Stamp source subscription and apply product memory
         var newFindings = findings.slice(beforeCount);
+        if (subscription) {
+          newFindings.forEach(function(f) {
+            if (!f._sourceSubscription) f._sourceSubscription = subscription;
+          });
+        }
+        applyProductMemory(newFindings, subscription);
+
+        // Enrich newly imported findings with AI remediation summaries
         if (newFindings.length) {
           styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
             icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
@@ -1691,7 +1750,7 @@
         }
         if (qt === 'secretInstances') {
           var rule = item.rule || {};
-          return rule.id || rule.name || item.type || null;
+          return item.name || rule.name || item.type || null;
         }
         if (qt === 'excessiveAccessFindings') {
           // Use finding name as rule ID (same excessive access type)
@@ -1712,6 +1771,56 @@
           return item.type + '_' + (item.portRange || 'any');
         }
         return null;
+      }
+
+      // ── Helpers: SECR path utilities ──
+      function getSecrFindingPath(finding) {
+        var tech = finding.technical || [];
+        for (var i = 0; i < tech.length; i++) {
+          if (tech[i].startsWith('Path:')) return tech[i].substring(5).trim();
+        }
+        return '';
+      }
+
+      function getSecrPaths(finding) {
+        var paths = [];
+        (finding.technical || []).forEach(function(line) {
+          if (line.startsWith('Affected Paths')) {
+            var ci = line.indexOf(':');
+            if (ci >= 0) line.substring(ci + 1).split(',').forEach(function(p) {
+              p = p.trim(); if (p) paths.push(p);
+            });
+          } else if (line.startsWith('Path:')) {
+            var p = line.substring(5).trim();
+            if (p) paths.push(p);
+          }
+        });
+        return paths;
+      }
+
+      function writeSecrPaths(finding, paths) {
+        var idx = -1;
+        for (var i = 0; i < finding.technical.length; i++) {
+          if (finding.technical[i].startsWith('Path:') || finding.technical[i].startsWith('Affected Paths')) {
+            idx = i; break;
+          }
+        }
+        var text = paths.length > 1
+          ? 'Affected Paths (' + paths.length + '): ' + paths.join(', ')
+          : (paths.length === 1 ? 'Path: ' + paths[0] : null);
+        if (text) {
+          if (idx >= 0) finding.technical[idx] = text;
+          else finding.technical.push(text);
+        }
+      }
+
+      function getFindingDedupeKey(finding) {
+        return (finding.title || '').toLowerCase();
+      }
+
+      function getItemDedupeKey(item, qt) {
+        var title = getWiziItemTitle(item, qt);
+        return title ? title.toLowerCase() : null;
       }
 
       // ── Helper: extract resource info for consolidation ──
@@ -2546,9 +2655,7 @@
         var title = item.name || rule.name || 'Secret Finding ' + item.id;
 
         // Description
-        var description = 'זוהה סוד חשוף מסוג ' + (item.type || 'לא ידוע');
-        if (res.name) description += ' במשאב ' + res.name;
-        if (item.path) description += ' (נתיב: ' + item.path + ')';
+        var description = 'זוהה סוד חשוף מסוג ' + (item.type || title || 'לא ידוע');
 
         // Impact
         var sevLabel = (severityMap[sev] || {}).text || sev;
@@ -3359,13 +3466,34 @@
           });
         });
 
+        // For secrets: merge any existing SECR findings that share a title into one
+        if (selectedByType['secretInstances'] && selectedByType['secretInstances'].length) {
+          var bSecrByTitle = {};
+          var bSecrToRemove = [];
+          for (var bsi = 0; bsi < findings.length; bsi++) {
+            var bsf = findings[bsi];
+            if (bsf.category !== 'SECR') continue;
+            var bsKey = (bsf.title || '').toLowerCase();
+            if (!bSecrByTitle[bsKey]) {
+              bSecrByTitle[bsKey] = bsi;
+            } else {
+              var bpf = findings[bSecrByTitle[bsKey]];
+              var bpPaths = getSecrPaths(bpf);
+              getSecrPaths(bsf).forEach(function(p) { if (bpPaths.indexOf(p) === -1) bpPaths.push(p); });
+              writeSecrPaths(bpf, bpPaths);
+              bSecrToRemove.push(bsi);
+            }
+          }
+          for (var bri = bSecrToRemove.length - 1; bri >= 0; bri--) findings.splice(bSecrToRemove[bri], 1);
+        }
+
         // Build existing title index for consolidation
         var existingTitles = {};
         var existingFindingsByTitle = {};
         findings.forEach(function(f) {
-          var lowerTitle = (f.title || '').toLowerCase();
-          existingTitles[lowerTitle] = true;
-          existingFindingsByTitle[lowerTitle] = f;
+          var key = getFindingDedupeKey(f);
+          existingTitles[key] = true;
+          existingFindingsByTitle[key] = f;
         });
 
         // Special case: aggregate ALL EOL findings (endOfLifeFindings + inventoryFindings) into one combined finding
@@ -3651,12 +3779,13 @@
               return;
             }
 
-            // Check if finding with same title already exists — merge into it
+            // Check if finding with same title (and path for SECR) already exists — merge into it
             var title = getWiziItemTitle(firstItem, queryType);
             var lowerTitle = title ? title.toLowerCase() : null;
+            var dedupeKey = getItemDedupeKey(firstItem, queryType);
 
-            if (lowerTitle && existingTitles[lowerTitle]) {
-              var existingFinding = existingFindingsByTitle[lowerTitle];
+            if (dedupeKey && existingTitles[dedupeKey]) {
+              var existingFinding = existingFindingsByTitle[dedupeKey];
 
               // Extract all unique resource names from new items
               var newResources = [];
@@ -3734,6 +3863,16 @@
                 }
               }
 
+              // SECR: merge paths from new items into existing finding
+              if (queryType === 'secretInstances') {
+                var existingPaths = getSecrPaths(existingFinding);
+                var mergedPaths = existingPaths.slice();
+                ruleItems.forEach(function(item) {
+                  if (item.path && mergedPaths.indexOf(item.path) === -1) mergedPaths.push(item.path);
+                });
+                if (mergedPaths.length > existingPaths.length) writeSecrPaths(existingFinding, mergedPaths);
+              }
+
               updated++;
               return;
             }
@@ -3806,9 +3945,24 @@
                   lastFinding.technical[subLineIndex] = subPrefix + ': ' + allSubscriptions.join(', ');
                 }
               }
+
+              // SECR: consolidate all unique paths and record instance count
+              if (queryType === 'secretInstances') {
+                var allPaths = [];
+                ruleItems.forEach(function(item) {
+                  if (item.path && allPaths.indexOf(item.path) === -1) allPaths.push(item.path);
+                });
+                writeSecrPaths(lastFinding, allPaths);
+                lastFinding.description = lastFinding.description.replace(/ — \d+ מופעים זוהו$/, '');
+                lastFinding.description += ' — ' + ruleItems.length + ' מופעים זוהו';
+              }
             }
 
-            if (title) existingTitles[title.toLowerCase()] = true;
+            var newDedupeKey = getItemDedupeKey(firstItem, queryType);
+            if (newDedupeKey) {
+              existingTitles[newDedupeKey] = true;
+              existingFindingsByTitle[newDedupeKey] = findings[findings.length - 1];
+            }
           });
         });
 
@@ -3837,6 +3991,39 @@
             handleBulkImport();
           }
         });
+      }
+
+      // ── Product Memory: auto-except previously handled findings ──
+      function applyProductMemory(newFindings, subscription) {
+        if (!newFindings || !newFindings.length) return;
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
+        if (!product || !product.id) return;
+        if (!subscription) return;
+
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory')
+          .then(function(r) { return r.ok ? r.json() : null; })
+          .then(function(data) {
+            if (!data || !data.entries) return;
+            var entries = data.entries;
+            var subKey = subscription.toLowerCase().trim();
+            var matched = 0;
+            newFindings.forEach(function(f) {
+              if (!f.title) return;
+              var key = subKey + '::' + f.title.toLowerCase().trim();
+              var entry = entries[key];
+              if (!entry) return;
+              if (!(f.exception && f.exception.active)) {
+                f.exception = { active: true, reason: entry.reason || '' };
+                matched++;
+              }
+            });
+            if (matched > 0) {
+              renderFindingsTable();
+              autoSave();
+              showToast(matched + ' ממצאים סומנו כמוחרגים אוטומטית על פי היסטוריה קודמת', 'info');
+            }
+          })
+          .catch(function() {});
       }
 
       var btnBulkSelectAll = document.getElementById('btn-bulk-select-all');
@@ -3892,6 +4079,8 @@
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
           var beforeCount = findings.length;
+          var bulkSubscription = (document.getElementById('bulk-import-sub') || {}).value || '';
+          bulkSubscription = bulkSubscription.trim();
           var result = importSelectedBulkFindings();
           if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
             showToast('לא נבחרו ממצאים לייבוא', 'warning');
@@ -3908,8 +4097,16 @@
           autoSave();
           switchToTab('tab-findings-list');
 
-          // Enrich newly imported findings with AI remediation summaries
+          // Stamp source subscription and apply product memory
           var newFindings = findings.slice(beforeCount);
+          if (bulkSubscription) {
+            newFindings.forEach(function(f) {
+              if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;
+            });
+          }
+          applyProductMemory(newFindings, bulkSubscription);
+
+          // Enrich newly imported findings with AI remediation summaries
           if (newFindings.length) {
             styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
               icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
