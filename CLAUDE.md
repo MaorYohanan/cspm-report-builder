@@ -16,6 +16,18 @@ Source files are in **`static/js/src/`**:
 | `products.js` | Product registry: grid, timeline, form, diff, version management |
 | `init.js` | Final initialization, event wiring, IIFE close |
 
+CSS source files are in **`static/css/src/`**:
+| File | Contents |
+|------|----------|
+| `base.css` | Variables, font import, scrollbars |
+| `layout.css` | App shell, sidebar, main content area, sidebar user widget |
+| `dashboard.css` | Dashboard KPIs, charts, cards |
+| `findings.css` | Master-detail layout, list items, detail pane, evidence grid, notes |
+| `components.css` | Tabs, inputs, buttons, tables, severity chips, forms |
+| `wizi.css` | Wizi styles, bulk import, progress bars, modals |
+| `products.css` | Product registry: grid, timeline, version rows, diff panel, badges |
+| `theme.css` | Light theme overrides |
+
 ### Workflow for every JS change
 
 ```bash
