@@ -15,6 +15,7 @@ Endpoints:
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 import time
 from collections import defaultdict
@@ -31,6 +32,11 @@ from flask import (
 )
 
 from backend.database import db
+from backend.logging_config import configure_logging
+
+_debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+configure_logging(debug=_debug)
+_log = logging.getLogger(__name__)
 
 # Import blueprints
 from backend.routes.wiz import wiz_bp
@@ -172,6 +178,28 @@ def set_security_headers(response):
     return response
 
 
+@app.after_request
+def log_request(response):
+    """Emit one structured access-log line per request."""
+    # Skip noisy health-check polls from container orchestration
+    if request.path != "/api/health":
+        _log.info(
+            "%s %s %s",
+            request.method,
+            request.path,
+            response.status_code,
+            extra={"status_code": response.status_code},
+        )
+    return response
+
+
+@app.errorhandler(Exception)
+def handle_unhandled_exception(exc):
+    """Log unhandled exceptions with full stack trace and return a clean 500."""
+    _log.error("Unhandled exception", exc_info=True)
+    return jsonify({"error": "Internal server error"}), 500
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -233,9 +261,9 @@ def cleanup_old_files():
 try:
     _cleaned = cleanup_old_files()
     if _cleaned:
-        print(f"Startup cleanup: removed {_cleaned} old output file(s)")
+        _log.info("Startup cleanup: removed %d old output file(s)", _cleaned)
 except Exception:
-    pass
+    _log.warning("Startup cleanup failed", exc_info=True)
 
 
 # ---------------------------------------------------------------------------

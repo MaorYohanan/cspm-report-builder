@@ -128,6 +128,9 @@ python -m backend.migration.migrate_json_to_db
 | `RATE_LIMIT_MAX` | No | Max POST/DELETE requests per window per IP (default 30). |
 | `RATE_LIMIT_WINDOW` | No | Rate limit window in seconds (default 60). |
 | `CLEANUP_DAYS` | No | Delete output files older than N days (default 30). |
+| `FLASK_DEBUG` | No | Set to `1` for human-readable logs in dev (default: JSON). |
+| `GUNICORN_WORKERS` | No | Number of Gunicorn worker processes (default 1). |
+| `GUNICORN_THREADS` | No | Threads per worker (default 4). |
 | `GCS_BUCKET_NAME` | No | *(Milestone 1.3)* GCS bucket for clipboard evidence uploads. |
 | `GOOGLE_CLIENT_ID` | No | *(Milestone 1.4)* Google OAuth client ID. |
 | `GOOGLE_CLIENT_SECRET` | No | *(Milestone 1.4)* Google OAuth client secret. |
