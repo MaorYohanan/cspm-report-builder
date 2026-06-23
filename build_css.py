@@ -15,6 +15,7 @@ FILE_ORDER = [
     'findings.css',    # Master-detail layout, list items, detail pane
     'components.css',  # Tabs, inputs, buttons, tables, severity chips, forms
     'wizi.css',        # Wizi styles, bulk import, progress bars, modals
+    'products.css',    # Product registry: grid, timeline, version rows, diff panel
     'theme.css',       # Light theme overrides
 ]
 
