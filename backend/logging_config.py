@@ -15,16 +15,27 @@ from __future__ import annotations
 
 import logging
 import sys
+from datetime import UTC, datetime
 
 from pythonjsonlogger import jsonlogger
 
 
 class _GCPFormatter(jsonlogger.JsonFormatter):
-    """Renames 'levelname' → 'severity' so GCP Cloud Logging picks it up."""
+    """Formats logs for GCP Cloud Logging structured ingestion.
+
+    Key changes vs default JsonFormatter:
+    - 'levelname' → 'severity'  (Cloud Logging reads this field)
+    - 'asctime'   → 'timestamp' in RFC 3339 format with milliseconds
+      (Cloud Logging uses this for log ordering instead of ingestion time)
+    """
 
     def add_fields(self, log_record: dict, record: logging.LogRecord, message_dict: dict) -> None:
         super().add_fields(log_record, record, message_dict)
+        # RFC 3339 with millisecond precision — e.g. 2026-06-23T20:58:59.530Z
+        dt = datetime.fromtimestamp(record.created, UTC)
+        log_record["timestamp"] = dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
         log_record["severity"] = record.levelname
+        log_record.pop("asctime", None)
         log_record.pop("levelname", None)
         log_record.pop("color_message", None)  # Gunicorn adds this; redundant
 
@@ -57,7 +68,7 @@ def configure_logging(debug: bool = False) -> None:
     """
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(
-        _GCPFormatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        _GCPFormatter("%(levelname)s %(name)s %(message)s")
     )
     handler.addFilter(_RequestContextFilter())
 
