@@ -5,6 +5,16 @@ __pycache__/
 .venv/
 venv/
 
+# Test artifacts
+.pytest_cache/
+.hypothesis/
+
+# Node
+node_modules/
+
+# Local IDE / spec tools
+.kiro/
+
 # Environment variables
 .env
 .env.local
