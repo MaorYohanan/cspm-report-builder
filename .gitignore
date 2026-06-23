@@ -41,6 +41,9 @@ docker-compose.override.yml
 # Claude Code configuration and workflows
 .claude/
 
+# Local roadmap plans and task breakdowns
+.plan/
+
 # Debug artifacts (logs, ad-hoc scripts kept locally)
 debug/
 introspect_excessive_access.py

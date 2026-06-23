@@ -46,6 +46,13 @@ Examples of changes that warrant an update here:
 
 ---
 
+## Roadmap & Task Tracking
+
+Planned work, feature roadmaps, and multi-step task breakdowns live in **`.plan/`** at the project root.  
+Check this directory for open plans before starting any non-trivial feature work.
+
+---
+
 ## Other Project Notes
 
 - Flask app runs on port 8080 inside Docker
