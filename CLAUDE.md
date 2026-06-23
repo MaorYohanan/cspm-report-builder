@@ -44,6 +44,17 @@ Examples of changes that warrant an update here:
 - A new build or tooling script added to the project root
 - A new major dependency or rendering step introduced
 
+## Keeping PRODUCTION_DEPLOY.md Up to Date
+
+**`PRODUCTION_DEPLOY.md`** is the authoritative production deployment guide. After any infrastructure change, check if it needs updating before merging to `main`.
+
+Changes that **always** require a `PRODUCTION_DEPLOY.md` update:
+- A new environment variable is added or renamed
+- A new GCP service dependency is introduced (new Cloud Run config, new IAM role, etc.)
+- The database schema changes in a way that requires manual migration steps
+- A new Milestone feature changes the deploy process (e.g. OAuth, GCS, Alembic migrations)
+- The Docker build process changes
+
 ---
 
 ## Roadmap & Task Tracking

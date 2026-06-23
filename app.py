@@ -30,13 +30,14 @@ from flask import (
     send_from_directory,
 )
 
+from backend.database import db
+
 # Import blueprints
 from backend.routes.wiz import wiz_bp
 from backend.routes.ai import ai_bp, GEMINI_MODELS, GEMINI_DEFAULT_MODEL
 from backend.routes.reports import reports_bp
 from backend.routes.files import files_bp
 from backend.routes.products import products_bp
-from backend.routes import products as products_module
 
 app = Flask(
     __name__,
@@ -53,14 +54,29 @@ STATES_DIR = UPLOAD_DIR / "states"
 for d in (UPLOAD_DIR, OUTPUT_DIR, STATES_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# Database configuration
+# ---------------------------------------------------------------------------
+
+_database_url = os.environ.get("DATABASE_URL", "")
+if not _database_url:
+    _db_path = BASE_DIR / "instance" / "app.db"
+    _db_path.parent.mkdir(parents=True, exist_ok=True)
+    _database_url = f"sqlite:///{_db_path}"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = _database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db.init_app(app)
+
+# Auto-create tables only in dev (SQLite). Production uses managed migrations.
+if not os.environ.get("DATABASE_URL"):
+    with app.app_context():
+        import backend.models  # noqa: F401 — registers models with SQLAlchemy
+        db.create_all()
+
 # Initialize files blueprint with directory paths
 from backend.routes import files
 files.init_directories(BASE_DIR, STATES_DIR, OUTPUT_DIR)
-
-# Initialize products blueprint
-PRODUCTS_DIR = UPLOAD_DIR / "products"
-PRODUCTS_DIR.mkdir(parents=True, exist_ok=True)
-products_module.init_products_dir(PRODUCTS_DIR)
 
 # Register blueprints
 app.register_blueprint(wiz_bp)

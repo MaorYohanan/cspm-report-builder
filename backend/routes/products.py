@@ -1,93 +1,34 @@
 from __future__ import annotations
 
-import json
-import os
 import re
-import threading
 import unicodedata
 import uuid
-from pathlib import Path
+from datetime import UTC, datetime
 
-from flask import Blueprint
+from flask import Blueprint, jsonify, request
+from sqlalchemy.exc import IntegrityError
 
-products_bp = Blueprint('products', __name__)
+from backend.database import db
+from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 
-# Set by init_products_dir(); None until initialised.
-PRODUCTS_DIR: Path | None = None
-
-# Set to True when the products directory cannot be created at startup.
-_storage_error: bool = False
-
-# Per-product locks guarding the read-modify-write critical sections in
-# save_version / publish_version / delete_version. Without this, two concurrent
-# saves can both pass the latest-version check and overwrite each other's files.
-# In-process only — multi-worker deployments (e.g. gunicorn --workers=N>1) still
-# need an external lock, but this prevents the common single-worker race.
-_product_locks_registry_lock = threading.Lock()
-_product_locks: dict[str, threading.Lock] = {}
-
-
-def _get_product_lock(product_id: str) -> threading.Lock:
-    """Return the (lazily-created) lock for *product_id*."""
-    with _product_locks_registry_lock:
-        lock = _product_locks.get(product_id)
-        if lock is None:
-            lock = threading.Lock()
-            _product_locks[product_id] = lock
-        return lock
-
-
-def _atomic_write_text(path: Path, content: str, encoding: str = "utf-8") -> None:
-    """Write *content* to *path* atomically (write to temp + os.replace).
-
-    Prevents readers from seeing a half-written file if the process crashes
-    mid-write.
-    """
-    tmp = path.with_name(f"{path.name}.tmp.{uuid.uuid4().hex[:8]}")
-    try:
-        tmp.write_text(content, encoding=encoding)
-        os.replace(tmp, path)
-    except Exception:
-        try:
-            if tmp.exists():
-                tmp.unlink()
-        except OSError:
-            pass
-        raise
-
-
-def init_products_dir(products_dir: Path) -> None:
-    """Initialise the products storage directory.
-
-    Called once at application startup (mirrors the pattern in files.py).
-    On OSError the module-level _storage_error flag is set so that every
-    subsequent request handler returns HTTP 500.
-    """
-    global PRODUCTS_DIR, _storage_error
-    PRODUCTS_DIR = products_dir
-    try:
-        products_dir.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        import logging
-        logging.getLogger(__name__).error(
-            "Failed to create products directory %s: %s", products_dir, exc
-        )
-        _storage_error = True
-
+products_bp = Blueprint("products", __name__)
 
 # ---------------------------------------------------------------------------
-# Pure helpers
+# Constants
+# ---------------------------------------------------------------------------
+
+_MAX_MEMORY_ENTRIES = 2000
+_MAX_SUBSCRIPTION_LEN = 200
+_MAX_TITLE_LEN = 500
+_MAX_REASON_LEN = 1000
+
+# ---------------------------------------------------------------------------
+# Pure helpers (unchanged — also imported directly by tests)
 # ---------------------------------------------------------------------------
 
 def _safe_param(value: str) -> str:
-    """Strip path-traversal sequences and dangerous characters.
-
-    Removes forward-slashes, back-slashes, ".." sequences, and null bytes.
-    Returns empty string if nothing valid remains.
-    """
-    # Remove null bytes (chr(0) == \x00 == \u0000 — they are all the same code point)
+    """Strip path-traversal sequences and dangerous characters."""
     value = value.translate({0: None})
-    # Remove path separators and ".." sequences
     value = value.replace("/", "").replace("\\", "")
     value = value.replace("..", "")
     return value.strip()
@@ -98,67 +39,44 @@ def _valid_version_str(ver: str) -> bool:
     return bool(re.match(r"^\d+\.\d+$", ver))
 
 
-# Hebrew → ASCII phonetic transliteration table.
-# Multi-character outputs (e.g. shin → "sh", het → "ch", tsadi → "ts") are
-# handled by mapping to a temporary private-use placeholder then expanding
-# after the Unicode normalisation step.
 _HEBREW_TABLE: dict[str, str] = {
-    "\u05d0": "a",   # alef   א
-    "\u05d1": "b",   # bet    ב
-    "\u05d2": "g",   # gimel  ג
-    "\u05d3": "d",   # dalet  ד
-    "\u05d4": "h",   # he     ה
-    "\u05d5": "v",   # vav    ו
-    "\u05d6": "z",   # zayin  ז
-    "\u05d7": "ch",  # het    ח
-    "\u05d8": "t",   # tet    ט
-    "\u05d9": "y",   # yod    י
-    "\u05db": "k",   # kaf    כ
-    "\u05da": "k",   # khaf (final kaf) ך
-    "\u05dc": "l",   # lamed  ל
-    "\u05de": "m",   # mem    מ
-    "\u05dd": "m",   # mem-sofit ם
-    "\u05e0": "n",   # nun    נ
-    "\u05df": "n",   # nun-sofit ן
-    "\u05e1": "s",   # samekh ס
-    "\u05e2": "a",   # ayin   ע
-    "\u05e4": "p",   # pe     פ
-    "\u05e3": "p",   # fe-sofit ף
-    "\u05e6": "ts",  # tsadi  צ
-    "\u05e5": "ts",  # tsadi-sofit ץ
-    "\u05e7": "k",   # qof    ק
-    "\u05e8": "r",   # resh   ר
-    "\u05e9": "sh",  # shin   שׁ (also covers sin שׂ below)
-    "\u05e9\u05c1": "sh",  # shin with dot
-    "\u05e9\u05c2": "s",   # sin with dot
-    "\u05ea": "t",   # tav    ת
+    "א": "a",
+    "ב": "b",
+    "ג": "g",
+    "ד": "d",
+    "ה": "h",
+    "ו": "v",
+    "ז": "z",
+    "ח": "ch",
+    "ט": "t",
+    "י": "y",
+    "כ": "k",
+    "ך": "k",
+    "ל": "l",
+    "מ": "m",
+    "ם": "m",
+    "נ": "n",
+    "ן": "n",
+    "ס": "s",
+    "ע": "a",
+    "פ": "p",
+    "ף": "p",
+    "צ": "ts",
+    "ץ": "ts",
+    "ק": "k",
+    "ר": "r",
+    "ש": "sh",
+    "שׁ": "sh",
+    "שׂ": "s",
+    "ת": "t",
 }
-
-# Standalone sin (without dagesh dot) also maps to "s".
-_SIN = "\u05e9"  # Base letter for both shin and sin; we default to "sh" above.
 
 
 def _slugify(name: str) -> str:
-    """Convert an arbitrary product name into a URL-safe ASCII slug.
-
-    Steps
-    -----
-    1. Transliterate Hebrew characters.
-    2. NFD-normalise; strip diacritics (non-ASCII combining marks).
-    3. Lowercase.
-    4. Replace spaces and underscores with hyphens.
-    5. Remove characters not in ``[a-z0-9-]``.
-    6. Collapse consecutive hyphens.
-    7. Strip leading/trailing hyphens.
-    8. Truncate to 100 characters.
-    9. Empty result → fallback ``product-{uuid4_hex[:8]}``.
-    """
-    # Step 1: transliterate Hebrew.  Process longest matches first (shin+dot
-    # before bare shin) by iterating character by character with look-ahead.
+    """Convert an arbitrary product name into a URL-safe ASCII slug."""
     result_chars: list[str] = []
     i = 0
     while i < len(name):
-        # Try two-character match first (e.g. shin + dagesh dot).
         two = name[i : i + 2]
         if two in _HEBREW_TABLE:
             result_chars.append(_HEBREW_TABLE[two])
@@ -172,54 +90,21 @@ def _slugify(name: str) -> str:
         i += 1
     slug = "".join(result_chars)
 
-    # Step 2: NFD normalise then strip diacritics.
     slug = unicodedata.normalize("NFD", slug)
     slug = "".join(c for c in slug if unicodedata.category(c) != "Mn" and ord(c) < 128)
-
-    # Step 3: lowercase.
     slug = slug.lower()
-
-    # Step 4: spaces and underscores → hyphens.
     slug = slug.replace(" ", "-").replace("_", "-")
-
-    # Step 5: remove characters not in [a-z0-9-].
     slug = re.sub(r"[^a-z0-9-]", "", slug)
-
-    # Step 6: collapse consecutive hyphens.
     slug = re.sub(r"-{2,}", "-", slug)
-
-    # Step 7: strip leading/trailing hyphens.
     slug = slug.strip("-")
-
-    # Step 8: truncate.
     slug = slug[:100]
 
-    # Step 9: fallback.
     if not slug:
         slug = f"product-{uuid.uuid4().hex[:8]}"
 
     return slug
 
 
-def _unique_slug(base: str) -> str:
-    """Return *base* if its directory does not yet exist; otherwise try
-    ``{base}-2`` … ``{base}-99``.  Raises ``ValueError`` if all are taken.
-    """
-    if PRODUCTS_DIR is None:
-        raise RuntimeError("PRODUCTS_DIR is not initialised")
-
-    if not (PRODUCTS_DIR / base).exists():
-        return base
-
-    for suffix in range(2, 100):
-        candidate = f"{base}-{suffix}"
-        if not (PRODUCTS_DIR / candidate).exists():
-            return candidate
-
-    raise ValueError("Slug namespace exhausted")
-
-
-# Severity weights for risk-score computation.
 _SEVERITY_WEIGHTS: dict[str, int] = {
     "critical": 4,
     "high": 3,
@@ -229,18 +114,15 @@ _SEVERITY_WEIGHTS: dict[str, int] = {
 
 
 def _compute_risk_score(snapshot: dict) -> int:
-    """Compute the risk score from a snapshot dict.
+    """Compute ``Critical×4 + High×3 + Medium×2 + Low×1``.
 
-    ``Critical×4 + High×3 + Medium×2 + Low×1``; unrecognised severities
-    contribute 0.  Findings marked as exceptions (exception.active == True)
-    are excluded from the score.
+    Findings with an active exception are excluded.
     """
     findings = snapshot.get("findings", [])
     total = 0
     for f in findings:
         if not isinstance(f, dict):
             continue
-        # Skip מוחרג (approved exception) findings
         exc = f.get("exception")
         if isinstance(exc, dict) and exc.get("active"):
             continue
@@ -249,74 +131,11 @@ def _compute_risk_score(snapshot: dict) -> int:
     return total
 
 
-def _scan_latest_version(product_dir: Path) -> tuple[str | None, int]:
-    """Return ``(version_string, risk_score)`` for the highest-numbered version.
-
-    Globs ``v*.*.json`` files, parses ``(major, minor)`` tuples, selects the
-    maximum, reads ``riskScore`` from that file.  Returns ``(None, 0)`` when
-    no version files exist.
-    """
-    pattern = "v*.*.json"
-    version_files = list(product_dir.glob(pattern))
-    if not version_files:
-        return None, 0
-
-    best_key: tuple[int, int] | None = None
-    best_file: Path | None = None
-
-    for vf in version_files:
-        # Filename looks like "v2.1.json"; strip leading "v" and trailing ".json".
-        stem = vf.stem  # e.g. "v2.1"
-        if not stem.startswith("v"):
-            continue
-        parts = stem[1:].split(".")
-        if len(parts) != 2:
-            continue
-        try:
-            major, minor = int(parts[0]), int(parts[1])
-        except ValueError:
-            continue
-        key = (major, minor)
-        if best_key is None or key > best_key:
-            best_key = key
-            best_file = vf
-
-    if best_file is None or best_key is None:
-        return None, 0
-
-    try:
-        data = json.loads(best_file.read_text(encoding="utf-8"))
-    except Exception:
-        return None, 0
-
-    version_str = f"{best_key[0]}.{best_key[1]}"
-    risk_score = int(data.get("riskScore", 0))
-    return version_str, risk_score
-
-
-# ---------------------------------------------------------------------------
-# Validation helpers (used by CRUD handlers)
-# ---------------------------------------------------------------------------
-
-import shutil
-from datetime import datetime
-
-from flask import jsonify, request
-
-
 def _contains_traversal(value: str) -> bool:
-    """Return True if *value* contains path-traversal or null-byte sequences."""
     return "../" in value or "..\\" in value or "\x00" in value
 
 
 def _validate_product_fields(data: dict, require_all: bool = True) -> tuple[dict | None, tuple | None]:
-    """Validate product fields from a request body.
-
-    If *require_all* is True (POST), all fields are mandatory.
-    If *require_all* is False (PUT), only provided fields are validated.
-
-    Returns (cleaned_data, None) on success or (None, (response, status)) on failure.
-    """
     REQUIRED_FIELDS = ["name", "owner", "ownerEmail", "env", "subscriptionIds"]
 
     if require_all:
@@ -326,7 +145,6 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> tuple[dict
 
     cleaned: dict = {}
 
-    # Traverse check on every string field present in body
     for key, val in data.items():
         if isinstance(val, str) and _contains_traversal(val):
             return None, (jsonify({"error": f"Invalid field value: {key}"}), 400)
@@ -335,35 +153,30 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> tuple[dict
                 if isinstance(item, str) and _contains_traversal(item):
                     return None, (jsonify({"error": f"Invalid field value: {key}"}), 400)
 
-    # name
     if "name" in data:
         name = data["name"]
         if not isinstance(name, str) or len(name) > 100:
             return None, (jsonify({"error": "name: must be a string of max 100 characters"}), 400)
         cleaned["name"] = name
 
-    # owner
     if "owner" in data:
         owner = data["owner"]
         if not isinstance(owner, str) or len(owner) > 100:
             return None, (jsonify({"error": "owner: must be a string of max 100 characters"}), 400)
         cleaned["owner"] = owner
 
-    # ownerEmail
     if "ownerEmail" in data:
         email = data["ownerEmail"]
         if not isinstance(email, str) or "@" not in email or len(email) > 254:
             return None, (jsonify({"error": "ownerEmail: must be a valid email address of max 254 characters"}), 400)
         cleaned["ownerEmail"] = email
 
-    # env
     if "env" in data:
         env = data["env"]
         if not isinstance(env, str) or len(env) > 100:
             return None, (jsonify({"error": "env: must be a string of max 100 characters"}), 400)
         cleaned["env"] = env
 
-    # subscriptionIds
     if "subscriptionIds" in data:
         subs = data["subscriptionIds"]
         if not isinstance(subs, list) or len(subs) < 1 or len(subs) > 50:
@@ -380,222 +193,76 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> tuple[dict
 
 
 # ---------------------------------------------------------------------------
-# Product CRUD endpoints
+# ORM helpers
 # ---------------------------------------------------------------------------
 
-
-@products_bp.route("/api/products", methods=["GET"])
-def list_products():
-    """Return a JSON array of all product summaries, sorted by name."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
-    products = []
-    for entry in PRODUCTS_DIR.iterdir():
-        if not entry.is_dir():
-            continue
-        meta_path = entry / "meta.json"
-        if not meta_path.exists():
-            continue
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-
-        latest_ver, latest_risk = _scan_latest_version(entry)
-
-        # Determine lastChecked from the latest version file's savedAt field
-        last_checked = None
-        if latest_ver is not None:
-            ver_file = entry / f"v{latest_ver}.json"
-            try:
-                ver_data = json.loads(ver_file.read_text(encoding="utf-8"))
-                last_checked = ver_data.get("savedAt")
-            except Exception:
-                pass
-
-        products.append({
-            "id": meta.get("id"),
-            "name": meta.get("name"),
-            "owner": meta.get("owner"),
-            "env": meta.get("env"),
-            "latestVersion": latest_ver,
-            "latestRiskScore": latest_risk if latest_ver is not None else 0,
-            "lastChecked": last_checked,
-        })
-
-    products.sort(key=lambda p: (p.get("name") or "").lower())
-    return jsonify(products), 200
+def _unique_slug(base: str) -> str:
+    """Return *base* if no Product with that id exists; else try ``{base}-2`` … ``{base}-99``."""
+    if not db.session.get(Product, base):
+        return base
+    for suffix in range(2, 100):
+        candidate = f"{base}-{suffix}"
+        if not db.session.get(Product, candidate):
+            return candidate
+    raise ValueError("Slug namespace exhausted")
 
 
-@products_bp.route("/api/products", methods=["POST"])
-def create_product():
-    """Create a new product."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
+def _latest_snapshot(product_id: str) -> ReportSnapshot | None:
+    """Return the highest-versioned ReportSnapshot for a product, or None."""
+    snapshots = ReportSnapshot.query.filter_by(product_id=product_id).all()
+    if not snapshots:
+        return None
+    return max(snapshots, key=lambda s: tuple(int(x) for x in s.version.split(".")))
 
-    data = request.get_json(silent=True) or {}
 
-    cleaned, err = _validate_product_fields(data, require_all=True)
-    if err is not None:
-        return err
+def _fmt_dt(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Generate slug
-    base_slug = _slugify(cleaned["name"])
-    try:
-        slug = _unique_slug(base_slug)
-    except ValueError:
-        return jsonify({"error": "Slug namespace exhausted"}), 409
 
-    product_dir = PRODUCTS_DIR / slug
-    product_dir.mkdir(parents=True, exist_ok=True)
+def _snapshot_to_dict(snapshot: ReportSnapshot) -> dict:
+    """Reconstruct the full snapshot payload the frontend expects."""
+    result = dict(snapshot.snapshot_data or {})
+    result["findings"] = [f.finding_data for f in snapshot.findings]
+    result["version"] = snapshot.version
+    result["reportVersion"] = snapshot.report_version
+    result["versionNotes"] = snapshot.version_notes
+    result["versionType"] = snapshot.version_type
+    result["status"] = snapshot.status
+    result["savedAt"] = _fmt_dt(snapshot.saved_at)
+    result["publishedAt"] = _fmt_dt(snapshot.published_at)
+    result["riskScore"] = snapshot.risk_score
+    return result
 
-    meta = {
-        "id": slug,
-        "name": cleaned["name"],
-        "owner": cleaned["owner"],
-        "ownerEmail": cleaned["ownerEmail"],
-        "env": cleaned["env"],
-        "subscriptionIds": cleaned["subscriptionIds"],
-        "createdAt": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "latestVersion": None,
-        "latestRiskScore": None,
+
+def _version_summary(snapshot: ReportSnapshot) -> dict:
+    return {
+        "version": snapshot.version,
+        "reportVersion": snapshot.report_version,
+        "versionNotes": snapshot.version_notes,
+        "versionType": snapshot.version_type,
+        "status": snapshot.status,
+        "savedAt": _fmt_dt(snapshot.saved_at),
+        "publishedAt": _fmt_dt(snapshot.published_at),
+        "riskScore": snapshot.risk_score,
     }
 
-    (product_dir / "meta.json").write_text(
-        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
 
-    return jsonify(meta), 201
+def _next_version(product_id: str, requested_type: str) -> str:
+    """Compute the next version string."""
+    latest = _latest_snapshot(product_id)
 
-
-@products_bp.route("/api/products/<product_id>", methods=["GET"])
-def get_product(product_id: str):
-    """Return the full metadata for a single product."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
-    safe_id = _safe_param(product_id)
-    if not safe_id:
-        return jsonify({"error": "Invalid parameter"}), 400
-
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
-        return jsonify({"error": "Product not found"}), 404
-
-    meta_path = product_dir / "meta.json"
-    if not meta_path.exists():
-        return jsonify({"error": "Product not found"}), 404
-
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except Exception:
-        return jsonify({"error": "Failed to read product metadata"}), 500
-
-    return jsonify(meta), 200
-
-
-@products_bp.route("/api/products/<product_id>", methods=["PUT"])
-def update_product(product_id: str):
-    """Update mutable product metadata fields."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
-    safe_id = _safe_param(product_id)
-    if not safe_id:
-        return jsonify({"error": "Invalid parameter"}), 400
-
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
-        return jsonify({"error": "Product not found"}), 404
-
-    meta_path = product_dir / "meta.json"
-    if not meta_path.exists():
-        return jsonify({"error": "Product not found"}), 404
-
-    try:
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-    except Exception:
-        return jsonify({"error": "Failed to read product metadata"}), 500
-
-    data = request.get_json(silent=True) or {}
-
-    cleaned, err = _validate_product_fields(data, require_all=False)
-    if err is not None:
-        return err
-
-    # Mutable fields only (id and slug are immutable)
-    for field in ("name", "owner", "ownerEmail", "env", "subscriptionIds"):
-        if field in cleaned:
-            meta[field] = cleaned[field]
-
-    meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    return jsonify(meta), 200
-
-
-@products_bp.route("/api/products/<product_id>", methods=["DELETE"])
-def delete_product(product_id: str):
-    """Delete a product directory and all its contents."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
-    safe_id = _safe_param(product_id)
-    if not safe_id:
-        return jsonify({"error": "Invalid parameter"}), 400
-
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
-        return jsonify({"error": "Product not found"}), 404
-
-    shutil.rmtree(product_dir)
-    return jsonify({"deleted": True, "id": safe_id}), 200
-
-
-# ---------------------------------------------------------------------------
-# Version helpers
-# ---------------------------------------------------------------------------
-
-
-def _latest_version_status(product_dir: Path) -> tuple[str | None, str | None]:
-    """Return ``(version_string, status)`` for the highest-numbered version.
-
-    status is "draft", "published", or None when the file is missing/unreadable.
-    Returns ``(None, None)`` when no version files exist.
-    """
-    latest_ver_str, _ = _scan_latest_version(product_dir)
-    if latest_ver_str is None:
-        return None, None
-    ver_file = product_dir / f"v{latest_ver_str}.json"
-    try:
-        data = json.loads(ver_file.read_text(encoding="utf-8"))
-    except Exception:
-        return latest_ver_str, None
-    return latest_ver_str, data.get("status")
-
-
-def _next_version(product_dir: Path, requested_type: str) -> str:
-    """Compute the next version string for a save request.
-
-    Rules:
-    - No existing versions → "1.0" (minor/major only; "draft" is rejected upstream)
-    - requested_type == "draft" → return existing draft's version string (overwrite)
-    - Latest is published + major → (M+1).0
-    - Latest is published + minor → M.(m+1), rolls to (M+1).0 if m+1 >= 10
-
-    Conflict cases (draft-vs-new-version, or "draft" with no draft present)
-    are validated in ``save_version`` before this function is called.
-    """
-    latest_ver_str, status = _latest_version_status(product_dir)
-
-    if latest_ver_str is None:
+    if latest is None:
         return "1.0"
 
     if requested_type == "draft":
-        return latest_ver_str  # overwrite existing draft
+        return latest.version
 
-    # Latest is published — compute increment
-    parts = latest_ver_str.split(".")
+    if latest.status != "published":
+        return latest.version
+
+    parts = latest.version.split(".")
     try:
         major, minor = int(parts[0]), int(parts[1])
     except (ValueError, IndexError):
@@ -603,74 +270,185 @@ def _next_version(product_dir: Path, requested_type: str) -> str:
 
     if requested_type == "major":
         return f"{major + 1}.0"
-    else:  # minor
+    else:
         if minor + 1 >= 10:
             return f"{major + 1}.0"
         return f"{major}.{minor + 1}"
+
+
+def _refresh_product_latest(product: Product) -> None:
+    """Update the denormalized latest_version / latest_risk_score on *product*."""
+    latest = _latest_snapshot(product.id)
+    if latest is None:
+        product.latest_version = None
+        product.latest_risk_score = None
+    else:
+        product.latest_version = latest.version
+        product.latest_risk_score = latest.risk_score
+
+
+# ---------------------------------------------------------------------------
+# Product CRUD endpoints
+# ---------------------------------------------------------------------------
+
+@products_bp.route("/api/products", methods=["GET"])
+def list_products():
+    products = Product.query.order_by(Product.name).all()
+    result = []
+    for p in products:
+        latest = _latest_snapshot(p.id)
+        last_checked = _fmt_dt(latest.saved_at) if latest else None
+        result.append({
+            "id": p.id,
+            "name": p.name,
+            "owner": p.owner,
+            "env": p.env,
+            "latestVersion": p.latest_version,
+            "latestRiskScore": p.latest_risk_score if p.latest_version is not None else 0,
+            "lastChecked": last_checked,
+        })
+    return jsonify(result), 200
+
+
+@products_bp.route("/api/products", methods=["POST"])
+def create_product():
+    data = request.get_json(silent=True) or {}
+
+    cleaned, err = _validate_product_fields(data, require_all=True)
+    if err is not None:
+        return err
+
+    base_slug = _slugify(cleaned["name"])
+    try:
+        slug = _unique_slug(base_slug)
+    except ValueError:
+        return jsonify({"error": "Slug namespace exhausted"}), 409
+
+    product = Product(
+        id=slug,
+        name=cleaned["name"],
+        owner=cleaned["owner"],
+        owner_email=cleaned["ownerEmail"],
+        env=cleaned["env"],
+        subscription_ids=cleaned["subscriptionIds"],
+        created_at=datetime.now(UTC),
+    )
+    db.session.add(product)
+    db.session.commit()
+
+    return jsonify(_product_to_dict(product)), 201
+
+
+def _product_to_dict(p: Product) -> dict:
+    return {
+        "id": p.id,
+        "name": p.name,
+        "owner": p.owner,
+        "ownerEmail": p.owner_email,
+        "env": p.env,
+        "subscriptionIds": p.subscription_ids,
+        "createdAt": _fmt_dt(p.created_at),
+        "latestVersion": p.latest_version,
+        "latestRiskScore": p.latest_risk_score,
+    }
+
+
+@products_bp.route("/api/products/<product_id>", methods=["GET"])
+def get_product(product_id: str):
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product = db.session.get(Product, safe_id)
+    if product is None:
+        return jsonify({"error": "Product not found"}), 404
+
+    return jsonify(_product_to_dict(product)), 200
+
+
+@products_bp.route("/api/products/<product_id>", methods=["PUT"])
+def update_product(product_id: str):
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product = db.session.get(Product, safe_id)
+    if product is None:
+        return jsonify({"error": "Product not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    cleaned, err = _validate_product_fields(data, require_all=False)
+    if err is not None:
+        return err
+
+    if "name" in cleaned:
+        product.name = cleaned["name"]
+    if "owner" in cleaned:
+        product.owner = cleaned["owner"]
+    if "ownerEmail" in cleaned:
+        product.owner_email = cleaned["ownerEmail"]
+    if "env" in cleaned:
+        product.env = cleaned["env"]
+    if "subscriptionIds" in cleaned:
+        product.subscription_ids = cleaned["subscriptionIds"]
+
+    db.session.commit()
+    return jsonify(_product_to_dict(product)), 200
+
+
+@products_bp.route("/api/products/<product_id>", methods=["DELETE"])
+def delete_product(product_id: str):
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product = db.session.get(Product, safe_id)
+    if product is None:
+        return jsonify({"error": "Product not found"}), 404
+
+    db.session.delete(product)
+    db.session.commit()
+    return jsonify({"deleted": True, "id": safe_id}), 200
 
 
 # ---------------------------------------------------------------------------
 # Version endpoints
 # ---------------------------------------------------------------------------
 
-
 @products_bp.route("/api/products/<product_id>/versions", methods=["GET"])
 def list_versions(product_id: str):
-    """Return all versions for a product, sorted by savedAt descending."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    versions = []
-    for vf in product_dir.glob("v*.*.json"):
-        try:
-            data = json.loads(vf.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        versions.append({
-            "version": data.get("version"),
-            "reportVersion": data.get("reportVersion"),
-            "versionNotes": data.get("versionNotes"),
-            "versionType": data.get("versionType"),
-            "status": data.get("status"),
-            "savedAt": data.get("savedAt"),
-            "publishedAt": data.get("publishedAt"),
-            "riskScore": data.get("riskScore"),
-        })
-
-    versions.sort(key=lambda v: v.get("savedAt") or "", reverse=True)
-    return jsonify(versions), 200
+    snapshots = (
+        ReportSnapshot.query
+        .filter_by(product_id=safe_id)
+        .all()
+    )
+    snapshots.sort(key=lambda s: s.saved_at or datetime.min, reverse=True)
+    return jsonify([_version_summary(s) for s in snapshots]), 200
 
 
 @products_bp.route("/api/products/<product_id>/versions", methods=["POST"])
 def save_version(product_id: str):
-    """Save the current editor snapshot as a new (or overwritten draft) version."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    # Enforce 50 MB body limit
     content_length = request.content_length
     if content_length is not None and content_length > 50 * 1024 * 1024:
         return jsonify({"error": "Snapshot too large"}), 413
 
     data = request.get_json(silent=True) or {}
 
-    # Validate required fields
     for field in ("type", "notes", "snapshot"):
         if field not in data:
             return jsonify({"error": f"Missing required field: {field}"}), 400
@@ -685,82 +463,96 @@ def save_version(product_id: str):
     if not isinstance(snapshot, dict):
         return jsonify({"error": "snapshot: must be an object"}), 400
 
-    # Traversal check on notes
     if isinstance(notes, str) and _contains_traversal(notes):
         return jsonify({"error": "Invalid field value: notes"}), 400
 
-    # Check snapshot body size after parsing (belt-and-suspenders)
     raw_body = request.get_data()
     if len(raw_body) > 50 * 1024 * 1024:
         return jsonify({"error": "Snapshot too large"}), 413
 
-    # Serialise concurrent saves for this product so two requests can't both pass
-    # the latest-version check and race the file write.
-    with _get_product_lock(safe_id):
-        # State-machine: protect the "one active draft" invariant
-        latest_ver_str, latest_status = _latest_version_status(product_dir)
-        if version_type == "draft":
-            if latest_ver_str is None or latest_status != "draft":
-                return jsonify({"error": "אין טיוטה לעדכון"}), 400
-        else:  # minor / major
-            if latest_status == "draft":
-                return jsonify({
-                    "error": "יש לפרסם או למחוק את הטיוטה הקיימת לפני יצירת גרסה חדשה"
-                }), 409
+    latest = _latest_snapshot(safe_id)
+    latest_status = latest.status if latest else None
 
-        version_str = _next_version(product_dir, version_type)
+    if version_type == "draft":
+        if latest is None or latest_status != "draft":
+            return jsonify({"error": "אין טיוטה לעדכון"}), 400
+    else:
+        if latest_status == "draft":
+            return jsonify({
+                "error": "יש לפרסם או למחוק את הטיוטה הקיימת לפני יצירת גרסה חדשה"
+            }), 409
 
-        risk_score = _compute_risk_score(snapshot)
-        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    version_str = _next_version(safe_id, version_type)
+    risk_score = _compute_risk_score(snapshot)
+    now = datetime.now(UTC)
 
-        # Determine reportVersion from snapshot meta if present
-        report_version = "1.0"
-        if isinstance(snapshot.get("meta"), dict):
-            report_version = str(snapshot["meta"].get("reportVersion", "1.0"))
+    report_version = "1.0"
+    if isinstance(snapshot.get("meta"), dict):
+        report_version = str(snapshot["meta"].get("reportVersion", "1.0"))
 
-        version_data = {
-            **snapshot,
-            "version": version_str,
-            "reportVersion": report_version,
-            "versionNotes": notes,
-            "versionType": version_type,
-            "status": "draft",
-            "savedAt": now,
-            "publishedAt": None,
-            "riskScore": risk_score,
-        }
+    findings_list = snapshot.get("findings", [])
+    snapshot_data = {k: v for k, v in snapshot.items() if k != "findings"}
 
-        ver_file = product_dir / f"v{version_str}.json"
-        _atomic_write_text(ver_file, json.dumps(version_data, ensure_ascii=False))
+    if version_type == "draft" and latest is not None:
+        # Overwrite the existing draft snapshot
+        snap = latest
+        snap.version_notes = notes
+        snap.risk_score = risk_score
+        snap.saved_at = now
+        snap.report_version = report_version
+        snap.snapshot_data = snapshot_data
+        # Replace findings
+        Finding.query.filter_by(snapshot_id=snap.id).delete()
+        for fd in findings_list:
+            if isinstance(fd, dict):
+                exc = fd.get("exception")
+                db.session.add(Finding(
+                    snapshot_id=snap.id,
+                    severity=str(fd.get("severity", "")).lower() or None,
+                    exception_active=bool(isinstance(exc, dict) and exc.get("active")),
+                    finding_data=fd,
+                ))
+    else:
+        snap = ReportSnapshot(
+            product_id=safe_id,
+            version=version_str,
+            report_version=report_version,
+            version_notes=notes,
+            version_type=version_type,
+            status="draft",
+            saved_at=now,
+            published_at=None,
+            risk_score=risk_score,
+            snapshot_data=snapshot_data,
+        )
+        db.session.add(snap)
+        db.session.flush()  # assign snap.id before inserting findings
+        for fd in findings_list:
+            if isinstance(fd, dict):
+                exc = fd.get("exception")
+                db.session.add(Finding(
+                    snapshot_id=snap.id,
+                    severity=str(fd.get("severity", "")).lower() or None,
+                    exception_active=bool(isinstance(exc, dict) and exc.get("active")),
+                    finding_data=fd,
+                ))
 
-        # Update meta.json
-        meta_path = product_dir / "meta.json"
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except Exception:
-            meta = {}
-        meta["latestVersion"] = version_str
-        meta["latestRiskScore"] = risk_score
-        _atomic_write_text(meta_path, json.dumps(meta, ensure_ascii=False, indent=2))
+    # Keep denormalized fields on Product in sync
+    product = db.session.get(Product, safe_id)
+    product.latest_version = version_str
+    product.latest_risk_score = risk_score
 
-    return jsonify({
-        "version": version_str,
-        "reportVersion": report_version,
-        "versionNotes": notes,
-        "versionType": version_type,
-        "status": "draft",
-        "savedAt": now,
-        "publishedAt": None,
-        "riskScore": risk_score,
-    }), 201
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Version conflict — please retry"}), 409
+
+    return jsonify(_version_summary(snap)), 201
 
 
 @products_bp.route("/api/products/<product_id>/versions/<ver>", methods=["GET"])
 def get_version(product_id: str, ver: str):
-    """Return the full version file for a specific version."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
@@ -768,28 +560,18 @@ def get_version(product_id: str, ver: str):
     if not _valid_version_str(ver):
         return jsonify({"error": "Invalid version format"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    ver_file = product_dir / f"v{ver}.json"
-    if not ver_file.exists():
+    snap = ReportSnapshot.query.filter_by(product_id=safe_id, version=ver).first()
+    if snap is None:
         return jsonify({"error": "Version not found"}), 404
 
-    try:
-        data = json.loads(ver_file.read_text(encoding="utf-8"))
-    except Exception:
-        return jsonify({"error": "Failed to read version"}), 500
-
-    return jsonify(data), 200
+    return jsonify(_snapshot_to_dict(snap)), 200
 
 
 @products_bp.route("/api/products/<product_id>/versions/<ver>", methods=["DELETE"])
 def delete_version(product_id: str, ver: str):
-    """Delete a draft version. Published versions cannot be deleted."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
@@ -797,56 +579,25 @@ def delete_version(product_id: str, ver: str):
     if not _valid_version_str(ver):
         return jsonify({"error": "Invalid version format"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    ver_file = product_dir / f"v{ver}.json"
-    if not ver_file.exists():
+    snap = ReportSnapshot.query.filter_by(product_id=safe_id, version=ver).first()
+    if snap is None:
         return jsonify({"error": "Version not found"}), 404
 
-    with _get_product_lock(safe_id):
-        # Read metadata for the response. If the file is corrupted, allow deletion
-        # anyway with a minimal stub so the user can recover from a stuck state
-        # without manual filesystem surgery.
-        try:
-            data = json.loads(ver_file.read_text(encoding="utf-8"))
-            deleted_meta = {
-                "version": data.get("version"),
-                "reportVersion": data.get("reportVersion"),
-                "versionNotes": data.get("versionNotes"),
-                "versionType": data.get("versionType"),
-                "status": data.get("status"),
-                "savedAt": data.get("savedAt"),
-                "publishedAt": data.get("publishedAt"),
-                "riskScore": data.get("riskScore"),
-            }
-        except Exception:
-            deleted_meta = {"version": ver, "corrupted": True}
+    summary = _version_summary(snap)
+    db.session.delete(snap)
 
-        ver_file.unlink()
+    product = db.session.get(Product, safe_id)
+    _refresh_product_latest(product)
 
-        # Update meta.json to reflect the new latest (or null if none remain)
-        meta_path = product_dir / "meta.json"
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except Exception:
-            meta = {}
-
-        new_latest_ver, new_latest_risk = _scan_latest_version(product_dir)
-        meta["latestVersion"] = new_latest_ver
-        meta["latestRiskScore"] = new_latest_risk if new_latest_ver is not None else None
-        _atomic_write_text(meta_path, json.dumps(meta, ensure_ascii=False, indent=2))
-
-    return jsonify(deleted_meta), 200
+    db.session.commit()
+    return jsonify(summary), 200
 
 
 @products_bp.route("/api/products/<product_id>/versions/<ver>/publish", methods=["POST"])
 def publish_version(product_id: str, ver: str):
-    """Publish a draft version, making it immutable."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
@@ -854,103 +605,66 @@ def publish_version(product_id: str, ver: str):
     if not _valid_version_str(ver):
         return jsonify({"error": "Invalid version format"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    ver_file = product_dir / f"v{ver}.json"
-    if not ver_file.exists():
+    snap = ReportSnapshot.query.filter_by(product_id=safe_id, version=ver).first()
+    if snap is None:
         return jsonify({"error": "Version not found"}), 404
 
-    with _get_product_lock(safe_id):
-        try:
-            data = json.loads(ver_file.read_text(encoding="utf-8"))
-        except Exception:
-            return jsonify({"error": "Failed to read version"}), 500
+    if snap.status == "published":
+        return jsonify({"error": "Version already published"}), 409
 
-        if data.get("status") == "published":
-            return jsonify({"error": "Version already published"}), 409
+    snap.status = "published"
+    snap.published_at = datetime.now(UTC)
+    db.session.commit()
 
-        now = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-        data["status"] = "published"
-        data["publishedAt"] = now
-
-        _atomic_write_text(ver_file, json.dumps(data, ensure_ascii=False))
-
-    return jsonify({
-        "version": data.get("version"),
-        "reportVersion": data.get("reportVersion"),
-        "versionNotes": data.get("versionNotes"),
-        "versionType": data.get("versionType"),
-        "status": "published",
-        "savedAt": data.get("savedAt"),
-        "publishedAt": now,
-        "riskScore": data.get("riskScore"),
-    }), 200
+    return jsonify(_version_summary(snap)), 200
 
 
 # ---------------------------------------------------------------------------
 # Product Memory endpoints
 # ---------------------------------------------------------------------------
 
-_MEMORY_FILE = "memory.json"
-_MAX_MEMORY_ENTRIES = 2000
-_MAX_SUBSCRIPTION_LEN = 200
-_MAX_TITLE_LEN = 500
-_MAX_REASON_LEN = 1000
-
-
-def _load_memory(product_dir: Path) -> dict:
-    """Load memory.json for a product; return empty structure on any error."""
-    mem_path = product_dir / _MEMORY_FILE
-    if not mem_path.exists():
-        return {"version": 1, "entries": {}}
-    try:
-        data = json.loads(mem_path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict) or not isinstance(data.get("entries"), dict):
-            return {"version": 1, "entries": {}}
-        return data
-    except Exception:
-        return {"version": 1, "entries": {}}
-
-
-def _save_memory(product_dir: Path, memory: dict) -> None:
-    _atomic_write_text(product_dir / _MEMORY_FILE, json.dumps(memory, ensure_ascii=False))
-
-
 def _memory_key(subscription: str, title: str) -> str:
     return subscription.lower().strip() + "::" + title.lower().strip()
 
 
+def _memory_to_dict(product_id: str) -> dict:
+    """Build the memory response dict from ProductMemoryEntry rows."""
+    entries = ProductMemoryEntry.query.filter_by(product_id=product_id).all()
+    return {
+        "version": 1,
+        "entries": {
+            _memory_key(e.subscription, e.title): {
+                "exception": True,
+                "reason": e.reason or "",
+                "source": e.source,
+            }
+            for e in entries
+        },
+    }
+
+
 @products_bp.route("/api/products/<product_id>/memory", methods=["GET"])
 def get_memory(product_id: str):
-    """Return the product memory (excepted/deleted finding history)."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    return jsonify(_load_memory(product_dir)), 200
+    return jsonify(_memory_to_dict(safe_id)), 200
 
 
 @products_bp.route("/api/products/<product_id>/memory/entry", methods=["POST"])
 def upsert_memory_entry(product_id: str):
-    """Upsert a single memory entry (exception or deletion record)."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
     data = request.get_json(silent=True) or {}
@@ -974,29 +688,40 @@ def upsert_memory_entry(product_id: str):
     if _contains_traversal(subscription) or _contains_traversal(title):
         return jsonify({"error": "Invalid field value"}), 400
 
-    with _get_product_lock(safe_id):
-        memory = _load_memory(product_dir)
-        if len(memory["entries"]) >= _MAX_MEMORY_ENTRIES:
-            return jsonify({"error": "Memory limit reached"}), 429
-        key = _memory_key(subscription, title)
-        memory["entries"][key] = {"exception": True, "reason": reason, "source": source}
-        _save_memory(product_dir, memory)
+    count = ProductMemoryEntry.query.filter_by(product_id=safe_id).count()
+    if count >= _MAX_MEMORY_ENTRIES:
+        return jsonify({"error": "Memory limit reached"}), 429
 
+    existing = ProductMemoryEntry.query.filter_by(
+        product_id=safe_id,
+        subscription=subscription.lower().strip(),
+        title=title.lower().strip(),
+    ).first()
+
+    if existing:
+        existing.reason = reason
+        existing.source = source
+    else:
+        db.session.add(ProductMemoryEntry(
+            product_id=safe_id,
+            subscription=subscription.lower().strip(),
+            title=title.lower().strip(),
+            reason=reason,
+            source=source,
+        ))
+
+    db.session.commit()
+    key = _memory_key(subscription, title)
     return jsonify({"ok": True, "key": key}), 200
 
 
 @products_bp.route("/api/products/<product_id>/memory/entry", methods=["DELETE"])
 def delete_memory_entry(product_id: str):
-    """Remove a memory entry (e.g. when un-excepting a finding)."""
-    if _storage_error:
-        return jsonify({"error": "Products storage unavailable"}), 500
-
     safe_id = _safe_param(product_id)
     if not safe_id:
         return jsonify({"error": "Invalid parameter"}), 400
 
-    product_dir = PRODUCTS_DIR / safe_id
-    if not product_dir.is_dir():
+    if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
     data = request.get_json(silent=True) or {}
@@ -1006,10 +731,14 @@ def delete_memory_entry(product_id: str):
     if not isinstance(subscription, str) or not isinstance(title, str):
         return jsonify({"error": "subscription and title required"}), 400
 
-    with _get_product_lock(safe_id):
-        memory = _load_memory(product_dir)
-        key = _memory_key(subscription, title)
-        memory["entries"].pop(key, None)
-        _save_memory(product_dir, memory)
+    entry = ProductMemoryEntry.query.filter_by(
+        product_id=safe_id,
+        subscription=subscription.lower().strip(),
+        title=title.lower().strip(),
+    ).first()
+
+    if entry:
+        db.session.delete(entry)
+        db.session.commit()
 
     return jsonify({"ok": True}), 200
