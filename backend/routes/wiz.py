@@ -40,6 +40,7 @@ from backend.graphql.queries import (
     VULN_FINDINGS_QUERY,
 )
 from backend.services.wiz_service import WizService
+from backend.services.auth_service import require_role
 
 wiz_bp = Blueprint('wiz', __name__, url_prefix='/api/wizi')
 
@@ -99,6 +100,7 @@ WIZI_PROJECTS_QUERY = PROJECTS_QUERY
 
 
 @wiz_bp.route("/status")
+@require_role("viewer")
 def api_wizi_status():
     """Check if Wiz integration is configured and reachable."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -113,6 +115,7 @@ def api_wizi_status():
 
 
 @wiz_bp.route("/projects")
+@require_role("editor")
 def api_wizi_projects():
     """Fetch available projects from Wizi."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -126,6 +129,7 @@ def api_wizi_projects():
 
 
 @wiz_bp.route("/subscriptions")
+@require_role("editor")
 def api_wizi_subscriptions():
     """Fetch available subscriptions (cloud accounts) from Wizi."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -139,6 +143,7 @@ def api_wizi_subscriptions():
 
 
 @wiz_bp.route("/graphql", methods=["POST"])
+@require_role("editor")
 def api_wizi_graphql_proxy():
     """Raw GraphQL proxy for debugging — pass {query, variables}."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -171,6 +176,7 @@ def api_wizi_graphql_proxy():
 
 
 @wiz_bp.route("/discover")
+@require_role("editor")
 def api_wizi_discover():
     """Discover available root query fields via introspection."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -184,6 +190,7 @@ def api_wizi_discover():
 
 
 @wiz_bp.route("/introspect-type")
+@require_role("editor")
 def api_wizi_introspect_type():
     """Introspect a specific GraphQL type or check root query fields.
 
@@ -227,6 +234,7 @@ def api_wizi_introspect_type():
 
 
 @wiz_bp.route("/issues", methods=["POST"])
+@require_role("editor")
 def api_wizi_issues():
     """Fetch findings from Wizi with optional filters and pagination."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -561,6 +569,7 @@ def build_bulk_filter(query_type, sub_ids, sub_ext_ids, sub_names=None):
 
 
 @wiz_bp.route("/bulk-fetch", methods=["POST"])
+@require_role("editor")
 def api_wizi_bulk_fetch():
     """Fetch findings across all 9 query types for a subscription."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -626,6 +635,7 @@ def api_wizi_bulk_fetch():
 
 
 @wiz_bp.route("/bulk-fetch-single", methods=["POST"])
+@require_role("editor")
 def api_wizi_bulk_fetch_single():
     """Fetch findings for a single query type (used for progress tracking)."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -688,6 +698,7 @@ def api_wizi_bulk_fetch_single():
 
 
 @wiz_bp.route("/find-by-id", methods=["POST"])
+@require_role("editor")
 def api_wizi_find_by_id():
     """Fetch findings from Wizi by ID or rule ID. Returns paginated results for user selection."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -947,6 +958,7 @@ _ALLOWED_QUERY_TYPES = {"issues", "networkExposures"} | set(_PATCH_IGNORE) | set
 
 
 @wiz_bp.route("/ignore-issue", methods=["POST"])
+@require_role("editor")
 def api_wizi_ignore_issue():
     """Reject/ignore a Wiz finding by setting its status to REJECTED.
 

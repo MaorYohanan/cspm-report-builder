@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wizi — ניהול משתמשים</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #0a0b0e;
+      color: #e8eaed;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    .container { max-width: 720px; margin: 0 auto; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .back-btn {
+      color: #7a8499;
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 12px;
+      border: 1px solid #2a2d35;
+      border-radius: 6px;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .back-btn:hover { color: #e8eaed; border-color: #4a4d55; }
+
+    h1 { font-size: 22px; font-weight: 700; color: #e8eaed; }
+
+    .card {
+      background: #13151a;
+      border: 1px solid #2a2d35;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card-title { font-size: 15px; font-weight: 600; color: #a0aec0; margin-bottom: 20px; }
+
+    /* Add user form */
+    .add-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px; }
+    label { font-size: 13px; color: #7a8499; }
+
+    input, select {
+      background: #0a0b0e;
+      border: 1px solid #2a2d35;
+      border-radius: 6px;
+      color: #e8eaed;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, select:focus { border-color: #4f8ef7; }
+
+    .btn {
+      padding: 9px 18px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #4f8ef7; color: #fff; }
+    .btn-danger { background: #dc2626; color: #fff; font-size: 13px; padding: 5px 12px; }
+
+    /* Users table */
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: right; padding: 10px 14px; font-size: 14px; }
+    th { color: #7a8499; font-weight: 600; border-bottom: 1px solid #2a2d35; }
+    td { border-bottom: 1px solid #1e2028; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #1a1c22; }
+
+    .role-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .role-admin  { background: #3b1d8f; color: #a78bfa; }
+    .role-editor { background: #1a3a6b; color: #60a5fa; }
+    .role-viewer { background: #1a3a2a; color: #34d399; }
+
+    .empty-state { text-align: center; padding: 32px; color: #4a5568; font-size: 14px; }
+
+    #status-msg { font-size: 13px; color: #34d399; margin-top: 10px; min-height: 18px; }
+    #error-msg  { font-size: 13px; color: #f87171; margin-top: 10px; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <a href="/" class="back-btn">← חזרה</a>
+        <h1>ניהול משתמשים</h1>
+      </div>
+    </div>
+
+    <!-- Add user -->
+    <div class="card">
+      <div class="card-title">הוספת משתמש חדש</div>
+      <div class="add-form">
+        <div class="form-group">
+          <label for="new-email">כתובת אימייל</label>
+          <input type="email" id="new-email" placeholder="user@company.com" autocomplete="off">
+        </div>
+        <div class="form-group" style="flex:0; min-width:130px;">
+          <label for="new-role">תפקיד</label>
+          <select id="new-role">
+            <option value="viewer">Viewer</option>
+            <option value="editor" selected>Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="addUser()">הוסף</button>
+      </div>
+      <div id="status-msg"></div>
+      <div id="error-msg"></div>
+    </div>
+
+    <!-- Users list -->
+    <div class="card">
+      <div class="card-title">משתמשים קיימים</div>
+      <div id="users-container">
+        <div class="empty-state">טוען...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
+
+    async function loadUsers() {
+      const res = await fetch('/api/users');
+      if (!res.ok) { document.getElementById('users-container').innerHTML = '<div class="empty-state">שגיאה בטעינת משתמשים</div>'; return; }
+      const users = await res.json();
+      renderUsers(users);
+    }
+
+    function renderUsers(users) {
+      const el = document.getElementById('users-container');
+      if (!users.length) { el.innerHTML = '<div class="empty-state">אין משתמשים עדיין</div>'; return; }
+      const rows = users.map(u => `
+        <tr>
+          <td>${escHtml(u.email)}</td>
+          <td><span class="role-badge role-${u.role}">${ROLE_LABELS[u.role] || u.role}</span></td>
+          <td>
+            <select data-uid="${u.id}" onchange="changeRole(this)">
+              ${['viewer','editor','admin'].map(r => `<option value="${r}"${r===u.role?' selected':''}>${ROLE_LABELS[r]}</option>`).join('')}
+            </select>
+          </td>
+          <td><button class="btn btn-danger" onclick="deleteUser(${u.id})">הסר</button></td>
+        </tr>
+      `).join('');
+      el.innerHTML = `<table><thead><tr><th>אימייל</th><th>תפקיד</th><th>שינוי תפקיד</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function setMsg(msg, isError) {
+      document.getElementById('status-msg').textContent = isError ? '' : msg;
+      document.getElementById('error-msg').textContent = isError ? msg : '';
+    }
+
+    async function addUser() {
+      const email = document.getElementById('new-email').value.trim();
+      const role = document.getElementById('new-role').value;
+      if (!email) { setMsg('נא להזין כתובת אימייל', true); return; }
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email, role})
+      });
+      const data = await res.json();
+      if (!res.ok) { setMsg(data.error || 'שגיאה', true); return; }
+      setMsg('המשתמש נוסף בהצלחה', false);
+      document.getElementById('new-email').value = '';
+      loadUsers();
+    }
+
+    async function changeRole(select) {
+      const uid = select.dataset.uid;
+      const role = select.value;
+      const res = await fetch(`/api/users/${uid}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({role})
+      });
+      const data = await res.json();
+      if (!res.ok) { setMsg(data.error || 'שגיאה', true); loadUsers(); return; }
+      setMsg('התפקיד עודכן', false);
+    }
+
+    async function deleteUser(uid) {
+      if (!confirm('האם למחוק משתמש זה?')) return;
+      const res = await fetch(`/api/users/${uid}`, {method: 'DELETE'});
+      const data = await res.json();
+      if (!res.ok) { setMsg(data.error || 'שגיאה', true); return; }
+      setMsg('המשתמש הוסר', false);
+      loadUsers();
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>

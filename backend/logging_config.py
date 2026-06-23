@@ -45,18 +45,19 @@ class _RequestContextFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            from flask import has_request_context, request
+            from flask import has_request_context, request, session
             if has_request_context():
                 record.path = request.path
                 record.method = request.method
+                record.user_email = session.get("user_email")
             else:
                 record.path = None
                 record.method = None
+                record.user_email = None
         except Exception:
             record.path = None
             record.method = None
-        # Populated after Milestone 1.4 (Google OAuth)
-        record.user_email = getattr(record, "user_email", None)
+            record.user_email = None
         return True
 
 

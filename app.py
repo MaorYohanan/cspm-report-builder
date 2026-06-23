@@ -26,9 +26,11 @@ from flask import (
     Flask,
     Response,
     jsonify,
+    redirect,
     request,
     send_file,
     send_from_directory,
+    session,
 )
 
 from backend.database import db
@@ -44,6 +46,7 @@ from backend.routes.ai import ai_bp, GEMINI_MODELS, GEMINI_DEFAULT_MODEL
 from backend.routes.reports import reports_bp
 from backend.routes.files import files_bp
 from backend.routes.products import products_bp
+from backend.routes.auth import auth_bp
 
 app = Flask(
     __name__,
@@ -51,6 +54,23 @@ app = Flask(
     static_url_path="/static",
     template_folder="templates",
 )
+
+# ---------------------------------------------------------------------------
+# Secret key — required for signed sessions (OAuth mode)
+# ---------------------------------------------------------------------------
+
+import secrets as _secrets
+
+_secret_key = os.environ.get("SECRET_KEY", "")
+if not _secret_key:
+    _secret_key = _secrets.token_hex(32)
+    _log.warning(
+        "SECRET_KEY not set — sessions will be invalidated on restart. "
+        "Set SECRET_KEY in production."
+    )
+app.config["SECRET_KEY"] = _secret_key
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -80,6 +100,25 @@ if not os.environ.get("DATABASE_URL"):
         import backend.models  # noqa: F401 — registers models with SQLAlchemy
         db.create_all()
 
+# ---------------------------------------------------------------------------
+# Google OAuth (optional — enabled when GOOGLE_CLIENT_ID is set)
+# ---------------------------------------------------------------------------
+
+_google_client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+if _google_client_id:
+    from backend.oauth import oauth
+    oauth.init_app(app)
+    oauth.register(
+        name="google",
+        client_id=_google_client_id,
+        client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+    _log.info("Google OAuth enabled (domain=%s)", os.environ.get("ALLOWED_DOMAIN", "any"))
+else:
+    _log.info("Google OAuth disabled — APP_TOKEN auth only")
+
 # Initialize files blueprint with directory paths
 from backend.routes import files
 files.init_directories(BASE_DIR, STATES_DIR, OUTPUT_DIR)
@@ -90,6 +129,7 @@ app.register_blueprint(ai_bp)
 app.register_blueprint(reports_bp)
 app.register_blueprint(files_bp)
 app.register_blueprint(products_bp)
+app.register_blueprint(auth_bp)
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
@@ -149,18 +189,37 @@ def check_auth() -> bool:
     return False
 
 
+_OPEN_PREFIXES = ("/auth/", "/static/", "/assets/")
+_OPEN_PATHS = {"/api/health", "/api/me"}
+
+
 @app.before_request
 def enforce_auth():
-    """Block unauthenticated requests when APP_TOKEN is set, and enforce rate limits."""
-    # Health check is always open and exempt from rate limiting
-    if request.path == "/api/health":
+    """Authentication gate and rate limiter."""
+    path = request.path
+
+    # Always open paths
+    if path in _OPEN_PATHS or any(path.startswith(p) for p in _OPEN_PREFIXES):
         return None
-    if not APP_TOKEN:
-        pass
-    elif not check_auth():
-        return Response("Unauthorized", 401, {"WWW-Authenticate": "Bearer"})
+
+    if _google_client_id:
+        # OAuth mode: accept session or APP_TOKEN bearer
+        if session.get("user_email"):
+            pass  # session OK
+        elif check_auth():
+            pass  # APP_TOKEN bearer OK
+        else:
+            # Not authenticated
+            if path.startswith("/api/"):
+                return jsonify({"error": "Unauthorized"}), 401
+            return redirect("/auth/login")
+    else:
+        # No OAuth: classic APP_TOKEN gate
+        if APP_TOKEN and not check_auth():
+            return Response("Unauthorized", 401, {"WWW-Authenticate": "Bearer"})
+
     # Rate limiting on mutating endpoints only
-    if request.method in ("POST", "DELETE"):
+    if request.method in ("POST", "DELETE", "PATCH"):
         if not check_rate_limit():
             return jsonify({"error": "Rate limit exceeded"}), 429
 

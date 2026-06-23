@@ -64,9 +64,25 @@ Check this directory for open plans before starting any non-trivial feature work
 
 ---
 
+## Backend Blueprints
+
+| Blueprint | File | Prefix | Notes |
+|-----------|------|--------|-------|
+| `products_bp` | `backend/routes/products.py` | `/api/products` | Product CRUD, versions, memory |
+| `wiz_bp` | `backend/routes/wiz.py` | `/api/wizi` | Wiz GraphQL integration |
+| `ai_bp` | `backend/routes/ai.py` | `/api` | Gemini AI suggest/summarize |
+| `reports_bp` | `backend/routes/reports.py` | `/api` | PDF render, HTML upload |
+| `files_bp` | `backend/routes/files.py` | `/api` | State/output file management |
+| `auth_bp` | `backend/routes/auth.py` | `/auth`, `/api` | Google OAuth, user management |
+
+Auth service (`backend/services/auth_service.py`) provides `require_role(min_role)` decorator — used on every route. Is a no-op when `GOOGLE_CLIENT_ID` is not set.
+
+---
+
 ## Other Project Notes
 
 - Flask app runs on port 8080 inside Docker
 - PDF rendering via Playwright (headless Chromium)
 - UI is Hebrew / RTL — test RTL layout after any CSS or HTML change
 - The IIFE opens in `core.js` and closes in `init.js`; all src files share the same scope
+- Google OAuth is optional — disabled when `GOOGLE_CLIENT_ID` env var is not set
