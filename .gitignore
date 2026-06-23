@@ -17,6 +17,8 @@ Report_*.csv
 # Runtime data
 output/
 uploads/
+instance/
+*.db
 
 # OS
 .DS_Store
