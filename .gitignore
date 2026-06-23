@@ -37,6 +37,7 @@ docker-compose.override.yml
 !README.md
 !AGENTS.md
 !CLAUDE.md
+!PRODUCTION_DEPLOY.md
 
 # Claude Code configuration and workflows
 .claude/

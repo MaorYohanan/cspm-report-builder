@@ -1,0 +1,159 @@
+# CSPM Report Builder — Production Deployment Guide
+
+> **Keep this file up to date.** Any infrastructure change (new env var, new service dependency, schema change, new GCS feature) must be reflected here before merging to `main`.
+
+---
+
+## Architecture Overview
+
+| Component | Dev (local) | Production (GCP) |
+|-----------|-------------|------------------|
+| **Runtime** | `python app.py` or Docker | Cloud Run |
+| **Database** | SQLite (`instance/app.db`) | Cloud SQL — PostgreSQL |
+| **File storage** | Local disk (`uploads/`) | Google Cloud Storage (GCS) |
+| **PDF rendering** | Playwright (local Chromium) | Playwright inside the container |
+| **Auth** | Static `APP_TOKEN` bearer | Google OAuth + RBAC *(Milestone 1.4 — not yet)* |
+
+---
+
+## First Deploy — Step-by-Step
+
+### Prerequisites
+- GCP project created
+- Cloud Run API enabled
+- Cloud SQL (PostgreSQL) instance created and accessible
+- Artifact Registry repository for the Docker image
+- Service account for Cloud Run with these roles:
+  - `Cloud SQL Client`
+  - `Storage Object Creator` / `Storage Object Viewer` (when GCS is enabled, Milestone 1.3)
+
+---
+
+### 1. Build and push the Docker image
+
+```bash
+# From the project root
+gcloud builds submit --tag gcr.io/YOUR_PROJECT/cspm-report-builder:latest
+# or with Artifact Registry:
+docker build -t REGION-docker.pkg.dev/YOUR_PROJECT/REPO/cspm-report-builder:latest .
+docker push REGION-docker.pkg.dev/YOUR_PROJECT/REPO/cspm-report-builder:latest
+```
+
+---
+
+### 2. Create the PostgreSQL database and user
+
+Connect to your Cloud SQL instance and run:
+
+```sql
+CREATE DATABASE cspm;
+CREATE USER cspm_user WITH PASSWORD 'your-strong-password';
+GRANT ALL PRIVILEGES ON DATABASE cspm TO cspm_user;
+```
+
+---
+
+### 3. Create the database tables (first deploy only)
+
+Tables are NOT auto-created in production (by design). Run this once against your Cloud SQL instance:
+
+```bash
+DATABASE_URL="postgresql+psycopg2://cspm_user:password@/cspm?host=/cloudsql/PROJECT:REGION:INSTANCE" \
+python -c "
+from app import app
+from backend.database import db
+import backend.models
+with app.app_context():
+    db.create_all()
+print('Tables created.')
+"
+```
+
+> **Note:** After Milestone 1.1 you can run this locally with the Cloud SQL Auth Proxy, or from a Cloud Run job.
+
+---
+
+### 4. Deploy to Cloud Run
+
+```bash
+gcloud run deploy cspm-report-builder \
+  --image REGION-docker.pkg.dev/YOUR_PROJECT/REPO/cspm-report-builder:latest \
+  --platform managed \
+  --region REGION \
+  --allow-unauthenticated \
+  --add-cloudsql-instances PROJECT:REGION:INSTANCE \
+  --set-env-vars "
+    DATABASE_URL=postgresql+psycopg2://cspm_user:password@/cspm?host=/cloudsql/PROJECT:REGION:INSTANCE,
+    GEMINI_API_KEY=your-gemini-key,
+    WIZI_CLIENT_ID=your-wiz-client-id,
+    WIZI_CLIENT_SECRET=your-wiz-client-secret,
+    WIZI_AUTH_URL=https://auth.app.wiz.io/oauth/token,
+    WIZI_API_URL=https://api.il1.app.wiz.io/graphql,
+    APP_TOKEN=your-strong-random-token,
+    RATE_LIMIT_MAX=30,
+    RATE_LIMIT_WINDOW=60
+  "
+```
+
+> **Security:** Store secrets in Secret Manager and reference them with `--set-secrets` instead of plain `--set-env-vars` for production.
+
+---
+
+### 5. Migrate existing data (if upgrading from JSON-file storage)
+
+If you have existing products in `uploads/products/` from the old version, migrate them once:
+
+```bash
+# Option A: run locally against Cloud SQL via Auth Proxy
+cloud-sql-proxy PROJECT:REGION:INSTANCE &
+DATABASE_URL="postgresql+psycopg2://cspm_user:password@127.0.0.1:5432/cspm" \
+python -m backend.migration.migrate_json_to_db
+
+# Option B: copy the uploads/ dir into the container and run the script there
+```
+
+---
+
+## Environment Variables Reference
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes (prod) | PostgreSQL connection string. Leave empty for SQLite dev. |
+| `GEMINI_API_KEY` | No | Enables AI executive summary features. |
+| `WIZI_CLIENT_ID` | No | Wiz service account client ID. |
+| `WIZI_CLIENT_SECRET` | No | Wiz service account secret. |
+| `WIZI_AUTH_URL` | No | Wiz OAuth token URL. |
+| `WIZI_API_URL` | No | Wiz GraphQL API URL. |
+| `APP_TOKEN` | Recommended | Bearer token protecting all API endpoints. |
+| `RATE_LIMIT_MAX` | No | Max POST/DELETE requests per window per IP (default 30). |
+| `RATE_LIMIT_WINDOW` | No | Rate limit window in seconds (default 60). |
+| `CLEANUP_DAYS` | No | Delete output files older than N days (default 30). |
+| `GCS_BUCKET_NAME` | No | *(Milestone 1.3)* GCS bucket for clipboard evidence uploads. |
+| `GOOGLE_CLIENT_ID` | No | *(Milestone 1.4)* Google OAuth client ID. |
+| `GOOGLE_CLIENT_SECRET` | No | *(Milestone 1.4)* Google OAuth client secret. |
+| `ALLOWED_DOMAIN` | No | *(Milestone 1.4)* Restrict login to this email domain (e.g. `company.com`). |
+| `INITIAL_ADMIN_EMAIL` | No | *(Milestone 1.4)* Email that auto-gets Admin role on first login. |
+
+---
+
+## Schema Changes (after first deploy)
+
+The app **never** auto-migrates in production. After any model change:
+
+1. Write an Alembic migration (or write raw `ALTER TABLE` SQL manually)
+2. Apply it to Cloud SQL before deploying the new image
+3. Deploy the new image
+
+*(Alembic integration is planned for a later milestone.)*
+
+---
+
+## Rollback
+
+To roll back to the previous image:
+
+```bash
+gcloud run deploy cspm-report-builder --image PREVIOUS_IMAGE_TAG --region REGION
+```
+
+Database schema changes that added columns are generally safe to leave in place during a rollback. Destructive changes (dropping columns/tables) should be applied only after the new code is confirmed stable.

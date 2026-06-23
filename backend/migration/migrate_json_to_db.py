@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 # Ensure the project root is on the path when run as a module
@@ -44,7 +44,7 @@ def _migrate_product(product_dir: Path) -> None:
         return
 
     slug = meta.get("id") or product_dir.name
-    if Product.query.get(slug):
+    if db.session.get(Product, slug):
         print(f"  [SKIP] {slug}: already in DB")
         return
 
@@ -55,7 +55,7 @@ def _migrate_product(product_dir: Path) -> None:
         owner_email=meta.get("ownerEmail", ""),
         env=meta.get("env", ""),
         subscription_ids=meta.get("subscriptionIds", []),
-        created_at=_parse_dt(meta.get("createdAt")) or datetime.utcnow(),
+        created_at=_parse_dt(meta.get("createdAt")) or datetime.now(UTC),
     )
     db.session.add(product)
     db.session.flush()
