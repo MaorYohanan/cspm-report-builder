@@ -74,6 +74,15 @@ Changes that **always** require a `PRODUCTION_DEPLOY.md` update:
 Planned work, feature roadmaps, and multi-step task breakdowns live in **`.plan/`** at the project root.  
 Check this directory for open plans before starting any non-trivial feature work.
 
+The active task status file is **`memory/roadmap-status.md`** (in the Claude memory directory).  
+**This file must be kept up to date in real time:**
+- When starting a task → mark it as `🔄 in progress`
+- When a task is done and merged → mark it as `✅ merged to main`
+- When a task is done but awaiting approval → mark it as `⏳ awaiting merge approval`
+- When a task is skipped → mark it as `⏭️ skipped` with a reason
+
+Do not wait until the end of the session to update statuses. Update the file the moment the state changes.
+
 ---
 
 ## Backend Blueprints
