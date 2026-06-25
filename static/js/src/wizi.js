@@ -5,6 +5,7 @@ import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
 import { ProductsPanel } from './products.js';
 
+      var isCloud = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.protocol.startsWith('file');
       var wiziResults = document.getElementById('wizi-results');
       var wiziStatusMsg = document.getElementById('wizi-status-msg');
       var wiziFetchBtn = document.getElementById('btn-wizi-fetch');

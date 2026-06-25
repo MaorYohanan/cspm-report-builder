@@ -991,7 +991,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         if (snapshot.formDraft) {
           const d = snapshot.formDraft;
           const hasContent = d.title || d.description || d.impact || d.technical || d.policies || d.recs;
-          if (hasContent || d.state.editingIndex !== null) {
+          if (hasContent || d.editingIndex !== null) {
             document.getElementById('f-id').value = d.id || '';
             document.getElementById('f-title').value = d.title || '';
             document.getElementById('f-severity').value = d.severity || 'medium';
@@ -1011,8 +1011,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               renderEvidencePreviews();
             }
 
-            if (d.state.editingIndex !== null && d.state.editingIndex >= 0 && d.state.editingIndex < state.findings.length) {
-              state.editingIndex = d.state.editingIndex;
+            if (d.editingIndex !== null && d.editingIndex >= 0 && d.editingIndex < state.findings.length) {
+              state.editingIndex = d.editingIndex;
               addBtn.textContent = 'עדכן ממצא';
               cancelEditBtn.style.display = 'inline-block';
               editState.textContent = 'מצב: עריכת ממצא #' + (state.editingIndex + 1);
@@ -1073,19 +1073,19 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               });
 
               // Apply sort
-              if (findingsSortState.col) {
+              if (state.findingsSortState.col) {
                 var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
                 filtered.sort(function(a, b) {
                   var va, vb;
-                  var col = findingsSortState.col;
+                  var col = state.findingsSortState.col;
                   if (col === 'id') { va = a.f.id || ''; vb = b.f.id || ''; }
                   else if (col === 'category') { va = a.f.category || ''; vb = b.f.category || ''; }
                   else if (col === 'title') { va = (a.f.title || '').toLowerCase(); vb = (b.f.title || '').toLowerCase(); }
                   else if (col === 'severity') { va = sevOrder[a.f.severity] || 9; vb = sevOrder[b.f.severity] || 9; }
                   else if (col === 'owner') { va = (a.f.owner || '').toLowerCase(); vb = (b.f.owner || '').toLowerCase(); }
                   else { va = ''; vb = ''; }
-                  if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
-                  if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+                  if (va < vb) return state.findingsSortState.dir === 'asc' ? -1 : 1;
+                  if (va > vb) return state.findingsSortState.dir === 'asc' ? 1 : -1;
                   return 0;
                 });
               }
@@ -1094,7 +1094,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
               // Pagination
               var totalFiltered = filtered.length;
-              var fTotalPages = Math.ceil(totalFiltered / findingsPageState.pageSize);
+              var fTotalPages = Math.ceil(totalFiltered / state.findingsPageState.pageSize);
               if (state.findingsPageState.page >= fTotalPages && fTotalPages > 0) state.findingsPageState.page = fTotalPages - 1;
               var fStart = state.findingsPageState.page * state.findingsPageState.pageSize;
               var fEnd = Math.min(fStart + state.findingsPageState.pageSize, totalFiltered);
@@ -1102,7 +1102,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
               function fSortInd(col) {
                 if (state.findingsSortState.col !== col) return ' <span class="sort-arrow">⇅</span>';
-                return findingsSortState.dir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+                return state.findingsSortState.dir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
               }
 
               let html = '';
@@ -1136,9 +1136,9 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               // Pagination nav below table
               if (fTotalPages > 1) {
                 html += '<div class="bulk-pagination-bottom">';
-                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-prev"' + (findingsPageState.page === 0 ? ' disabled' : '') + '>▶</button>';
-                html += '<span class="bulk-pagination-page">' + (findingsPageState.page + 1) + ' / ' + fTotalPages + '</span>';
-                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-next"' + (findingsPageState.page >= fTotalPages - 1 ? ' disabled' : '') + '>◀</button>';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-prev"' + (state.findingsPageState.page === 0 ? ' disabled' : '') + '>▶</button>';
+                html += '<span class="bulk-pagination-page">' + (state.findingsPageState.page + 1) + ' / ' + fTotalPages + '</span>';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-next"' + (state.findingsPageState.page >= fTotalPages - 1 ? ' disabled' : '') + '>◀</button>';
                 html += '</div>';
               }
 
@@ -1255,13 +1255,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               tableWrapper.querySelectorAll('.sortable-th[data-findings-sort]').forEach(function(th) {
                 th.addEventListener('click', function() {
                   var col = th.getAttribute('data-findings-sort');
-                  if (findingsSortState.col === col) {
+                  if (state.findingsSortState.col === col) {
                     state.findingsSortState.dir = state.findingsSortState.dir === 'asc' ? 'desc' : 'asc';
                   } else {
-                    findingsSortState.col = col;
+                    state.findingsSortState.col = col;
                     state.findingsSortState.dir = 'asc';
                   }
-                  findingsPageState.page = 0;
+                  state.findingsPageState.page = 0;
                   renderFindingsTable();
                 });
               });
@@ -1269,8 +1269,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               // Wire pagination
               var fpPrev = document.getElementById('findings-page-prev');
               var fpNext = document.getElementById('findings-page-next');
-              if (fpPrev) fpPrev.addEventListener('click', function() { findingsPageState.page--; renderFindingsTable(); });
-              if (fpNext) fpNext.addEventListener('click', function() { findingsPageState.page++; renderFindingsTable(); });
+              if (fpPrev) fpPrev.addEventListener('click', function() { state.findingsPageState.page--; renderFindingsTable(); });
+              if (fpNext) fpNext.addEventListener('click', function() { state.findingsPageState.page++; renderFindingsTable(); });
             }
 
       // ── Batch actions ──
@@ -1854,13 +1854,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         sortMenu.querySelectorAll('[data-sort-by]').forEach(function(item) {
           item.addEventListener('click', function() {
             var col = item.getAttribute('data-sort-by');
-            if (findingsSortState.col === col) {
+            if (state.findingsSortState.col === col) {
               state.findingsSortState.dir = state.findingsSortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
-              findingsSortState.col = col;
+              state.findingsSortState.col = col;
               state.findingsSortState.dir = 'asc';
             }
-            findingsPageState.page = 0;
+            state.findingsPageState.page = 0;
             renderFindingsTable();
             sortMenu.style.display = 'none';
           });
@@ -1871,7 +1871,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       var findingsPageSizeStatic = document.getElementById('findings-page-size-static');
       if (findingsPageSizeStatic) {
         findingsPageSizeStatic.addEventListener('change', function() {
-          findingsPageState.pageSize = parseInt(this.value);
+          state.findingsPageState.pageSize = parseInt(this.value);
           state.findingsPageState.page = 0;
           renderFindingsTable();
         });
@@ -2284,8 +2284,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             else if (col === 'severity') { va = _sevOrder[a.severity] || 9; vb = _sevOrder[b.severity] || 9; }
             else if (col === 'owner') { va = (a.owner || '').toLowerCase(); vb = (b.owner || '').toLowerCase(); }
             else { va = ''; vb = ''; }
-            if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
-            if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+            if (va < vb) return state.findingsSortState.dir === 'asc' ? -1 : 1;
+            if (va > vb) return state.findingsSortState.dir === 'asc' ? 1 : -1;
             return 0;
           });
         }
