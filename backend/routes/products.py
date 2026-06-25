@@ -607,6 +607,11 @@ def delete_version(product_id: str, ver: str):
         return jsonify({"error": "Version not found"}), 404
 
     summary = _version_summary(snap)
+
+    # Bulk-delete findings first to avoid issuing thousands of individual
+    # row-level DELETEs via SQLAlchemy's cascade, which holds the write lock
+    # for the entire duration.
+    Finding.query.filter_by(snapshot_id=snap.id).delete(synchronize_session=False)
     db.session.delete(snap)
 
     product = db.session.get(Product, safe_id)
