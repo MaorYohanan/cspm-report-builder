@@ -184,7 +184,12 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
 
             weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
             risk = 0
-            for f in findings:
+
+            # Batch-commit every 200 findings to keep each write transaction short.
+            # Long single-transaction commits hold the SQLite write lock for the
+            # entire duration, blocking all concurrent Flask requests.
+            _BATCH = 200
+            for i, f in enumerate(findings):
                 sev = (f.get("severity") or "").lower()
                 title = _extract_finding_title(f).lower().strip()
                 sub = (f.get("_sourceSubscription") or "").lower().strip()
@@ -197,7 +202,11 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 ))
                 if not is_excepted:
                     risk += weights.get(sev, 0)
+                if (i + 1) % _BATCH == 0:
+                    db.session.commit()
 
+            # Final batch + update snapshot metadata
+            snap = db.session.get(ReportSnapshot, snapshot_id)
             snap.risk_score = risk
             snap_data = dict(snap.snapshot_data or {})
             snap_data["findings_count"] = len(findings)
@@ -219,6 +228,10 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             if snapshot_id in _scan_jobs:
                 _scan_jobs[snapshot_id]["status"] = "error"
                 _scan_jobs[snapshot_id]["error"] = str(exc)
+        finally:
+            # Release the thread-local session back to the pool so the
+            # SQLite connection is not kept open past this thread's lifetime.
+            db.session.remove()
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
