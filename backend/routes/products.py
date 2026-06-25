@@ -190,6 +190,12 @@ def _validate_product_fields(data: dict, require_all: bool = True) -> tuple[dict
                 )
         cleaned["subscriptionIds"] = subs
 
+    if "scanFrequency" in data:
+        freq = data["scanFrequency"]
+        if freq not in ("monthly", "quarterly", "annual"):
+            return None, (jsonify({"error": "scanFrequency: must be monthly, quarterly, or annual"}), 400)
+        cleaned["scanFrequency"] = freq
+
     return cleaned, None
 
 
@@ -334,6 +340,7 @@ def create_product():
         owner_email=cleaned["ownerEmail"],
         env=cleaned["env"],
         subscription_ids=cleaned["subscriptionIds"],
+        scan_frequency=cleaned.get("scanFrequency", "quarterly"),
         created_at=datetime.now(UTC),
     )
     db.session.add(product)
@@ -350,6 +357,7 @@ def _product_to_dict(p: Product) -> dict:
         "ownerEmail": p.owner_email,
         "env": p.env,
         "subscriptionIds": p.subscription_ids,
+        "scanFrequency": p.scan_frequency,
         "createdAt": _fmt_dt(p.created_at),
         "latestVersion": p.latest_version,
         "latestRiskScore": p.latest_risk_score,
@@ -397,6 +405,8 @@ def update_product(product_id: str):
         product.env = cleaned["env"]
     if "subscriptionIds" in cleaned:
         product.subscription_ids = cleaned["subscriptionIds"]
+    if "scanFrequency" in cleaned:
+        product.scan_frequency = cleaned["scanFrequency"]
 
     db.session.commit()
     return jsonify(_product_to_dict(product)), 200

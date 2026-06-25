@@ -505,6 +505,14 @@ export var ProductsPanel = {
     html += '<div class="form-field"><label for="pf-env">סביבה</label>';
     html += '<input type="text" id="pf-env" maxlength="100" value="' + _esc(p.env||'') + '" placeholder="AWS Production"></div>';
 
+    var curFreq = p.scanFrequency || 'quarterly';
+    html += '<div class="form-field"><label for="pf-freq">תדירות סריקה</label>';
+    html += '<select id="pf-freq" class="form-select">';
+    [['monthly','חודשי'],['quarterly','רבעוני'],['annual','שנתי']].forEach(function(opt) {
+      html += '<option value="' + opt[0] + '"' + (curFreq === opt[0] ? ' selected' : '') + '>' + opt[1] + '</option>';
+    });
+    html += '</select></div>';
+
     var subsVal = (p.subscriptionIds || []).join(', ');
     html += '<div class="form-field product-form-grid-wide"><label for="pf-subs">Subscription IDs <span class="muted" style="font-weight:400;">(מופרדים בפסיק)</span></label>';
     html += '<input type="text" id="pf-subs" value="' + _esc(subsVal) + '" placeholder="sub-001, sub-002"></div>';
@@ -547,7 +555,8 @@ export var ProductsPanel = {
         owner: document.getElementById('pf-owner').value.trim(),
         ownerEmail: email,
         env: document.getElementById('pf-env').value.trim(),
-        subscriptionIds: subs.length ? subs : ['']
+        subscriptionIds: subs.length ? subs : [''],
+        scanFrequency: document.getElementById('pf-freq').value
       };
 
       var url = isEdit ? '/api/products/' + encodeURIComponent(p.id) : '/api/products';

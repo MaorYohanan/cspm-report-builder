@@ -24,6 +24,7 @@ class Product(db.Model):
     env = db.Column(db.String(100), nullable=False)
     subscription_ids = db.Column(db.JSON, nullable=False, default=list)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    scan_frequency = db.Column(db.String(20), nullable=False, default="quarterly")  # monthly, quarterly, annual
     # Denormalized for fast listing — kept in sync on every save/delete.
     latest_version = db.Column(db.String(20), nullable=True)
     latest_risk_score = db.Column(db.Integer, nullable=True)

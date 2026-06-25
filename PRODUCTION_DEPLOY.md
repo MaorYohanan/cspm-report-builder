@@ -195,6 +195,14 @@ The app **never** auto-migrates in production. After any model change:
 
 *(Alembic integration is planned for a later milestone.)*
 
+### Milestone 2.1 — Pipeline Dashboard
+
+Before deploying this image, run the following on the Cloud SQL PostgreSQL instance:
+
+```sql
+ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly';
+```
+
 ---
 
 ## Rollback

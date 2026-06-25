@@ -49,6 +49,7 @@ from backend.routes.reports import reports_bp
 from backend.routes.files import files_bp
 from backend.routes.products import products_bp
 from backend.routes.auth import auth_bp
+from backend.routes.pipeline import pipeline_bp
 
 app = Flask(
     __name__,
@@ -104,6 +105,18 @@ if not os.environ.get("DATABASE_URL"):
     with app.app_context():
         import backend.models  # noqa: F401 — registers models with SQLAlchemy
         db.create_all()
+        # Backfill columns added after initial schema creation (existing SQLite DBs).
+        from sqlalchemy import text as _text
+        with db.engine.connect() as _c:
+            for _stmt in [
+                "ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly'",
+            ]:
+                try:
+                    _c.execute(_text(_stmt))
+                    _c.commit()
+                except Exception as _exc:
+                    if "duplicate column" not in str(_exc).lower() and "already exists" not in str(_exc).lower():
+                        _log.warning("DB migration step skipped unexpectedly: %s", _exc)
 
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — enabled when GOOGLE_CLIENT_ID is set)
@@ -135,6 +148,7 @@ app.register_blueprint(reports_bp)
 app.register_blueprint(files_bp)
 app.register_blueprint(products_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(pipeline_bp)
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
