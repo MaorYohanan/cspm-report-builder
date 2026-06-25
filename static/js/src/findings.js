@@ -385,7 +385,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           'tab-export': 'ייצוא דו"ח',
           'tab-cloud-manager': 'קבצי שרת',
           'tab-wizi': 'Wiz Import',
-          'tab-products': 'מוצרים'
+          'tab-products': 'מוצרים',
+          'tab-pipeline': 'לוח סריקות'
         };
         var titleEl = document.getElementById('content-title');
         if (titleEl && titleMap[tabId]) titleEl.textContent = titleMap[tabId];

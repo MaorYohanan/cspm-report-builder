@@ -16,6 +16,7 @@ FILE_ORDER = [
     'components.css',  # Tabs, inputs, buttons, tables, severity chips, forms
     'wizi.css',        # Wizi styles, bulk import, progress bars, modals
     'products.css',    # Product registry: grid, timeline, version rows, diff panel
+    'pipeline.css',    # Pipeline Dashboard — KPI cards, status badges, filter bar, table
     'theme.css',       # Light theme overrides
 ]
 

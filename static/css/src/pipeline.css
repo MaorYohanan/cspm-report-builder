@@ -1,0 +1,173 @@
+/* ── Pipeline Dashboard ── */
+
+.pipeline-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pipeline-kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.pipeline-kpi-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+}
+
+.pipeline-kpi-count {
+  display: block;
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.pipeline-kpi-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* KPI count colors per status */
+.pipeline-status-overdue .pipeline-kpi-count   { color: var(--danger); }
+.pipeline-status-due     .pipeline-kpi-count   { color: oklch(0.68 0.18 40); }
+.pipeline-status-upcoming .pipeline-kpi-count  { color: var(--success); }
+.pipeline-status-none    .pipeline-kpi-count   { color: var(--text-muted); }
+
+/* KPI card accent border on hover */
+.pipeline-status-overdue:hover  { border-color: var(--danger); }
+.pipeline-status-due:hover      { border-color: oklch(0.68 0.18 40); }
+.pipeline-status-upcoming:hover { border-color: var(--success); }
+
+/* ── Filter bar ── */
+.pipeline-filter-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pipeline-filter-btn {
+  padding: 5px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.pipeline-filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.pipeline-filter-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ── Table ── */
+.pipeline-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+}
+
+.pipeline-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.pipeline-table th,
+.pipeline-table td {
+  padding: 11px 16px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--bg-card);
+}
+
+.pipeline-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pipeline-table tbody tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+.pipeline-date {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Status badges ── */
+.pipeline-status-badge {
+  display: inline-block;
+  padding: 3px 11px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pipeline-status-badge.pipeline-status-overdue {
+  background: var(--danger-subtle);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+
+.pipeline-status-badge.pipeline-status-due {
+  background: oklch(0.68 0.18 40 / 0.12);
+  color: oklch(0.68 0.18 40);
+  border: 1px solid oklch(0.68 0.18 40);
+}
+
+.pipeline-status-badge.pipeline-status-upcoming {
+  background: oklch(0.62 0.17 155 / 0.12);
+  color: var(--success);
+  border: 1px solid var(--success);
+}
+
+.pipeline-status-badge.pipeline-status-none {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  border: 1px solid var(--border-hover);
+}
+
+/* ── Empty state ── */
+.pipeline-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 48px 24px;
+  font-size: 0.9rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 680px) {
+  .pipeline-kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

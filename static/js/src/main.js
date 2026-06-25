@@ -6,6 +6,7 @@ import './findings.js';
 import './products.js';
 import './export.js';
 import './wizi.js';
+import './pipeline.js';
 
 // Auth: show current user in sidebar
 (function initUserInfo() {
