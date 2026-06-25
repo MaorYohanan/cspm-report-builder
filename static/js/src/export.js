@@ -540,10 +540,6 @@ const dateInput       = document.getElementById('report-date');
         autoSaveImmediate();
       });
 
-      // Restore on load
-      autoRestore();
-      updateStepper();
-
       // --- Report defaults (save/load profile) ---
       const DEFAULTS_KEY = 'cspm_report_defaults';
       const defaultsStatus = document.getElementById('defaults-status');
@@ -598,19 +594,6 @@ const dateInput       = document.getElementById('report-date');
       document.getElementById('btn-save-defaults').addEventListener('click', saveDefaults);
       document.getElementById('btn-load-defaults').addEventListener('click', loadDefaults);
       document.getElementById('btn-clear-defaults').addEventListener('click', clearDefaults);
-
-      // Auto-load defaults on fresh page (no autosave data and no state.findings)
-      if (!state.findings.length && !localStorage.getItem(AUTOSAVE_KEY)) {
-        loadDefaults();
-      }
-
-      // Default report date to today if not already set (e.g. from auto-restore)
-      if (!dateInput.value) {
-        dateInput.value = getTodayDDMMYYYY();
-      }
-
-      prefillId();
-      renderFindingsTable();
 
       // =====================================================================
       // Cloud API integration
@@ -993,5 +976,20 @@ const dateInput       = document.getElementById('report-date');
           var panel = document.getElementById(panelId);
           if (panel) panel.classList.add('active');
         });
+      });
+
+      // Bootstrap — deferred so all modules finish their synchronous init before
+      // we call into findings.js (avoids TDZ errors from the circular dep chain)
+      queueMicrotask(function() {
+        autoRestore();
+        updateStepper();
+        if (!state.findings.length && !localStorage.getItem(AUTOSAVE_KEY)) {
+          loadDefaults();
+        }
+        if (!dateInput.value) {
+          dateInput.value = getTodayDDMMYYYY();
+        }
+        prefillId();
+        renderFindingsTable();
       });
 
