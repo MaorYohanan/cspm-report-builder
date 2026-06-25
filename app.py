@@ -319,7 +319,7 @@ def cleanup_old_files():
     removed = 0
     for f in OUTPUT_DIR.iterdir():
         if f.is_file() and f.stat().st_mtime < cutoff:
-            f.unlink()
+            f.unlink(missing_ok=True)
             removed += 1
     return removed
 

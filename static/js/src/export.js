@@ -4,7 +4,7 @@ import {
   renderFindingsTable, prefillId, resetEditState, generateNextId,
   splitLines, switchToTab, buildFilename, buildReportHtml,
   buildSnapshot, applySnapshot, categoryMap, escapeHtml,
-  resetCoverImage
+  resetCoverImage, getTodayDDMMYYYY
 } from './findings.js';
 import { updateStepper } from './ui.js';
 

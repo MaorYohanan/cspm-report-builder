@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { showToast, styledConfirm } from './core.js';
-import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml } from './findings.js';
+import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY } from './findings.js';
 import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
 import { ProductsPanel } from './products.js';
