@@ -7,6 +7,7 @@ import threading
 from flask import Blueprint, jsonify, request
 
 from backend.services import GeminiService
+from backend.services.auth_service import require_role
 
 ai_bp = Blueprint('ai', __name__)
 
@@ -40,6 +41,7 @@ def get_gemini_service() -> GeminiService:
 
 
 @ai_bp.route("/api/suggest", methods=["POST"])
+@require_role("editor")
 def api_suggest():
     """Send text to Gemini for phrasing improvement."""
     if not GEMINI_API_KEY:
@@ -74,6 +76,7 @@ def api_suggest():
 
 
 @ai_bp.route("/api/summarize-remediation", methods=["POST"])
+@require_role("editor")
 def api_summarize_remediation():
     """Summarize remediation instructions using AI."""
     if not GEMINI_API_KEY:

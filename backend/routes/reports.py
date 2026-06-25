@@ -14,6 +14,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 
 from backend.services.pdf_service import PDFService
+from backend.services.auth_service import require_role
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -32,6 +33,7 @@ def _safe_filename(name: str) -> str:
 
 
 @reports_bp.route("/api/render-pdf", methods=["POST"])
+@require_role("viewer")
 def api_render_pdf():
     """
     Accept JSON body with { html: "<full report html>", meta: {...} }
@@ -63,6 +65,7 @@ def api_render_pdf():
 
 
 @reports_bp.route("/api/upload-html", methods=["POST"])
+@require_role("editor")
 def api_upload_html():
     """Upload an HTML report to the output folder."""
     if "file" in request.files:

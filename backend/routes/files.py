@@ -8,6 +8,8 @@ from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 
+from backend.services.auth_service import require_role
+
 _log = logging.getLogger(__name__)
 
 # State IDs are uuid4().hex[:12] — exactly 12 lowercase hex chars
@@ -36,6 +38,7 @@ def _safe_filename(name: str) -> str:
 
 
 @files_bp.route("/api/upload-state", methods=["POST"])
+@require_role("editor")
 def api_upload_state():
     """Upload a JSON state file. Accepts multipart file or raw JSON body."""
     if "file" in request.files:
@@ -60,6 +63,7 @@ def api_upload_state():
 
 
 @files_bp.route("/api/download-state/<state_id>")
+@require_role("viewer")
 def api_download_state(state_id: str):
     """Download a previously uploaded state file."""
     if not _STATE_ID_RE.match(state_id):
@@ -73,6 +77,7 @@ def api_download_state(state_id: str):
 
 
 @files_bp.route("/api/list-states")
+@require_role("viewer")
 def api_list_states():
     """List all uploaded state files."""
     states = []
@@ -97,6 +102,7 @@ def api_list_states():
 
 
 @files_bp.route("/api/delete-state/<state_id>", methods=["DELETE"])
+@require_role("editor")
 def api_delete_state(state_id: str):
     """Delete a state file."""
     if not _STATE_ID_RE.match(state_id):
@@ -109,6 +115,7 @@ def api_delete_state(state_id: str):
 
 
 @files_bp.route("/api/download-output/<filename>")
+@require_role("viewer")
 def api_download_output(filename: str):
     """Download a file from the output directory."""
     safe = _safe_filename(filename)
@@ -119,6 +126,7 @@ def api_download_output(filename: str):
 
 
 @files_bp.route("/api/list-outputs")
+@require_role("viewer")
 def api_list_outputs():
     """List all files in the output directory."""
     files = []
@@ -133,6 +141,7 @@ def api_list_outputs():
 
 
 @files_bp.route("/api/delete-output/<filename>", methods=["DELETE"])
+@require_role("editor")
 def api_delete_output(filename: str):
     """Delete an output file."""
     safe = _safe_filename(filename)

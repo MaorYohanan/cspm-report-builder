@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=39">
+  <link rel="stylesheet" href="/static/css/builder.css?v=44">
 </head>
 <body>
   <!-- Toast container -->
@@ -64,46 +64,54 @@
         <span class="sidebar-new-sub" id="sidebar-env-label">לא הוגדרה סביבה</span>
       </button>
 
-      <div class="sidebar-section-label section-workspace" data-collapse="nav-workspace">אזור עבודה <span class="section-chevron">‹</span></div>
-      <nav class="sidebar-nav" id="nav-workspace" role="tablist">
-        <button class="sidebar-item active" role="tab" aria-selected="true" aria-controls="panel-dashboard" id="tab-dashboard" title="לוח בקרה">
-          <span class="sidebar-item-icon icon-dashboard">▦</span> לוח בקרה
-        </button>
-        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-report-details" id="tab-report-details" title="פרטי דו״ח">
-          <span class="sidebar-item-icon icon-details">≡</span> פרטי דו"ח
-        </button>
-        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list" title="ממצאים">
-          <span class="sidebar-item-icon icon-findings">◆</span> ממצאים <span class="sidebar-badge" id="step-findings-count"></span>
-        </button>
-        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form" title="הוסף ממצא">
-          <span class="sidebar-item-icon icon-add">+</span> הוסף ממצא
-        </button>
-      </nav>
+      <div class="sidebar-group sidebar-group-workspace">
+        <div class="sidebar-section-label section-workspace">אזור עבודה <span class="section-chevron">›</span></div>
+        <nav class="sidebar-nav" id="nav-workspace" role="tablist">
+          <button class="sidebar-item active" role="tab" aria-selected="true" aria-controls="panel-dashboard" id="tab-dashboard" title="לוח בקרה">
+            <span class="sidebar-item-icon icon-dashboard">▦</span> לוח בקרה
+          </button>
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-report-details" id="tab-report-details" title="פרטי דו״ח">
+            <span class="sidebar-item-icon icon-details">≡</span> פרטי דו"ח
+          </button>
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-findings-list" id="tab-findings-list" title="ממצאים">
+            <span class="sidebar-item-icon icon-findings">◆</span> ממצאים <span class="sidebar-badge" id="step-findings-count"></span>
+          </button>
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form" title="הוסף ממצא">
+            <span class="sidebar-item-icon icon-add">+</span> הוסף ממצא
+          </button>
+        </nav>
+      </div>
 
-      <div class="sidebar-section-label section-data" data-collapse="nav-data">נתונים <span class="section-chevron">‹</span></div>
-      <nav class="sidebar-nav" id="nav-data">
-        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" title="Wiz Import">
-          <span class="sidebar-item-icon icon-wizi">🔍</span> Wiz Import
-        </button>
-        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager" title="קבצי שרת">
-          <span class="sidebar-item-icon icon-cloud">☁️</span> קבצי שרת
-        </button>
-      </nav>
+      <div class="sidebar-group sidebar-group-data">
+        <div class="sidebar-section-label section-data">נתונים <span class="section-chevron">›</span></div>
+        <nav class="sidebar-nav" id="nav-data">
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" title="Wiz Import">
+            <span class="sidebar-item-icon icon-wizi">🔍</span> Wiz Import
+          </button>
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager" title="קבצי שרת">
+            <span class="sidebar-item-icon icon-cloud">☁️</span> קבצי שרת
+          </button>
+        </nav>
+      </div>
 
-      <div class="sidebar-section-label section-output" data-collapse="nav-output">פלט <span class="section-chevron">‹</span></div>
-      <nav class="sidebar-nav" id="nav-output">
-        <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" title="ייצוא דו״ח">
-          <span class="sidebar-item-icon icon-export">↑</span> ייצוא דו"ח
-        </button>
-      </nav>
+      <div class="sidebar-group sidebar-group-output">
+        <div class="sidebar-section-label section-output">פלט <span class="section-chevron">›</span></div>
+        <nav class="sidebar-nav" id="nav-output">
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" title="ייצוא דו״ח">
+            <span class="sidebar-item-icon icon-export">↑</span> ייצוא דו"ח
+          </button>
+        </nav>
+      </div>
 
-      <div class="sidebar-section-label section-products" data-collapse="nav-products">מוצרים <span class="section-chevron">‹</span></div>
-      <nav class="sidebar-nav" id="nav-products">
-        <button class="sidebar-item" role="tab" aria-selected="false"
-                aria-controls="panel-products" id="tab-products" title="מוצרים">
-          <span class="sidebar-item-icon icon-products">📦</span> מוצרים
-        </button>
-      </nav>
+      <div class="sidebar-group sidebar-group-products">
+        <div class="sidebar-section-label section-products">מוצרים <span class="section-chevron">›</span></div>
+        <nav class="sidebar-nav" id="nav-products">
+          <button class="sidebar-item" role="tab" aria-selected="false"
+                  aria-controls="panel-products" id="tab-products" title="מוצרים">
+            <span class="sidebar-item-icon icon-products">📦</span> מוצרים
+          </button>
+        </nav>
+      </div>
 
       <div class="sidebar-footer">
         <div class="sidebar-utils">
@@ -128,6 +136,11 @@
           </div>
         </div>
         <span id="autosave-indicator" class="autosave-indicator"></span>
+        <div id="sidebar-user" class="sidebar-user" style="display:none;">
+          <span id="sidebar-user-email" class="sidebar-user-email"></span>
+          <a href="/admin" id="sidebar-admin-btn" class="sidebar-logout-btn sidebar-admin-btn" title="ניהול משתמשים" style="display:none;">⚙</a>
+          <a href="/auth/logout" id="sidebar-logout-btn" class="sidebar-logout-btn" title="התנתק">↩</a>
+        </div>
       </div>
     </aside>
 
@@ -796,6 +809,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/builder.js?v=101"></script>
+  <script type="module" src="/static/js/builder.js?v=103"></script>
 </body>
 </html>

@@ -12,7 +12,7 @@
 | **Database** | SQLite (`instance/app.db`) | Cloud SQL — PostgreSQL |
 | **File storage** | Local disk (`uploads/`) | Google Cloud Storage (GCS) |
 | **PDF rendering** | Playwright (local Chromium) | Playwright inside the container |
-| **Auth** | Static `APP_TOKEN` bearer | Google OAuth + RBAC *(Milestone 1.4 — not yet)* |
+| **Auth** | Static `APP_TOKEN` bearer | Google OAuth + RBAC (Milestone 1.4) |
 
 ---
 
@@ -73,7 +73,47 @@ print('Tables created.')
 
 ---
 
-### 4. Deploy to Cloud Run
+### 4. (Optional) Set up Google OAuth
+
+If you want login authentication instead of (or in addition to) the `APP_TOKEN` bearer:
+
+#### 4a. Configure the OAuth consent screen
+1. Go to **GCP Console → APIs & Services → OAuth consent screen**
+   `https://console.cloud.google.com/apis/auth/consent`
+2. User type: **Internal** (restricts login to your Google Workspace org — recommended)
+3. Fill in app name and support email, leave scopes as defaults (`openid`, `email`, `profile`)
+4. Save
+
+#### 4b. Create OAuth credentials
+1. Go to **GCP Console → APIs & Services → Credentials**
+   `https://console.cloud.google.com/apis/credentials`
+2. Click **+ CREATE CREDENTIALS → OAuth 2.0 Client ID**
+3. Application type: **Web application**
+4. Under **Authorized redirect URIs** add:
+   - `http://localhost:8080/auth/callback` (local dev)
+   - `https://YOUR_CLOUD_RUN_URL/auth/callback` (production)
+5. Click **Create** — copy the **Client ID** and **Client Secret** from the dialog
+
+#### 4c. Generate a session secret key
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+#### 4d. Set the env vars
+Add to your `.env` (dev) or Cloud Run env vars (prod):
+```
+GOOGLE_CLIENT_ID=123456789-abcdef.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxx
+ALLOWED_DOMAIN=yourcompany.com          # leave empty to allow any Google account
+INITIAL_ADMIN_EMAIL=your@yourcompany.com  # auto-granted Admin on first login
+SECRET_KEY=<output from step 4c>
+```
+
+> **Internal vs External:** Internal consent screen (Google Workspace only) blocks non-org accounts at Google's level. External allows any Google account — `ALLOWED_DOMAIN` is then your only gate. Use Internal if your whole team has company Google accounts.
+
+---
+
+### 5. Deploy to Cloud Run
 
 ```bash
 gcloud run deploy cspm-report-builder \
@@ -84,12 +124,17 @@ gcloud run deploy cspm-report-builder \
   --add-cloudsql-instances PROJECT:REGION:INSTANCE \
   --set-env-vars "
     DATABASE_URL=postgresql+psycopg2://cspm_user:password@/cspm?host=/cloudsql/PROJECT:REGION:INSTANCE,
+    SECRET_KEY=your-generated-secret-key,
     GEMINI_API_KEY=your-gemini-key,
     WIZI_CLIENT_ID=your-wiz-client-id,
     WIZI_CLIENT_SECRET=your-wiz-client-secret,
     WIZI_AUTH_URL=https://auth.app.wiz.io/oauth/token,
     WIZI_API_URL=https://api.il1.app.wiz.io/graphql,
     APP_TOKEN=your-strong-random-token,
+    GOOGLE_CLIENT_ID=your-google-client-id,
+    GOOGLE_CLIENT_SECRET=your-google-client-secret,
+    ALLOWED_DOMAIN=yourcompany.com,
+    INITIAL_ADMIN_EMAIL=your@email.com,
     RATE_LIMIT_MAX=30,
     RATE_LIMIT_WINDOW=60
   "
@@ -99,7 +144,7 @@ gcloud run deploy cspm-report-builder \
 
 ---
 
-### 5. Migrate existing data (if upgrading from JSON-file storage)
+### 6. Migrate existing data (if upgrading from JSON-file storage)
 
 If you have existing products in `uploads/products/` from the old version, migrate them once:
 
@@ -119,23 +164,24 @@ python -m backend.migration.migrate_json_to_db
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes (prod) | PostgreSQL connection string. Leave empty for SQLite dev. |
+| `SECRET_KEY` | Yes (prod) | Flask session signing key. Generate: `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `GEMINI_API_KEY` | No | Enables AI executive summary features. |
 | `WIZI_CLIENT_ID` | No | Wiz service account client ID. |
 | `WIZI_CLIENT_SECRET` | No | Wiz service account secret. |
 | `WIZI_AUTH_URL` | No | Wiz OAuth token URL. |
 | `WIZI_API_URL` | No | Wiz GraphQL API URL. |
-| `APP_TOKEN` | Recommended | Bearer token protecting all API endpoints. |
-| `RATE_LIMIT_MAX` | No | Max POST/DELETE requests per window per IP (default 30). |
+| `APP_TOKEN` | Recommended | Bearer token protecting all API endpoints. **In OAuth mode this token bypasses all role checks and grants implicit admin access on every route — treat it as a root credential, store it in Secret Manager, and rotate it if ever exposed.** Every use is logged at WARNING level for audit. |
+| `RATE_LIMIT_MAX` | No | Max POST/DELETE/PATCH requests per window per IP (default 30). |
 | `RATE_LIMIT_WINDOW` | No | Rate limit window in seconds (default 60). |
 | `CLEANUP_DAYS` | No | Delete output files older than N days (default 30). |
 | `FLASK_DEBUG` | No | Set to `1` for human-readable logs in dev (default: JSON). |
 | `GUNICORN_WORKERS` | No | Number of Gunicorn worker processes (default 1). |
 | `GUNICORN_THREADS` | No | Threads per worker (default 4). |
-| `GCS_BUCKET_NAME` | No | *(Milestone 1.3)* GCS bucket for clipboard evidence uploads. |
-| `GOOGLE_CLIENT_ID` | No | *(Milestone 1.4)* Google OAuth client ID. |
-| `GOOGLE_CLIENT_SECRET` | No | *(Milestone 1.4)* Google OAuth client secret. |
-| `ALLOWED_DOMAIN` | No | *(Milestone 1.4)* Restrict login to this email domain (e.g. `company.com`). |
-| `INITIAL_ADMIN_EMAIL` | No | *(Milestone 1.4)* Email that auto-gets Admin role on first login. |
+| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID. If set, enables OAuth login gate. |
+| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret. |
+| `ALLOWED_DOMAIN` | No | Restrict OAuth login to this email domain (e.g. `company.com`). Empty = any Google account. |
+| `INITIAL_ADMIN_EMAIL` | No | When the Users table is empty, only this email may claim the bootstrap Admin slot. Other emails are rejected until this person logs in first and adds them via the UI. Has no effect once the table has any users. |
+| `GCS_BUCKET_NAME` | No | Reserved — not yet used (evidence stored as base64 in DB). |
 
 ---
 

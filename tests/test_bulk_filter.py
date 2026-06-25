@@ -86,24 +86,25 @@ CASES = [
         },
     ),
     (
-        # endOfLifeFindings shares inventoryFindings' filter shape — it MUST
-        # carry the severity/status keys so the bulk import respects the
-        # "CRITICAL+HIGH only" contract documented at build_bulk_filter line 496.
-        # Previously it was lumped with networkExposures/excessiveAccessFindings
-        # under a `pass` branch and silently fetched every severity.
+        # endOfLifeFindings maps to the Wiz 'vulnerabilityFindings' GraphQL query.
+        # The filter type is VulnerabilityFindingFilters — uses plain-list severity/status
+        # and subscriptionExternalId (NOT resource.subscriptionId which belongs to
+        # inventory-type filters). isEndOfLife=True narrows to EOL findings only.
         "endOfLifeFindings",
         {
-            "severity": {"equals": ["CRITICAL", "HIGH"]},
-            "status": {"equals": ["OPEN", "IN_PROGRESS"]},
-            "resource": {"subscriptionId": {"equals": SUB_IDS}},
+            "severity": ["CRITICAL", "HIGH"],
+            "status": ["OPEN", "IN_PROGRESS"],
+            "isEndOfLife": True,
+            "subscriptionExternalId": SUB_EXT_IDS,
         },
     ),
     (
+        # softwareSupplyChainFindings: Wiz's SoftwareSupplyChainFindingFilters type
+        # has no subscription scope field — filtering by subscription is not supported.
         "softwareSupplyChainFindings",
         {
             "severity": {"equals": ["CRITICAL", "HIGH"]},
             "status": {"equals": ["OPEN", "IN_PROGRESS"]},
-            "resource": {"subscriptionId": {"equals": SUB_IDS}},
         },
     ),
 ]
@@ -123,6 +124,6 @@ def test_excessive_access_has_no_severity_or_status_keys():
     assert "status" not in actual
 
 
-# NOTE: endOfLifeFindings and softwareSupplyChainFindings are not tested
-# explicitly — they follow the same shape as inventoryFindings. Add cases
-# above if either diverges.
+# NOTE: endOfLifeFindings uses VulnerabilityFindingFilters (plain-list severity/status,
+# isEndOfLife=True, subscriptionExternalId). softwareSupplyChainFindings uses its own
+# filter type with no subscription scope field.

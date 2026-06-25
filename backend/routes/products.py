@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.database import db
 from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
+from backend.services.auth_service import require_role
 
 products_bp = Blueprint("products", __name__)
 
@@ -292,6 +293,7 @@ def _refresh_product_latest(product: Product) -> None:
 # ---------------------------------------------------------------------------
 
 @products_bp.route("/api/products", methods=["GET"])
+@require_role("viewer")
 def list_products():
     products = Product.query.order_by(Product.name).all()
     result = []
@@ -311,6 +313,7 @@ def list_products():
 
 
 @products_bp.route("/api/products", methods=["POST"])
+@require_role("editor")
 def create_product():
     data = request.get_json(silent=True) or {}
 
@@ -354,6 +357,7 @@ def _product_to_dict(p: Product) -> dict:
 
 
 @products_bp.route("/api/products/<product_id>", methods=["GET"])
+@require_role("viewer")
 def get_product(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -367,6 +371,7 @@ def get_product(product_id: str):
 
 
 @products_bp.route("/api/products/<product_id>", methods=["PUT"])
+@require_role("editor")
 def update_product(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -398,6 +403,7 @@ def update_product(product_id: str):
 
 
 @products_bp.route("/api/products/<product_id>", methods=["DELETE"])
+@require_role("admin")
 def delete_product(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -417,6 +423,7 @@ def delete_product(product_id: str):
 # ---------------------------------------------------------------------------
 
 @products_bp.route("/api/products/<product_id>/versions", methods=["GET"])
+@require_role("viewer")
 def list_versions(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -435,6 +442,7 @@ def list_versions(product_id: str):
 
 
 @products_bp.route("/api/products/<product_id>/versions", methods=["POST"])
+@require_role("editor")
 def save_version(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -552,6 +560,7 @@ def save_version(product_id: str):
 
 
 @products_bp.route("/api/products/<product_id>/versions/<ver>", methods=["GET"])
+@require_role("viewer")
 def get_version(product_id: str, ver: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -571,6 +580,7 @@ def get_version(product_id: str, ver: str):
 
 
 @products_bp.route("/api/products/<product_id>/versions/<ver>", methods=["DELETE"])
+@require_role("admin")
 def delete_version(product_id: str, ver: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -597,6 +607,7 @@ def delete_version(product_id: str, ver: str):
 
 
 @products_bp.route("/api/products/<product_id>/versions/<ver>/publish", methods=["POST"])
+@require_role("editor")
 def publish_version(product_id: str, ver: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -647,6 +658,7 @@ def _memory_to_dict(product_id: str) -> dict:
 
 
 @products_bp.route("/api/products/<product_id>/memory", methods=["GET"])
+@require_role("viewer")
 def get_memory(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -659,6 +671,7 @@ def get_memory(product_id: str):
 
 
 @products_bp.route("/api/products/<product_id>/memory/entry", methods=["POST"])
+@require_role("editor")
 def upsert_memory_entry(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
@@ -716,6 +729,7 @@ def upsert_memory_entry(product_id: str):
 
 
 @products_bp.route("/api/products/<product_id>/memory/entry", methods=["DELETE"])
+@require_role("editor")
 def delete_memory_entry(product_id: str):
     safe_id = _safe_param(product_id)
     if not safe_id:
