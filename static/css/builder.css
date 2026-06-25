@@ -91,7 +91,7 @@ html {
   flex-direction: column;
   padding: 0;
   z-index: 100;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .sidebar-brand {
@@ -188,31 +188,45 @@ html {
 }
 
 .section-chevron {
-  font-size: 12px;
-  transition: transform 0.2s ease;
-  transform: rotate(-90deg);
+  font-size: 10px;
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
 }
 
-.sidebar-section-label.collapsed .section-chevron {
-  transform: rotate(90deg);
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-bottom: 4px;
-  padding: 0 6px;
-  overflow: hidden;
-  max-height: 500px;
-  transition: max-height 0.25s ease, opacity 0.2s ease;
+.sidebar-group:hover .section-chevron {
   opacity: 1;
 }
 
-.sidebar-nav.collapsed {
-  max-height: 0;
+/* ── Sidebar group: hover container for each nav section ── */
+.sidebar-group {
+  position: relative;
+}
+
+/* ── Flyout submenu — slides out to the left of the sidebar on hover ── */
+.sidebar-nav {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  min-width: 185px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+  background: var(--sidebar-bg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: var(--radius);
+  box-shadow: -6px 4px 24px rgba(0,0,0,0.45);
+  z-index: 200;
   opacity: 0;
-  margin-bottom: 0;
+  pointer-events: none;
+  transform: translateX(8px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sidebar-group:hover .sidebar-nav {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .sidebar-item {
@@ -254,23 +268,50 @@ html {
   flex-shrink: 0;
 }
 
-/* Section label colors */
+/* ── Section label colors ── */
 .section-workspace { color: oklch(0.7 0.15 220); }
-.section-data { color: oklch(0.7 0.15 160); }
-.section-output { color: oklch(0.7 0.15 40); }
+.section-data      { color: oklch(0.7 0.15 160); }
+.section-output    { color: oklch(0.7 0.15 40); }
+.section-products  { color: oklch(0.7 0.15 80); }
 
-.section-workspace:hover { color: oklch(0.8 0.18 220); }
-.section-data:hover { color: oklch(0.8 0.18 160); }
-.section-output:hover { color: oklch(0.8 0.18 40); }
+.sidebar-group:hover .section-workspace { color: oklch(0.82 0.18 220); }
+.sidebar-group:hover .section-data      { color: oklch(0.82 0.18 160); }
+.sidebar-group:hover .section-output    { color: oklch(0.82 0.18 40); }
+.sidebar-group:hover .section-products  { color: oklch(0.82 0.18 80); }
 
-/* Icon colors */
-.icon-dashboard { color: oklch(0.72 0.16 260); }
-.icon-details { color: oklch(0.68 0.14 200); }
-.icon-findings { color: oklch(0.7 0.18 40); }
-.icon-add { color: oklch(0.72 0.18 155); }
-.icon-wizi { color: oklch(0.7 0.16 280); }
-.icon-cloud { color: oklch(0.72 0.14 210); }
-.icon-export { color: oklch(0.7 0.16 80); }
+/* ── Group color variables — inherited by flyout items ── */
+.sidebar-group-workspace { --group-color: oklch(0.7 0.15 220); --group-color-bright: oklch(0.82 0.18 220); }
+.sidebar-group-data      { --group-color: oklch(0.7 0.15 160); --group-color-bright: oklch(0.82 0.18 160); }
+.sidebar-group-output    { --group-color: oklch(0.7 0.15 40);  --group-color-bright: oklch(0.82 0.18 40); }
+.sidebar-group-products  { --group-color: oklch(0.7 0.15 80);  --group-color-bright: oklch(0.82 0.18 80); }
+
+/* Flyout items colored by their group */
+.sidebar-group .sidebar-nav .sidebar-item {
+  color: var(--group-color);
+}
+.sidebar-group .sidebar-nav .sidebar-item:hover {
+  color: var(--group-color-bright);
+  background: rgba(255,255,255,0.06);
+}
+.sidebar-group .sidebar-nav .sidebar-item.active {
+  color: var(--group-color-bright);
+  background: color-mix(in oklch, var(--group-color) 15%, transparent);
+  border-right-color: var(--group-color);
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--group-color) 25%, transparent);
+}
+.sidebar-group .sidebar-nav .sidebar-item.active .sidebar-item-icon {
+  color: var(--group-color-bright);
+}
+
+/* ── Icon colors ── */
+.icon-dashboard  { color: oklch(0.72 0.16 260); }
+.icon-details    { color: oklch(0.68 0.14 200); }
+.icon-findings   { color: oklch(0.7 0.18 40); }
+.icon-add        { color: oklch(0.72 0.18 155); }
+.icon-wizi       { color: oklch(0.7 0.16 280); }
+.icon-cloud      { color: oklch(0.72 0.14 210); }
+.icon-export     { color: oklch(0.7 0.16 80); }
+.icon-products   { color: oklch(0.72 0.14 80); }
 
 .sidebar-item.active .sidebar-item-icon { color: var(--accent); }
 
@@ -474,6 +515,10 @@ html {
 .sidebar-logout-btn:hover {
   color: var(--text);
   background: rgba(255,255,255,0.08);
+}
+
+.sidebar-admin-btn:hover {
+  color: var(--accent, #7c9ef8);
 }
 
 

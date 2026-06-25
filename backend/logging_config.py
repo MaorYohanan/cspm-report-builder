@@ -9,7 +9,7 @@ GCP-compatible fields:
   message   — the log message
   path      — HTTP request path (injected by RequestContextFilter)
   method    — HTTP method
-  user_email — authenticated user email (None until Milestone 1.4 adds OAuth)
+  user_email — authenticated user email, or None for unauthenticated/background requests
 """
 from __future__ import annotations
 

@@ -517,10 +517,12 @@ def build_bulk_filter(query_type, sub_ids, sub_ext_ids, sub_names=None):
     sub_names = sub_names or []
 
     # --- Severity filter: Only CRITICAL and HIGH (not MEDIUM or below) ---
-    if query_type in ("issues", "configurationFindings", "vulnerabilityFindings", "hostConfigurationRuleAssessments"):
+    # endOfLifeFindings uses the vulnerabilityFindings Wiz query — same plain-list severity schema.
+    if query_type in ("issues", "configurationFindings", "vulnerabilityFindings",
+                      "hostConfigurationRuleAssessments", "endOfLifeFindings"):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings", "endOfLifeFindings"):
-        pass  # Non-standard schemas or all severities relevant (EOL findings are often MEDIUM)
+    elif query_type in ("networkExposures", "excessiveAccessFindings"):
+        pass  # Non-standard filter schemas — no severity field
     else:
         # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
@@ -559,11 +561,12 @@ def build_bulk_filter(query_type, sub_ids, sub_ext_ids, sub_names=None):
     elif query_type == "inventoryFindings" and sub_ids:
         filter_by["resource"] = {"subscriptionId": {"equals": sub_ids}}
     elif query_type == "endOfLifeFindings":
-        # EOL findings are vulnerabilityFindings with isEndOfLife=True
+        # EOL findings use the vulnerabilityFindings Wiz query with an isEndOfLife flag.
+        # The filter type is VulnerabilityFindingFilters — uses subscriptionExternalId (not resource).
         filter_by["isEndOfLife"] = True
         if sub_ext_ids:
             filter_by["subscriptionExternalId"] = sub_ext_ids
-    # softwareSupplyChainFindings has no resource.subscriptionId filter — skip
+    # softwareSupplyChainFindings: Wiz's SSC filter type has no subscription scope field.
 
     return filter_by
 

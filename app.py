@@ -17,8 +17,10 @@ from __future__ import annotations
 import hmac
 import logging
 import os
+import secrets
 import time
 from collections import defaultdict
+from datetime import timedelta
 from pathlib import Path
 from typing import Dict
 
@@ -59,11 +61,9 @@ app = Flask(
 # Secret key — required for signed sessions (OAuth mode)
 # ---------------------------------------------------------------------------
 
-import secrets as _secrets
-
 _secret_key = os.environ.get("SECRET_KEY", "")
 if not _secret_key:
-    _secret_key = _secrets.token_hex(32)
+    _secret_key = secrets.token_hex(32)
     _log.warning(
         "SECRET_KEY not set — sessions will be invalidated on restart. "
         "Set SECRET_KEY in production."
@@ -71,6 +71,11 @@ if not _secret_key:
 app.config["SECRET_KEY"] = _secret_key
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+# Only enforce Secure flag in production (HTTPS). Dev/lab environments use plain HTTP.
+app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("DATABASE_URL"))
+# Limit session lifetime so role changes take effect within a reasonable window.
+# session.permanent = True is set in auth.py; this caps the lifetime to 8 hours.
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -203,11 +208,11 @@ def enforce_auth():
         return None
 
     if _google_client_id:
-        # OAuth mode: accept session or APP_TOKEN bearer
+        # OAuth mode: accept session or APP_TOKEN bearer (bearer only if token is configured)
         if session.get("user_email"):
             pass  # session OK
-        elif check_auth():
-            pass  # APP_TOKEN bearer OK
+        elif APP_TOKEN and check_auth():
+            pass  # APP_TOKEN bearer OK (CI/scripts only)
         else:
             # Not authenticated
             if path.startswith("/api/"):
@@ -255,6 +260,9 @@ def log_request(response):
 @app.errorhandler(Exception)
 def handle_unhandled_exception(exc):
     """Log unhandled exceptions with full stack trace and return a clean 500."""
+    from werkzeug.exceptions import HTTPException
+    if isinstance(exc, HTTPException):
+        return exc  # 4xx/5xx HTTP exceptions are expected; let Flask respond normally
     _log.error("Unhandled exception", exc_info=True)
     return jsonify({"error": "Internal server error"}), 500
 

@@ -39,11 +39,14 @@ def login():
 
 @auth_bp.route("/auth/callback")
 def callback():
-    token = oauth.google.authorize_access_token()
+    try:
+        token = oauth.google.authorize_access_token()
+    except Exception:
+        return redirect(url_for("auth.error", reason="invalid"))
     userinfo = token.get("userinfo", {})
     email = (userinfo.get("email") or "").lower().strip()
 
-    if not email:
+    if not email or not userinfo.get("email_verified"):
         return redirect(url_for("auth.error", reason="invalid"))
 
     # Gate 1: domain whitelist
@@ -75,6 +78,7 @@ def error():
     messages = {
         "domain": "הדומיין שלך אינו מורשה לגשת למערכת. פנה למנהל המערכת.",
         "unauthorized": "חשבונך אינו ברשימת המורשים. פנה למנהל המערכת לקבלת הרשאה.",
+        "forbidden": "אין לך הרשאה לגשת לדף זה.",
         "invalid": "שגיאת אימות. אנא נסה שוב.",
         "unknown": "שגיאה לא ידועה. אנא נסה שוב.",
     }

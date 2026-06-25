@@ -10,6 +10,10 @@
             emailEl.textContent = data.email || '';
             emailEl.title = (data.email || '') + ' (' + (data.role || '') + ')';
             el.style.display = 'flex';
+            if (data.role === 'admin') {
+              var adminBtn = document.getElementById('sidebar-admin-btn');
+              if (adminBtn) adminBtn.style.display = '';
+            }
           })
           .catch(function() {});
       })();

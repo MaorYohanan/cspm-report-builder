@@ -27,6 +27,7 @@ services:
       # Persistent data directories
       - ./output:/app/output           # Generated PDF reports
       - ./uploads:/app/uploads         # Uploaded Excel files and saved states
+      - ./instance:/app/instance       # SQLite database (users, products, snapshots)
 
       # Development hot-reload (mount source files)
       # Comment out these lines in production for better security
@@ -47,6 +48,13 @@ services:
       # Security and access control
       # Set APP_TOKEN to require Bearer token authentication
       - APP_TOKEN=${APP_TOKEN:-}
+
+      # Google OAuth + RBAC (optional — OAuth is disabled when GOOGLE_CLIENT_ID is unset)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - ALLOWED_DOMAIN=${ALLOWED_DOMAIN:-}
+      - INITIAL_ADMIN_EMAIL=${INITIAL_ADMIN_EMAIL:-}
 
       # Rate limiting (POST/DELETE requests per IP)
       - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-30}

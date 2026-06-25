@@ -63,7 +63,11 @@
     <div class="icon">🔒</div>
     <h1>גישה נדחתה</h1>
     <p class="message">{{ message }}</p>
+    {% if request.args.get('reason') == 'forbidden' %}
+    <a href="/" class="btn">חזרה לאפליקציה</a>
+    {% else %}
     <a href="/auth/login" class="btn">חזרה לדף הכניסה</a>
+    {% endif %}
   </div>
 </body>
 </html>
