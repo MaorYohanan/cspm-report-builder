@@ -887,7 +887,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             reportLang: document.getElementById('report-lang').value
           },
           // Strip transient client-side fields before serializing
-          state.findings: state.findings.map(function(f) {
+          findings: state.findings.map(function(f) {
             if (!f || typeof f !== 'object') return f;
             var copy = Object.assign({}, f);
             delete copy._wizSourceId;
@@ -896,7 +896,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           }),
           // Save in-progress form draft so refresh doesn't lose work
           formDraft: {
-            state.editingIndex: state.editingIndex,
+            editingIndex: state.editingIndex,
             id:          document.getElementById('f-id').value,
             title:       document.getElementById('f-title').value,
             severity:    document.getElementById('f-severity').value,
