@@ -1,3 +1,6 @@
+import { showToast, styledConfirm } from './core.js';
+import { buildSnapshot, applySnapshot, switchToTab } from './findings.js';
+
 // ═══════════════════════════════════════════
 // Product Registry — products.js
 // Part of the shared IIFE (no self-wrapping).
@@ -45,7 +48,7 @@ function computeRiskDelta(baselineVer, targetVer) {
 // ProductsPanel — main UI object
 // ---------------------------------------------------------------------------
 
-var ProductsPanel = {
+export var ProductsPanel = {
   currentView: 'grid',   // 'grid' | 'timeline' | 'form'
   selectedProduct: null, // product metadata object
 
@@ -671,7 +674,7 @@ var ProductsPanel = {
 // saveAsVersion — exposed to IIFE scope (called by export shortcut)
 // ---------------------------------------------------------------------------
 
-async function saveAsVersion(productId, versionType, notes) {
+export async function saveAsVersion(productId, versionType, notes) {
   var snapshot;
   try {
     snapshot = buildSnapshot();

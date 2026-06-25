@@ -1,3 +1,11 @@
+import { state } from './state.js';
+import { showToast, styledConfirm } from './core.js';
+import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY } from './findings.js';
+import { updateStepper } from './ui.js';
+import { autoSave } from './export.js';
+import { ProductsPanel } from './products.js';
+
+      var isCloud = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.protocol.startsWith('file');
       var wiziResults = document.getElementById('wizi-results');
       var wiziStatusMsg = document.getElementById('wizi-status-msg');
       var wiziFetchBtn = document.getElementById('btn-wizi-fetch');
@@ -922,13 +930,13 @@
           wiziLoadMoreBtn.style.display = wiziHasNextPage ? '' : 'none';
 
           var typeLabels = {
-            issues: 'issues', configurationFindings: 'configuration findings',
-            vulnerabilityFindings: 'vulnerability findings',
-            hostConfigurationRuleAssessments: 'host config findings',
-            dataFindingsV2: 'data findings', secretInstances: 'secrets',
-            excessiveAccessFindings: 'excessive access findings',
-            networkExposures: 'network exposures', inventoryFindings: 'inventory findings',
-            endOfLifeFindings: 'end of life findings'
+            issues: 'issues', configurationFindings: 'configuration state.findings',
+            vulnerabilityFindings: 'vulnerability state.findings',
+            hostConfigurationRuleAssessments: 'host config state.findings',
+            dataFindingsV2: 'data state.findings', secretInstances: 'secrets',
+            excessiveAccessFindings: 'excessive access state.findings',
+            networkExposures: 'network exposures', inventoryFindings: 'inventory state.findings',
+            endOfLifeFindings: 'end of life state.findings'
           };
           var countText = 'נמצאו ' + wiziIssues.length + ' ' + (typeLabels[qt] || 'ממצאים');
           if (resultSet.totalCount) countText += ' (מתוך ' + resultSet.totalCount + ')';
@@ -1013,7 +1021,7 @@
       });
 
       wiziImportBtn.addEventListener('click', function() {
-        var beforeCount = findings.length;
+        var beforeCount = state.findings.length;
         var subscription = wiziProjectInput.value.trim() || wiziSubInput.value.trim() || '';
         var selected = [];
         document.querySelectorAll('.wizi-check:checked').forEach(function(cb) {
@@ -1026,7 +1034,7 @@
           return;
         }
 
-        // Special case: aggregate vuln findings into a single finding if more than 5
+        // Special case: aggregate vuln state.findings into a single finding if more than 5
         if (wiziQueryType === 'vulnerabilityFindings' && selected.length > 5) {
           var cat = 'VULN';
           var id = generateNextId(cat);
@@ -1055,7 +1063,7 @@
           if (resourceNames.length) technical.push('Affected Resources: ' + resourceNames.join(', '));
           if (subscriptionNames.length) technical.push('Subscriptions: ' + subscriptionNames.join(', '));
 
-          findings.push({
+          state.findings.push({
             id: id, category: cat,
             title: 'Multiple vulnerabilities with high and above severity',
             severity: highestSev,
@@ -1077,7 +1085,7 @@
           return;
         }
 
-        // Special case: aggregate EOL findings into a single combined finding
+        // Special case: aggregate EOL state.findings into a single combined finding
         if (wiziQueryType === 'endOfLifeFindings') {
           var eolId = generateNextId('EOLM');
           var highestEolSev = 'medium';
@@ -1110,7 +1118,7 @@
           var eolTechnical = eolTechLines.slice();
           if (eolSubscriptions.length) eolTechnical.push('Subscription: ' + eolSubscriptions.join(', '));
 
-          findings.push({
+          state.findings.push({
             id: eolId, category: 'EOLM',
             title: 'רכיבים בסוף חיים (End of Life)',
             severity: highestEolSev,
@@ -1138,7 +1146,7 @@
           return;
         }
 
-        // Group findings by rule ID only
+        // Group state.findings by rule ID only
         // All items with same rule will be consolidated into one finding
         // with all unique subscriptions and resources listed
         var groupedByRule = {};
@@ -1157,32 +1165,32 @@
         var consolidated = 0;
         var updated = 0;
 
-        // For secrets: merge any existing SECR findings that share a title into one
-        // before building the dedup map. This handles findings from older imports
+        // For secrets: merge any existing SECR state.findings that share a title into one
+        // before building the dedup map. This handles state.findings from older imports
         // that were keyed per-path and left multiple stale entries.
         if (wiziQueryType === 'secretInstances') {
           var secrByTitle = {};
           var secrToRemove = [];
-          for (var i = 0; i < findings.length; i++) {
-            var f = findings[i];
+          for (var i = 0; i < state.findings.length; i++) {
+            var f = state.findings[i];
             if (f.category !== 'SECR') continue;
             var tkey = (f.title || '').toLowerCase();
             if (!secrByTitle[tkey]) {
               secrByTitle[tkey] = i;
             } else {
-              var pf = findings[secrByTitle[tkey]];
+              var pf = state.findings[secrByTitle[tkey]];
               var pPaths = getSecrPaths(pf);
               getSecrPaths(f).forEach(function(p) { if (pPaths.indexOf(p) === -1) pPaths.push(p); });
               writeSecrPaths(pf, pPaths);
               secrToRemove.push(i);
             }
           }
-          for (var ri = secrToRemove.length - 1; ri >= 0; ri--) findings.splice(secrToRemove[ri], 1);
+          for (var ri = secrToRemove.length - 1; ri >= 0; ri--) state.findings.splice(secrToRemove[ri], 1);
         }
 
         var existingTitles = {};
         var existingFindingsByTitle = {};
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var key = getFindingDedupeKey(f);
           existingTitles[key] = true;
           existingFindingsByTitle[key] = f;
@@ -1326,7 +1334,7 @@
             }
           });
           
-          var lastFinding = findings[findings.length - 1];
+          var lastFinding = state.findings[state.findings.length - 1];
           
           // Set owner field to subscription(s) - works for single or multiple items
           if (allSubscriptions.length > 0) {
@@ -1447,7 +1455,7 @@
           var newDedupeKey = getItemDedupeKey(firstItem, wiziQueryType);
           if (newDedupeKey) {
             existingTitles[newDedupeKey] = true;
-            existingFindingsByTitle[newDedupeKey] = findings[findings.length - 1];
+            existingFindingsByTitle[newDedupeKey] = state.findings[state.findings.length - 1];
           }
         });
 
@@ -1462,7 +1470,7 @@
         showToast(msg, 'success');
 
         // Stamp source subscription and apply product memory
-        var newFindings = findings.slice(beforeCount);
+        var newFindings = state.findings.slice(beforeCount);
         if (subscription) {
           newFindings.forEach(function(f) {
             if (!f._sourceSubscription) f._sourceSubscription = subscription;
@@ -1470,7 +1478,7 @@
         }
         applyProductMemory(newFindings, subscription);
 
-        // Enrich newly imported findings with AI remediation summaries
+        // Enrich newly imported state.findings with AI remediation summaries
         if (newFindings.length) {
           styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
             icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
@@ -2258,7 +2266,7 @@
         });
       }
 
-      function enrichFindingsWithAiSummaries(findingsToEnrich) {
+      export function enrichFindingsWithAiSummaries(findingsToEnrich) {
         var toEnrich = findingsToEnrich.filter(function(f) {
           if (!f.recs || !f.recs.length) return false;
           if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
@@ -2365,7 +2373,7 @@
         var description = issue.description || rule.name || '';
 
         // Impact: severity-based context
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'חשיפת משאב לסיכון ברמת ' + sevLabel;
         if (entity.name) impact += ' — ' + entity.name;
 
@@ -2395,7 +2403,7 @@
         if (projects.length) owner = projects.join(', ');
         else if (entity.subscriptionName) owner = entity.subscriptionName;
 
-        findings.push({
+        state.findings.push({
           id: id,
           category: cat,
           title: title,
@@ -2426,7 +2434,7 @@
         var description = item.name || rule.name || '';
 
         // Impact: severity-based + resource context
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'חשיפת משאב לסיכון ברמת ' + sevLabel;
         if (resource.name) impact += ' — ' + resource.name;
 
@@ -2486,7 +2494,7 @@
         // Recommendations: use remediationInstructions or extract from description
         var recs = extractRecommendations(rule, sevLabel);
 
-        findings.push({
+        state.findings.push({
           id: id,
           category: cat,
           title: title,
@@ -2514,7 +2522,7 @@
         var description = item.CVEDescription || item.description || title;
 
         // Impact: severity + exploit context
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'פגיעות ברמת ' + sevLabel;
         if (item.score != null) impact += ' (CVSS: ' + item.score + ')';
         if (item.hasExploit) impact += ' — קיים Exploit ידוע';
@@ -2536,7 +2544,7 @@
         if (item.fixedVersion) recs.push('עדכון לגרסה: ' + item.fixedVersion);
         if (!recs.length) recs.push('לטפל בפגיעות בהתאם לרמת החומרה (' + sevLabel + ')');
 
-        findings.push({
+        state.findings.push({
           id: id,
           category: cat,
           title: title,
@@ -2567,7 +2575,7 @@
         var description = rule.name || '';
 
         // Impact
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'חשיפת Host לסיכון ברמת ' + sevLabel;
         if (res.name) impact += ' — ' + res.name;
 
@@ -2587,7 +2595,7 @@
         // Recommendations
         var recs = extractRecommendations(rule, sevLabel);
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title,
           severity: sev,
@@ -2616,7 +2624,7 @@
         if (entity.name) description += ' במשאב ' + entity.name;
 
         // Impact
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'חשיפת נתונים רגישים ברמת ' + sevLabel;
         if (classifier.category) impact += ' (קטגוריה: ' + classifier.category + ')';
 
@@ -2631,7 +2639,7 @@
         // Recommendations
         var recs = ['לבצע סיווג נתונים ולהגדיר בקרות גישה מתאימות', 'לוודא הצפנת נתונים רגישים'];
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title,
           severity: sev,
@@ -2658,7 +2666,7 @@
         var description = 'זוהה סוד חשוף מסוג ' + (item.type || title || 'לא ידוע');
 
         // Impact
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'חשיפת סוד ברמת ' + sevLabel + ' — עלול לאפשר גישה לא מורשית למשאבים';
 
         // Technical
@@ -2673,7 +2681,7 @@
         // Recommendations
         var recs = ['לבצע רוטציה מיידית של הסוד החשוף', 'להעביר סודות ל-Secrets Manager / Key Vault'];
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title,
           severity: sev,
@@ -2701,7 +2709,7 @@
         var description = item.description || title;
 
         // Impact
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'הרשאות יתר ברמת ' + sevLabel;
         if (ge.name) impact += ' — ' + ge.name;
         if (ge.type) impact += ' (' + ge.type + ')';
@@ -2727,7 +2735,7 @@
           sevLabel
         );
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title,
           severity: sev,
@@ -2756,7 +2764,7 @@
         if (item.portRange) description += ' בפורטים ' + item.portRange;
 
         // Impact
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'חשיפת רשת ברמת ' + sevLabel;
         if (isPublic) impact += ' — המשאב נגיש מהאינטרנט (0.0.0.0/0)';
 
@@ -2774,7 +2782,7 @@
         recs.push('לוודא שרק פורטים נדרשים פתוחים');
         recs.push('להשתמש ב-Private Endpoint / VPN במידת האפשר');
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title,
           severity: sev,
@@ -2802,7 +2810,7 @@
         var description = item.name || rule.name || '';
 
         // Impact
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
         var impact = 'משאב בסוף חיים (EOL) ברמת ' + sevLabel;
         if (res.name) impact += ' — ' + res.name;
 
@@ -2821,7 +2829,7 @@
         // Recommendations
         var recs = ['לעדכן או להחליף את המשאב לגרסה נתמכת', 'לתכנן מיגרציה בהתאם ללוח הזמנים של הספק'];
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title,
           severity: sev,
@@ -2842,7 +2850,7 @@
         var asset = item.vulnerableAsset || {};
         var res = item.resource || {};
         var ca = res.cloudAccount || {};
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
 
         // Support both old endOfLifeFindings schema (tech.name) and vuln-based schema (detailedName)
         var techLabel = item.detailedName || tech.name || 'End of Life Asset';
@@ -2879,7 +2887,7 @@
           'לבחון חשיפות אבטחה הנובעות מחוסר עדכוני אבטחה ב-EOL'
         ];
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title, severity: sev,
           description: description, impact: impact,
@@ -2897,7 +2905,7 @@
         var id = generateNextId(cat);
         var res = item.resource || {};
         var ca = res.cloudAccount || {};
-        var sevLabel = (severityMap[sev] || {}).text || sev;
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
 
         var pkgName = item.packageName || item.name || 'Software Package';
         var pkgVersion = item.packageVersion || '';
@@ -2926,7 +2934,7 @@
           'לבדוק אם קיימים ניצולים ידועים (CVEs) עבור גרסה זו'
         ];
 
-        findings.push({
+        state.findings.push({
           id: id, category: cat,
           title: title, severity: sev,
           description: description, impact: impact,
@@ -2940,9 +2948,7 @@
       }
 
       // ── Bulk Import ──
-      var bulkImportResults = {};
       var bulkSelectionState = {}; // Track which items are selected (query type -> Set of indices)
-      var bulkImportRunning = false;
 
       function handleBulkImport() {
         var subInput = document.getElementById('bulk-import-sub');
@@ -2957,7 +2963,7 @@
           return;
         }
 
-        bulkImportRunning = true;
+        state.bulkImportRunning = true;
         btn.disabled = true;
         resultsDiv.innerHTML = '';
         progressDiv.textContent = '';
@@ -3045,7 +3051,7 @@
               }
             }
             btn.disabled = false;
-            bulkImportRunning = false;
+            state.bulkImportRunning = false;
             if (bulkProg) {
               // Briefly show 100% then hide
               setTimeout(function() { bulkProg.classList.remove('active'); }, 800);
@@ -3075,7 +3081,7 @@
           .then(function(data) {
             if (data && data._abort) {
               btn.disabled = false;
-              bulkImportRunning = false;
+              state.bulkImportRunning = false;
               if (bulkProg) bulkProg.classList.remove('active');
               return;
             }
@@ -3139,7 +3145,7 @@
         }
 
         // Store results and compute counts
-        bulkImportResults = {};
+        state.bulkImportResults = {};
         var totalCount = 0;
         var breakdownParts = [];
         var queryTypes = Object.keys(queryTypeLabels);
@@ -3166,7 +3172,7 @@
           }
 
           if (nodes.length) {
-            bulkImportResults[qt] = nodes;
+            state.bulkImportResults[qt] = nodes;
             totalCount += nodes.length;
             breakdownParts.push((queryTypeLabels[qt]) + ': ' + nodes.length);
           }
@@ -3192,7 +3198,7 @@
         var defaultPageSize = 20;
 
         queryTypes.forEach(function(qt) {
-          var nodes = bulkImportResults[qt];
+          var nodes = state.bulkImportResults[qt];
           if (!nodes || !nodes.length) return;
           var label = queryTypeLabels[qt];
           bulkPageState[qt] = { page: 0, pageSize: defaultPageSize };
@@ -3225,33 +3231,33 @@
         }
 
         function renderBulkPage(qt) {
-          var nodes = bulkImportResults[qt];
+          var nodes = state.bulkImportResults[qt];
           if (!nodes) return;
-          var state = bulkPageState[qt];
-          var start = state.page * state.pageSize;
-          var end = Math.min(start + state.pageSize, nodes.length);
-          var totalPages = Math.ceil(nodes.length / state.pageSize);
+          var pg = bulkPageState[qt];
+          var start = pg.page * pg.pageSize;
+          var end = Math.min(start + pg.pageSize, nodes.length);
+          var totalPages = Math.ceil(nodes.length / pg.pageSize);
           var label = queryTypeLabels[qt];
 
           // Sort nodes if sort is active
-          if (state.sortCol) {
-            var dir = state.sortDir || 'asc';
+          if (pg.sortCol) {
+            var dir = pg.sortDir || 'asc';
             nodes = nodes.slice().sort(function(a, b) {
-              var va = getBulkSortValue(a, qt, state.sortCol);
-              var vb = getBulkSortValue(b, qt, state.sortCol);
+              var va = getBulkSortValue(a, qt, pg.sortCol);
+              var vb = getBulkSortValue(b, qt, pg.sortCol);
               if (va < vb) return dir === 'asc' ? -1 : 1;
               if (va > vb) return dir === 'asc' ? 1 : -1;
               return 0;
             });
-            bulkImportResults[qt] = nodes;
+            state.bulkImportResults[qt] = nodes;
           }
 
           var bodyEl = document.getElementById('bulk-body-' + qt);
           if (!bodyEl) return;
 
           function sortIndicator(col) {
-            if (state.sortCol !== col) return ' <span class="sort-arrow">⇅</span>';
-            return state.sortDir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+            if (pg.sortCol !== col) return ' <span class="sort-arrow">⇅</span>';
+            return pg.sortDir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
           }
 
           var h = '';
@@ -3260,7 +3266,7 @@
           h += '<span class="bulk-pagination-info">' + (start + 1) + '–' + end + ' מתוך ' + nodes.length + '</span>';
           h += '<select class="bulk-page-size" data-qt="' + qt + '">';
           [20, 50, 100, 200].forEach(function(s) {
-            h += '<option value="' + s + '"' + (s === state.pageSize ? ' selected' : '') + '>' + s + '</option>';
+            h += '<option value="' + s + '"' + (s === pg.pageSize ? ' selected' : '') + '>' + s + '</option>';
           });
           h += '</select>';
           h += '</div>';
@@ -3286,7 +3292,7 @@
           for (var i = start; i < end; i++) {
             var node = nodes[i];
             var sev = mapWiziSeverity(node.severity);
-            var sevInfo = severityMap[sev] || severityMap.medium;
+            var sevInfo = state.severityMap[sev] || state.severityMap.medium;
             var title = getWiziItemTitle(node, qt);
             var subName = getNodeSubscriptionName(node, qt);
 
@@ -3315,9 +3321,9 @@
           // Pagination controls below table
           if (totalPages > 1) {
             h += '<div class="bulk-pagination-bottom">';
-            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="prev"' + (state.page === 0 ? ' disabled' : '') + '>▶</button>';
-            h += '<span class="bulk-pagination-page">' + (state.page + 1) + ' / ' + totalPages + '</span>';
-            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="next"' + (state.page >= totalPages - 1 ? ' disabled' : '') + '>◀</button>';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="prev"' + (pg.page === 0 ? ' disabled' : '') + '>▶</button>';
+            h += '<span class="bulk-pagination-page">' + (pg.page + 1) + ' / ' + totalPages + '</span>';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="next"' + (pg.page >= totalPages - 1 ? ' disabled' : '') + '>◀</button>';
             h += '</div>';
           }
 
@@ -3354,7 +3360,7 @@
           if (sectionCheck) {
             sectionCheck.addEventListener('change', function() {
               var checked = sectionCheck.checked;
-              var allNodes = bulkImportResults[qt];
+              var allNodes = state.bulkImportResults[qt];
               if (checked) {
                 // Select ALL items across all pages
                 bulkSelectionState[qt] = new Set();
@@ -3384,7 +3390,7 @@
                 bulkSelectionState[qt].delete(idx);
               }
               // Update section checkbox state
-              var allNodes = bulkImportResults[qt];
+              var allNodes = state.bulkImportResults[qt];
               var sectionCheck = bodyEl.querySelector('.bulk-section-check');
               if (sectionCheck) {
                 sectionCheck.checked = bulkSelectionState[qt].size === allNodes.length;
@@ -3420,8 +3426,8 @@
       function updateBulkSelectedCount() {
         var total = 0;
         var checked = 0;
-        Object.keys(bulkImportResults || {}).forEach(function(qt) {
-          var nodes = bulkImportResults[qt];
+        Object.keys(state.bulkImportResults || {}).forEach(function(qt) {
+          var nodes = state.bulkImportResults[qt];
           if (nodes) {
             total += nodes.length;
             checked += (bulkSelectionState[qt] || new Set()).size;
@@ -3455,7 +3461,7 @@
         var selectedByType = {};
         Object.keys(bulkSelectionState || {}).forEach(function(queryType) {
           var selectedIndices = bulkSelectionState[queryType];
-          var nodes = bulkImportResults[queryType];
+          var nodes = state.bulkImportResults[queryType];
           if (!nodes || !selectedIndices || selectedIndices.size === 0) return;
 
           selectedByType[queryType] = [];
@@ -3466,37 +3472,37 @@
           });
         });
 
-        // For secrets: merge any existing SECR findings that share a title into one
+        // For secrets: merge any existing SECR state.findings that share a title into one
         if (selectedByType['secretInstances'] && selectedByType['secretInstances'].length) {
           var bSecrByTitle = {};
           var bSecrToRemove = [];
-          for (var bsi = 0; bsi < findings.length; bsi++) {
-            var bsf = findings[bsi];
+          for (var bsi = 0; bsi < state.findings.length; bsi++) {
+            var bsf = state.findings[bsi];
             if (bsf.category !== 'SECR') continue;
             var bsKey = (bsf.title || '').toLowerCase();
             if (!bSecrByTitle[bsKey]) {
               bSecrByTitle[bsKey] = bsi;
             } else {
-              var bpf = findings[bSecrByTitle[bsKey]];
+              var bpf = state.findings[bSecrByTitle[bsKey]];
               var bpPaths = getSecrPaths(bpf);
               getSecrPaths(bsf).forEach(function(p) { if (bpPaths.indexOf(p) === -1) bpPaths.push(p); });
               writeSecrPaths(bpf, bpPaths);
               bSecrToRemove.push(bsi);
             }
           }
-          for (var bri = bSecrToRemove.length - 1; bri >= 0; bri--) findings.splice(bSecrToRemove[bri], 1);
+          for (var bri = bSecrToRemove.length - 1; bri >= 0; bri--) state.findings.splice(bSecrToRemove[bri], 1);
         }
 
         // Build existing title index for consolidation
         var existingTitles = {};
         var existingFindingsByTitle = {};
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var key = getFindingDedupeKey(f);
           existingTitles[key] = true;
           existingFindingsByTitle[key] = f;
         });
 
-        // Special case: aggregate ALL EOL findings (endOfLifeFindings + inventoryFindings) into one combined finding
+        // Special case: aggregate ALL EOL state.findings (endOfLifeFindings + inventoryFindings) into one combined finding
         var allEolItems = [];
         ['endOfLifeFindings', 'inventoryFindings'].forEach(function(qt) {
           if (selectedByType[qt] && selectedByType[qt].length) {
@@ -3563,7 +3569,7 @@
           } else {
             var eolCat = 'EOLM';
             var eolId = generateNextId(eolCat);
-            findings.push({
+            state.findings.push({
               id: eolId, category: eolCat,
               title: eolTitle,
               severity: eolHighestSev,
@@ -3583,7 +3589,7 @@
               notes: []
             });
             existingTitles[eolTitleLower] = true;
-            existingFindingsByTitle[eolTitleLower] = findings[findings.length - 1];
+            existingFindingsByTitle[eolTitleLower] = state.findings[state.findings.length - 1];
             imported++;
             if (allEolItems.length > 1) consolidated += allEolItems.length - 1;
           }
@@ -3595,12 +3601,12 @@
           var importFn = importFnMap[queryType];
           if (!importFn) return;
 
-          // Special case: aggregate vuln findings into a single finding if more than 5
+          // Special case: aggregate vuln state.findings into a single finding if more than 5
           if (queryType === 'vulnerabilityFindings' && items.length > 5) {
             // Check for duplicates first
             var newItems = [];
             items.forEach(function(item) {
-              if (item.id && findings.some(function(f) { return f._wizSourceId === item.id; })) {
+              if (item.id && state.findings.some(function(f) { return f._wizSourceId === item.id; })) {
                 skipped++;
               } else {
                 newItems.push(item);
@@ -3642,7 +3648,7 @@
             if (resourceNames.length) technical.push('Affected Resources: ' + resourceNames.join(', '));
             if (subscriptionNames.length) technical.push('Subscriptions: ' + subscriptionNames.join(', '));
 
-            findings.push({
+            state.findings.push({
               id: id,
               category: cat,
               title: 'Multiple vulnerabilities with high and above severity',
@@ -3659,7 +3665,7 @@
 
             // Tag with first item's source ID for duplicate detection
             if (newItems[0].id) {
-              findings[findings.length - 1]._wizSourceId = newItems[0].id;
+              state.findings[state.findings.length - 1]._wizSourceId = newItems[0].id;
             }
 
             imported++;
@@ -3667,7 +3673,7 @@
             return;
           }
 
-          // Special case: aggregate VPC firewall rule CSPM findings by exact resource
+          // Special case: aggregate VPC firewall rule CSPM state.findings by exact resource
           if (queryType === 'configurationFindings') {
             var vpcPattern = /^VPC firewall rule[s]? should restrict .+ access/i;
             var vpcItems = [];
@@ -3694,9 +3700,9 @@
               Object.keys(vpcByResource).forEach(function(resName) {
                 var resItems = vpcByResource[resName];
                 if (resItems.length >= 2) {
-                  // Aggregate: 2+ VPC firewall findings on same resource
+                  // Aggregate: 2+ VPC firewall state.findings on same resource
                   var firstItem = resItems[0];
-                  if (firstItem.id && findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
+                  if (firstItem.id && state.findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
                     skipped += resItems.length;
                     return;
                   }
@@ -3714,7 +3720,7 @@
                     if (t && ruleNames.indexOf(t) === -1) ruleNames.push(t);
                   });
 
-                  var sevLabel = (severityMap[highestSev] || {}).text || highestSev;
+                  var sevLabel = (state.severityMap[highestSev] || {}).text || highestSev;
                   var cat = 'CSPM';
                   var id = generateNextId(cat);
                   var technical = [];
@@ -3728,7 +3734,7 @@
 
                   var recs = extractRecommendations(firstItem.rule || {}, sevLabel);
 
-                  findings.push({
+                  state.findings.push({
                     id: id, category: cat,
                     title: 'VPC firewall rules should restrict MULTIPLE accesses',
                     severity: highestSev,
@@ -3743,7 +3749,7 @@
                   });
 
                   if (firstItem.id) {
-                    findings[findings.length - 1]._wizSourceId = firstItem.id;
+                    state.findings[state.findings.length - 1]._wizSourceId = firstItem.id;
                   }
 
                   imported++;
@@ -3774,7 +3780,7 @@
             var firstItem = ruleItems[0];
 
             // Duplicate detection by _wizSourceId
-            if (firstItem.id && findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
+            if (firstItem.id && state.findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
               skipped += ruleItems.length;
               return;
             }
@@ -3881,7 +3887,7 @@
             importFn(firstItem);
             imported++;
 
-            var lastFinding = findings[findings.length - 1];
+            var lastFinding = state.findings[state.findings.length - 1];
 
             // Tag with Wiz source ID
             if (firstItem.id) {
@@ -3961,7 +3967,7 @@
             var newDedupeKey = getItemDedupeKey(firstItem, queryType);
             if (newDedupeKey) {
               existingTitles[newDedupeKey] = true;
-              existingFindingsByTitle[newDedupeKey] = findings[findings.length - 1];
+              existingFindingsByTitle[newDedupeKey] = state.findings[state.findings.length - 1];
             }
           });
         });
@@ -3993,7 +3999,7 @@
         });
       }
 
-      // ── Product Memory: auto-except previously handled findings ──
+      // ── Product Memory: auto-except previously handled state.findings ──
       function applyProductMemory(newFindings, subscription) {
         if (!newFindings || !newFindings.length) return;
         var product = ProductsPanel && ProductsPanel.selectedProduct;
@@ -4034,8 +4040,8 @@
 
           // Check if ALL items across all pages/sections are selected
           var allSelected = true;
-          Object.keys(bulkImportResults || {}).forEach(function(qt) {
-            var nodes = bulkImportResults[qt];
+          Object.keys(state.bulkImportResults || {}).forEach(function(qt) {
+            var nodes = state.bulkImportResults[qt];
             if (nodes && nodes.length) {
               var sel = bulkSelectionState[qt];
               if (!sel || sel.size < nodes.length) allSelected = false;
@@ -4045,8 +4051,8 @@
           var newState = !allSelected;
 
           // Update bulkSelectionState for ALL items (not just visible page)
-          Object.keys(bulkImportResults || {}).forEach(function(qt) {
-            var nodes = bulkImportResults[qt];
+          Object.keys(state.bulkImportResults || {}).forEach(function(qt) {
+            var nodes = state.bulkImportResults[qt];
             if (!nodes) return;
             bulkSelectionState[qt] = new Set();
             if (newState) {
@@ -4078,7 +4084,7 @@
       var btnBulkImportSelected = document.getElementById('btn-bulk-import-selected');
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
-          var beforeCount = findings.length;
+          var beforeCount = state.findings.length;
           var bulkSubscription = (document.getElementById('bulk-import-sub') || {}).value || '';
           bulkSubscription = bulkSubscription.trim();
           var result = importSelectedBulkFindings();
@@ -4098,7 +4104,7 @@
           switchToTab('tab-findings-list');
 
           // Stamp source subscription and apply product memory
-          var newFindings = findings.slice(beforeCount);
+          var newFindings = state.findings.slice(beforeCount);
           if (bulkSubscription) {
             newFindings.forEach(function(f) {
               if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;
@@ -4106,7 +4112,7 @@
           }
           applyProductMemory(newFindings, bulkSubscription);
 
-          // Enrich newly imported findings with AI remediation summaries
+          // Enrich newly imported state.findings with AI remediation summaries
           if (newFindings.length) {
             styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
               icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'

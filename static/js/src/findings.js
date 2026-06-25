@@ -1,22 +1,41 @@
+import { state } from './state.js';
+import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl } from './core.js';
+import { updateStepper, renderDashboard } from './ui.js';
+import { autoSave } from './export.js';
+import { enrichFindingsWithAiSummaries } from './wizi.js';
+import { ProductsPanel } from './products.js';
+
+const addBtn        = document.getElementById('btn-add-finding');
+const cancelEditBtn = document.getElementById('btn-cancel-edit');
+const genBtn        = document.getElementById('btn-generate');
+const dlBtn         = document.getElementById('btn-download');
+const tableWrapper  = document.getElementById('findings-table-wrapper');
+const statusMsg     = document.getElementById('status-msg');
+const editState     = document.getElementById('edit-state');
+const prioritySelect = document.getElementById('f-priority-select');
+const priorityCustom = document.getElementById('f-priority-custom');
+const evidenceInput  = document.getElementById('f-evidence');
+const exportJsonBtn  = document.getElementById('btn-export-json');
+
       // ── Finding Detail Pane ──
-      function showFindingDetail(idx) {
-        selectedFindingIndex = idx;
+      export function showFindingDetail(idx) {
+        state.selectedFindingIndex = idx;
         var emptyEl = document.getElementById('findings-detail-empty');
         var contentEl = document.getElementById('findings-detail-content');
         if (!contentEl || !emptyEl) return;
 
-        if (idx === null || !findings[idx]) {
+        if (idx === null || !state.findings[idx]) {
           emptyEl.style.display = '';
           contentEl.style.display = 'none';
-          selectedFindingIndex = null;
+          state.selectedFindingIndex = null;
           return;
         }
 
         emptyEl.style.display = 'none';
         contentEl.style.display = '';
 
-        var f = findings[idx];
-        var sev = severityMap[f.severity] || severityMap.medium;
+        var f = state.findings[idx];
+        var sev = state.severityMap[f.severity] || state.severityMap.medium;
 
         // Header
         var headerEl = document.getElementById('findings-detail-header');
@@ -51,23 +70,23 @@
           });
           document.getElementById('detail-action-edit').addEventListener('click', function() {
             detailActionsMenu.style.display = 'none';
-            startEditFinding(selectedFindingIndex);
+            startEditFinding(state.selectedFindingIndex);
           });
           document.getElementById('detail-action-dup').addEventListener('click', function() {
             detailActionsMenu.style.display = 'none';
-            if (selectedFindingIndex !== null && findings[selectedFindingIndex]) {
-              var orig = findings[selectedFindingIndex];
+            if (state.selectedFindingIndex !== null && state.findings[state.selectedFindingIndex]) {
+              var orig = state.findings[state.selectedFindingIndex];
               var dup = JSON.parse(JSON.stringify(orig));
               dup.id = generateNextId(dup.category || 'CSPM');
-              findings.splice(selectedFindingIndex + 1, 0, dup);
+              state.findings.splice(state.selectedFindingIndex + 1, 0, dup);
               renderFindingsTable();
               showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
             }
           });
           document.getElementById('detail-action-ai').addEventListener('click', function() {
             detailActionsMenu.style.display = 'none';
-            if (selectedFindingIndex !== null && findings[selectedFindingIndex]) {
-              enrichFindingsWithAiSummaries([findings[selectedFindingIndex]]);
+            if (state.selectedFindingIndex !== null && state.findings[state.selectedFindingIndex]) {
+              enrichFindingsWithAiSummaries([state.findings[state.selectedFindingIndex]]);
             }
           });
           document.getElementById('detail-action-delete').addEventListener('click', function() {
@@ -102,24 +121,24 @@
         if (_excDlg) _excDlg.style.display = 'none';
       }
 
-      function renderDetailTab() {
+      export function renderDetailTab() {
         var bodyEl = document.getElementById('findings-detail-body');
-        if (!bodyEl || selectedFindingIndex === null) return;
-        var f = findings[selectedFindingIndex];
+        if (!bodyEl || state.selectedFindingIndex === null) return;
+        var f = state.findings[state.selectedFindingIndex];
         if (!f) return;
 
         var content = '';
-        if (activeDetailTab === 'description') {
+        if (state.activeDetailTab === 'description') {
           content = f.description || 'אין תיאור';
-        } else if (activeDetailTab === 'impact') {
+        } else if (state.activeDetailTab === 'impact') {
           content = f.impact || 'אין השפעה מוגדרת';
-        } else if (activeDetailTab === 'technical') {
+        } else if (state.activeDetailTab === 'technical') {
           content = Array.isArray(f.technical) ? f.technical.join('\n') : (f.technical || 'אין פרטים טכניים');
-        } else if (activeDetailTab === 'recs') {
+        } else if (state.activeDetailTab === 'recs') {
           content = Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || 'אין המלצות');
-        } else if (activeDetailTab === 'policies') {
+        } else if (state.activeDetailTab === 'policies') {
           content = Array.isArray(f.policies) && f.policies.length ? f.policies.join('\n') : 'אין תקנים';
-        } else if (activeDetailTab === 'exception') {
+        } else if (state.activeDetailTab === 'exception') {
           var isExc = !!(f.exception && f.exception.active);
           var reason = (f.exception && f.exception.reason) || '';
           bodyEl.innerHTML = isExc
@@ -128,7 +147,7 @@
               '</div>'
             : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג.</div>';
           return;
-        } else if (activeDetailTab === 'notes') {
+        } else if (state.activeDetailTab === 'notes') {
           var notes = Array.isArray(f.notes) ? f.notes : (f.notes = []);
           var notesHtml = '<div class="detail-notes-container"><div class="detail-notes-messages" id="detail-notes-messages">';
           if (!notes.length) {
@@ -189,13 +208,13 @@
         tab.addEventListener('click', function() {
           document.querySelectorAll('.findings-detail-tab').forEach(function(t) { t.classList.remove('active'); });
           tab.classList.add('active');
-          activeDetailTab = tab.getAttribute('data-detail-tab');
+          state.activeDetailTab = tab.getAttribute('data-detail-tab');
           renderDetailTab();
         });
       });
 
       // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
-      function saveToProductMemory(f, source, reason) {
+      export function saveToProductMemory(f, source, reason) {
         if (!f || !f._sourceSubscription || !f.title) return;
         var product = ProductsPanel && ProductsPanel.selectedProduct;
         if (!product || !product.id) return;
@@ -206,7 +225,7 @@
         }).catch(function() {});
       }
 
-      function removeFromProductMemory(f) {
+      export function removeFromProductMemory(f) {
         if (!f || !f._sourceSubscription || !f.title) return;
         var product = ProductsPanel && ProductsPanel.selectedProduct;
         if (!product || !product.id) return;
@@ -259,24 +278,24 @@
       })();
 
       if (btnDetailNext) btnDetailNext.addEventListener('click', function() {
-        if (selectedFindingIndex !== null && selectedFindingIndex > 0) {
-          showFindingDetail(selectedFindingIndex - 1);
+        if (state.selectedFindingIndex !== null && state.selectedFindingIndex > 0) {
+          showFindingDetail(state.selectedFindingIndex - 1);
         }
       });
       if (btnDetailPrev) btnDetailPrev.addEventListener('click', function() {
-        if (selectedFindingIndex !== null && selectedFindingIndex < findings.length - 1) {
-          showFindingDetail(selectedFindingIndex + 1);
+        if (state.selectedFindingIndex !== null && state.selectedFindingIndex < state.findings.length - 1) {
+          showFindingDetail(state.selectedFindingIndex + 1);
         }
       });
       if (btnDetailEdit) btnDetailEdit.addEventListener('click', function() {
-        if (selectedFindingIndex !== null) startEditFinding(selectedFindingIndex);
+        if (state.selectedFindingIndex !== null) startEditFinding(state.selectedFindingIndex);
       });
       if (btnDetailDelete) btnDetailDelete.addEventListener('click', function() {
-        if (selectedFindingIndex !== null) {
-          var _f = findings[selectedFindingIndex];
+        if (state.selectedFindingIndex !== null) {
+          var _f = state.findings[state.selectedFindingIndex];
           saveToProductMemory(_f, 'deleted', (_f.exception && _f.exception.reason) || '');
-          findings.splice(selectedFindingIndex, 1);
-          selectedFindingIndex = null;
+          state.findings.splice(state.selectedFindingIndex, 1);
+          state.selectedFindingIndex = null;
           showFindingDetail(null);
           renderFindingsTable();
           showToast('ממצא נמחק', 'info');
@@ -292,8 +311,8 @@
 
       if (btnDetailException) {
         btnDetailException.addEventListener('click', function() {
-          if (selectedFindingIndex === null || !findings[selectedFindingIndex]) return;
-          var f = findings[selectedFindingIndex];
+          if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
+          var f = state.findings[state.selectedFindingIndex];
           if (f.exception && f.exception.active) {
             // Already excepted — immediately toggle off
             removeFromProductMemory(f);
@@ -316,11 +335,11 @@
 
       if (btnExceptionConfirm) {
         btnExceptionConfirm.addEventListener('click', function() {
-          if (selectedFindingIndex === null || !findings[selectedFindingIndex]) return;
+          if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
           var inp = document.getElementById('detail-exception-reason-input');
           var reason = inp ? inp.value.trim() : '';
-          findings[selectedFindingIndex].exception = { active: true, reason: reason };
-          saveToProductMemory(findings[selectedFindingIndex], 'excepted', reason);
+          state.findings[state.selectedFindingIndex].exception = { active: true, reason: reason };
+          saveToProductMemory(state.findings[state.selectedFindingIndex], 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           var excBtn = document.getElementById('btn-detail-exception');
           if (excBtn) {
@@ -341,7 +360,7 @@
       }
 
       // ── Tab navigation ──
-      function switchToTab(tabId) {
+      export function switchToTab(tabId) {
         document.querySelectorAll('.sidebar-item').forEach(function(btn) {
           btn.classList.remove('active');
           btn.setAttribute('aria-selected', 'false');
@@ -418,7 +437,7 @@
       renderDashboard();
 
       // ממיר מחרוזת תאריך בפורמט DD/MM/YYYY לאובייקט Date
-      function parseReportDate(str) {
+      export function parseReportDate(str) {
         if (!str || typeof str !== 'string') return null;
         const parts = str.split(/[.\-\/]/).map(Number);
         if (parts.length !== 3) return null;
@@ -434,7 +453,7 @@
       }
 
       // פורמט חזרה ל-DD/MM/YYYY
-      function formatDate(d) {
+      export function formatDate(d) {
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const year = d.getFullYear();
@@ -442,7 +461,7 @@
       }
 
       // כמה ימים להוסיף לפי עדיפות הטיפול
-      function getDaysForPriority(priority) {
+      export function getDaysForPriority(priority) {
         switch (priority) {
           case 'מיידי (0–7 ימים)':       return 7;
           case 'גבוהה (עד 30 ימים)':     return 30;
@@ -454,7 +473,7 @@
       }
 
       // מחזיר תאריך יעד סגירה לפי תאריך דו"ח + עדיפות
-      function calcDueDate(reportDateStr, priority) {
+      export function calcDueDate(reportDateStr, priority) {
         const base = parseReportDate(reportDateStr);
         const days = getDaysForPriority(priority);
         if (!base || !days) return '';
@@ -464,7 +483,7 @@
       }
 
       // מייצר מזהה עוגן בטוח ל-HTML עבור ממצא
-      function makeFindingAnchorId(id) {
+      export function makeFindingAnchorId(id) {
         const safe = (id || '')
           .toString()
           .trim()
@@ -473,7 +492,7 @@
         return 'finding-' + (safe || 'no-id');
       }
 
-      function splitLines(value) {
+      export function splitLines(value) {
         const s = (value || '').toString()
           .replace(/\\n/g, '\n')     // הופך "\n" מילולי לשבירת שורה
           .replace(/\r\n/g, '\n');  // Windows newlines
@@ -481,7 +500,7 @@
       }
 
       // --- Category definitions ---
-      var categoryMap = {
+      export var categoryMap = {
         'CSPM': 'Cloud Configuration',
         'KSPM': 'Kubernetes',
         'DSPM': 'Data Security',
@@ -494,7 +513,7 @@
       };
 
       // --- Finding templates ---
-      var findingTemplates = [
+      export var findingTemplates = [
         { category: 'CSPM', title: 'S3 Bucket ציבורי עם נתונים רגישים', severity: 'critical', description: 'זוהה S3 Bucket עם הרשאות גישה ציבוריות המכיל נתונים רגישים.', impact: 'חשיפת נתונים רגישים לגורמים לא מורשים, סיכון לדליפת מידע ופגיעה רגולטורית.', recs: 'לבטל גישה ציבורית ל-Bucket\nלהפעיל הצפנה Server-Side (SSE-S3/SSE-KMS)\nלהגדיר Bucket Policy מגביל\nלהפעיל S3 Block Public Access' },
         { category: 'CSPM', title: 'Security Group פתוח לכל העולם (0.0.0.0/0)', severity: 'high', description: 'זוהה Security Group המאפשר תעבורה נכנסת מכל כתובת IP.', impact: 'חשיפת שירותים פנימיים לתקיפות מהאינטרנט, סיכון לגישה לא מורשית.', recs: 'להגביל את ה-Security Group לטווחי IP ספציפיים\nלהסיר כללי Inbound עם 0.0.0.0/0\nלהשתמש ב-VPN או Bastion Host לגישה מרחוק' },
         { category: 'CSPM', title: 'MFA לא מופעל למשתמשי Root/Admin', severity: 'critical', description: 'חשבונות Root או Admin ללא אימות דו-שלבי (MFA).', impact: 'סיכון גבוה לגניבת חשבון ניהולי, גישה מלאה לכל משאבי הענן.', recs: 'להפעיל MFA לכל חשבונות Root ו-Admin\nלהשתמש ב-Hardware MFA Token לחשבון Root\nלהגדיר מדיניות ארגונית המחייבת MFA' },
@@ -542,20 +561,20 @@
       });
 
       // --- Auto-generate finding ID per category ---
-      function generateNextId(prefix) {
+      export function generateNextId(prefix) {
         prefix = prefix || 'CSPM';
         var max = 0;
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var m = (f.id || '').match(new RegExp('^' + prefix + '-(\\d+)'));
           if (m) max = Math.max(max, parseInt(m[1], 10));
         });
         return prefix + '-' + String(max + 1).padStart(3, '0');
       }
 
-      function reorderFindingIds() {
+      export function reorderFindingIds() {
         // Re-number IDs per category sequentially
         var counters = {};
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var m = (f.id || '').match(/^([A-Z]+)-\d+/);
           if (!m) return;
           var prefix = m[1];
@@ -565,10 +584,10 @@
         });
       }
 
-      function promptReorderAfterDelete() {
-        if (!findings.length) return;
+      export function promptReorderAfterDelete() {
+        if (!state.findings.length) return;
         var byCategory = {};
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var m = (f.id || '').match(/^([A-Z]+)-(\d+)/);
           if (!m) return;
           if (!byCategory[m[1]]) byCategory[m[1]] = [];
@@ -587,10 +606,10 @@
         prefillId();
       }
 
-      function prefillId() {
+      export function prefillId() {
         var idField = document.getElementById('f-id');
         if (!idField) return;
-        if (editingIndex === null) {
+        if (state.editingIndex === null) {
           var catEl = document.getElementById('f-category');
           var cat = catEl ? catEl.value : 'CSPM';
           idField.value = generateNextId(cat);
@@ -600,7 +619,7 @@
 
       // Update ID when category changes
       document.getElementById('f-category').addEventListener('change', function() {
-        if (editingIndex === null) {
+        if (state.editingIndex === null) {
           prefillId();
         }
       });
@@ -614,7 +633,7 @@
       // --- Date field: DD/MM/YYYY text input (Israel format) ---
       const dateInput = document.getElementById('report-date');
 
-      function getTodayDDMMYYYY() {
+      export function getTodayDDMMYYYY() {
         var d = new Date();
         var dd = String(d.getDate()).padStart(2, '0');
         var mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -657,7 +676,7 @@
         }
       }
 
-      function syncRangeFromPickers() {
+      export function syncRangeFromPickers() {
         var from = (rangeFromInput.value || '').trim();
         var to = (rangeToInput.value || '').trim();
         if (from && to) {
@@ -671,7 +690,7 @@
         }
       }
 
-      function syncPickersFromRange(rangeStr) {
+      export function syncPickersFromRange(rangeStr) {
         if (!rangeStr) {
           rangeFromInput.value = '';
           rangeToInput.value = '';
@@ -815,11 +834,11 @@
         // Only when not focused on an input/textarea/select
         var tag = (document.activeElement || {}).tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-        if (!findings.length) return;
+        if (!state.findings.length) return;
 
         if (e.key === 'j' || e.key === 'J') {
           e.preventDefault();
-          kbSelectedIdx = Math.min(kbSelectedIdx + 1, findings.length - 1);
+          kbSelectedIdx = Math.min(kbSelectedIdx + 1, state.findings.length - 1);
           highlightFindingRow(kbSelectedIdx);
         } else if (e.key === 'k' || e.key === 'K') {
           e.preventDefault();
@@ -830,13 +849,13 @@
           startEditFinding(kbSelectedIdx);
         } else if ((e.key === 'd' || e.key === 'D') && kbSelectedIdx >= 0) {
           e.preventDefault();
-          styledConfirm('למחוק ממצא ' + (findings[kbSelectedIdx].id || '') + '?', {
+          styledConfirm('למחוק ממצא ' + (state.findings[kbSelectedIdx].id || '') + '?', {
             icon: '🗑️', title: 'מחיקת ממצא', confirmText: 'מחק', cancelText: 'ביטול', danger: true
           }).then(function(yes) {
             if (yes) {
-              saveToProductMemory(findings[kbSelectedIdx], 'deleted', (findings[kbSelectedIdx].exception && findings[kbSelectedIdx].exception.reason) || '');
-              findings.splice(kbSelectedIdx, 1);
-              if (kbSelectedIdx >= findings.length) kbSelectedIdx = findings.length - 1;
+              saveToProductMemory(state.findings[kbSelectedIdx], 'deleted', (state.findings[kbSelectedIdx].exception && state.findings[kbSelectedIdx].exception.reason) || '');
+              state.findings.splice(kbSelectedIdx, 1);
+              if (kbSelectedIdx >= state.findings.length) kbSelectedIdx = state.findings.length - 1;
               renderFindingsTable();
               highlightFindingRow(kbSelectedIdx);
               promptReorderAfterDelete();
@@ -845,8 +864,8 @@
         }
       });
 
-      // בניית Snapshot של כל הדו"ח (meta + findings)
-      function buildSnapshot() {
+      // בניית Snapshot של כל הדו"ח (meta + state.findings)
+      export function buildSnapshot() {
         const snapshot = {
           version: 1,
           meta: {
@@ -868,7 +887,7 @@
             reportLang: document.getElementById('report-lang').value
           },
           // Strip transient client-side fields before serializing
-          findings: findings.map(function(f) {
+          findings: state.findings.map(function(f) {
             if (!f || typeof f !== 'object') return f;
             var copy = Object.assign({}, f);
             delete copy._wizSourceId;
@@ -877,7 +896,7 @@
           }),
           // Save in-progress form draft so refresh doesn't lose work
           formDraft: {
-            editingIndex: editingIndex,
+            editingIndex: state.editingIndex,
             id:          document.getElementById('f-id').value,
             title:       document.getElementById('f-title').value,
             severity:    document.getElementById('f-severity').value,
@@ -897,7 +916,7 @@
       }
 
       // טעינת Snapshot לדו"ח
-      function applySnapshot(snapshot) {
+      export function applySnapshot(snapshot) {
         if (!snapshot || typeof snapshot !== 'object') {
           alert('קובץ JSON לא תקין.');
           return;
@@ -936,10 +955,10 @@
         }
 
         // ניקוי רשימת הממצאים והזנתם מחדש
-        findings.length = 0;
+        state.findings.length = 0;
 
         snapshot.findings.forEach(f => {
-          findings.push({
+          state.findings.push({
             id:          f.id          || '',
             title:       f.title       || '',
             severity:    f.severity    || 'medium',
@@ -992,11 +1011,11 @@
               renderEvidencePreviews();
             }
 
-            if (d.editingIndex !== null && d.editingIndex >= 0 && d.editingIndex < findings.length) {
-              editingIndex = d.editingIndex;
+            if (d.editingIndex !== null && d.editingIndex >= 0 && d.editingIndex < state.findings.length) {
+              state.editingIndex = d.editingIndex;
               addBtn.textContent = 'עדכן ממצא';
               cancelEditBtn.style.display = 'inline-block';
-              editState.textContent = 'מצב: עריכת ממצא #' + (editingIndex + 1);
+              editState.textContent = 'מצב: עריכת ממצא #' + (state.editingIndex + 1);
             }
           }
         }
@@ -1006,20 +1025,20 @@
           (m.reportDate ? ' (תאריך דו"ח: ' + m.reportDate + ').' : '.');
       }
 
-      function renderFindingsTable() {
-              // Update findings count badge on tab
+      export function renderFindingsTable() {
+              // Update state.findings count badge on tab
               var findingsTab = document.getElementById('tab-findings-list');
               if (findingsTab) {
                 var tabIcon = '<span class="sidebar-item-icon">◆</span> ';
-                findingsTab.innerHTML = tabIcon + 'ממצאים <span class="sidebar-badge" id="step-findings-count">' + (findings.length || '') + '</span>';
+                findingsTab.innerHTML = tabIcon + 'ממצאים <span class="sidebar-badge" id="step-findings-count">' + (state.findings.length || '') + '</span>';
               }
               var listCountEl = document.getElementById('findings-list-count');
-              if (listCountEl) listCountEl.textContent = findings.length + ' ממצאים';
+              if (listCountEl) listCountEl.textContent = state.findings.length + ' ממצאים';
               updateStepper();
 
               var batchActions = document.getElementById('batch-actions');
 
-              if (!findings.length) {
+              if (!state.findings.length) {
                 tableWrapper.innerHTML = '<div class="empty-state">' +
                   '<div class="empty-state-icon">📋</div>' +
                   '<div class="empty-state-text">אין עדיין ממצאים בדו"ח</div>' +
@@ -1045,7 +1064,7 @@
               var filterExcOnly = !!(document.getElementById('findings-filter-show-exceptions') || {}).checked;
 
               var filtered = [];
-              findings.forEach(function(f, idx) {
+              state.findings.forEach(function(f, idx) {
                 if (searchText && (f.title || '').toLowerCase().indexOf(searchText) < 0 && (f.id || '').toLowerCase().indexOf(searchText) < 0) return;
                 if (filterCat && f.category !== filterCat) return;
                 if (filterSev && f.severity !== filterSev) return;
@@ -1054,36 +1073,36 @@
               });
 
               // Apply sort
-              if (findingsSortState.col) {
+              if (state.findingsSortState.col) {
                 var sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
                 filtered.sort(function(a, b) {
                   var va, vb;
-                  var col = findingsSortState.col;
+                  var col = state.findingsSortState.col;
                   if (col === 'id') { va = a.f.id || ''; vb = b.f.id || ''; }
                   else if (col === 'category') { va = a.f.category || ''; vb = b.f.category || ''; }
                   else if (col === 'title') { va = (a.f.title || '').toLowerCase(); vb = (b.f.title || '').toLowerCase(); }
                   else if (col === 'severity') { va = sevOrder[a.f.severity] || 9; vb = sevOrder[b.f.severity] || 9; }
                   else if (col === 'owner') { va = (a.f.owner || '').toLowerCase(); vb = (b.f.owner || '').toLowerCase(); }
                   else { va = ''; vb = ''; }
-                  if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
-                  if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+                  if (va < vb) return state.findingsSortState.dir === 'asc' ? -1 : 1;
+                  if (va > vb) return state.findingsSortState.dir === 'asc' ? 1 : -1;
                   return 0;
                 });
               }
 
-              var filterNote = filtered.length < findings.length ? ' (מציג ' + filtered.length + ' מתוך ' + findings.length + ')' : '';
+              var filterNote = filtered.length < state.findings.length ? ' (מציג ' + filtered.length + ' מתוך ' + state.findings.length + ')' : '';
 
               // Pagination
               var totalFiltered = filtered.length;
-              var fTotalPages = Math.ceil(totalFiltered / findingsPageState.pageSize);
-              if (findingsPageState.page >= fTotalPages && fTotalPages > 0) findingsPageState.page = fTotalPages - 1;
-              var fStart = findingsPageState.page * findingsPageState.pageSize;
-              var fEnd = Math.min(fStart + findingsPageState.pageSize, totalFiltered);
+              var fTotalPages = Math.ceil(totalFiltered / state.findingsPageState.pageSize);
+              if (state.findingsPageState.page >= fTotalPages && fTotalPages > 0) state.findingsPageState.page = fTotalPages - 1;
+              var fStart = state.findingsPageState.page * state.findingsPageState.pageSize;
+              var fEnd = Math.min(fStart + state.findingsPageState.pageSize, totalFiltered);
               var pagedFiltered = filtered.slice(fStart, fEnd);
 
               function fSortInd(col) {
-                if (findingsSortState.col !== col) return ' <span class="sort-arrow">⇅</span>';
-                return findingsSortState.dir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+                if (state.findingsSortState.col !== col) return ' <span class="sort-arrow">⇅</span>';
+                return state.findingsSortState.dir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
               }
 
               let html = '';
@@ -1098,7 +1117,7 @@
               pagedFiltered.forEach(function(item) {
                 var f = item.f;
                 var idx = item.idx;
-                const sev = severityMap[f.severity] || severityMap.medium;
+                const sev = state.severityMap[f.severity] || state.severityMap.medium;
                 var isExc = !!(f.exception && f.exception.active);
                 var excBadge = isExc ? ' <span class="badge-exception">מוחרג</span>' : '';
                 var rowStyle = isExc ? ' style="opacity:0.65;"' : '';
@@ -1117,9 +1136,9 @@
               // Pagination nav below table
               if (fTotalPages > 1) {
                 html += '<div class="bulk-pagination-bottom">';
-                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-prev"' + (findingsPageState.page === 0 ? ' disabled' : '') + '>▶</button>';
-                html += '<span class="bulk-pagination-page">' + (findingsPageState.page + 1) + ' / ' + fTotalPages + '</span>';
-                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-next"' + (findingsPageState.page >= fTotalPages - 1 ? ' disabled' : '') + '>◀</button>';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-prev"' + (state.findingsPageState.page === 0 ? ' disabled' : '') + '>▶</button>';
+                html += '<span class="bulk-pagination-page">' + (state.findingsPageState.page + 1) + ' / ' + fTotalPages + '</span>';
+                html += '<button class="btn btn-secondary btn-sm bulk-page-btn" id="findings-page-next"' + (state.findingsPageState.page >= fTotalPages - 1 ? ' disabled' : '') + '>◀</button>';
                 html += '</div>';
               }
 
@@ -1137,10 +1156,10 @@
                   if (Number.isNaN(idx)) return;
 
                   if (action === 'delete') {
-                    saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
-                    findings.splice(idx, 1);
-                    if (editingIndex === idx) resetEditState();
-                    else if (editingIndex !== null && idx < editingIndex) editingIndex--;
+                    saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
+                    state.findings.splice(idx, 1);
+                    if (state.editingIndex === idx) resetEditState();
+                    else if (state.editingIndex !== null && idx < state.editingIndex) state.editingIndex--;
                     renderFindingsTable();
                     showToast('ממצא נמחק', 'info');
                     promptReorderAfterDelete();
@@ -1149,10 +1168,10 @@
                   } else if (action === 'edit') {
                     startEditFinding(idx);
                   } else if (action === 'dup') {
-                    const orig = findings[idx];
+                    const orig = state.findings[idx];
                     const dup = JSON.parse(JSON.stringify(orig));
                     dup.id = generateNextId(dup.category || 'CSPM');
-                    findings.splice(idx + 1, 0, dup);
+                    state.findings.splice(idx + 1, 0, dup);
                     renderFindingsTable();
                     showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
                   }
@@ -1173,17 +1192,17 @@
                 cell.addEventListener('click', function(e) {
                   var idx = parseInt(cell.getAttribute('data-idx'), 10);
                   var field = cell.getAttribute('data-field');
-                  if (Number.isNaN(idx) || !findings[idx]) return;
+                  if (Number.isNaN(idx) || !state.findings[idx]) return;
 
                   if (field === 'severity') {
                     e.stopPropagation();
                     var sevOrder = ['critical', 'high', 'medium', 'low', 'info'];
-                    var cur = sevOrder.indexOf(findings[idx].severity);
-                    findings[idx].severity = sevOrder[(cur + 1) % sevOrder.length];
+                    var cur = sevOrder.indexOf(state.findings[idx].severity);
+                    state.findings[idx].severity = sevOrder[(cur + 1) % sevOrder.length];
                     renderFindingsTable();
                     autoSave();
                   } else if (field === 'title' || field === 'owner') {
-                    var current = field === 'title' ? (findings[idx].title || '') : (findings[idx].owner || '');
+                    var current = field === 'title' ? (state.findings[idx].title || '') : (state.findings[idx].owner || '');
                     var input = document.createElement('input');
                     input.type = 'text';
                     input.value = current;
@@ -1199,9 +1218,9 @@
                     function finishEdit() {
                       var val = input.value.trim();
                       if (field === 'title') {
-                        if (val) findings[idx].title = val;
+                        if (val) state.findings[idx].title = val;
                       } else {
-                        findings[idx].owner = val;
+                        state.findings[idx].owner = val;
                       }
                       renderFindingsTable();
                       autoSave();
@@ -1232,17 +1251,17 @@
               renderCategoryBadges();
               setupDragAndDrop();
 
-              // Wire sortable headers for findings table
+              // Wire sortable headers for state.findings table
               tableWrapper.querySelectorAll('.sortable-th[data-findings-sort]').forEach(function(th) {
                 th.addEventListener('click', function() {
                   var col = th.getAttribute('data-findings-sort');
-                  if (findingsSortState.col === col) {
-                    findingsSortState.dir = findingsSortState.dir === 'asc' ? 'desc' : 'asc';
+                  if (state.findingsSortState.col === col) {
+                    state.findingsSortState.dir = state.findingsSortState.dir === 'asc' ? 'desc' : 'asc';
                   } else {
-                    findingsSortState.col = col;
-                    findingsSortState.dir = 'asc';
+                    state.findingsSortState.col = col;
+                    state.findingsSortState.dir = 'asc';
                   }
-                  findingsPageState.page = 0;
+                  state.findingsPageState.page = 0;
                   renderFindingsTable();
                 });
               });
@@ -1250,12 +1269,12 @@
               // Wire pagination
               var fpPrev = document.getElementById('findings-page-prev');
               var fpNext = document.getElementById('findings-page-next');
-              if (fpPrev) fpPrev.addEventListener('click', function() { findingsPageState.page--; renderFindingsTable(); });
-              if (fpNext) fpNext.addEventListener('click', function() { findingsPageState.page++; renderFindingsTable(); });
+              if (fpPrev) fpPrev.addEventListener('click', function() { state.findingsPageState.page--; renderFindingsTable(); });
+              if (fpNext) fpNext.addEventListener('click', function() { state.findingsPageState.page++; renderFindingsTable(); });
             }
 
       // ── Batch actions ──
-      function getSelectedFindingIndices() {
+      export function getSelectedFindingIndices() {
         var indices = [];
         tableWrapper.querySelectorAll('.finding-row-check:checked').forEach(function(cb) {
           indices.push(parseInt(cb.getAttribute('data-idx'), 10));
@@ -1263,7 +1282,7 @@
         return indices;
       }
 
-      function updateBatchActions() {
+      export function updateBatchActions() {
         var selected = getSelectedFindingIndices();
         var batchActions = document.getElementById('batch-actions');
         var batchCount = document.getElementById('batch-count');
@@ -1289,7 +1308,7 @@
         var newSev = this.value;
         if (!newSev) return;
         var indices = getSelectedFindingIndices();
-        indices.forEach(function(idx) { if (findings[idx]) findings[idx].severity = newSev; });
+        indices.forEach(function(idx) { if (state.findings[idx]) state.findings[idx].severity = newSev; });
         this.value = '';
         renderFindingsTable();
         autoSave();
@@ -1303,7 +1322,7 @@
           var newPri = this.value;
           if (!newPri) return;
           var indices = getSelectedFindingIndices();
-          indices.forEach(function(idx) { if (findings[idx]) findings[idx].priority = newPri; });
+          indices.forEach(function(idx) { if (state.findings[idx]) state.findings[idx].priority = newPri; });
           this.value = '';
           renderFindingsTable();
           autoSave();
@@ -1321,7 +1340,7 @@
             if (!newOwner) return;
             var indices = getSelectedFindingIndices();
             if (!indices.length) return;
-            indices.forEach(function(idx) { if (findings[idx]) findings[idx].owner = newOwner; });
+            indices.forEach(function(idx) { if (state.findings[idx]) state.findings[idx].owner = newOwner; });
             this.value = '';
             renderFindingsTable();
             autoSave();
@@ -1339,10 +1358,10 @@
         }).then(function(yes) {
           if (!yes) return;
           indices.forEach(function(idx) {
-            saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
-            findings.splice(idx, 1);
+            saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
+            state.findings.splice(idx, 1);
           });
-          editingIndex = null;
+          state.editingIndex = null;
           renderFindingsTable();
           autoSave();
           showToast(indices.length + ' ממצאים נמחקו', 'info');
@@ -1350,14 +1369,14 @@
         });
       });
 
-      // Batch AI enrich selected findings
+      // Batch AI enrich selected state.findings
       document.getElementById('btn-batch-ai-enrich').addEventListener('click', function() {
         var indices = getSelectedFindingIndices();
         if (!indices.length) {
           showToast('לא נבחרו ממצאים', 'warning');
           return;
         }
-        var selected = indices.map(function(idx) { return findings[idx]; }).filter(function(f) {
+        var selected = indices.map(function(idx) { return state.findings[idx]; }).filter(function(f) {
           if (!f.recs || !f.recs.length) return false;
           if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
           if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
@@ -1378,17 +1397,17 @@
       if (excFilterEl) excFilterEl.addEventListener('change', renderFindingsTable);
 
       // ── Category count badges ──
-      function renderCategoryBadges() {
+      export function renderCategoryBadges() {
         var badgesEl = document.getElementById('category-badges');
         if (!badgesEl) return;
-        if (!findings.length) { badgesEl.innerHTML = ''; return; }
+        if (!state.findings.length) { badgesEl.innerHTML = ''; return; }
         var counts = {};
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var cat = f.category || 'CSPM';
           counts[cat] = (counts[cat] || 0) + 1;
         });
         var filterCat = document.getElementById('findings-filter-category');
-        var html = '<span class="cat-badge' + (!filterCat.value ? ' active' : '') + '" data-cat="">הכל <span class="cat-count">' + findings.length + '</span></span>';
+        var html = '<span class="cat-badge' + (!filterCat.value ? ' active' : '') + '" data-cat="">הכל <span class="cat-count">' + state.findings.length + '</span></span>';
         Object.keys(counts).sort().forEach(function(cat) {
           var isActive = filterCat.value === cat;
           html += '<span class="cat-badge' + (isActive ? ' active' : '') + '" data-cat="' + cat + '">' + cat + ' <span class="cat-count">' + counts[cat] + '</span></span>';
@@ -1418,11 +1437,11 @@
         if (previewFindingIdx !== null) startEditFinding(previewFindingIdx);
       });
 
-      function showFindingPreview(idx) {
-        var f = findings[idx];
+      export function showFindingPreview(idx) {
+        var f = state.findings[idx];
         if (!f) return;
         previewFindingIdx = idx;
-        var sev = severityMap[f.severity] || severityMap.medium;
+        var sev = state.severityMap[f.severity] || state.severityMap.medium;
         previewPanelTitle.textContent = f.id + ' — ' + (f.title || '');
 
         var fields = [
@@ -1473,7 +1492,7 @@
       // ── Drag and drop reorder ──
       var dragSrcIdx = null;
 
-      function setupDragAndDrop() {
+      export function setupDragAndDrop() {
         var rows = tableWrapper.querySelectorAll('tbody tr[data-idx]');
         rows.forEach(function(row) {
           var handle = row.querySelector('.drag-handle');
@@ -1522,11 +1541,11 @@
             var midY = rect.top + rect.height / 2;
             var insertBefore = e.clientY < midY;
 
-            var item = findings.splice(dragSrcIdx, 1)[0];
+            var item = state.findings.splice(dragSrcIdx, 1)[0];
             var newIdx = targetIdx;
             if (dragSrcIdx < targetIdx) newIdx--;
             if (!insertBefore) newIdx++;
-            findings.splice(newIdx, 0, item);
+            state.findings.splice(newIdx, 0, item);
 
             dragSrcIdx = null;
             renderFindingsTable();
@@ -1537,15 +1556,15 @@
       }
 
 
-      function resetEditState() {
-        editingIndex = null;
+      export function resetEditState() {
+        state.editingIndex = null;
         addBtn.textContent = 'הוסף ממצא לרשימה';
         cancelEditBtn.style.display = 'none';
         editState.textContent = '';
         clearFindingForm();
       }
 
-      function clearFindingForm() {
+      export function clearFindingForm() {
         document.getElementById('f-id').value = '';
         document.getElementById('f-title').value = '';
         document.getElementById('f-severity').value = 'medium';
@@ -1571,9 +1590,9 @@
         prefillId();
       }
 
-      function startEditFinding(idx) {
-        const f = findings[idx];
-        editingIndex = idx;
+      export function startEditFinding(idx) {
+        const f = state.findings[idx];
+        state.editingIndex = idx;
 
         const idField = document.getElementById('f-id');
         idField.value = f.id;
@@ -1633,7 +1652,7 @@
         setTimeout(() => document.getElementById('f-title').focus(), 100);
       }
 
-      function getPriorityFromUI() {
+      export function getPriorityFromUI() {
         const selected = prioritySelect.value;
         if (selected === 'custom') {
           return priorityCustom.value.trim();
@@ -1645,7 +1664,7 @@
       const EVIDENCE_MAX_W = 800;
       const EVIDENCE_MAX_H = 500;
 
-      function resizeImage(dataUrl) {
+      export function resizeImage(dataUrl) {
         return new Promise(function(resolve) {
           var img = new Image();
           img.onload = function() {
@@ -1673,7 +1692,7 @@
       const dropZone = document.getElementById('evidence-drop-zone');
       const evidencePreview = document.getElementById('evidence-preview');
 
-      function renderEvidencePreviews() {
+      export function renderEvidencePreviews() {
         if (!pendingEvidenceList.length) {
           evidencePreview.innerHTML = '';
           return;
@@ -1695,13 +1714,13 @@
         });
       }
 
-      function clearEvidencePreview() {
+      export function clearEvidencePreview() {
         pendingEvidenceList = [];
         evidencePreview.innerHTML = '';
         evidenceInput.value = '';
       }
 
-      function handleEvidenceFile(file) {
+      export function handleEvidenceFile(file) {
         if (!file || !file.type.startsWith('image/')) return;
         var reader = new FileReader();
         reader.onload = function(ev) {
@@ -1746,7 +1765,7 @@
         }
       });
 
-      function handleAddOrUpdateFinding() {
+      export function handleAddOrUpdateFinding() {
         const id          = document.getElementById('f-id').value.trim();
         const title       = document.getElementById('f-title').value.trim();
         const severity    = document.getElementById('f-severity').value;
@@ -1769,8 +1788,8 @@
         const applyFinding = () => {
           let evidence = pendingEvidenceList.length ? pendingEvidenceList.slice() : [];
 
-          if (!evidence.length && editingIndex !== null) {
-            var prev = findings[editingIndex].evidence;
+          if (!evidence.length && state.editingIndex !== null) {
+            var prev = state.findings[state.editingIndex].evidence;
             evidence = Array.isArray(prev) ? prev : (prev ? [prev] : []);
           }
 
@@ -1795,14 +1814,14 @@
               }
               return { active: false, reason: '' };
             })(),
-            notes: editingIndex !== null ? (findings[editingIndex].notes || []) : []
+            notes: state.editingIndex !== null ? (state.findings[state.editingIndex].notes || []) : []
           };
 
-          if (editingIndex === null) {
-            findings.push(newFinding);
-            showToast('נוסף ממצא ' + newFinding.id + '. סה״כ: ' + findings.length, 'success');
+          if (state.editingIndex === null) {
+            state.findings.push(newFinding);
+            showToast('נוסף ממצא ' + newFinding.id + '. סה״כ: ' + state.findings.length, 'success');
           } else {
-            findings[editingIndex] = newFinding;
+            state.findings[state.editingIndex] = newFinding;
             showToast('עודכן ממצא ' + newFinding.id, 'success');
             resetEditState();
           }
@@ -1823,7 +1842,7 @@
         resetEditState();
       });
 
-      // Sort findings dropdown
+      // Sort state.findings dropdown
       var sortBtn = document.getElementById('btn-sort-severity');
       var sortMenu = document.getElementById('sort-menu');
       if (sortBtn && sortMenu) {
@@ -1835,25 +1854,25 @@
         sortMenu.querySelectorAll('[data-sort-by]').forEach(function(item) {
           item.addEventListener('click', function() {
             var col = item.getAttribute('data-sort-by');
-            if (findingsSortState.col === col) {
-              findingsSortState.dir = findingsSortState.dir === 'asc' ? 'desc' : 'asc';
+            if (state.findingsSortState.col === col) {
+              state.findingsSortState.dir = state.findingsSortState.dir === 'asc' ? 'desc' : 'asc';
             } else {
-              findingsSortState.col = col;
-              findingsSortState.dir = 'asc';
+              state.findingsSortState.col = col;
+              state.findingsSortState.dir = 'asc';
             }
-            findingsPageState.page = 0;
+            state.findingsPageState.page = 0;
             renderFindingsTable();
             sortMenu.style.display = 'none';
           });
         });
       }
 
-      // Page size selector for findings table
+      // Page size selector for state.findings table
       var findingsPageSizeStatic = document.getElementById('findings-page-size-static');
       if (findingsPageSizeStatic) {
         findingsPageSizeStatic.addEventListener('change', function() {
-          findingsPageState.pageSize = parseInt(this.value);
-          findingsPageState.page = 0;
+          state.findingsPageState.pageSize = parseInt(this.value);
+          state.findingsPageState.page = 0;
           renderFindingsTable();
         });
       }
@@ -1888,10 +1907,10 @@
           }).then(function(yes) {
             if (!yes) return;
             indices.forEach(function(idx) {
-              saveToProductMemory(findings[idx], 'deleted', (findings[idx].exception && findings[idx].exception.reason) || '');
-              findings.splice(idx, 1);
+              saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
+              state.findings.splice(idx, 1);
             });
-            editingIndex = null;
+            state.editingIndex = null;
             renderFindingsTable();
             autoSave();
             showToast(indices.length + ' ממצאים נמחקו', 'info');
@@ -1900,14 +1919,14 @@
         });
       }
 
-      // Clear all findings
+      // Clear all state.findings
       document.getElementById('btn-clear-all-findings').addEventListener('click', function() {
-        if (!findings.length) return;
-        styledConfirm('למחוק את כל ' + findings.length + ' הממצאים?', {
+        if (!state.findings.length) return;
+        styledConfirm('למחוק את כל ' + state.findings.length + ' הממצאים?', {
           icon: '🗑️', title: 'מחיקת כל הממצאים', confirmText: 'מחק הכל', cancelText: 'ביטול', danger: true
         }).then(function(yes) {
           if (!yes) return;
-          findings.length = 0;
+          state.findings.length = 0;
           resetEditState();
           renderFindingsTable();
           prefillId();
@@ -1915,14 +1934,14 @@
         });
       });
 
-      // AI enrich all findings
+      // AI enrich all state.findings
       document.getElementById('btn-ai-enrich-all').addEventListener('click', function() {
-        if (!findings.length) {
+        if (!state.findings.length) {
           showToast('אין ממצאים לשיפור', 'warning');
           return;
         }
-        // Filter out findings that already have an AI summary
-        var toEnrich = findings.filter(function(f) {
+        // Filter out state.findings that already have an AI summary
+        var toEnrich = state.findings.filter(function(f) {
           if (!f.recs || !f.recs.length) return false;
           if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
           if (f.recs.length === 1 && f.recs[0].indexOf('לטפל בממצא') === 0) return false;
@@ -1935,7 +1954,7 @@
         enrichFindingsWithAiSummaries(toEnrich);
       });
 
-      // AI enrich selected findings (same pattern as btn-ai-enrich-all but for selection)
+      // AI enrich selected state.findings (same pattern as btn-ai-enrich-all but for selection)
       var _btnAiEnrichSelected = document.getElementById('btn-ai-enrich-selected');
       if (_btnAiEnrichSelected) {
         _btnAiEnrichSelected.addEventListener('click', function() {
@@ -1944,7 +1963,7 @@
             showToast('לא נבחרו ממצאים', 'warning');
             return;
           }
-          var selected = indices.map(function(idx) { return findings[idx]; });
+          var selected = indices.map(function(idx) { return state.findings[idx]; });
           var toEnrich = selected.filter(function(f) {
             if (!f.recs || !f.recs.length) return false;
             if (f.recs[0] && f.recs[0].indexOf('🤖') === 0) return false;
@@ -1966,7 +1985,7 @@
       });
 
       // Build a dynamic filename from client name + report date
-      function buildFilename(ext) {
+      export function buildFilename(ext) {
         var client = (document.getElementById('report-client').value || '').trim().replace(/[^\w\u0590-\u05FF\s-]/g, '').replace(/\s+/g, '_');
         var date = getDateAsDDMMYYYY().replace(/\//g, '-');
         var parts = ['cspm_report'];
@@ -1998,7 +2017,7 @@
       var coverImageInput = document.getElementById('report-cover-image');
       var coverImagePreview = document.getElementById('cover-image-preview');
 
-      function showCoverPreview(dataUrl) {
+      export function showCoverPreview(dataUrl) {
         coverImageDataUrl = dataUrl;
         coverImagePreview.innerHTML =
           '<img src="' + dataUrl + '" alt="תצוגה מקדימה של תמונת שער" style="max-width:300px;max-height:180px;border-radius:8px;border:1px solid var(--border);">' +
@@ -2008,6 +2027,12 @@
           coverImagePreview.innerHTML = '';
           coverImageInput.value = '';
         });
+      }
+
+      export function resetCoverImage() {
+        coverImageDataUrl = defaultCoverImageDataUrl;
+        if (coverImagePreview) coverImagePreview.innerHTML = '';
+        if (coverImageInput) coverImageInput.value = '';
       }
 
       coverImageInput.addEventListener('change', function() {
@@ -2020,15 +2045,15 @@
         reader.readAsDataURL(file);
       });
 
-      function countSeverity(key) {
-        return findings.filter(f => f.severity === key).length;
+      export function countSeverity(key) {
+        return state.findings.filter(f => f.severity === key).length;
       }
 
       // --- Risk score calculation ---
-      function calcRiskScore() {
+      export function calcRiskScore() {
         var weights = { critical: 10, high: 7, medium: 4, low: 1, info: 0 };
         var total = 0;
-        var scored = findings.filter(function(f) { return !(f.exception && f.exception.active); });
+        var scored = state.findings.filter(function(f) { return !(f.exception && f.exception.active); });
         var maxPossible = scored.length * 10;
         scored.forEach(function(f) {
           total += weights[f.severity] || 0;
@@ -2043,7 +2068,7 @@
         return { score: total, percent: percent, label: label, level: level };
       }
 
-      function escapeHtml(str) {
+      export function escapeHtml(str) {
         if (str === null || str === undefined) return '';
         if (typeof str !== 'string') str = String(str);
         return str
@@ -2052,13 +2077,13 @@
           .replace(/>/g, '&gt;');
       }
 
-      function linesToListHtml(text) {
+      export function linesToListHtml(text) {
         const lines = splitLines(text);
         if (!lines.length) return '';
         return '<ul>' + lines.map(l => '<li>' + escapeHtml(l) + '</li>').join('') + '</ul>';
       }
 
-      function buildSeverityChartSvg(counts, labelOverrides) {
+      export function buildSeverityChartSvg(counts, labelOverrides) {
         // counts = { critical: N, high: N, medium: N, low: N, info: N }
         var colors = { critical: '#b91c1c', high: '#ef4444', medium: '#f97316', low: '#22c55e', info: '#6b7280' };
         var labels = labelOverrides || { critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', info: 'מידע' };
@@ -2164,16 +2189,16 @@
           execSummary: '1. Executive Summary',
           riskLabel: 'Overall Risk Assessment',
           riskScoreLabel: 'Calculated Risk Score',
-          riskScoreSuffix: '— based on severity distribution of findings.',
+          riskScoreSuffix: '— based on severity distribution of state.findings.',
           scopeMethod: '2. Scope & Methodology',
           scopeTitle: '2.1 Scope',
           scopeText: 'The assessment was performed on cloud accounts / subscriptions / projects as agreed with the client. Relevant IaaS / PaaS services were included, covering Prod and/or Non-Prod environments per the agreed scope.',
           toolsTitle: '2.2 Assessment Tools',
           toolsText: 'The assessment leveraged the organization\'s CSPM / CNAPP tools, combined with manual checks and cross-referencing with existing policy and configuration documents.',
           methodTitle: '2.3 Methodology',
-          methodItems: ['Collect findings from the platform (Alerts / Issues / Misconfigurations).','Group findings by severity, service, and environment.','Validate critical findings and identify False Positives.','Formulate remediation recommendations, set priorities, and build a treatment plan.'],
+          methodItems: ['Collect state.findings from the platform (Alerts / Issues / Misconfigurations).','Group state.findings by severity, service, and environment.','Validate critical state.findings and identify False Positives.','Formulate remediation recommendations, set priorities, and build a treatment plan.'],
           findingsSummary: '3. Findings Summary by Severity',
-          findingsSummaryText: 'The table below summarizes the number of findings by severity level.',
+          findingsSummaryText: 'The table below summarizes the number of state.findings by severity level.',
           sevHeader: 'Severity', countHeader: 'Count', notesHeader: 'Notes',
           critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info',
           critNote: 'Direct exposure, excessive permissions, severe impact on availability/confidentiality.',
@@ -2186,7 +2211,7 @@
           catHeader: 'Category', totalHeader: 'Total',
           detailedFindings: '4. Detailed Findings',
           detailedFindingsText: 'Below are the finding cards included in this report, as collected and validated.',
-          noFindings: 'No findings added.',
+          noFindings: 'No state.findings added.',
           findingDesc: 'Description', findingImpact: 'Business Impact / Risk',
           findingTech: 'Technical Details', findingPolicies: 'Policies / Standards',
           findingRecs: 'Recommendations', findingPriority: 'Remediation Priority',
@@ -2195,7 +2220,7 @@
           noTech: 'No technical details provided.', noPolicies: 'No policies / standards tagged.',
           noRecs: 'No recommendations provided.', noPriority: 'No remediation priority set.',
           recommendations: '5. Recommendations & Treatment Plan',
-          recsText: 'This section consolidates findings into a work table for tracking closure status and ownership.',
+          recsText: 'This section consolidates state.findings into a work table for tracking closure status and ownership.',
           colId: 'Finding ID', colDesc: 'Description', colSev: 'Severity', colOwner: 'Owner', colDue: 'Target Date', colStatus: 'Status',
           ownerPlaceholder: 'Owner / Team', statusOpen: 'Open',
           appendix: 'Appendix A – Findings to Policy Mapping',
@@ -2206,13 +2231,13 @@
           clientLabel: 'Client', envLabel: 'Environment / Cloud', rangeLabel: 'Assessment Period',
           consultantLabel: 'Consultant', dateLabel: 'Report Date', versionLabel: 'Version',
           reportDateFooter: 'Report Date',
-          defaultExecSummary: 'This report summarizes the security posture of the assessed cloud environment, including critical findings, key risk scenarios, and an overall risk assessment.',
+          defaultExecSummary: 'This report summarizes the security posture of the assessed cloud environment, including critical state.findings, key risk scenarios, and an overall risk assessment.',
           defaultKeyTopics: 'Key topics may include IAM, internet exposure, encryption, networking, Kubernetes, and more.',
           image: 'image', images: 'images',
         }
       };
 
-      function buildReportHtml() {
+      export function buildReportHtml() {
         const lang = document.getElementById('report-lang').value || 'he';
         const t = i18n[lang] || i18n.he;
         const client          = document.getElementById('report-client').value.trim();
@@ -2239,33 +2264,33 @@
 
         // Exception counts per severity (for summary table annotation)
         function countExcBySeverity(key) {
-          return findings.filter(function(f){ return f.severity === key && f.exception && f.exception.active; }).length;
+          return state.findings.filter(function(f){ return f.severity === key && f.exception && f.exception.active; }).length;
         }
         const critExc = countExcBySeverity('critical');
         const highExc = countExcBySeverity('high');
         const medExc  = countExcBySeverity('medium');
         const lowExc  = countExcBySeverity('low');
 
-        // Apply current UI sort order before grouping (mirrors the findings table display)
-        var sortedFindings = findings.slice();
-        if (findingsSortState.col) {
+        // Apply current UI sort order before grouping (mirrors the state.findings table display)
+        var sortedFindings = state.findings.slice();
+        if (state.findingsSortState.col) {
           var _sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
           sortedFindings.sort(function(a, b) {
             var va, vb;
-            var col = findingsSortState.col;
+            var col = state.findingsSortState.col;
             if (col === 'id') { va = a.id || ''; vb = b.id || ''; }
             else if (col === 'category') { va = a.category || ''; vb = b.category || ''; }
             else if (col === 'title') { va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); }
             else if (col === 'severity') { va = _sevOrder[a.severity] || 9; vb = _sevOrder[b.severity] || 9; }
             else if (col === 'owner') { va = (a.owner || '').toLowerCase(); vb = (b.owner || '').toLowerCase(); }
             else { va = ''; vb = ''; }
-            if (va < vb) return findingsSortState.dir === 'asc' ? -1 : 1;
-            if (va > vb) return findingsSortState.dir === 'asc' ? 1 : -1;
+            if (va < vb) return state.findingsSortState.dir === 'asc' ? -1 : 1;
+            if (va > vb) return state.findingsSortState.dir === 'asc' ? 1 : -1;
             return 0;
           });
         }
 
-        // Group findings by category
+        // Group state.findings by category
         var findingsByCategory = {};
         sortedFindings.forEach(function(f) {
           var cat = f.category || 'CSPM';
@@ -2292,7 +2317,7 @@
 
         // Severity text in current report language
         function sevText(key) {
-          return t[key] || (severityMap[key] || {}).text || key;
+          return t[key] || (state.severityMap[key] || {}).text || key;
         }
 
         var findingsCardsHtml = '';
@@ -2310,7 +2335,7 @@
             isFirstInCat = false;
           }
 
-          const sev = severityMap[f.severity] || severityMap.medium;
+          const sev = state.severityMap[f.severity] || state.severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
 
           const liDir = text => /^[a-zA-Z]/.test((text || '').replace(/^[^a-zA-Z֐-׿]+/, '')) ? 'dir="ltr" style="text-align:left;"' : '';
@@ -2392,8 +2417,8 @@
           });
         });
 
-        const treatmentTableHtml = findings.map(f => {
-          const sev = severityMap[f.severity] || severityMap.medium;
+        const treatmentTableHtml = state.findings.map(f => {
+          const sev = state.severityMap[f.severity] || state.severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
 
           // חישוב יעד סגירה לפי תאריך דו"ח + עדיפות הממצא
@@ -2418,7 +2443,7 @@
           );
         }).join('\n');
 
-        const appendixHtml = findings.map(f => {
+        const appendixHtml = state.findings.map(f => {
           const firstPolicy = f.policies[0] || '';
           return `
             <tr>
@@ -2976,10 +3001,10 @@
             <span><a href="#findings-summary">${t.findingsSummary}</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#detailed-findings">${t.detailedFindings}</a></span>
+            <span><a href="#detailed-state.findings">${t.detailedFindings}</a></span>
         </li>
-        ${findings.map(function(f) {
-          var sev = severityMap[f.severity] || severityMap.medium;
+        ${state.findings.map(function(f) {
+          var sev = state.severityMap[f.severity] || state.severityMap.medium;
           return '<li class="toc-item toc-finding"><span><a href="#' + makeFindingAnchorId(f.id) + '">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</a></span><span class="severity-badge ' + sev.class + '" style="font-size:9px;padding:1px 6px;">' + sevText(f.severity) + '</span></li>';
         }).join('\n')}
         <li class="toc-item">
@@ -2996,7 +3021,7 @@
       <h1 id="exec-summary">${t.execSummary}</h1>
       ${execSummaryHtml}
       <p><strong>${t.riskLabel}:</strong> ${escapeHtml(reportRisk || (t[riskScore.level] || riskScore.label))}.</p>
-      ${findings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
+      ${state.findings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
 
       <div class="section-divider"></div>
 
@@ -3063,7 +3088,7 @@
     </section>
 
     <section class="page-section">
-      <h1 id="detailed-findings">${t.detailedFindings}</h1>
+      <h1 id="detailed-state.findings">${t.detailedFindings}</h1>
       <p>
         ${t.detailedFindingsText}
       </p>
@@ -3123,7 +3148,7 @@
       }
 
       genBtn.addEventListener('click', function() {
-        if (!findings.length) {
+        if (!state.findings.length) {
           alert('אין ממצאים לייצוא.');
           return;
         }
@@ -3140,7 +3165,7 @@
       });
 
       dlBtn.addEventListener('click', function() {
-        if (!findings.length) {
+        if (!state.findings.length) {
           alert('אין ממצאים לייצוא.');
           return;
         }
