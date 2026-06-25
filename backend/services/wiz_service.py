@@ -412,6 +412,63 @@ class WizService:
         # Fetch findings
         return self.fetch_all_findings_paginated("configurationFindings", filter_by)
 
+    def bulk_fetch_for_subscriptions(
+        self,
+        subscription_names: List[str],
+        progress_cb=None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch all 9 query types for each subscription, one subscription at a time.
+
+        Stamps each finding dict with '_sourceSubscription' and 'queryType'.
+        Deduplicates by finding id across subscriptions.
+        progress_cb(done, total) is called after each (subscription × queryType) step.
+        """
+        QUERY_TYPES = [
+            "issues",
+            "configurationFindings",
+            "vulnerabilityFindings",
+            "hostConfigurationRuleAssessments",
+            "dataFindingsV2",
+            "secretInstances",
+            "excessiveAccessFindings",
+            "networkExposures",
+            "endOfLifeFindings",
+        ]
+        total = len(subscription_names) * len(QUERY_TYPES)
+        done = 0
+        seen_ids: set = set()
+        findings: List[Dict[str, Any]] = []
+
+        for sub_name in subscription_names:
+            resolved = self.resolve_subscription(sub_name)
+            combined = {
+                "ids": resolved.get("ids", []),
+                "externalIds": resolved.get("externalIds", []),
+            }
+            for qtype in QUERY_TYPES:
+                try:
+                    filter_by = _build_filter_for_bulk(qtype, combined)
+                    nodes = self.fetch_all_findings_paginated(qtype, filter_by)
+                    for n in nodes:
+                        fid = n.get("id")
+                        if fid and fid in seen_ids:
+                            continue
+                        if fid:
+                            seen_ids.add(fid)
+                        n["queryType"] = qtype
+                        n["_sourceSubscription"] = sub_name
+                        findings.append(n)
+                except Exception as exc:
+                    _log.warning(
+                        "bulk_fetch skipped %s/%s: %s", sub_name, qtype, exc
+                    )
+                done += 1
+                if progress_cb:
+                    progress_cb(done, total)
+
+        return findings
+
     def introspect_schema(self) -> List[Dict[str, Any]]:
         """
         Introspect the Wiz GraphQL schema to discover available queries.
@@ -433,3 +490,62 @@ class WizService:
             }
             for f in fields
         ]
+
+
+def _build_filter_for_bulk(query_type: str, combined: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a filterBy dict for bulk fetch (HIGH/CRITICAL, OPEN, subscription-scoped).
+
+    Mirrors build_bulk_filter from backend/routes/wiz.py so pipeline.py
+    has no cross-blueprint import dependency.
+    """
+    sub_ids: List[str] = combined.get("ids", [])
+    sub_ext_ids: List[str] = combined.get("externalIds", [])
+    filter_by: Dict[str, Any] = {}
+
+    # Severity
+    if query_type in (
+        "issues", "configurationFindings", "vulnerabilityFindings",
+        "hostConfigurationRuleAssessments", "endOfLifeFindings",
+    ):
+        filter_by["severity"] = ["CRITICAL", "HIGH"]
+    elif query_type in ("networkExposures", "excessiveAccessFindings"):
+        pass
+    else:
+        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
+
+    # Status
+    if query_type == "configurationFindings":
+        filter_by["result"] = ["FAIL"]
+    elif query_type in ("networkExposures", "excessiveAccessFindings"):
+        pass
+    elif query_type in (
+        "issues", "vulnerabilityFindings",
+        "hostConfigurationRuleAssessments", "endOfLifeFindings",
+    ):
+        filter_by["status"] = ["OPEN", "IN_PROGRESS"]
+    else:
+        filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
+
+    # Subscription scope
+    if query_type == "issues" and sub_ids:
+        filter_by["cloudAccountOrCloudOrganizationId"] = sub_ids
+    elif query_type == "configurationFindings" and sub_ids:
+        filter_by["resource"] = {"subscriptionId": sub_ids}
+    elif query_type == "vulnerabilityFindings" and sub_ext_ids:
+        filter_by["subscriptionExternalId"] = sub_ext_ids
+    elif query_type == "hostConfigurationRuleAssessments" and sub_ids:
+        filter_by["resource"] = {"subscriptionId": sub_ids}
+    elif query_type == "dataFindingsV2" and sub_ext_ids:
+        filter_by["graphEntityCloudAccount"] = {"equals": sub_ext_ids}
+    elif query_type == "secretInstances" and sub_ext_ids:
+        filter_by["cloudAccount"] = {"equals": sub_ext_ids}
+    elif query_type == "excessiveAccessFindings" and sub_ids:
+        filter_by["scope"] = {"id": {"equals": sub_ids}}
+    elif query_type == "networkExposures" and sub_ext_ids:
+        filter_by["cloudAccount"] = sub_ext_ids
+    elif query_type == "endOfLifeFindings":
+        filter_by["isEndOfLife"] = True
+        if sub_ext_ids:
+            filter_by["subscriptionExternalId"] = sub_ext_ids
+
+    return filter_by

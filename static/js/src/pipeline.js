@@ -5,7 +5,7 @@ import { showToast } from './core.js';
 // Fetches /api/pipeline and renders:
 //   • KPI cards (overdue / due this month / upcoming / never scanned)
 //   • Filter bar
-//   • Sortable product table
+//   • Sortable product table with "New Scan" action
 // ═══════════════════════════════════════════
 
 var _FREQ_LABELS = { monthly: 'חודשי', quarterly: 'רבעוני', annual: 'שנתי' };
@@ -95,7 +95,10 @@ export var PipelinePanel = {
             html += '<div class="pipeline-empty">אין לקוחות להצגה בסינון הנוכחי</div>';
         } else {
             html += '<div class="pipeline-table-wrap"><table class="pipeline-table">';
-            html += '<thead><tr><th>לקוח</th><th>סביבה</th><th>תדירות</th><th>פרסום אחרון</th><th>מועד הבא</th><th>סטטוס</th></tr></thead>';
+            html += '<thead><tr>'
+                + '<th>לקוח</th><th>סביבה</th><th>תדירות</th>'
+                + '<th>פרסום אחרון</th><th>מועד הבא</th><th>סטטוס</th><th>פעולות</th>'
+                + '</tr></thead>';
             html += '<tbody>';
             filtered.forEach(function(p) {
                 var cls = _STATUS_CLS[p.status] || '';
@@ -104,6 +107,10 @@ export var PipelinePanel = {
                 var nextDue = p.nextDueAt ? _fmtDate(p.nextDueAt) : '—';
                 var ver = p.lastPublishedVersion ? ' <span class="muted">v' + _esc(p.lastPublishedVersion) + '</span>' : '';
                 var statusLabel = _STATUS_LABELS[p.status] || _esc(p.status);
+                var actionable = (p.status === 'overdue' || p.status === 'due_this_month' || p.status === 'no_scans');
+                var actionBtn = actionable
+                    ? '<button class="btn btn-sm btn-primary pipeline-new-scan-btn" data-product-id="' + _esc(p.id) + '">סריקה חדשה</button>'
+                    : '';
                 html += '<tr>'
                     + '<td><strong>' + _esc(p.name) + '</strong>' + ver + '</td>'
                     + '<td>' + _esc(p.env) + '</td>'
@@ -111,6 +118,7 @@ export var PipelinePanel = {
                     + '<td class="pipeline-date">' + lastPub + '</td>'
                     + '<td class="pipeline-date">' + nextDue + '</td>'
                     + '<td><span class="pipeline-status-badge ' + cls + '">' + statusLabel + '</span></td>'
+                    + '<td class="pipeline-actions">' + actionBtn + '</td>'
                     + '</tr>';
             });
             html += '</tbody></table></div>';
@@ -134,6 +142,152 @@ export var PipelinePanel = {
                 self.render();
             });
         });
+
+        // Wire "New Scan" buttons
+        container.querySelectorAll('.pipeline-new-scan-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var productId = btn.dataset.productId;
+                var product = self._data.find(function(p) { return p.id === productId; });
+                if (product) self._openNewScanModal(product);
+            });
+        });
+    },
+
+    // ── New Scan modal ──────────────────────────────────────────────────────
+
+    _openNewScanModal: function(product) {
+        var self = this;
+        var subs = product.subscriptionIds || [];
+
+        var subsHtml = '';
+        if (subs.length === 0) {
+            subsHtml = '<p style="margin:0 0 16px;color:var(--text-muted)">אין subscription IDs מוגדרים למוצר זה.</p>';
+        } else {
+            subsHtml = '<ul class="pipeline-sub-list">';
+            subs.forEach(function(sub, i) {
+                subsHtml += '<li>'
+                    + '<input type="checkbox" id="pipeline-sub-' + i + '" name="sub" value="' + _esc(sub) + '" checked>'
+                    + '<label for="pipeline-sub-' + i + '">' + _esc(sub) + '</label>'
+                    + '</li>';
+            });
+            subsHtml += '</ul>';
+        }
+
+        var overlay = document.createElement('div');
+        overlay.className = 'pipeline-scan-modal-overlay';
+        overlay.innerHTML = '<div class="pipeline-scan-modal" role="dialog" aria-modal="true">'
+            + '<h3>סריקה חדשה — ' + _esc(product.name) + '</h3>'
+            + '<div class="pipeline-scan-modal-body">'
+            + subsHtml
+            + '<div class="pipeline-scan-modal-actions">'
+            + (subs.length > 0
+                ? '<button class="btn btn-primary btn-sm pipeline-start-fetch-btn">הפעל Fetch</button>'
+                : '')
+            + '<button class="btn btn-secondary btn-sm pipeline-cancel-btn">ביטול</button>'
+            + '</div>'
+            + '</div>'
+            + '</div>';
+
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('.pipeline-cancel-btn').addEventListener('click', function() {
+            document.body.removeChild(overlay);
+        });
+
+        var startBtn = overlay.querySelector('.pipeline-start-fetch-btn');
+        if (startBtn) {
+            var _updateStartBtn = function() {
+                var anyChecked = overlay.querySelectorAll('input[name="sub"]:checked').length > 0;
+                startBtn.disabled = !anyChecked;
+            };
+            overlay.querySelectorAll('input[name="sub"]').forEach(function(cb) {
+                cb.addEventListener('change', _updateStartBtn);
+            });
+            startBtn.addEventListener('click', function() {
+                var checked = Array.from(overlay.querySelectorAll('input[name="sub"]:checked'))
+                    .map(function(cb) { return cb.value; });
+                self._startFetch(product.id, checked, overlay);
+            });
+        }
+    },
+
+    _startFetch: async function(productId, selectedSubs, overlay) {
+        var self = this;
+        var body = overlay.querySelector('.pipeline-scan-modal-body');
+
+        var _showError = function(msg) {
+            body.innerHTML = '<p class="pipeline-modal-error">' + _esc(msg) + '</p>'
+                + '<div class="pipeline-scan-modal-actions">'
+                + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">סגור</button>'
+                + '</div>';
+            body.querySelector('.pipeline-modal-close-btn').addEventListener('click', function() {
+                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            });
+        };
+
+        try {
+            var resp = await fetch('/api/pipeline/' + productId + '/start-scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subscription_ids: selectedSubs }),
+            });
+            var data = await resp.json();
+            if (!resp.ok) {
+                _showError(data.message || data.error || 'שגיאה');
+                return;
+            }
+            // Switch to progress view
+            body.innerHTML = '<p style="margin:0 0 10px">גרסה ' + _esc(data.version) + ' — שולפת ממצאים מ-Wiz...</p>'
+                + '<div class="pipeline-progress-bar">'
+                + '<div class="pipeline-progress-bar-fill" id="pipeline-progress-fill" style="width:0%"></div>'
+                + '</div>'
+                + '<p id="pipeline-progress-label" style="font-size:0.8rem;color:var(--text-muted);margin:6px 0 16px">מתחיל...</p>'
+                + '<div class="pipeline-scan-modal-actions">'
+                + '<button class="btn btn-secondary btn-sm" disabled>ביטול</button>'
+                + '</div>';
+            self._pollStatus(productId, data.snapshot_id, overlay);
+        } catch (e) {
+            _showError('שגיאת רשת. נסה שוב.');
+        }
+    },
+
+    _pollStatus: function(productId, snapshotId, overlay) {
+        var self = this;
+        var interval = setInterval(async function() {
+            try {
+                var resp = await fetch('/api/pipeline/' + productId + '/scan-status/' + snapshotId);
+                if (!resp.ok) return;
+                var job = await resp.json();
+
+                var fill = overlay.querySelector('#pipeline-progress-fill');
+                var label = overlay.querySelector('#pipeline-progress-label');
+                if (fill && job.total > 0) {
+                    fill.style.width = Math.round(job.done / job.total * 100) + '%';
+                }
+                if (label) {
+                    label.textContent = job.done + ' מתוך ' + job.total + ' שאילתות הושלמו';
+                }
+
+                if (job.status === 'done') {
+                    clearInterval(interval);
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                    showToast('הסריקה הושלמה — ' + (job.findings_count || 0) + ' ממצאים יובאו', 'success');
+                    self.load();
+                } else if (job.status === 'error') {
+                    clearInterval(interval);
+                    var body = overlay.querySelector('.pipeline-scan-modal-body');
+                    if (body) {
+                        body.innerHTML = '<p class="pipeline-modal-error">שגיאה בשליפה: ' + _esc(job.error || 'שגיאה לא ידועה') + '</p>'
+                            + '<div class="pipeline-scan-modal-actions">'
+                            + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">סגור</button>'
+                            + '</div>';
+                        body.querySelector('.pipeline-modal-close-btn').addEventListener('click', function() {
+                            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                        });
+                    }
+                }
+            } catch (e) { /* network hiccup — retry next tick */ }
+        }, 3000);
     },
 };
 
