@@ -1,6 +1,22 @@
+import { state } from './state.js';
+import { showToast, styledConfirm } from './core.js';
+import {
+  renderFindingsTable, prefillId, resetEditState, generateNextId,
+  splitLines, switchToTab, buildFilename, buildReportHtml,
+  buildSnapshot, applySnapshot, categoryMap, escapeHtml,
+  resetCoverImage
+} from './findings.js';
+import { updateStepper } from './ui.js';
+
+const importJsonBtn   = document.getElementById('btn-import-json');
+const importJsonInput = document.getElementById('input-import-json');
+const statusMsg       = document.getElementById('status-msg');
+const tableWrapper    = document.getElementById('findings-table-wrapper');
+const dateInput       = document.getElementById('report-date');
+
       // ── ייצוא ממצאים כ-CSV ──
       document.getElementById('btn-export-csv').addEventListener('click', function() {
-        if (!findings.length) {
+        if (!state.findings.length) {
           showToast('אין ממצאים לייצוא', 'warning');
           return;
         }
@@ -18,7 +34,7 @@
         var lines = [];
         lines.push(csvHeaders.map(csvEscape).join(','));
 
-        findings.forEach(function(f) {
+        state.findings.forEach(function(f) {
           var row = [
             f.id || '',
             f.title || '',
@@ -46,13 +62,13 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast('יוצאו ' + findings.length + ' ממצאים ל-CSV', 'success');
-        statusMsg.textContent = 'יוצאו ' + findings.length + ' ממצאים לקובץ CSV.';
+        showToast('יוצאו ' + state.findings.length + ' ממצאים ל-CSV', 'success');
+        statusMsg.textContent = 'יוצאו ' + state.findings.length + ' ממצאים לקובץ CSV.';
       });
 
       // ── דו"ח חדש — ניקוי הכל ──
       document.getElementById('btn-new-report').addEventListener('click', function() {
-        var hasData = findings.length > 0 || 
+        var hasData = state.findings.length > 0 || 
           (document.getElementById('report-client').value || '').trim() ||
           (document.getElementById('report-env').value || '').trim();
         
@@ -64,8 +80,8 @@
         });
       });
 
-      function doNewReport() {        // Clear findings
-        findings.length = 0;
+      function doNewReport() {        // Clear state.findings
+        state.findings.length = 0;
         resetEditState();
 
         // Clear all meta fields
@@ -91,13 +107,7 @@
         if (rangeTo) rangeTo.value = '';
 
         // Reset cover image
-        if (typeof defaultCoverImageDataUrl !== 'undefined') {
-          coverImageDataUrl = defaultCoverImageDataUrl;
-        }
-        var coverPreview = document.getElementById('cover-image-preview');
-        if (coverPreview) coverPreview.innerHTML = '';
-        var coverInput = document.getElementById('report-cover-image');
-        if (coverInput) coverInput.value = '';
+        resetCoverImage();
 
         // Clear localStorage auto-save
         try { localStorage.removeItem('cspm_report_autosave'); } catch(e) {}
@@ -117,8 +127,8 @@
         if (bulkResults) bulkResults.innerHTML = '';
         var bulkActions = document.getElementById('bulk-import-actions');
         if (bulkActions) bulkActions.style.display = 'none';
-        bulkImportResults = {};
-        bulkImportRunning = false;
+        state.bulkImportResults = {};
+        state.bulkImportRunning = false;
 
         switchToTab('tab-report-details');
         showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
@@ -303,7 +313,7 @@
                 // Parse remediation into lines
                 var recs = remediation ? splitLines(remediation) : [];
 
-                findings.push({
+                state.findings.push({
                   id: shortId || generateNextId(category),
                   title: name,
                   severity: sev,
@@ -344,7 +354,7 @@
                 if (!title) continue;
                 var cat = (colCat >= 0 && r[colCat]) ? r[colCat].trim().toUpperCase() : 'CSPM';
                 if (!categoryMap[cat]) cat = 'CSPM';
-                findings.push({
+                state.findings.push({
                   id: (colId >= 0 && r[colId]) ? r[colId] : generateNextId(cat),
                   title: title,
                   severity: colSev >= 0 ? mapSeverity(r[colSev]) : 'medium',
@@ -365,7 +375,7 @@
             renderFindingsTable();
             prefillId();
             switchToTab('tab-findings-list');
-            statusMsg.textContent = 'יובאו ' + count + ' ממצאים מ-CSV' + (isWiz ? ' (Wiz format)' : '') + '. סה״כ: ' + findings.length;
+            statusMsg.textContent = 'יובאו ' + count + ' ממצאים מ-CSV' + (isWiz ? ' (Wiz format)' : '') + '. סה״כ: ' + state.findings.length;
             showToast('יובאו ' + count + ' ממצאים מ-CSV', 'success');
           } catch (e) {
             console.error(e);
@@ -405,17 +415,17 @@
         var prevIds = {};
         baselineFindings.forEach(function(f) { prevIds[f.id] = f; });
         var currIds = {};
-        findings.forEach(function(f) { currIds[f.id] = f; });
+        state.findings.forEach(function(f) { currIds[f.id] = f; });
 
-        var newFindings = findings.filter(function(f) { return !prevIds[f.id]; });
+        var newFindings = state.findings.filter(function(f) { return !prevIds[f.id]; });
         var resolvedFindings = baselineFindings.filter(function(f) { return !currIds[f.id]; });
-        var sevChanged = findings.filter(function(f) {
+        var sevChanged = state.findings.filter(function(f) {
           return prevIds[f.id] && prevIds[f.id].severity !== f.severity;
         });
 
         var html = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:8px;">';
         html += '<h3 style="margin-top:0;">📊 השוואה לדו"ח קודם</h3>';
-        html += '<p class="muted small-text">בסיס: ' + baselineFindings.length + ' ממצאים | נוכחי: ' + findings.length + ' ממצאים</p>';
+        html += '<p class="muted small-text">בסיס: ' + baselineFindings.length + ' ממצאים | נוכחי: ' + state.findings.length + ' ממצאים</p>';
 
         // Summary chips
         html += '<div style="display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;">';
@@ -427,7 +437,7 @@
         if (newFindings.length) {
           html += '<h3>ממצאים חדשים</h3><ul class="small-text">';
           newFindings.forEach(function(f) {
-            var sev = severityMap[f.severity] || severityMap.medium;
+            var sev = state.severityMap[f.severity] || state.severityMap.medium;
             html += '<li><span class="severity-chip ' + sev.class + '" style="font-size:10px;padding:1px 6px;">' + sev.text + '</span> ' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</li>';
           });
           html += '</ul>';
@@ -442,8 +452,8 @@
         if (sevChanged.length) {
           html += '<h3>שינויי חומרה</h3><ul class="small-text">';
           sevChanged.forEach(function(f) {
-            var prev = severityMap[prevIds[f.id].severity] || severityMap.medium;
-            var curr = severityMap[f.severity] || severityMap.medium;
+            var prev = state.severityMap[prevIds[f.id].severity] || state.severityMap.medium;
+            var curr = state.severityMap[f.severity] || state.severityMap.medium;
             html += '<li>' + escapeHtml(f.id) + ': <span class="severity-chip ' + prev.class + '" style="font-size:10px;padding:1px 6px;">' + prev.text + '</span> → <span class="severity-chip ' + curr.class + '" style="font-size:10px;padding:1px 6px;">' + curr.text + '</span></li>';
           });
           html += '</ul>';
@@ -496,7 +506,7 @@
         }
       }
 
-      function autoSave() {
+      export function autoSave() {
         // Debounce: cancel pending save and schedule new one
         if (autoSaveTimeout) {
           clearTimeout(autoSaveTimeout);
@@ -504,7 +514,7 @@
         autoSaveTimeout = setTimeout(autoSaveImmediate, 500);
       }
 
-      function autoRestore() {
+      export function autoRestore() {
         try {
           const raw = localStorage.getItem(AUTOSAVE_KEY);
           if (!raw) return false;
@@ -589,8 +599,8 @@
       document.getElementById('btn-load-defaults').addEventListener('click', loadDefaults);
       document.getElementById('btn-clear-defaults').addEventListener('click', clearDefaults);
 
-      // Auto-load defaults on fresh page (no autosave data and no findings)
-      if (!findings.length && !localStorage.getItem(AUTOSAVE_KEY)) {
+      // Auto-load defaults on fresh page (no autosave data and no state.findings)
+      if (!state.findings.length && !localStorage.getItem(AUTOSAVE_KEY)) {
         loadDefaults();
       }
 
@@ -611,9 +621,9 @@
       const saveStateCloudBtn = document.getElementById('btn-save-state-cloud');
       const cloudUploadStateInput = document.getElementById('cloud-upload-state');
 
-      // Enable PDF button when findings exist
+      // Enable PDF button when state.findings exist
       function updateCloudButtons() {
-        if (renderPdfBtn) renderPdfBtn.disabled = !findings.length;
+        if (renderPdfBtn) renderPdfBtn.disabled = !state.findings.length;
       }
 
       // Override the renderFindingsTable to also update cloud buttons
@@ -627,7 +637,7 @@
       // --- Render PDF via server ---
       if (renderPdfBtn) {
         renderPdfBtn.addEventListener('click', async function() {
-          if (!findings.length) { alert('אין ממצאים לייצוא.'); return; }
+          if (!state.findings.length) { alert('אין ממצאים לייצוא.'); return; }
           statusMsg.textContent = 'מייצר PDF בשרת...';
           renderPdfBtn.disabled = true;
           try {
@@ -660,7 +670,7 @@
             statusMsg.textContent = 'שגיאה ביצירת PDF: ' + e.message;
             showToast('שגיאה ביצירת PDF', 'error');
           } finally {
-            renderPdfBtn.disabled = !findings.length;
+            renderPdfBtn.disabled = !state.findings.length;
           }
         });
       }
