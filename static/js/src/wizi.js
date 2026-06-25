@@ -3233,18 +3233,18 @@ import { ProductsPanel } from './products.js';
         function renderBulkPage(qt) {
           var nodes = state.bulkImportResults[qt];
           if (!nodes) return;
-          var state = bulkPageState[qt];
-          var start = state.page * state.pageSize;
-          var end = Math.min(start + state.pageSize, nodes.length);
-          var totalPages = Math.ceil(nodes.length / state.pageSize);
+          var pg = bulkPageState[qt];
+          var start = pg.page * pg.pageSize;
+          var end = Math.min(start + pg.pageSize, nodes.length);
+          var totalPages = Math.ceil(nodes.length / pg.pageSize);
           var label = queryTypeLabels[qt];
 
           // Sort nodes if sort is active
-          if (state.sortCol) {
-            var dir = state.sortDir || 'asc';
+          if (pg.sortCol) {
+            var dir = pg.sortDir || 'asc';
             nodes = nodes.slice().sort(function(a, b) {
-              var va = getBulkSortValue(a, qt, state.sortCol);
-              var vb = getBulkSortValue(b, qt, state.sortCol);
+              var va = getBulkSortValue(a, qt, pg.sortCol);
+              var vb = getBulkSortValue(b, qt, pg.sortCol);
               if (va < vb) return dir === 'asc' ? -1 : 1;
               if (va > vb) return dir === 'asc' ? 1 : -1;
               return 0;
@@ -3256,8 +3256,8 @@ import { ProductsPanel } from './products.js';
           if (!bodyEl) return;
 
           function sortIndicator(col) {
-            if (state.sortCol !== col) return ' <span class="sort-arrow">⇅</span>';
-            return state.sortDir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
+            if (pg.sortCol !== col) return ' <span class="sort-arrow">⇅</span>';
+            return pg.sortDir === 'asc' ? ' <span class="sort-arrow active">↑</span>' : ' <span class="sort-arrow active">↓</span>';
           }
 
           var h = '';
@@ -3266,7 +3266,7 @@ import { ProductsPanel } from './products.js';
           h += '<span class="bulk-pagination-info">' + (start + 1) + '–' + end + ' מתוך ' + nodes.length + '</span>';
           h += '<select class="bulk-page-size" data-qt="' + qt + '">';
           [20, 50, 100, 200].forEach(function(s) {
-            h += '<option value="' + s + '"' + (s === state.pageSize ? ' selected' : '') + '>' + s + '</option>';
+            h += '<option value="' + s + '"' + (s === pg.pageSize ? ' selected' : '') + '>' + s + '</option>';
           });
           h += '</select>';
           h += '</div>';
@@ -3321,9 +3321,9 @@ import { ProductsPanel } from './products.js';
           // Pagination controls below table
           if (totalPages > 1) {
             h += '<div class="bulk-pagination-bottom">';
-            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="prev"' + (state.page === 0 ? ' disabled' : '') + '>▶</button>';
-            h += '<span class="bulk-pagination-page">' + (state.page + 1) + ' / ' + totalPages + '</span>';
-            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="next"' + (state.page >= totalPages - 1 ? ' disabled' : '') + '>◀</button>';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="prev"' + (pg.page === 0 ? ' disabled' : '') + '>▶</button>';
+            h += '<span class="bulk-pagination-page">' + (pg.page + 1) + ' / ' + totalPages + '</span>';
+            h += '<button class="btn btn-secondary btn-sm bulk-page-btn" data-qt="' + qt + '" data-dir="next"' + (pg.page >= totalPages - 1 ? ' disabled' : '') + '>◀</button>';
             h += '</div>';
           }
 
