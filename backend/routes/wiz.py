@@ -8,8 +8,6 @@ from __future__ import annotations
 import os
 import re
 import urllib.error
-import sys
-import json
 from typing import Any, Dict, Optional
 
 from flask import Blueprint, jsonify, request
@@ -39,7 +37,7 @@ from backend.graphql.queries import (
     SOFTWARE_SUPPLY_CHAIN_QUERY,
     VULN_FINDINGS_QUERY,
 )
-from backend.services.wiz_service import WizService
+from backend.services.wiz_service import WizService, build_bulk_filter
 from backend.services.auth_service import require_role
 
 wiz_bp = Blueprint('wiz', __name__, url_prefix='/api/wizi')
@@ -347,18 +345,6 @@ def api_wizi_issues():
         root_key = "secretInstances"
 
     elif query_type == "excessiveAccessFindings":
-        # === DEBUG LOGGING START ===
-        print("\n" + "="*80, file=sys.stderr)
-        print("[DEBUG EXCESSIVE ACCESS] Filtered Query Request", file=sys.stderr)
-        print(f"  subscription_id param: {subscription_id!r}", file=sys.stderr)
-        print(f"  resolved_sub_ids: {resolved_sub_ids!r}", file=sys.stderr)
-        print(f"  resolved_sub_ext_ids: {resolved_sub_ext_ids!r}", file=sys.stderr)
-        print(f"  resolved_sub_names: {resolved_sub_names!r}", file=sys.stderr)
-        print(f"  severity param: {severity!r}", file=sys.stderr)
-        print(f"  status param: {status!r}", file=sys.stderr)
-        print(f"  project_id param: {project_id!r}", file=sys.stderr)
-        # === DEBUG LOGGING END ===
-
         if severity:
             filter_by["severity"] = eq_wrap(severity)
         if status:
@@ -367,15 +353,9 @@ def api_wizi_issues():
         # Filter by scope.id.equals (discovered from Wiz browser dev tools)
         if resolved_sub_ids:
             filter_by["scope"] = {"id": {"equals": resolved_sub_ids}}
-            print(f"[DEBUG] ✅ Added subscription filter: scope.id.equals = {resolved_sub_ids}", file=sys.stderr)
-        else:
-            print(f"[DEBUG] ❌ NO subscription filter (no resolved_sub_ids)", file=sys.stderr)
 
         if project_id:
             filter_by["project"] = as_list(project_id)
-
-        print(f"[DEBUG] Final filter_by: {json.dumps(filter_by, indent=2)}", file=sys.stderr)
-        print("="*80 + "\n", file=sys.stderr)
 
         gql = WIZI_EXCESSIVE_ACCESS_QUERY
         root_key = "excessiveAccessFindings"
@@ -457,20 +437,6 @@ def api_wizi_issues():
             # Fetch all findings with pagination handled automatically
             all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by if filter_by else None)
 
-            # === DEBUG: Log actual results for excessiveAccessFindings ===
-            if query_type == "excessiveAccessFindings":
-                print(f"\n[DEBUG] Fetched {len(all_nodes)} total findings", file=sys.stderr)
-                if all_nodes:
-                    # Sample first 3 findings to see which subscriptions they belong to
-                    print(f"[DEBUG] Sample findings (first 3):", file=sys.stderr)
-                    for i, node in enumerate(all_nodes[:3]):
-                        principal = node.get("principal", {})
-                        cloud_account = principal.get("cloudAccount", {})
-                        print(f"  [{i+1}] {node.get('name', 'N/A')}", file=sys.stderr)
-                        print(f"      Severity: {node.get('severity')}, Platform: {node.get('cloudPlatform')}", file=sys.stderr)
-                        print(f"      Account: {cloud_account.get('name')} (ID: {cloud_account.get('externalId')})", file=sys.stderr)
-                print("="*80 + "\n", file=sys.stderr)
-
             response_data = {
                 "queryType": query_type,
                 root_key: {
@@ -492,12 +458,6 @@ def api_wizi_issues():
 
             response_data = {"queryType": query_type, root_key: result.get("data", {}).get(gql_root_key or root_key, {})}
 
-            # === DEBUG: Log results for manual pagination too ===
-            if query_type == "excessiveAccessFindings":
-                nodes = result.get("data", {}).get(root_key, {}).get("nodes", [])
-                print(f"\n[DEBUG] Manual pagination: Fetched {len(nodes)} findings", file=sys.stderr)
-                print("="*80 + "\n", file=sys.stderr)
-
         # Add warning if subscription resolution failed
         if subscription_resolution_failed:
             response_data["warning"] = f"Subscription '{subscription_id}' not found in cloud accounts. Results may be unfiltered."
@@ -509,66 +469,6 @@ def api_wizi_issues():
     except Exception as e:
         return jsonify({"error": str(e)}), 502
 
-
-def build_bulk_filter(query_type, sub_ids, sub_ext_ids, sub_names=None):
-    """Build a filterBy dict for a given query type with HIGH/CRITICAL severity,
-    OPEN/IN_PROGRESS status (or FAIL for configurationFindings), and subscription filter."""
-    filter_by = {}
-    sub_names = sub_names or []
-
-    # --- Severity filter: Only CRITICAL and HIGH (not MEDIUM or below) ---
-    # endOfLifeFindings uses the vulnerabilityFindings Wiz query — same plain-list severity schema.
-    if query_type in ("issues", "configurationFindings", "vulnerabilityFindings",
-                      "hostConfigurationRuleAssessments", "endOfLifeFindings"):
-        filter_by["severity"] = ["CRITICAL", "HIGH"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings"):
-        pass  # Non-standard filter schemas — no severity field
-    else:
-        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
-        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
-
-    # --- Status filter ---
-    if query_type == "configurationFindings":
-        filter_by["result"] = ["FAIL"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings"):
-        pass  # Non-standard filter schemas (no status field)
-    elif query_type in ("issues", "vulnerabilityFindings", "hostConfigurationRuleAssessments", "endOfLifeFindings"):
-        filter_by["status"] = ["OPEN", "IN_PROGRESS"]
-    else:
-        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
-        filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
-
-    # --- Subscription filter (only if IDs are available) ---
-    if query_type == "issues" and sub_ids:
-        filter_by["cloudAccountOrCloudOrganizationId"] = sub_ids
-    elif query_type == "configurationFindings" and sub_ids:
-        filter_by["resource"] = {"subscriptionId": sub_ids}
-    elif query_type == "vulnerabilityFindings" and sub_ext_ids:
-        filter_by["subscriptionExternalId"] = sub_ext_ids
-    elif query_type == "hostConfigurationRuleAssessments" and sub_ids:
-        filter_by["resource"] = {"subscriptionId": sub_ids}
-    elif query_type == "dataFindingsV2" and sub_ext_ids:
-        filter_by["graphEntityCloudAccount"] = {"equals": sub_ext_ids}
-    elif query_type == "secretInstances" and sub_ext_ids:
-        filter_by["cloudAccount"] = {"equals": sub_ext_ids}
-    elif query_type == "excessiveAccessFindings":
-        # ExcessiveAccessFindingFilters uses scope.id.equals for subscription;
-        # severity/status are not valid fields in this filter type (causes 400)
-        if sub_ids:
-            filter_by["scope"] = {"id": {"equals": sub_ids}}
-    elif query_type == "networkExposures" and sub_ext_ids:
-        filter_by["cloudAccount"] = sub_ext_ids
-    elif query_type == "inventoryFindings" and sub_ids:
-        filter_by["resource"] = {"subscriptionId": {"equals": sub_ids}}
-    elif query_type == "endOfLifeFindings":
-        # EOL findings use the vulnerabilityFindings Wiz query with an isEndOfLife flag.
-        # The filter type is VulnerabilityFindingFilters — uses subscriptionExternalId (not resource).
-        filter_by["isEndOfLife"] = True
-        if sub_ext_ids:
-            filter_by["subscriptionExternalId"] = sub_ext_ids
-    # softwareSupplyChainFindings: Wiz's SSC filter type has no subscription scope field.
-
-    return filter_by
 
 
 @wiz_bp.route("/bulk-fetch", methods=["POST"])
@@ -598,24 +498,8 @@ def api_wizi_bulk_fetch():
         try:
             filter_by = build_bulk_filter(query_type, resolved_sub_ids, resolved_sub_ext_ids, resolved_sub_names)
 
-            # === DEBUG for excessiveAccessFindings ===
-            if query_type == "excessiveAccessFindings":
-                print(f"\n[DEBUG BULK] Processing {query_type}", file=sys.stderr)
-                print(f"[DEBUG BULK] Filter: {json.dumps(filter_by, indent=2)}", file=sys.stderr)
-
             # Use paginated fetch to get ALL findings without 500 limit
             all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by)
-
-            # === DEBUG results ===
-            if query_type == "excessiveAccessFindings":
-                print(f"[DEBUG BULK] Got {len(all_nodes)} findings", file=sys.stderr)
-                if all_nodes:
-                    sample = all_nodes[0]
-                    principal = sample.get("principal", {})
-                    cloud_account = principal.get("cloudAccount", {})
-                    print(f"[DEBUG BULK] Sample: {sample.get('name')}", file=sys.stderr)
-                    print(f"[DEBUG BULK]   Account: {cloud_account.get('name')} ({cloud_account.get('externalId')})", file=sys.stderr)
-                print("="*80 + "\n", file=sys.stderr)
 
             results[query_type] = {
                 "nodes": all_nodes,
@@ -623,12 +507,6 @@ def api_wizi_bulk_fetch():
             }
         except Exception as e:
             errors[query_type] = str(e)
-            # === DEBUG errors ===
-            if query_type == "excessiveAccessFindings":
-                import traceback
-                print(f"\n[DEBUG BULK ERROR] {query_type} failed:", file=sys.stderr)
-                print(traceback.format_exc(), file=sys.stderr)
-                print("="*80 + "\n", file=sys.stderr)
 
     return jsonify({
         "results": results,
@@ -665,23 +543,7 @@ def api_wizi_bulk_fetch_single():
         # --- Fetch single query type ---
         filter_by = build_bulk_filter(query_type, resolved_sub_ids, resolved_sub_ext_ids, resolved_sub_names)
 
-        # === DEBUG for excessiveAccessFindings ===
-        if query_type == "excessiveAccessFindings":
-            print(f"\n[DEBUG SINGLE] bulk-fetch-single for {query_type}", file=sys.stderr)
-            print(f"[DEBUG SINGLE] Filter: {json.dumps(filter_by, indent=2)}", file=sys.stderr)
-
         all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by)
-
-        # === DEBUG results ===
-        if query_type == "excessiveAccessFindings":
-            print(f"[DEBUG SINGLE] Got {len(all_nodes)} findings", file=sys.stderr)
-            if all_nodes:
-                sample = all_nodes[0]
-                principal = sample.get("principal", {})
-                cloud_account = principal.get("cloudAccount", {})
-                print(f"[DEBUG SINGLE] Sample: {sample.get('name')}", file=sys.stderr)
-                print(f"[DEBUG SINGLE]   Account: {cloud_account.get('name')} ({cloud_account.get('externalId')})", file=sys.stderr)
-            print("="*80 + "\n", file=sys.stderr)
 
         return jsonify({
             "result": {
@@ -691,12 +553,6 @@ def api_wizi_bulk_fetch_single():
             "resolvedSubscription": resolved,
         })
     except Exception as e:
-        # === DEBUG errors ===
-        if query_type == "excessiveAccessFindings":
-            import traceback
-            print(f"\n[DEBUG SINGLE ERROR] {query_type} failed:", file=sys.stderr)
-            print(traceback.format_exc(), file=sys.stderr)
-            print("="*80 + "\n", file=sys.stderr)
         return jsonify({"error": str(e)}), 500
 
 

@@ -23,6 +23,7 @@ node_modules/
 
 # Wiz reports
 Report_*.csv
+kubernetes/*.csv
 
 # Runtime data
 output/
