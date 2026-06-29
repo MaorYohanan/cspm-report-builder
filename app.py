@@ -115,6 +115,7 @@ if not os.environ.get("DATABASE_URL"):
         if isinstance(dbapi_conn, _sqlite3.Connection):
             dbapi_conn.execute("PRAGMA journal_mode=WAL")
             dbapi_conn.execute("PRAGMA synchronous=NORMAL")
+            dbapi_conn.execute("PRAGMA busy_timeout=30000")
 
 db.init_app(app)
 

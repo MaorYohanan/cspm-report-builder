@@ -10,11 +10,17 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -131,65 +137,93 @@ class WizService:
 
     def resolve_subscription(self, subscription_name: str) -> Dict[str, List[str]]:
         """
-        Resolve a subscription name to cloud account IDs and external IDs.
+        Resolve a subscription name/ID to Wiz cloud account IDs and external IDs.
 
-        Performs intelligent search with fallback to partial matching
-        if exact match is not found.
+        Search order:
+        1. Exact text search by name via the Wiz search filter.
+        2. Partial token search — for hyphenated names, try each significant part.
+        3. UUID fallback — if the input is a UUID and steps 1-2 returned nothing,
+           try fetching the cloud account by Wiz internal ID; if that also returns
+           nothing, use the UUID directly as an external ID (covers Azure sub UUIDs).
 
-        Args:
-            subscription_name: Subscription name or partial name to search for
-
-        Returns:
-            Dictionary with keys:
-                - ids: List of cloud account UUIDs
-                - externalIds: List of external IDs (e.g., AWS account numbers)
-                - names: List of resolved subscription names
+        Raises:
+            urllib.error.HTTPError: If the Wiz API returns a non-200 status.
+            Exception: Any network or timeout error from _graphql is propagated so
+                       the caller can fail fast instead of silently filtering nothing.
         """
-        resolved_ids: List[str] = []
-        resolved_ext_ids: List[str] = []
-        resolved_names: List[str] = []
+        nodes: List[Dict[str, Any]] = []
 
-        try:
-            # Try exact search first
-            result = self._graphql(
-                CLOUD_ACCOUNTS_QUERY,
-                {"first": 100, "filterBy": {"search": subscription_name}}
-            )
-            nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+        # 1. Exact text search
+        result = self._graphql(
+            CLOUD_ACCOUNTS_QUERY,
+            {"first": 100, "filterBy": {"search": subscription_name}},
+        )
+        nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
 
-            # If no exact match, try partial search with significant parts
-            if not nodes:
-                # Extract meaningful parts (skip common prefixes/suffixes)
-                parts = subscription_name.replace("_", "-").split("-")
-                significant_parts = [
-                    p for p in parts
-                    if len(p) >= 4 and p.lower() not in ("aws", "azure", "gcp", "dev", "prod", "test", "stg")
+        # 2. Partial token search (for hyphenated names like "M-CGov-Campusil-Dev")
+        if not nodes:
+            parts = subscription_name.replace("_", "-").split("-")
+            significant_parts = [
+                p for p in parts
+                if len(p) >= 4
+                and p.lower() not in ("aws", "azure", "gcp", "dev", "prod", "test", "stg")
+            ]
+            for part in significant_parts:
+                result = self._graphql(
+                    CLOUD_ACCOUNTS_QUERY,
+                    {"first": 100, "filterBy": {"search": part}},
+                )
+                candidate_nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+                # Keep only accounts whose name contains the full original string
+                filtered = [
+                    n for n in candidate_nodes
+                    if subscription_name.lower() in n.get("name", "").lower()
                 ]
+                if filtered:
+                    nodes = filtered
+                    break
 
-                if significant_parts:
-                    # Try searching with the most significant part
-                    for part in significant_parts:
-                        result = self._graphql(
-                            CLOUD_ACCOUNTS_QUERY,
-                            {"first": 100, "filterBy": {"search": part}}
-                        )
-                        nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
-                        if nodes:
-                            # Filter nodes to only those that contain the original search term
-                            nodes = [
-                                n for n in nodes
-                                if subscription_name.lower() in n.get("name", "").lower()
-                            ]
-                            if nodes:
-                                break
+        # 3. UUID fallback — input is a Wiz cloud account UUID or Azure subscription UUID
+        if not nodes and _UUID_RE.match(subscription_name):
+            _log.debug(
+                "resolve_subscription: text search found nothing for %r; "
+                "trying direct UUID lookup.",
+                subscription_name,
+            )
+            try:
+                result = self._graphql(
+                    CLOUD_ACCOUNTS_QUERY,
+                    {"first": 1, "filterBy": {"id": [subscription_name]}},
+                )
+                nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+            except Exception:
+                # CloudAccountFilters may not support id-based filtering on this tenant.
+                # Fall through to the "use UUID directly" path below.
+                nodes = []
 
-            resolved_ids = [n["id"] for n in nodes if n.get("id")]
-            resolved_ext_ids = [n["externalId"] for n in nodes if n.get("externalId")]
-            resolved_names = [n["name"] for n in nodes if n.get("name")]
+            if not nodes:
+                # Use the UUID directly — it might be an Azure subscription UUID
+                # (externalId) for which Wiz doesn't index the name.
+                _log.warning(
+                    "resolve_subscription: %r not found via name or ID search; "
+                    "using it directly as externalId. Subscription-scoped query types "
+                    "that rely on the Wiz internal UUID will be unfiltered.",
+                    subscription_name,
+                )
+                return {
+                    "ids": [],
+                    "externalIds": [subscription_name],
+                    "names": [],
+                }
 
-        except Exception:
-            pass  # Return empty results on error
+        resolved_ids = [n["id"] for n in nodes if n.get("id")]
+        resolved_ext_ids = [n["externalId"] for n in nodes if n.get("externalId")]
+        resolved_names = [n["name"] for n in nodes if n.get("name")]
 
+        _log.debug(
+            "resolve_subscription: %r → ids=%s externalIds=%s",
+            subscription_name, resolved_ids, resolved_ext_ids,
+        )
         return {
             "ids": resolved_ids,
             "externalIds": resolved_ext_ids,
@@ -412,63 +446,6 @@ class WizService:
         # Fetch findings
         return self.fetch_all_findings_paginated("configurationFindings", filter_by)
 
-    def bulk_fetch_for_subscriptions(
-        self,
-        subscription_names: List[str],
-        progress_cb=None,
-    ) -> List[Dict[str, Any]]:
-        """
-        Fetch all 9 query types for each subscription, one subscription at a time.
-
-        Stamps each finding dict with '_sourceSubscription' and 'queryType'.
-        Deduplicates by finding id across subscriptions.
-        progress_cb(done, total) is called after each (subscription × queryType) step.
-        """
-        QUERY_TYPES = [
-            "issues",
-            "configurationFindings",
-            "vulnerabilityFindings",
-            "hostConfigurationRuleAssessments",
-            "dataFindingsV2",
-            "secretInstances",
-            "excessiveAccessFindings",
-            "networkExposures",
-            "endOfLifeFindings",
-        ]
-        total = len(subscription_names) * len(QUERY_TYPES)
-        done = 0
-        seen_ids: set = set()
-        findings: List[Dict[str, Any]] = []
-
-        for sub_name in subscription_names:
-            resolved = self.resolve_subscription(sub_name)
-            combined = {
-                "ids": resolved.get("ids", []),
-                "externalIds": resolved.get("externalIds", []),
-            }
-            for qtype in QUERY_TYPES:
-                try:
-                    filter_by = _build_filter_for_bulk(qtype, combined)
-                    nodes = self.fetch_all_findings_paginated(qtype, filter_by)
-                    for n in nodes:
-                        fid = n.get("id")
-                        if fid and fid in seen_ids:
-                            continue
-                        if fid:
-                            seen_ids.add(fid)
-                        n["queryType"] = qtype
-                        n["_sourceSubscription"] = sub_name
-                        findings.append(n)
-                except Exception as exc:
-                    _log.warning(
-                        "bulk_fetch skipped %s/%s: %s", sub_name, qtype, exc
-                    )
-                done += 1
-                if progress_cb:
-                    progress_cb(done, total)
-
-        return findings
-
     def introspect_schema(self) -> List[Dict[str, Any]]:
         """
         Introspect the Wiz GraphQL schema to discover available queries.
@@ -492,41 +469,52 @@ class WizService:
         ]
 
 
-def _build_filter_for_bulk(query_type: str, combined: Dict[str, Any]) -> Dict[str, Any]:
-    """Build a filterBy dict for bulk fetch (HIGH/CRITICAL, OPEN, subscription-scoped).
+def build_bulk_filter(
+    query_type: str,
+    sub_ids: List[str],
+    sub_ext_ids: List[str],
+    sub_names: List[str] | None = None,
+) -> Dict[str, Any]:
+    """Build a filterBy dict for a given query type.
 
-    Mirrors build_bulk_filter from backend/routes/wiz.py so pipeline.py
-    has no cross-blueprint import dependency.
+    Canonical implementation — used by api_wizi_bulk_fetch_single (wiz.py)
+    and _run_wiz_fetch (pipeline.py) so both flows produce identical Wiz API filters.
+
+    Applies:
+    - Severity: CRITICAL + HIGH (schema-appropriate format per query type)
+    - Status: OPEN + IN_PROGRESS (or FAIL for configurationFindings)
+    - Subscription scope: correct filter field per query type
     """
-    sub_ids: List[str] = combined.get("ids", [])
-    sub_ext_ids: List[str] = combined.get("externalIds", [])
+    sub_names = sub_names or []
     filter_by: Dict[str, Any] = {}
 
-    # Severity
+    # ── Severity ──────────────────────────────────────────────────────────────
     if query_type in (
         "issues", "configurationFindings", "vulnerabilityFindings",
         "hostConfigurationRuleAssessments", "endOfLifeFindings",
     ):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
     elif query_type in ("networkExposures", "excessiveAccessFindings"):
-        pass
+        pass  # Non-standard filter schemas — no severity field
     else:
+        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
 
-    # Status
+    # ── Status ────────────────────────────────────────────────────────────────
     if query_type == "configurationFindings":
         filter_by["result"] = ["FAIL"]
     elif query_type in ("networkExposures", "excessiveAccessFindings"):
-        pass
+        pass  # Non-standard filter schemas (no status field)
     elif query_type in (
         "issues", "vulnerabilityFindings",
         "hostConfigurationRuleAssessments", "endOfLifeFindings",
     ):
         filter_by["status"] = ["OPEN", "IN_PROGRESS"]
     else:
+        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
         filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
 
-    # Subscription scope
+    # ── Subscription scope ────────────────────────────────────────────────────
     if query_type == "issues" and sub_ids:
         filter_by["cloudAccountOrCloudOrganizationId"] = sub_ids
     elif query_type == "configurationFindings" and sub_ids:
@@ -539,13 +527,21 @@ def _build_filter_for_bulk(query_type: str, combined: Dict[str, Any]) -> Dict[st
         filter_by["graphEntityCloudAccount"] = {"equals": sub_ext_ids}
     elif query_type == "secretInstances" and sub_ext_ids:
         filter_by["cloudAccount"] = {"equals": sub_ext_ids}
-    elif query_type == "excessiveAccessFindings" and sub_ids:
-        filter_by["scope"] = {"id": {"equals": sub_ids}}
+    elif query_type == "excessiveAccessFindings":
+        # ExcessiveAccessFindingFilters uses scope.id.equals for subscription;
+        # severity/status are not valid fields in this filter type (causes 400).
+        if sub_ids:
+            filter_by["scope"] = {"id": {"equals": sub_ids}}
     elif query_type == "networkExposures" and sub_ext_ids:
         filter_by["cloudAccount"] = sub_ext_ids
+    elif query_type == "inventoryFindings" and sub_ids:
+        filter_by["resource"] = {"subscriptionId": {"equals": sub_ids}}
     elif query_type == "endOfLifeFindings":
+        # EOL findings use the vulnerabilityFindings Wiz query with an isEndOfLife flag.
+        # The filter type is VulnerabilityFindingFilters — uses subscriptionExternalId.
         filter_by["isEndOfLife"] = True
         if sub_ext_ids:
             filter_by["subscriptionExternalId"] = sub_ext_ids
+    # softwareSupplyChainFindings: Wiz's SSC filter type has no subscription scope field.
 
     return filter_by

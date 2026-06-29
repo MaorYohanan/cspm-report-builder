@@ -225,6 +225,10 @@ export var PipelinePanel = {
             });
         };
 
+        // Grab the start button through the overlay so we can disable it.
+        var startBtn = overlay.querySelector('.pipeline-start-fetch-btn');
+        if (startBtn) startBtn.disabled = true;
+
         try {
             var resp = await fetch('/api/pipeline/' + productId + '/start-scan', {
                 method: 'POST',
@@ -233,6 +237,7 @@ export var PipelinePanel = {
             });
             var data = await resp.json();
             if (!resp.ok) {
+                if (startBtn) startBtn.disabled = false;
                 _showError(data.message || data.error || 'שגיאה');
                 return;
             }
@@ -243,51 +248,97 @@ export var PipelinePanel = {
                 + '</div>'
                 + '<p id="pipeline-progress-label" style="font-size:0.8rem;color:var(--text-muted);margin:6px 0 16px">מתחיל...</p>'
                 + '<div class="pipeline-scan-modal-actions">'
-                + '<button class="btn btn-secondary btn-sm" disabled>ביטול</button>'
+                + '<button class="btn btn-secondary btn-sm pipeline-cancel-poll-btn">סגור ברקע</button>'
                 + '</div>';
-            self._pollStatus(productId, data.snapshot_id, overlay);
+            var stopPolling = self._pollStatus(productId, data.snapshot_id, overlay);
+            body.querySelector('.pipeline-cancel-poll-btn').addEventListener('click', function() {
+                stopPolling();
+                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                showToast('הסריקה ממשיכה ברקע — רענן את הלשונית לאחר מספר דקות', 'info');
+            });
         } catch (e) {
+            if (startBtn) startBtn.disabled = false;
             _showError('שגיאת רשת. נסה שוב.');
         }
     },
 
+    // Returns a stop() function. Uses recursive setTimeout so each tick waits
+    // for the previous fetch to resolve before scheduling the next one —
+    // preventing overlapping requests when the server is slow.
     _pollStatus: function(productId, snapshotId, overlay) {
         var self = this;
-        var interval = setInterval(async function() {
+        var attempts = 0;
+        var MAX_ATTEMPTS = 200; // ~10 minutes at 3-second intervals
+        var cancelled = false;
+        var timer = null;
+        var _lastDone = 0;
+
+        var _stopWithError = function(msg) {
+            var body = overlay.querySelector('.pipeline-scan-modal-body');
+            if (!body) return;
+            body.innerHTML = '<p class="pipeline-modal-error">' + _esc(msg) + '</p>'
+                + '<div class="pipeline-scan-modal-actions">'
+                + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">סגור</button>'
+                + '</div>';
+            body.querySelector('.pipeline-modal-close-btn').addEventListener('click', function() {
+                if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+            });
+        };
+
+        var _tick = async function() {
+            if (cancelled) return;
+
+            // Stop if overlay was removed from the page (e.g. user closed it another way)
+            if (!document.body.contains(overlay)) return;
+
+            attempts++;
+            if (attempts > MAX_ATTEMPTS) {
+                _stopWithError('הסריקה ארכה זמן רב מדי. בדוק את לוג השרת ונסה שוב.');
+                return;
+            }
+
             try {
                 var resp = await fetch('/api/pipeline/' + productId + '/scan-status/' + snapshotId);
-                if (!resp.ok) return;
+                if (!resp.ok) {
+                    _stopWithError('שגיאת שרת (' + resp.status + '). נסה לרענן את הדף.');
+                    return;
+                }
                 var job = await resp.json();
+
+                if (job.done > _lastDone) _lastDone = job.done;
 
                 var fill = overlay.querySelector('#pipeline-progress-fill');
                 var label = overlay.querySelector('#pipeline-progress-label');
                 if (fill && job.total > 0) {
-                    fill.style.width = Math.round(job.done / job.total * 100) + '%';
+                    fill.style.width = Math.round(_lastDone / job.total * 100) + '%';
                 }
                 if (label) {
-                    label.textContent = job.done + ' מתוך ' + job.total + ' שאילתות הושלמו';
+                    label.textContent = _lastDone + ' מתוך ' + job.total + ' שאילתות הושלמו';
                 }
 
                 if (job.status === 'done') {
-                    clearInterval(interval);
                     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
                     showToast('הסריקה הושלמה — ' + (job.findings_count || 0) + ' ממצאים יובאו', 'success');
                     self.load();
-                } else if (job.status === 'error') {
-                    clearInterval(interval);
-                    var body = overlay.querySelector('.pipeline-scan-modal-body');
-                    if (body) {
-                        body.innerHTML = '<p class="pipeline-modal-error">שגיאה בשליפה: ' + _esc(job.error || 'שגיאה לא ידועה') + '</p>'
-                            + '<div class="pipeline-scan-modal-actions">'
-                            + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">סגור</button>'
-                            + '</div>';
-                        body.querySelector('.pipeline-modal-close-btn').addEventListener('click', function() {
-                            if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-                        });
-                    }
+                    return; // no more ticks
                 }
-            } catch (e) { /* network hiccup — retry next tick */ }
-        }, 3000);
+                if (job.status === 'error') {
+                    _stopWithError('שגיאה בשליפה: ' + (job.error || 'שגיאה לא ידועה'));
+                    return; // no more ticks
+                }
+            } catch (e) { /* network hiccup — schedule next tick normally */ }
+
+            // Schedule next tick only after this one fully resolves
+            if (!cancelled) timer = setTimeout(_tick, 3000);
+        };
+
+        // Kick off the first tick
+        timer = setTimeout(_tick, 3000);
+
+        return function stop() {
+            cancelled = true;
+            if (timer !== null) clearTimeout(timer);
+        };
     },
 };
 
