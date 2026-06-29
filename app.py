@@ -98,6 +98,25 @@ if not _database_url:
 
 app.config["SQLALCHEMY_DATABASE_URI"] = _database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# SQLite: enable WAL mode and a 30-second busy timeout so background threads
+# don't immediately deadlock concurrent Flask requests.
+if not os.environ.get("DATABASE_URL"):
+    import sqlite3 as _sqlite3
+    from sqlalchemy import event as _sa_event
+    from sqlalchemy.engine import Engine as _Engine
+
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "connect_args": {"check_same_thread": False, "timeout": 30},
+    }
+
+    @_sa_event.listens_for(_Engine, "connect")
+    def _set_sqlite_wal(dbapi_conn, _record):
+        if isinstance(dbapi_conn, _sqlite3.Connection):
+            dbapi_conn.execute("PRAGMA journal_mode=WAL")
+            dbapi_conn.execute("PRAGMA synchronous=NORMAL")
+            dbapi_conn.execute("PRAGMA busy_timeout=30000")
+
 db.init_app(app)
 
 # Auto-create tables only in dev (SQLite). Production uses managed migrations.

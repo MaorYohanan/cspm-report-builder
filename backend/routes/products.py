@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.database import db
 from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
+from backend.scan_state import scan_jobs as _scan_jobs
 from backend.services.auth_service import require_role
 
 products_bp = Blueprint("products", __name__)
@@ -215,11 +216,18 @@ def _unique_slug(base: str) -> str:
 
 
 def _latest_snapshot(product_id: str) -> ReportSnapshot | None:
-    """Return the highest-versioned ReportSnapshot for a product, or None."""
-    snapshots = ReportSnapshot.query.filter_by(product_id=product_id).all()
-    if not snapshots:
-        return None
-    return max(snapshots, key=lambda s: tuple(int(x) for x in s.version.split(".")))
+    """Return the highest-versioned ReportSnapshot for a product, or None.
+
+    Snapshots are always inserted with increasing version numbers, so the
+    highest id is the latest version. Using ORDER BY id DESC avoids loading
+    all rows into Python for sorting.
+    """
+    return (
+        ReportSnapshot.query
+        .filter_by(product_id=product_id)
+        .order_by(ReportSnapshot.id.desc())
+        .first()
+    )
 
 
 def _fmt_dt(dt: datetime | None) -> str | None:
@@ -606,7 +614,41 @@ def delete_version(product_id: str, ver: str):
     if snap is None:
         return jsonify({"error": "Version not found"}), 404
 
+    # Block deletion if ANY scan for this product is currently running.
+    # A background scan holds the SQLite write lock repeatedly while batch-committing
+    # findings; a concurrent DELETE on the same findings table will time out waiting
+    # for the lock.  Check in-memory jobs first (fast), fall back to the DB for
+    # multi-worker deployments where the scan may be running in a different process.
+    _MAX_SCAN_AGE_SECONDS = 600  # 10 minutes — interrupted scans leave stale "fetching" markers
+    scan_running = any(
+        j.get("product_id") == safe_id and j.get("status") == "fetching"
+        for j in _scan_jobs.values()
+    )
+    if not scan_running:
+        # DB fallback: any snapshot for this product whose _scan_status is "fetching"
+        # AND whose saved_at is recent enough to represent an active scan.  Without the
+        # staleness guard, a crash/restart leaves the flag stuck forever and blocks all
+        # future deletes on the same product.
+        now = datetime.now(UTC)
+        all_snaps = ReportSnapshot.query.filter_by(product_id=safe_id).all()
+        for s in all_snaps:
+            if (s.snapshot_data or {}).get("_scan_status") != "fetching":
+                continue
+            if s.saved_at is None:
+                continue  # no creation timestamp — treat as stale
+            saved_at = s.saved_at if s.saved_at.tzinfo else s.saved_at.replace(tzinfo=UTC)
+            if (now - saved_at).total_seconds() < _MAX_SCAN_AGE_SECONDS:
+                scan_running = True
+                break
+    if scan_running:
+        return jsonify({"error": "סריקה פעילה — המתן לסיומה לפני מחיקה"}), 409
+
     summary = _version_summary(snap)
+
+    # Bulk-delete findings first to avoid issuing thousands of individual
+    # row-level DELETEs via SQLAlchemy's cascade, which holds the write lock
+    # for the entire duration.
+    Finding.query.filter_by(snapshot_id=snap.id).delete(synchronize_session=False)
     db.session.delete(snap)
 
     product = db.session.get(Product, safe_id)

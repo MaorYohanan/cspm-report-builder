@@ -3529,6 +3529,90 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   font-size: 0.9rem;
 }
 
+/* ── Actions column ── */
+.pipeline-actions {
+  text-align: center;
+  width: 110px;
+  white-space: nowrap;
+}
+
+/* ── New Scan modal overlay ── */
+.pipeline-scan-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pipeline-scan-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 28px 28px 20px;
+  min-width: 340px;
+  max-width: 500px;
+  direction: rtl;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.pipeline-scan-modal h3 {
+  margin: 0 0 18px;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.pipeline-sub-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pipeline-sub-list li {
+  padding: 6px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.88rem;
+}
+
+.pipeline-sub-list input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+}
+
+.pipeline-scan-modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.pipeline-progress-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.pipeline-progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.pipeline-modal-error {
+  color: var(--danger);
+  font-size: 0.88rem;
+  margin: 0 0 16px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 680px) {
   .pipeline-kpi-row {
