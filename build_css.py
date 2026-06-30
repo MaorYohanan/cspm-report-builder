@@ -4,6 +4,7 @@ Concatenates CSS source modules from static/css/src/ into static/css/builder.css
 Run after editing any source file: python3 build_css.py
 """
 import os
+import sys
 
 SRC_DIR = os.path.join('static', 'css', 'src')
 OUTPUT = os.path.join('static', 'css', 'builder.css')
@@ -25,7 +26,7 @@ for fname in FILE_ORDER:
     path = os.path.join(SRC_DIR, fname)
     if not os.path.exists(path):
         print(f"ERROR: {path} not found!")
-        exit(1)
+        sys.exit(1)
     with open(path, 'r', encoding='utf-8') as f:
         parts.append(f.read())
         parts.append('\n')

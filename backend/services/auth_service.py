@@ -93,12 +93,23 @@ def require_role(min_role: str):
                     )
                     return f(*args, **kwargs)
 
-            user_role = session.get("user_role", "")
+            user_email = session.get("user_email", "")
             is_api = request.path.startswith("/api/")
-            if not user_role:
+            if not user_email:
                 if is_api:
                     return jsonify({"error": "Unauthorized"}), 401
                 return redirect(url_for("auth.login"))
+            # Re-read role from DB on every request so role demotions take effect immediately.
+            db_user = db.session.execute(
+                db.select(User).where(User.email == user_email)
+            ).scalar_one_or_none()
+            if not db_user:
+                session.clear()
+                if is_api:
+                    return jsonify({"error": "Unauthorized"}), 401
+                return redirect(url_for("auth.login"))
+            user_role = db_user.role
+            session["user_role"] = user_role  # keep session in sync
             if _ROLE_ORDER.get(user_role, -1) < _ROLE_ORDER.get(min_role, 0):
                 if is_api:
                     return jsonify({"error": "Forbidden"}), 403

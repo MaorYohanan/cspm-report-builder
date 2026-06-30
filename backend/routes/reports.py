@@ -8,6 +8,7 @@ Routes:
 
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from flask import Blueprint, jsonify, request, send_file
 from backend.services.pdf_service import PDFService
 from backend.services.auth_service import require_role
 
+_log = logging.getLogger(__name__)
 reports_bp = Blueprint('reports', __name__)
 
 # Initialize PDF service
@@ -39,16 +41,21 @@ def api_render_pdf():
     Accept JSON body with { html: "<full report html>", meta: {...} }
     Return the rendered PDF file.
     """
-    data = request.get_json(force=True)
+    data = request.get_json(force=True, silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
     html_content = data.get("html", "")
     meta = data.get("meta", {})
 
     if not html_content:
         return jsonify({"error": "Missing 'html' field"}), 400
+    if len(html_content) > 5 * 1024 * 1024:
+        return jsonify({"error": "HTML content too large (max 5 MB)"}), 413
 
     try:
         pdf_bytes = pdf_service.render_pdf(html_content, meta)
     except Exception as e:
+        _log.error("PDF rendering failed: %s", e, exc_info=True)
         return jsonify({"error": f"PDF rendering failed: {e}"}), 500
 
     # Also save to output/

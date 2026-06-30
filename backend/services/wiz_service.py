@@ -494,16 +494,16 @@ def build_bulk_filter(
         "hostConfigurationRuleAssessments", "endOfLifeFindings",
     ):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings"):
+    elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
         pass  # Non-standard filter schemas — no severity field
     else:
-        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
+        # dataFindingsV2, secretInstances, inventoryFindings
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
 
     # ── Status ────────────────────────────────────────────────────────────────
     if query_type == "configurationFindings":
         filter_by["result"] = ["FAIL"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings"):
+    elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
         pass  # Non-standard filter schemas (no status field)
     elif query_type in (
         "issues", "vulnerabilityFindings",
@@ -511,7 +511,7 @@ def build_bulk_filter(
     ):
         filter_by["status"] = ["OPEN", "IN_PROGRESS"]
     else:
-        # dataFindingsV2, secretInstances, inventoryFindings, softwareSupplyChainFindings
+        # dataFindingsV2, secretInstances, inventoryFindings
         filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
 
     # ── Subscription scope ────────────────────────────────────────────────────

@@ -10,10 +10,13 @@ This service provides AI-powered capabilities for:
 from __future__ import annotations
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.request
 from typing import Optional
+
+_log = logging.getLogger(__name__)
 
 
 class GeminiService:
@@ -242,10 +245,9 @@ class GeminiService:
                 # — fall back to the full whitelist instead of silently skipping
                 # straight to whatever happens to be first in self.models without
                 # any log trail.
-                print(
-                    f"[GeminiService] Requested model {target_model!r} not in "
-                    f"whitelist {self.models}; using full fallback list",
-                    flush=True,
+                _log.warning(
+                    "Requested model %r not in whitelist %s; using full fallback list",
+                    target_model, self.models,
                 )
                 models_to_try = list(self.models)
         else:
@@ -266,7 +268,7 @@ class GeminiService:
 
         for i, try_model in enumerate(models_to_try):
             if i > 0:
-                print(f"[GeminiService] Model fallback: {models_to_try[i-1]} → {try_model}", flush=True)
+                _log.info("Gemini model fallback: %s → %s", models_to_try[i-1], try_model)
 
             # Retry logic for transient errors (network, timeout)
             for attempt in range(self.max_retries):
@@ -275,11 +277,10 @@ class GeminiService:
 
                     if response_text:
                         if i > 0:
-                            print(f"[GeminiService] Success with fallback model: {try_model}", flush=True)
+                            _log.info("Gemini success with fallback model: %s", try_model)
                         return response_text, try_model
                     else:
-                        # Empty response, try next model
-                        print(f"[GeminiService] {try_model}: empty response, trying next", flush=True)
+                        _log.info("Gemini %s: empty response, trying next model", try_model)
                         break  # Don't retry on empty response, go to next model
 
                 except urllib.error.HTTPError as e:
@@ -288,7 +289,7 @@ class GeminiService:
 
                     if e.code == 429:
                         # Rate limit - try next model immediately
-                        print(f"[GeminiService] {try_model}: rate limited (429), trying next model", flush=True)
+                        _log.warning("Gemini %s: rate limited (429), trying next model", try_model)
                         break
                     elif e.code == 400:
                         # Bad request - check if content was blocked.
@@ -360,14 +361,14 @@ class GeminiService:
         """
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={self.api_key}"
+            f"{model}:generateContent"
         )
 
         payload = json.dumps(payload_dict).encode("utf-8")
         req = urllib.request.Request(
             url,
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
             method="POST",
         )
 

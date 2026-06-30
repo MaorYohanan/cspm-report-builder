@@ -816,9 +816,10 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
         auth_url = os.environ.get("WIZI_AUTH_URL", "https://auth.app.wiz.io/oauth/token")
 
         if not client_id or not client_secret:
-            if snapshot_id in _scan_jobs:
-                _scan_jobs[snapshot_id]["status"] = "error"
-                _scan_jobs[snapshot_id]["error"] = "Wiz credentials not configured"
+            with _lock:
+                if snapshot_id in _scan_jobs:
+                    _scan_jobs[snapshot_id]["status"] = "error"
+                    _scan_jobs[snapshot_id]["error"] = "Wiz credentials not configured"
             return
 
         wiz = WizService(

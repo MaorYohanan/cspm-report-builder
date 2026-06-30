@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { escapeHtml } from './core.js';
 
 // ── Theme toggle ──
 (function() {
@@ -315,7 +316,7 @@ export function renderDashboard() {
       var h = '<table style="width:100%;font-size:12px;"><thead><tr><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th></tr></thead><tbody>';
       recent.forEach(function(f) {
         var sev = state.severityMap[f.severity] || state.severityMap.medium;
-        h += '<tr><td style="color:var(--accent);font-family:monospace;">' + (f.id || '') + '</td><td><span class="tag-inline">' + (f.category || '') + '</span></td><td>' + (f.title || '').substring(0, 50) + '</td><td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td><td>' + (f.owner || '—') + '</td></tr>';
+        h += '<tr><td style="color:var(--accent);font-family:monospace;">' + escapeHtml(f.id || '') + '</td><td><span class="tag-inline">' + escapeHtml(f.category || '') + '</span></td><td>' + escapeHtml((f.title || '').substring(0, 50)) + '</td><td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td><td>' + escapeHtml(f.owner || '—') + '</td></tr>';
       });
       h += '</tbody></table>';
       recentEl.innerHTML = h;

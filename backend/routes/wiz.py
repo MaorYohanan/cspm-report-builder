@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import urllib.error
 from typing import Any, Dict, Optional
 
@@ -58,27 +59,31 @@ WIZI_API_URL = os.environ.get("WIZI_API_URL", "https://api.il1.app.wiz.io/graphq
 
 # Initialize Wiz service (lazy initialization when credentials are available)
 _wiz_service: Optional[WizService] = None
+_wiz_service_lock = threading.Lock()
 
 
 _COMMENT_RE = re.compile(r"#[^\n]*")
 
 
 def get_wiz_service() -> WizService:
-    """Get or create the Wiz service instance."""
+    """Get or create the Wiz service instance (thread-safe)."""
     global _wiz_service
-    if _wiz_service is None:
-        if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
-            raise RuntimeError("Wiz credentials not configured")
-        if not WIZI_AUTH_URL.startswith("https://"):
-            raise RuntimeError(f"WIZI_AUTH_URL must use https://, got: {WIZI_AUTH_URL!r}")
-        if not WIZI_API_URL.startswith("https://"):
-            raise RuntimeError(f"WIZI_API_URL must use https://, got: {WIZI_API_URL!r}")
-        _wiz_service = WizService(
-            client_id=WIZI_CLIENT_ID,
-            client_secret=WIZI_CLIENT_SECRET,
-            api_url=WIZI_API_URL,
-            auth_url=WIZI_AUTH_URL,
-        )
+    if _wiz_service is not None:
+        return _wiz_service
+    with _wiz_service_lock:
+        if _wiz_service is None:
+            if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+                raise RuntimeError("Wiz credentials not configured")
+            if not WIZI_AUTH_URL.startswith("https://"):
+                raise RuntimeError(f"WIZI_AUTH_URL must use https://, got: {WIZI_AUTH_URL!r}")
+            if not WIZI_API_URL.startswith("https://"):
+                raise RuntimeError(f"WIZI_API_URL must use https://, got: {WIZI_API_URL!r}")
+            _wiz_service = WizService(
+                client_id=WIZI_CLIENT_ID,
+                client_secret=WIZI_CLIENT_SECRET,
+                api_url=WIZI_API_URL,
+                auth_url=WIZI_AUTH_URL,
+            )
     return _wiz_service
 
 
@@ -174,7 +179,7 @@ def api_wizi_graphql_proxy():
 
 
 @wiz_bp.route("/discover")
-@require_role("editor")
+@require_role("admin")
 def api_wizi_discover():
     """Discover available root query fields via introspection."""
     if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
@@ -188,7 +193,7 @@ def api_wizi_discover():
 
 
 @wiz_bp.route("/introspect-type")
-@require_role("editor")
+@require_role("admin")
 def api_wizi_introspect_type():
     """Introspect a specific GraphQL type or check root query fields.
 
@@ -214,8 +219,8 @@ def api_wizi_introspect_type():
             if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", type_name):
                 return jsonify({"error": "Invalid type name"}), 400
             q = """
-            query IntrospectType {
-              __type(name: "%s") {
+            query IntrospectType($typeName: String!) {
+              __type(name: $typeName) {
                 name kind
                 inputFields {
                   name
@@ -223,8 +228,8 @@ def api_wizi_introspect_type():
                 }
               }
             }
-            """ % type_name
-            result = wiz._graphql(q)
+            """
+            result = wiz._graphql(q, {"typeName": type_name})
             return jsonify(result.get("data", {}))
         return jsonify({"error": "Provide ?type=TypeName or ?query=1"}), 400
     except Exception as e:

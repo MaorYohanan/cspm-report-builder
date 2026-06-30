@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 import uuid
@@ -10,9 +11,10 @@ from sqlalchemy.exc import IntegrityError
 
 from backend.database import db
 from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
-from backend.scan_state import scan_jobs as _scan_jobs
+from backend.scan_state import scan_jobs as _scan_jobs, scan_jobs_lock as _scan_jobs_lock
 from backend.services.auth_service import require_role
 
+_log = logging.getLogger(__name__)
 products_bp = Blueprint("products", __name__)
 
 # ---------------------------------------------------------------------------
@@ -620,10 +622,11 @@ def delete_version(product_id: str, ver: str):
     # for the lock.  Check in-memory jobs first (fast), fall back to the DB for
     # multi-worker deployments where the scan may be running in a different process.
     _MAX_SCAN_AGE_SECONDS = 600  # 10 minutes — interrupted scans leave stale "fetching" markers
-    scan_running = any(
-        j.get("product_id") == safe_id and j.get("status") == "fetching"
-        for j in _scan_jobs.values()
-    )
+    with _scan_jobs_lock:
+        scan_running = any(
+            j.get("product_id") == safe_id and j.get("status") == "fetching"
+            for j in _scan_jobs.values()
+        )
     if not scan_running:
         # DB fallback: any snapshot for this product whose _scan_status is "fetching"
         # AND whose saved_at is recent enough to represent an active scan.  Without the

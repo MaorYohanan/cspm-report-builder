@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl } from './core.js';
+import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard } from './ui.js';
 import { autoSave } from './export.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
@@ -1126,8 +1126,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
                 html += '<tr data-idx="' + idx + '"' + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
-                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (f.id || '') + '</td>' +
-                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title || '') + excBadge + '</td>' +
+                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + escapeHtml(f.id || '') + '</td>' +
+                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(f.title || '') + excBadge + '</td>' +
                   '<td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td>' +
                   '</tr>';
               });
@@ -1438,50 +1438,6 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         if (previewFindingIdx !== null) startEditFinding(previewFindingIdx);
       });
 
-      export function showFindingPreview(idx) {
-        var f = state.findings[idx];
-        if (!f) return;
-        previewFindingIdx = idx;
-        var sev = state.severityMap[f.severity] || state.severityMap.medium;
-        previewPanelTitle.textContent = f.id + ' — ' + (f.title || '');
-
-        var fields = [
-          { label: 'מזהה', value: f.id },
-          { label: 'קטגוריה', value: f.category || 'CSPM' },
-          { label: 'כותרת', value: f.title },
-          { label: 'חומרה', value: sev.text, html: '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' },
-          { label: 'תיאור', value: Array.isArray(f.description) ? f.description.join('\n') : f.description },
-          { label: 'השפעה / סיכון', value: Array.isArray(f.impact) ? f.impact.join('\n') : f.impact },
-          { label: 'פרטים טכניים', value: Array.isArray(f.technical) ? f.technical.join('\n') : f.technical },
-          { label: 'מדיניות / תקנים', value: Array.isArray(f.policies) ? f.policies.join('\n') : f.policies },
-          { label: 'המלצות', value: Array.isArray(f.recs) ? f.recs.join('\n') : f.recs },
-          { label: 'בעלים / צוות אחראי', value: f.owner },
-          { label: 'עדיפות', value: f.priority }
-        ];
-
-        var html = '';
-        fields.forEach(function(field) {
-          var val = field.html || (field.value || '—');
-          if (!field.html && !field.value) val = '<span class="muted">—</span>';
-          html += '<div class="preview-field"><div class="preview-label">' + field.label + '</div><div class="preview-value">' + val + '</div></div>';
-        });
-
-        // Evidence thumbnails
-        var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
-        if (evidenceArr.length) {
-          html += '<div class="preview-field"><div class="preview-label">הוכחות (' + evidenceArr.length + ')</div><div class="preview-value">';
-          evidenceArr.forEach(function(e) {
-            var safeUrl = sanitizeDataUrl(e);
-            if (safeUrl) {
-              html += '<img src="' + safeUrl + '" style="max-width:180px;max-height:120px;border-radius:6px;border:1px solid var(--border);margin:4px 4px 4px 0;">';
-            }
-          });
-          html += '</div></div>';
-        }
-
-        previewPanelBody.innerHTML = html;
-        previewPanel.style.display = '';
-      }
 
       // Close preview on Escape
       document.addEventListener('keydown', function(e) {
@@ -2069,14 +2025,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         return { score: total, percent: percent, label: label, level: level };
       }
 
-      export function escapeHtml(str) {
-        if (str === null || str === undefined) return '';
-        if (typeof str !== 'string') str = String(str);
-        return str
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-      }
+      export { escapeHtml };
 
       export function linesToListHtml(text) {
         const lines = splitLines(text);

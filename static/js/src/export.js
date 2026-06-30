@@ -533,7 +533,7 @@ const dateInput       = document.getElementById('report-date');
       }
 
       // Save every 10 seconds and on page unload
-      setInterval(autoSaveImmediate, 10000);
+      var _autosaveIntervalId = setInterval(autoSaveImmediate, 10000); // stored so it can be cleared if needed
       window.addEventListener('beforeunload', function() {
         // Clear debounce timeout and save immediately on page close
         if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
@@ -705,6 +705,7 @@ const dateInput       = document.getElementById('report-date');
         if (!container) return;
         try {
           const resp = await fetch('/api/list-states');
+          if (!resp.ok) throw new Error(resp.status);
           const states = await resp.json();
           if (!states.length) {
             container.innerHTML = '<p class="muted">אין תצורות שמורות.</p>';
@@ -713,13 +714,13 @@ const dateInput       = document.getElementById('report-date');
           let html = '<table><caption class="muted small-text">תצורות שמורות בשרת</caption><thead><tr><th>לקוח</th><th>תאריך</th><th>גודל</th><th>פעולות</th></tr></thead><tbody>';
           states.forEach(s => {
             html += '<tr>' +
-              '<td>' + (s.client || '—') + '</td>' +
-              '<td>' + (s.reportDate || '—') + '</td>' +
+              '<td>' + escapeHtml(s.client || '—') + '</td>' +
+              '<td>' + escapeHtml(s.reportDate || '—') + '</td>' +
               '<td>' + Math.round(s.size / 1024) + ' KB</td>' +
               '<td>' +
-                '<button class="btn btn-secondary btn-sm" data-cloud-action="load" data-cloud-id="' + s.id + '">טען</button> ' +
-                '<a class="btn btn-secondary btn-sm" href="/api/download-state/' + s.id + '" download>הורד</a> ' +
-                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-state" data-cloud-id="' + s.id + '">מחק</button>' +
+                '<button class="btn btn-secondary btn-sm" data-cloud-action="load" data-cloud-id="' + escapeHtml(s.id) + '">טען</button> ' +
+                '<a class="btn btn-secondary btn-sm" href="/api/download-state/' + encodeURIComponent(s.id) + '" download>הורד</a> ' +
+                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-state" data-cloud-id="' + escapeHtml(s.id) + '">מחק</button>' +
               '</td></tr>';
           });
           html += '</tbody></table>';
@@ -744,6 +745,7 @@ const dateInput       = document.getElementById('report-date');
         if (!container) return;
         try {
           const resp = await fetch('/api/list-outputs');
+          if (!resp.ok) throw new Error(resp.status);
           const files = await resp.json();
           if (!files.length) {
             container.innerHTML = '<p class="muted">אין קבצי פלט.</p>';
@@ -752,12 +754,12 @@ const dateInput       = document.getElementById('report-date');
           let html = '<table><caption class="muted small-text">קבצי פלט בשרת</caption><thead><tr><th>שם קובץ</th><th>סוג</th><th>גודל</th><th>פעולות</th></tr></thead><tbody>';
           files.forEach(f => {
             html += '<tr>' +
-              '<td>' + f.filename + '</td>' +
-              '<td>' + f.type.toUpperCase() + '</td>' +
+              '<td>' + escapeHtml(f.filename) + '</td>' +
+              '<td>' + escapeHtml(String(f.type).toUpperCase()) + '</td>' +
               '<td>' + Math.round(f.size / 1024) + ' KB</td>' +
               '<td>' +
-                '<a class="btn btn-secondary btn-sm" href="/api/download-output/' + f.filename + '" download>הורד</a> ' +
-                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-output" data-cloud-id="' + f.filename + '">מחק</button>' +
+                '<a class="btn btn-secondary btn-sm" href="/api/download-output/' + encodeURIComponent(f.filename) + '" download>הורד</a> ' +
+                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-output" data-cloud-id="' + escapeHtml(f.filename) + '">מחק</button>' +
               '</td></tr>';
           });
           html += '</tbody></table>';
@@ -794,7 +796,8 @@ const dateInput       = document.getElementById('report-date');
         });
         if (!yes) return;
         try {
-          await fetch('/api/delete-state/' + id, { method: 'DELETE' });
+          var resp = await fetch('/api/delete-state/' + id, { method: 'DELETE' });
+          if (!resp.ok) throw new Error(resp.status);
           refreshStatesList();
         } catch (e) {
           statusMsg.textContent = 'שגיאה במחיקה.';
@@ -807,7 +810,8 @@ const dateInput       = document.getElementById('report-date');
         });
         if (!yes) return;
         try {
-          await fetch('/api/delete-output/' + filename, { method: 'DELETE' });
+          var resp = await fetch('/api/delete-output/' + filename, { method: 'DELETE' });
+          if (!resp.ok) throw new Error(resp.status);
           refreshOutputsList();
         } catch (e) {
           statusMsg.textContent = 'שגיאה במחיקה.';

@@ -32,7 +32,7 @@ def _load_dotenv(path: str = ".env") -> None:
 
 _load_dotenv()
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from backend.services.wiz_service import WizService
 
 # ---------------------------------------------------------------------------
@@ -62,8 +62,8 @@ query KubernetesClusters($first: Int, $after: String, $filterBy: CloudResourceFi
 }
 """
 
-TARGET_PROJECT = "awsdigitaloffices"
-OUTPUT_FILE    = Path(__file__).parent / "kubernetes_clusters.csv"
+TARGET_PROJECT = os.environ.get("K8S_TARGET_PROJECT", "")
+OUTPUT_FILE    = Path(os.environ.get("K8S_OUTPUT_FILE", str(Path(__file__).parent / "kubernetes_clusters.csv")))
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +265,8 @@ def main() -> None:
 
     if not client_id or not client_secret:
         sys.exit("ERROR: WIZI_CLIENT_ID and WIZI_CLIENT_SECRET must be set.")
+    if not TARGET_PROJECT:
+        sys.exit("ERROR: K8S_TARGET_PROJECT must be set.")
 
     svc = WizService(client_id, client_secret, api_url, auth_url)
 

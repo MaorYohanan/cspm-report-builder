@@ -1,6 +1,7 @@
 """Google OAuth authentication and user management endpoints."""
 from __future__ import annotations
 
+import logging
 import os
 from datetime import UTC, datetime
 
@@ -19,6 +20,7 @@ from backend.models import User
 from backend.oauth import oauth
 from backend.services.auth_service import get_or_create_user, require_role
 
+_log = logging.getLogger(__name__)
 auth_bp = Blueprint("auth", __name__)
 
 _VALID_ROLES = {"viewer", "editor", "admin"}

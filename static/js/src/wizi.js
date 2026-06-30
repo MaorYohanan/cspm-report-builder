@@ -1781,15 +1781,6 @@ import { ProductsPanel } from './products.js';
         return null;
       }
 
-      // ── Helpers: SECR path utilities ──
-      function getSecrFindingPath(finding) {
-        var tech = finding.technical || [];
-        for (var i = 0; i < tech.length; i++) {
-          if (tech[i].startsWith('Path:')) return tech[i].substring(5).trim();
-        }
-        return '';
-      }
-
       function getSecrPaths(finding) {
         var paths = [];
         (finding.technical || []).forEach(function(line) {
@@ -2949,6 +2940,7 @@ import { ProductsPanel } from './products.js';
 
       // ── Bulk Import ──
       var bulkSelectionState = {}; // Track which items are selected (query type -> Set of indices)
+      var bulkPageState = {};      // Track pagination/sort state per query type (query type -> {page, pageSize, sortCol, sortDir, sortedNodes})
 
       function handleBulkImport() {
         var subInput = document.getElementById('bulk-import-sub');
@@ -2984,8 +2976,7 @@ import { ProductsPanel } from './products.js';
           { qt: 'excessiveAccessFindings',          label: 'EAPM — Excessive Access' },
           { qt: 'networkExposures',                 label: 'NEXP — Network Exposure' },
           { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' },
-          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' },
-          { qt: 'softwareSupplyChainFindings',       label: 'EOL — Software Supply Chain' }
+          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' }
         ];
         var totalStages = stages.length;
 
@@ -3121,8 +3112,7 @@ import { ProductsPanel } from './products.js';
           'excessiveAccessFindings': 'EAPM — Excessive Access',
           'networkExposures': 'NEXP — Network Exposure',
           'inventoryFindings': 'EOLM — Inventory / EOL',
-          'endOfLifeFindings': 'EOL — End of Life Findings',
-          'softwareSupplyChainFindings': 'EOL — Software Supply Chain'
+          'endOfLifeFindings': 'EOL — End of Life Findings'
         };
 
         var resolved = data.resolvedSubscription || {};
@@ -3157,20 +3147,6 @@ import { ProductsPanel } from './products.js';
           var r = results[qt] || {};
           var nodes = r.nodes || [];
 
-          // Client-side subscription filter for excessiveAccessFindings
-          // DISABLED: Server-side filter (scope.id.equals) now handles this.
-          // Client filter was removing all results because excessiveAccessFindings
-          // nodes have empty cloudAccount.name and externalId fields.
-          if (false && qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
-            nodes = nodes.filter(function(n) {
-              var p = n.principal || {};
-              var pca = p.cloudAccount || {};
-              var subName = (pca.name || '').toLowerCase();
-              var subExtId = (pca.externalId || '').toLowerCase();
-              return subName.indexOf(bulkSubSearch) >= 0 || subExtId.indexOf(bulkSubSearch) >= 0;
-            });
-          }
-
           if (nodes.length) {
             state.bulkImportResults[qt] = nodes;
             totalCount += nodes.length;
@@ -3194,7 +3170,7 @@ import { ProductsPanel } from './products.js';
 
         // Build results table
         var html = '';
-        var bulkPageState = {};
+        bulkPageState = {};
         var defaultPageSize = 20;
 
         queryTypes.forEach(function(qt) {
@@ -3239,7 +3215,7 @@ import { ProductsPanel } from './products.js';
           var totalPages = Math.ceil(nodes.length / pg.pageSize);
           var label = queryTypeLabels[qt];
 
-          // Sort nodes if sort is active
+          // Sort nodes if sort is active — sort a copy, never mutate canonical state
           if (pg.sortCol) {
             var dir = pg.sortDir || 'asc';
             nodes = nodes.slice().sort(function(a, b) {
@@ -3249,8 +3225,10 @@ import { ProductsPanel } from './products.js';
               if (va > vb) return dir === 'asc' ? 1 : -1;
               return 0;
             });
-            state.bulkImportResults[qt] = nodes;
           }
+          // Track current display order so importSelectedBulkFindings can resolve
+          // selection indices against the same sorted view shown to the user.
+          pg.sortedNodes = nodes;
 
           var bodyEl = document.getElementById('bulk-body-' + qt);
           if (!bodyEl) return;
@@ -3461,7 +3439,10 @@ import { ProductsPanel } from './products.js';
         var selectedByType = {};
         Object.keys(bulkSelectionState || {}).forEach(function(queryType) {
           var selectedIndices = bulkSelectionState[queryType];
-          var nodes = state.bulkImportResults[queryType];
+          // Use sortedNodes if available — indices in bulkSelectionState reference
+          // the currently displayed (potentially sorted) view, not the canonical order.
+          var pg = bulkPageState[queryType];
+          var nodes = (pg && pg.sortedNodes) || state.bulkImportResults[queryType];
           if (!nodes || !selectedIndices || selectedIndices.size === 0) return;
 
           selectedByType[queryType] = [];
