@@ -110,3 +110,53 @@ def api_summarize_remediation():
         return jsonify({"error": str(e)}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 502
+
+
+@ai_bp.route("/api/generate-exec-summary", methods=["POST"])
+@require_role("editor")
+def api_generate_exec_summary():
+    """Generate an executive summary from the full findings list using Gemini."""
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI assist not configured (GEMINI_API_KEY not set)"}), 501
+
+    data = request.get_json(silent=True) or {}
+    findings = data.get("findings") or []
+    client = (data.get("client") or "").strip()
+    model = (data.get("model") or "").strip()
+
+    if not isinstance(findings, list) or not findings:
+        return jsonify({"error": "findings must be a non-empty list"}), 400
+    if len(findings) > 500:
+        return jsonify({"error": "Too many findings (max 500)"}), 400
+
+    if not model or model not in GEMINI_MODELS:
+        model = GEMINI_DEFAULT_MODEL
+
+    safe_findings = [
+        {
+            "title": (f.get("title") or "")[:200],
+            "severity": f.get("severity", ""),
+            "category": f.get("category", ""),
+            "exception": {"active": bool((f.get("exception") or {}).get("active", False))},
+        }
+        for f in findings
+        if isinstance(f, dict)
+    ]
+
+    if not safe_findings:
+        return jsonify({"error": "findings must contain at least one valid finding object"}), 400
+
+    try:
+        gemini = get_gemini_service()
+        summary, used_model = gemini.generate_exec_summary(
+            findings=safe_findings,
+            client=client,
+            model=model
+        )
+        return jsonify({"summary": summary, "model": used_model})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502

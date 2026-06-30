@@ -875,8 +875,78 @@ const dateInput       = document.getElementById('report-date');
               aiModelRow.style.display = '';
             }
             aiFields.forEach(attachAiButton);
+            attachGenerateExecSummaryButton();
           }
         }).catch(function() {});
+      }
+
+      function attachGenerateExecSummaryButton() {
+        var execSummaryField = document.getElementById('report-exec-summary');
+        if (!execSummaryField) return;
+        // Guard against double-attachment (e.g. if health check fires more than once)
+        if (execSummaryField.parentNode.querySelector('.ai-generate-exec-row')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-ai btn-sm';
+        btn.textContent = '✨ הפק תקציר מנהלים מבוסס ממצאים';
+        btn.style.marginTop = '6px';
+
+        var row = document.createElement('div');
+        row.className = 'ai-generate-exec-row';
+        row.appendChild(btn);
+
+        // Insert inside the form-field div (after the textarea) so it stays
+        // within its grid cell rather than becoming an unspanned grid sibling.
+        execSummaryField.parentNode.appendChild(row);
+
+        btn.addEventListener('click', function() {
+          var findings = state.findings || [];
+          if (!findings.length) {
+            showToast('אין ממצאים לסיכום', 'warning');
+            return;
+          }
+          var model = (aiModelSelect && aiModelSelect.value) || '';
+          var clientEl = document.getElementById('report-client');
+          var client = clientEl ? clientEl.value.trim() : '';
+
+          btn.disabled = true;
+          btn.textContent = '⏳ מפיק תקציר...';
+
+          fetch('/api/generate-exec-summary', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              findings: findings.map(function(f) {
+                return {
+                  title: f.title || '',
+                  severity: f.severity || '',
+                  category: f.category || '',
+                  exception: { active: !!(f.exception && f.exception.active) }
+                };
+              }),
+              client: client,
+              model: model
+            })
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            execSummaryField.value = data.summary || '';
+            execSummaryField.dispatchEvent(new Event('input'));
+            showToast('תקציר מנהלים נוצר בהצלחה ✓');
+          })
+          .catch(function(err) {
+            showToast('שגיאה בהפקת תקציר: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '✨ הפק תקציר מנהלים מבוסס ממצאים';
+          });
+        });
       }
 
       function attachAiButton(field) {
