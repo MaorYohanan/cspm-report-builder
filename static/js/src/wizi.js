@@ -1781,15 +1781,6 @@ import { ProductsPanel } from './products.js';
         return null;
       }
 
-      // ── Helpers: SECR path utilities ──
-      function getSecrFindingPath(finding) {
-        var tech = finding.technical || [];
-        for (var i = 0; i < tech.length; i++) {
-          if (tech[i].startsWith('Path:')) return tech[i].substring(5).trim();
-        }
-        return '';
-      }
-
       function getSecrPaths(finding) {
         var paths = [];
         (finding.technical || []).forEach(function(line) {
@@ -3156,20 +3147,6 @@ import { ProductsPanel } from './products.js';
         queryTypes.forEach(function(qt) {
           var r = results[qt] || {};
           var nodes = r.nodes || [];
-
-          // Client-side subscription filter for excessiveAccessFindings
-          // DISABLED: Server-side filter (scope.id.equals) now handles this.
-          // Client filter was removing all results because excessiveAccessFindings
-          // nodes have empty cloudAccount.name and externalId fields.
-          if (false && qt === 'excessiveAccessFindings' && nodes.length && bulkSubSearch) {
-            nodes = nodes.filter(function(n) {
-              var p = n.principal || {};
-              var pca = p.cloudAccount || {};
-              var subName = (pca.name || '').toLowerCase();
-              var subExtId = (pca.externalId || '').toLowerCase();
-              return subName.indexOf(bulkSubSearch) >= 0 || subExtId.indexOf(bulkSubSearch) >= 0;
-            });
-          }
 
           if (nodes.length) {
             state.bulkImportResults[qt] = nodes;

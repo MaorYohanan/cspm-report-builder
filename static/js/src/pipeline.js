@@ -268,7 +268,9 @@ export var PipelinePanel = {
     _pollStatus: function(productId, snapshotId, overlay) {
         var self = this;
         var attempts = 0;
-        var MAX_ATTEMPTS = 200; // ~10 minutes at 3-second intervals
+        var POLL_INTERVAL_MS = 3000;
+        var MAX_POLL_MS = 10 * 60 * 1000; // 10 minutes
+        var MAX_ATTEMPTS = Math.ceil(MAX_POLL_MS / POLL_INTERVAL_MS);
         var cancelled = false;
         var timer = null;
         var _lastDone = 0;

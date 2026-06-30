@@ -65,15 +65,25 @@ app = Flask(
 _secret_key = os.environ.get("SECRET_KEY", "")
 if not _secret_key:
     _secret_key = secrets.token_hex(32)
-    _log.warning(
-        "SECRET_KEY not set — sessions will be invalidated on restart. "
-        "Set SECRET_KEY in production."
-    )
+    if os.environ.get("DATABASE_URL"):
+        _log.critical(
+            "SECRET_KEY not set in production — all sessions will be invalidated on every restart. "
+            "Set SECRET_KEY to a stable random value."
+        )
+    else:
+        _log.warning("SECRET_KEY not set — sessions will be invalidated on restart. Set SECRET_KEY in production.")
 app.config["SECRET_KEY"] = _secret_key
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-# Only enforce Secure flag in production (HTTPS). Dev/lab environments use plain HTTP.
-app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("DATABASE_URL"))
+# SameSite=Strict breaks OAuth (state cookie not sent on cross-site callback redirect).
+# Use Lax when OAuth is enabled; Strict otherwise (APP_TOKEN-only mode).
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax" if os.environ.get("GOOGLE_CLIENT_ID") else "Strict"
+# Explicit env var to control the Secure flag — defaults to True when DATABASE_URL is set.
+# Set SECURE_COOKIES=0 to disable on HTTP-only staging environments.
+_secure_cookies = os.environ.get("SECURE_COOKIES")
+if _secure_cookies is not None:
+    app.config["SESSION_COOKIE_SECURE"] = _secure_cookies not in ("0", "false", "no")
+else:
+    app.config["SESSION_COOKIE_SECURE"] = bool(os.environ.get("DATABASE_URL"))
 # Limit session lifetime so role changes take effect within a reasonable window.
 # session.permanent = True is set in auth.py; this caps the lifetime to 8 hours.
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
@@ -176,6 +186,8 @@ if _google_client_id:
         server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
         client_kwargs={"scope": "openid email profile"},
     )
+    if not os.environ.get("GOOGLE_CLIENT_SECRET"):
+        _log.critical("GOOGLE_CLIENT_ID is set but GOOGLE_CLIENT_SECRET is empty — OAuth login will fail.")
     _log.info("Google OAuth enabled (domain=%s)", os.environ.get("ALLOWED_DOMAIN", "any"))
 else:
     _log.info("Google OAuth disabled — APP_TOKEN auth only")
@@ -299,9 +311,25 @@ def enforce_auth():
             return jsonify({"error": "Rate limit exceeded"}), 429
 
 
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    # unsafe-inline required: the app sets inline style attributes throughout index.html
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    # data: for base64 evidence images; blob: for PDF/export download object URLs
+    "img-src 'self' data: blob:; "
+    "connect-src 'self'; "
+    "frame-src 'none'; "
+    "object-src 'none'; "
+    "base-uri 'self'"
+)
+
+
 @app.after_request
 def set_security_headers(response):
     """Add security headers to all responses."""
+    response.headers["Content-Security-Policy"] = _CSP
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -359,16 +387,8 @@ def serve_assets(filename: str):
 
 @app.route("/api/health")
 def api_health():
-    """Health check for container orchestration."""
-    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-    WIZI_CLIENT_ID = os.environ.get("WIZI_CLIENT_ID", "")
-    WIZI_CLIENT_SECRET = os.environ.get("WIZI_CLIENT_SECRET", "")
-
-    result = {"status": "ok", "ai_enabled": bool(GEMINI_API_KEY), "wizi_enabled": bool(WIZI_CLIENT_ID and WIZI_CLIENT_SECRET)}
-    if GEMINI_API_KEY:
-        result["ai_models"] = GEMINI_MODELS
-        result["ai_default_model"] = GEMINI_DEFAULT_MODEL
-    return jsonify(result)
+    """Health check for container orchestration. Returns minimal response — no internals."""
+    return jsonify({"status": "ok"})
 
 
 
