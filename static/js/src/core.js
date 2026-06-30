@@ -1,5 +1,15 @@
 import { state } from './state.js';
 
+// ── HTML escaping ──
+export function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  if (typeof str !== 'string') str = String(str);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // ── Security: Data URL validation ──
 export function isValidDataUrl(url) {
   if (!url || typeof url !== 'string') return false;
@@ -50,14 +60,36 @@ export function styledConfirm(message, opts) {
     var dialog = document.createElement('div');
     dialog.className = 'confirm-dialog';
 
-    dialog.innerHTML =
-      '<div class="confirm-dialog-icon">' + icon + '</div>' +
-      (title ? '<div class="confirm-dialog-title">' + title + '</div>' : '') +
-      '<div class="confirm-dialog-message">' + message + '</div>' +
-      '<div class="confirm-dialog-actions">' +
-        '<button class="btn ' + (danger ? 'btn-danger' : 'btn-primary') + '" id="confirm-yes">' + confirmText + '</button>' +
-        '<button class="btn btn-secondary" id="confirm-no">' + cancelText + '</button>' +
-      '</div>';
+    var iconEl = document.createElement('div');
+    iconEl.className = 'confirm-dialog-icon';
+    iconEl.textContent = icon;
+    dialog.appendChild(iconEl);
+
+    if (title) {
+      var titleEl = document.createElement('div');
+      titleEl.className = 'confirm-dialog-title';
+      titleEl.textContent = title;
+      dialog.appendChild(titleEl);
+    }
+
+    var msgEl = document.createElement('div');
+    msgEl.className = 'confirm-dialog-message';
+    msgEl.textContent = message;
+    dialog.appendChild(msgEl);
+
+    var actionsEl = document.createElement('div');
+    actionsEl.className = 'confirm-dialog-actions';
+    var yesBtn = document.createElement('button');
+    yesBtn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+    yesBtn.id = 'confirm-yes';
+    yesBtn.textContent = confirmText;
+    var noBtn = document.createElement('button');
+    noBtn.className = 'btn btn-secondary';
+    noBtn.id = 'confirm-no';
+    noBtn.textContent = cancelText;
+    actionsEl.appendChild(yesBtn);
+    actionsEl.appendChild(noBtn);
+    dialog.appendChild(actionsEl);
 
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);

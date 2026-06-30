@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl } from './core.js';
+import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard } from './ui.js';
 import { autoSave } from './export.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
@@ -1126,8 +1126,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
                 html += '<tr data-idx="' + idx + '"' + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
-                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + (f.id || '') + '</td>' +
-                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (f.title || '') + excBadge + '</td>' +
+                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + escapeHtml(f.id || '') + '</td>' +
+                  '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(f.title || '') + excBadge + '</td>' +
                   '<td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td>' +
                   '</tr>';
               });
@@ -1461,8 +1461,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
         var html = '';
         fields.forEach(function(field) {
-          var val = field.html || (field.value || '—');
-          if (!field.html && !field.value) val = '<span class="muted">—</span>';
+          var val = field.html || (field.value ? escapeHtml(field.value) : '<span class="muted">—</span>');
           html += '<div class="preview-field"><div class="preview-label">' + field.label + '</div><div class="preview-value">' + val + '</div></div>';
         });
 
@@ -2069,14 +2068,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         return { score: total, percent: percent, label: label, level: level };
       }
 
-      export function escapeHtml(str) {
-        if (str === null || str === undefined) return '';
-        if (typeof str !== 'string') str = String(str);
-        return str
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-      }
+      export { escapeHtml };
 
       export function linesToListHtml(text) {
         const lines = splitLines(text);

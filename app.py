@@ -129,6 +129,8 @@ if not os.environ.get("DATABASE_URL"):
         with db.engine.connect() as _c:
             for _stmt in [
                 "ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly'",
+                "CREATE INDEX IF NOT EXISTS ix_report_snapshots_status ON report_snapshots (status)",
+                "CREATE INDEX IF NOT EXISTS ix_report_snapshots_published_at ON report_snapshots (published_at)",
             ]:
                 try:
                     _c.execute(_text(_stmt))
@@ -136,6 +138,28 @@ if not os.environ.get("DATABASE_URL"):
                 except Exception as _exc:
                     if "duplicate column" not in str(_exc).lower() and "already exists" not in str(_exc).lower():
                         _log.warning("DB migration step skipped unexpectedly: %s", _exc)
+
+# On every startup, mark any snapshot whose _scan_status is "fetching" as "error".
+# Background scan threads don't survive process restarts, so any "fetching" record
+# remaining at startup is orphaned and will never self-complete.
+with app.app_context():
+    import backend.models as _m  # noqa: F401 — needed to register ORM models
+    try:
+        from backend.database import db as _db
+        _orphaned = _m.ReportSnapshot.query.all()
+        _changed = 0
+        for _snap in _orphaned:
+            _d = _snap.snapshot_data or {}
+            if _d.get("_scan_status") == "fetching":
+                _d["_scan_status"] = "error"
+                _d["_scan_error"] = "Process restarted while scan was in progress."
+                _snap.snapshot_data = dict(_d)
+                _changed += 1
+        if _changed:
+            _db.session.commit()
+            _log.warning("Marked %d orphaned scan(s) as error on startup.", _changed)
+    except Exception as _exc:
+        _log.warning("Startup scan-orphan cleanup failed (non-fatal): %s", _exc)
 
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — enabled when GOOGLE_CLIENT_ID is set)
@@ -155,6 +179,14 @@ if _google_client_id:
     _log.info("Google OAuth enabled (domain=%s)", os.environ.get("ALLOWED_DOMAIN", "any"))
 else:
     _log.info("Google OAuth disabled — APP_TOKEN auth only")
+
+# Refuse to start in production (DATABASE_URL set) with no auth layer configured.
+# In local dev (SQLite, no DATABASE_URL) this check is skipped intentionally.
+if os.environ.get("DATABASE_URL") and not _google_client_id and not os.environ.get("APP_TOKEN"):
+    raise RuntimeError(
+        "Production start-up blocked: neither GOOGLE_CLIENT_ID nor APP_TOKEN is set. "
+        "Every endpoint would be fully public. Set at least one to continue."
+    )
 
 # Initialize files blueprint with directory paths
 from backend.routes import files
@@ -219,11 +251,16 @@ def check_auth() -> bool:
     if header.startswith("Bearer "):
         return hmac.compare_digest(header[7:], APP_TOKEN)
     # Fallback for browser-initiated GET downloads (<a href> can't set headers).
-    # Only honoured on GET so token isn't logged with side-effecting requests.
+    # Only honoured on GET so the token is not exposed on mutating endpoints.
+    # Accepted risk: token appears in server access logs and browser history.
+    # Mitigation: restricted to GET, no mutation possible, token is long-lived (env var).
     if request.method == "GET":
         token = request.args.get("token", "")
         if token:
-            return hmac.compare_digest(token, APP_TOKEN)
+            if hmac.compare_digest(token, APP_TOKEN):
+                _log.warning("APP_TOKEN supplied via URL query param on %s (accepted risk: visible in logs)", request.path)
+                return True
+            return False
     return False
 
 

@@ -7,6 +7,9 @@ from backend.database import db
 
 class User(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        db.CheckConstraint("role IN ('admin','editor','viewer')", name="ck_users_role"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(254), unique=True, nullable=False, index=True)
@@ -16,6 +19,9 @@ class User(db.Model):
 
 class Product(db.Model):
     __tablename__ = "products"
+    __table_args__ = (
+        db.CheckConstraint("scan_frequency IN ('monthly','quarterly','annual')", name="ck_products_scan_frequency"),
+    )
 
     id = db.Column(db.String(100), primary_key=True)  # URL-safe slug
     name = db.Column(db.String(100), nullable=False)
@@ -41,7 +47,11 @@ class Product(db.Model):
 
 class ReportSnapshot(db.Model):
     __tablename__ = "report_snapshots"
-    __table_args__ = (db.UniqueConstraint("product_id", "version"),)
+    __table_args__ = (
+        db.UniqueConstraint("product_id", "version"),
+        db.CheckConstraint("status IN ('draft','published')", name="ck_snapshots_status"),
+        db.CheckConstraint("version_type IN ('major','minor','draft')", name="ck_snapshots_version_type"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.String(100), db.ForeignKey("products.id"), nullable=False, index=True)
@@ -49,9 +59,9 @@ class ReportSnapshot(db.Model):
     report_version = db.Column(db.String(20), nullable=False, default="1.0")
     version_notes = db.Column(db.Text, nullable=True)
     version_type = db.Column(db.String(20), nullable=False)  # major, minor, draft
-    status = db.Column(db.String(20), nullable=False, default="draft")  # draft, published
+    status = db.Column(db.String(20), nullable=False, default="draft", index=True)  # draft, published
     saved_at = db.Column(db.DateTime, nullable=False)
-    published_at = db.Column(db.DateTime, nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True, index=True)
     risk_score = db.Column(db.Integer, nullable=False, default=0)
     # Full snapshot payload minus findings (stored separately) and minus version metadata.
     snapshot_data = db.Column(db.JSON, nullable=False, default=dict)
@@ -59,7 +69,7 @@ class ReportSnapshot(db.Model):
     product = db.relationship("Product", back_populates="snapshots")
     findings = db.relationship(
         "Finding", back_populates="snapshot",
-        cascade="all, delete-orphan", lazy="dynamic",
+        cascade="all, delete-orphan",
     )
 
 
@@ -81,6 +91,7 @@ class ProductMemoryEntry(db.Model):
     __tablename__ = "product_memory_entries"
     __table_args__ = (
         db.UniqueConstraint("product_id", "subscription", "title"),
+        db.CheckConstraint("source IN ('excepted','deleted')", name="ck_memory_source"),
     )
 
     id = db.Column(db.Integer, primary_key=True)

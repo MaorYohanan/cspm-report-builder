@@ -65,4 +65,4 @@ COPY --chown=appuser:appuser . .
 EXPOSE 8080
 
 # Use exec form of CMD for proper signal handling
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--timeout", "120", "app:app"]
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]

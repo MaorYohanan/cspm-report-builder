@@ -209,7 +209,7 @@ export var ProductsPanel = {
   _loadProductAndEdit: function(productId) {
     var self = this;
     fetch('/api/products/' + encodeURIComponent(productId))
-      .then(function(r){ return r.json(); })
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(product){ self.showForm(product); })
       .catch(function(err){ showToast(err.message || 'שגיאת רשת', 'error'); });
   },
@@ -577,7 +577,7 @@ export var ProductsPanel = {
   _exportShortcutFlow: function() {
     var self = this;
     fetch('/api/products')
-      .then(function(r){ return r.json(); })
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(products){
         if (!products || products.length === 0) {
           showToast('אין מוצרים רשומים', 'error');
