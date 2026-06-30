@@ -321,6 +321,8 @@ export var PipelinePanel = {
                 if (job.status === 'done') {
                     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
                     showToast('הסריקה הושלמה — ' + (job.findings_count || 0) + ' ממצאים יובאו', 'success');
+                    // TODO: wire a "View findings" action here that opens the product's
+                    // snapshot in the Findings editor (full implementation: Roadmap 2.3).
                     self.load();
                     return; // no more ticks
                 }
