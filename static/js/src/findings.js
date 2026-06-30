@@ -1438,49 +1438,6 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         if (previewFindingIdx !== null) startEditFinding(previewFindingIdx);
       });
 
-      export function showFindingPreview(idx) {
-        var f = state.findings[idx];
-        if (!f) return;
-        previewFindingIdx = idx;
-        var sev = state.severityMap[f.severity] || state.severityMap.medium;
-        previewPanelTitle.textContent = f.id + ' — ' + (f.title || '');
-
-        var fields = [
-          { label: 'מזהה', value: f.id },
-          { label: 'קטגוריה', value: f.category || 'CSPM' },
-          { label: 'כותרת', value: f.title },
-          { label: 'חומרה', value: sev.text, html: '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' },
-          { label: 'תיאור', value: Array.isArray(f.description) ? f.description.join('\n') : f.description },
-          { label: 'השפעה / סיכון', value: Array.isArray(f.impact) ? f.impact.join('\n') : f.impact },
-          { label: 'פרטים טכניים', value: Array.isArray(f.technical) ? f.technical.join('\n') : f.technical },
-          { label: 'מדיניות / תקנים', value: Array.isArray(f.policies) ? f.policies.join('\n') : f.policies },
-          { label: 'המלצות', value: Array.isArray(f.recs) ? f.recs.join('\n') : f.recs },
-          { label: 'בעלים / צוות אחראי', value: f.owner },
-          { label: 'עדיפות', value: f.priority }
-        ];
-
-        var html = '';
-        fields.forEach(function(field) {
-          var val = field.html || (field.value ? escapeHtml(field.value) : '<span class="muted">—</span>');
-          html += '<div class="preview-field"><div class="preview-label">' + field.label + '</div><div class="preview-value">' + val + '</div></div>';
-        });
-
-        // Evidence thumbnails
-        var evidenceArr = Array.isArray(f.evidence) ? f.evidence : (f.evidence ? [f.evidence] : []);
-        if (evidenceArr.length) {
-          html += '<div class="preview-field"><div class="preview-label">הוכחות (' + evidenceArr.length + ')</div><div class="preview-value">';
-          evidenceArr.forEach(function(e) {
-            var safeUrl = sanitizeDataUrl(e);
-            if (safeUrl) {
-              html += '<img src="' + safeUrl + '" style="max-width:180px;max-height:120px;border-radius:6px;border:1px solid var(--border);margin:4px 4px 4px 0;">';
-            }
-          });
-          html += '</div></div>';
-        }
-
-        previewPanelBody.innerHTML = html;
-        previewPanel.style.display = '';
-      }
 
       // Close preview on Escape
       document.addEventListener('keydown', function(e) {

@@ -533,7 +533,7 @@ const dateInput       = document.getElementById('report-date');
       }
 
       // Save every 10 seconds and on page unload
-      setInterval(autoSaveImmediate, 10000);
+      var _autosaveIntervalId = setInterval(autoSaveImmediate, 10000); // stored so it can be cleared if needed
       window.addEventListener('beforeunload', function() {
         // Clear debounce timeout and save immediately on page close
         if (autoSaveTimeout) clearTimeout(autoSaveTimeout);

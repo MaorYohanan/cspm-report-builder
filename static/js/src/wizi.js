@@ -3216,7 +3216,7 @@ import { ProductsPanel } from './products.js';
           var totalPages = Math.ceil(nodes.length / pg.pageSize);
           var label = queryTypeLabels[qt];
 
-          // Sort nodes if sort is active
+          // Sort nodes if sort is active — sort a copy, never mutate canonical state
           if (pg.sortCol) {
             var dir = pg.sortDir || 'asc';
             nodes = nodes.slice().sort(function(a, b) {
@@ -3226,8 +3226,10 @@ import { ProductsPanel } from './products.js';
               if (va > vb) return dir === 'asc' ? 1 : -1;
               return 0;
             });
-            state.bulkImportResults[qt] = nodes;
           }
+          // Track current display order so importSelectedBulkFindings can resolve
+          // selection indices against the same sorted view shown to the user.
+          pg.sortedNodes = nodes;
 
           var bodyEl = document.getElementById('bulk-body-' + qt);
           if (!bodyEl) return;
@@ -3438,7 +3440,10 @@ import { ProductsPanel } from './products.js';
         var selectedByType = {};
         Object.keys(bulkSelectionState || {}).forEach(function(queryType) {
           var selectedIndices = bulkSelectionState[queryType];
-          var nodes = state.bulkImportResults[queryType];
+          // Use sortedNodes if available — indices in bulkSelectionState reference
+          // the currently displayed (potentially sorted) view, not the canonical order.
+          var pg = bulkPageState[queryType];
+          var nodes = (pg && pg.sortedNodes) || state.bulkImportResults[queryType];
           if (!nodes || !selectedIndices || selectedIndices.size === 0) return;
 
           selectedByType[queryType] = [];

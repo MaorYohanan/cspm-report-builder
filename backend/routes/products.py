@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
 import uuid
@@ -13,6 +14,7 @@ from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 from backend.scan_state import scan_jobs as _scan_jobs
 from backend.services.auth_service import require_role
 
+_log = logging.getLogger(__name__)
 products_bp = Blueprint("products", __name__)
 
 # ---------------------------------------------------------------------------
