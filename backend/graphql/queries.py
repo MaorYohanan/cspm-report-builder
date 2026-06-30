@@ -368,6 +368,6 @@ QUERY_TYPE_MAP = {
     "excessiveAccessFindings": (EXCESSIVE_ACCESS_QUERY, "excessiveAccessFindings"),
     "networkExposures": (NETWORK_EXPOSURE_QUERY, "networkExposures"),
     "inventoryFindings": (INVENTORY_FINDINGS_QUERY, "inventoryFindings"),
-    "endOfLifeFindings": (END_OF_LIFE_QUERY, "endOfLifeFindings"),
+    "endOfLifeFindings": (VULN_FINDINGS_QUERY, "vulnerabilityFindings"),
     "softwareSupplyChainFindings": (SOFTWARE_SUPPLY_CHAIN_QUERY, "softwareSupplyChainFindings"),
 }

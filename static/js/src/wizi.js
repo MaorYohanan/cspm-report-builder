@@ -2940,6 +2940,7 @@ import { ProductsPanel } from './products.js';
 
       // ── Bulk Import ──
       var bulkSelectionState = {}; // Track which items are selected (query type -> Set of indices)
+      var bulkPageState = {};      // Track pagination/sort state per query type (query type -> {page, pageSize, sortCol, sortDir, sortedNodes})
 
       function handleBulkImport() {
         var subInput = document.getElementById('bulk-import-sub');
@@ -2975,8 +2976,7 @@ import { ProductsPanel } from './products.js';
           { qt: 'excessiveAccessFindings',          label: 'EAPM — Excessive Access' },
           { qt: 'networkExposures',                 label: 'NEXP — Network Exposure' },
           { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' },
-          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' },
-          { qt: 'softwareSupplyChainFindings',       label: 'EOL — Software Supply Chain' }
+          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' }
         ];
         var totalStages = stages.length;
 
@@ -3112,8 +3112,7 @@ import { ProductsPanel } from './products.js';
           'excessiveAccessFindings': 'EAPM — Excessive Access',
           'networkExposures': 'NEXP — Network Exposure',
           'inventoryFindings': 'EOLM — Inventory / EOL',
-          'endOfLifeFindings': 'EOL — End of Life Findings',
-          'softwareSupplyChainFindings': 'EOL — Software Supply Chain'
+          'endOfLifeFindings': 'EOL — End of Life Findings'
         };
 
         var resolved = data.resolvedSubscription || {};
@@ -3171,7 +3170,7 @@ import { ProductsPanel } from './products.js';
 
         // Build results table
         var html = '';
-        var bulkPageState = {};
+        bulkPageState = {};
         var defaultPageSize = 20;
 
         queryTypes.forEach(function(qt) {
