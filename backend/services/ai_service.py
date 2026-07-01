@@ -27,6 +27,22 @@ class GeminiService:
     """
 
     # Default system prompts
+    EXEC_SUMMARY_SYSTEM_PROMPT = (
+        "You are a senior cloud security consultant writing a CSPM assessment report. "
+        "Given a list of cloud security findings, write a professional executive summary "
+        "consisting of exactly 3 paragraphs:\n"
+        "1. Overall cloud security posture — tone should reflect the severity distribution.\n"
+        "2. Key risk areas and root causes identified across the findings.\n"
+        "3. Recommended immediate priorities and remediation direction.\n\n"
+        "Rules:\n"
+        "- Write in formal, professional Hebrew.\n"
+        "- Keep technical terms in English (IAM, S3, VPC, MFA, RBAC, GCP, AWS, Azure, "
+        "Kubernetes, Cloud Run, etc.).\n"
+        "- Do NOT use bullet points — write flowing paragraphs only.\n"
+        "- Focus on patterns, root causes, and business impact — not individual finding details.\n"
+        "- Return ONLY the 3 paragraphs. No headers, no markdown, no extra text."
+    )
+
     DEFAULT_IMPROVE_SYSTEM_PROMPT = (
         "You are a senior cloud security consultant writing a CSPM assessment report. "
         "Your task is to improve the phrasing of the given text. "
@@ -202,6 +218,60 @@ class GeminiService:
             temperature=temperature,
             max_tokens=max_tokens,
             enable_fallback=True  # Enable model fallback for critical summaries
+        )
+
+    def generate_exec_summary(
+        self,
+        findings: list[dict],
+        client: str = "",
+        model: Optional[str] = None,
+        temperature: float = 0.5,
+        max_tokens: int = 4096
+    ) -> tuple[str, str]:
+        """
+        Generate a 3-paragraph Hebrew executive summary from a findings list.
+
+        Args:
+            findings: List of finding dicts with title, severity, category, exception fields
+            client: Client/product name for context
+            model: Preferred model. Falls back on 429.
+            temperature: Sampling temperature
+            max_tokens: Maximum output tokens
+
+        Returns:
+            Tuple of (summary_text, model_used)
+
+        Raises:
+            ValueError: If findings list is empty
+            RuntimeError: If all models fail or content is blocked
+        """
+        if not findings:
+            raise ValueError("Findings list cannot be empty")
+
+        severity_counts: dict[str, int] = {}
+        lines = []
+        for f in findings:
+            sev = f.get("severity", "unknown")
+            severity_counts[sev] = severity_counts.get(sev, 0) + 1
+            excepted = bool((f.get("exception") or {}).get("active", False))
+            cat = f.get("category", "")
+            title = (f.get("title") or "")[:200]
+            line = f"- [{sev.upper()}] [{cat}] {title}"
+            if excepted:
+                line += " (מוחרג)"
+            lines.append(line)
+
+        summary_line = ", ".join(f"{k}: {v}" for k, v in severity_counts.items())
+        prompt = f"לקוח: {client}\n" if client else ""
+        prompt += f"סיכום חומרות: {summary_line}\n\nרשימת ממצאים:\n" + "\n".join(lines)
+
+        return self._call_gemini(
+            prompt=prompt,
+            system_prompt=self.EXEC_SUMMARY_SYSTEM_PROMPT,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            enable_fallback=True
         )
 
     def _call_gemini(

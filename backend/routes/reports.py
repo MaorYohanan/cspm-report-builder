@@ -49,8 +49,8 @@ def api_render_pdf():
 
     if not html_content:
         return jsonify({"error": "Missing 'html' field"}), 400
-    if len(html_content) > 5 * 1024 * 1024:
-        return jsonify({"error": "HTML content too large (max 5 MB)"}), 413
+    if len(html_content) > 20 * 1024 * 1024:
+        return jsonify({"error": "HTML content too large (max 20 MB)"}), 413
 
     try:
         pdf_bytes = pdf_service.render_pdf(html_content, meta)

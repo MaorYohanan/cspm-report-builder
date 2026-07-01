@@ -387,8 +387,18 @@ def serve_assets(filename: str):
 
 @app.route("/api/health")
 def api_health():
-    """Health check for container orchestration. Returns minimal response — no internals."""
-    return jsonify({"status": "ok"})
+    """Health check and capability flags for the frontend."""
+    ai_key = os.environ.get("GEMINI_API_KEY", "")
+    wiz_enabled = bool(os.environ.get("WIZI_CLIENT_ID") and os.environ.get("WIZI_CLIENT_SECRET"))
+    result = {
+        "status": "ok",
+        "ai_enabled": bool(ai_key),
+        "wizi_enabled": wiz_enabled,
+    }
+    if ai_key:
+        result["ai_models"] = GEMINI_MODELS
+        result["ai_default_model"] = GEMINI_DEFAULT_MODEL
+    return jsonify(result)
 
 
 
