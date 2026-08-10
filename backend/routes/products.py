@@ -452,13 +452,35 @@ def list_versions(product_id: str):
     if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    snapshots = (
-        ReportSnapshot.query
+    rows = (
+        db.session.query(
+            ReportSnapshot.id,
+            ReportSnapshot.version,
+            ReportSnapshot.report_version,
+            ReportSnapshot.status,
+            ReportSnapshot.saved_at,
+            ReportSnapshot.published_at,
+            ReportSnapshot.risk_score,
+            ReportSnapshot.version_notes,
+            ReportSnapshot.version_type,
+        )
         .filter_by(product_id=safe_id)
+        .order_by(ReportSnapshot.saved_at.desc())
         .all()
     )
-    snapshots.sort(key=lambda s: s.saved_at or datetime.min, reverse=True)
-    return jsonify([_version_summary(s) for s in snapshots]), 200
+    return jsonify([
+        {
+            "version": row.version,
+            "reportVersion": row.report_version,
+            "versionNotes": row.version_notes,
+            "versionType": row.version_type,
+            "status": row.status,
+            "savedAt": _fmt_dt(row.saved_at),
+            "publishedAt": _fmt_dt(row.published_at),
+            "riskScore": row.risk_score,
+        }
+        for row in rows
+    ]), 200
 
 
 @products_bp.route("/api/products/<product_id>/versions", methods=["POST"])
@@ -496,6 +518,9 @@ def save_version(product_id: str):
 
     if isinstance(notes, str) and _contains_traversal(notes):
         return jsonify({"error": "Invalid field value: notes"}), 400
+
+    if isinstance(notes, str) and len(notes) > _MAX_REASON_LEN:
+        notes = notes[:_MAX_REASON_LEN]
 
     latest = _latest_snapshot(safe_id)
     latest_status = latest.status if latest else None
@@ -614,6 +639,9 @@ def delete_version(product_id: str, ver: str):
     snap = ReportSnapshot.query.filter_by(product_id=safe_id, version=ver).first()
     if snap is None:
         return jsonify({"error": "Version not found"}), 404
+
+    if snap.status == "published":
+        return jsonify({"error": "Cannot delete a published version"}), 409
 
     # Block deletion if ANY scan for this product is currently running.
     # A background scan holds the SQLite write lock repeatedly while batch-committing

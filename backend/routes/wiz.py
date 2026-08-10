@@ -5,11 +5,14 @@ Handles all /api/wizi/* endpoints for Wiz integration.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import threading
 import urllib.error
 from typing import Any, Dict, Optional
+
+_log = logging.getLogger(__name__)
 
 from flask import Blueprint, jsonify, request
 
@@ -52,12 +55,6 @@ def _safe_int(value: object, default: int) -> int:
     except (TypeError, ValueError):
         return default
 
-# Wiz service configuration
-WIZI_CLIENT_ID = os.environ.get("WIZI_CLIENT_ID", "")
-WIZI_CLIENT_SECRET = os.environ.get("WIZI_CLIENT_SECRET", "")
-WIZI_AUTH_URL = os.environ.get("WIZI_AUTH_URL", "https://auth.app.wiz.io/oauth/token")
-WIZI_API_URL = os.environ.get("WIZI_API_URL", "https://api.il1.app.wiz.io/graphql")
-
 # Initialize Wiz service (lazy initialization when credentials are available)
 _wiz_service: Optional[WizService] = None
 _wiz_service_lock = threading.Lock()
@@ -67,23 +64,31 @@ _COMMENT_RE = re.compile(r"#[^\n]*")
 
 
 def get_wiz_service() -> WizService:
-    """Get or create the Wiz service instance (thread-safe)."""
+    """Get or create the Wiz service instance (thread-safe).
+
+    Credentials are read from os.environ at call time (not at import time)
+    so that deferred .env loading takes effect correctly.
+    """
     global _wiz_service
     if _wiz_service is not None:
         return _wiz_service
     with _wiz_service_lock:
         if _wiz_service is None:
-            if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+            client_id = os.environ.get("WIZI_CLIENT_ID", "")
+            client_secret = os.environ.get("WIZI_CLIENT_SECRET", "")
+            auth_url = os.environ.get("WIZI_AUTH_URL", "https://auth.app.wiz.io/oauth/token")
+            api_url = os.environ.get("WIZI_API_URL", "https://api.il1.app.wiz.io/graphql")
+            if not client_id or not client_secret:
                 raise RuntimeError("Wiz credentials not configured")
-            if not WIZI_AUTH_URL.startswith("https://"):
-                raise RuntimeError(f"WIZI_AUTH_URL must use https://, got: {WIZI_AUTH_URL!r}")
-            if not WIZI_API_URL.startswith("https://"):
-                raise RuntimeError(f"WIZI_API_URL must use https://, got: {WIZI_API_URL!r}")
+            if not auth_url.startswith("https://"):
+                raise RuntimeError(f"WIZI_AUTH_URL must use https://, got: {auth_url!r}")
+            if not api_url.startswith("https://"):
+                raise RuntimeError(f"WIZI_API_URL must use https://, got: {api_url!r}")
             _wiz_service = WizService(
-                client_id=WIZI_CLIENT_ID,
-                client_secret=WIZI_CLIENT_SECRET,
-                api_url=WIZI_API_URL,
-                auth_url=WIZI_AUTH_URL,
+                client_id=client_id,
+                client_secret=client_secret,
+                api_url=api_url,
+                auth_url=auth_url,
             )
     return _wiz_service
 
@@ -108,50 +113,53 @@ WIZI_PROJECTS_QUERY = PROJECTS_QUERY
 @require_role("viewer")
 def api_wizi_status():
     """Check if Wiz integration is configured and reachable."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"enabled": False})
     try:
         wiz = get_wiz_service()
         result = wiz._graphql("query { issues(first: 1) { totalCount } }")
         total = result.get("data", {}).get("issues", {}).get("totalCount", 0)
         return jsonify({"enabled": True, "totalIssues": total})
-    except Exception as e:
-        return jsonify({"enabled": False, "error": str(e)})
+    except Exception:
+        _log.exception("Wiz status check failed")
+        return jsonify({"enabled": False, "error": "Connection failed"})
 
 
 @wiz_bp.route("/projects")
 @require_role("editor")
 def api_wizi_projects():
     """Fetch available projects from Wizi."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
     try:
         wiz = get_wiz_service()
         nodes = wiz.fetch_projects()
         return jsonify({"projects": nodes})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Failed to fetch Wiz projects")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @wiz_bp.route("/subscriptions")
 @require_role("editor")
 def api_wizi_subscriptions():
     """Fetch available subscriptions (cloud accounts) from Wizi."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
     try:
         wiz = get_wiz_service()
         all_nodes = wiz.fetch_cloud_accounts()
         return jsonify({"subscriptions": all_nodes})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Failed to fetch Wiz subscriptions")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @wiz_bp.route("/graphql", methods=["POST"])
 @require_role("editor")
 def api_wizi_graphql_proxy():
     """Raw GraphQL proxy for debugging — pass {query, variables}."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(silent=True) or {}
@@ -159,6 +167,8 @@ def api_wizi_graphql_proxy():
     variables = data.get("variables", {})
     if not query:
         return jsonify({"error": "No query provided"}), 400
+    if not isinstance(variables, dict):
+        return jsonify({"error": "variables must be an object"}), 400
 
     # Block mutations — strip line comments first so "# bypass\nmutation{}" can't sneak past
     query_no_comments = _COMMENT_RE.sub("", query)
@@ -176,22 +186,24 @@ def api_wizi_graphql_proxy():
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         return jsonify({"error": f"Wizi API error: {e.code}", "details": body}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in GraphQL proxy")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @wiz_bp.route("/discover")
 @require_role("admin")
 def api_wizi_discover():
     """Discover available root query fields via introspection."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
     try:
         wiz = get_wiz_service()
         summary = wiz.introspect_schema()
         return jsonify({"fields": summary})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Failed to introspect Wiz schema")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @wiz_bp.route("/introspect-type")
@@ -203,7 +215,7 @@ def api_wizi_introspect_type():
       type=<TypeName>   — returns inputFields for an input type
       query=1           — returns all root query field names (to check if a query exists)
     """
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     type_name = request.args.get("type", "").strip()
@@ -234,15 +246,16 @@ def api_wizi_introspect_type():
             result = wiz._graphql(q, {"typeName": type_name})
             return jsonify(result.get("data", {}))
         return jsonify({"error": "Provide ?type=TypeName or ?query=1"}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Failed to introspect Wiz type")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @wiz_bp.route("/issues", methods=["POST"])
 @require_role("editor")
 def api_wizi_issues():
     """Fetch findings from Wizi with optional filters and pagination."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(silent=True) or {}
@@ -282,7 +295,8 @@ def api_wizi_issues():
             # If still no results, mark as failed for user feedback
             if not resolved_sub_ids and not resolved_sub_ext_ids:
                 subscription_resolution_failed = True
-        except Exception as e:
+        except Exception:
+            _log.exception("Subscription resolution failed for %r", subscription_id)
             subscription_resolution_failed = True
             # Log error but continue - client-side filter will still apply
 
@@ -485,8 +499,9 @@ def api_wizi_issues():
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         return jsonify({"error": f"Wizi API error: {e.code}", "details": body}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_wizi_issues")
+        return jsonify({"error": "Internal error"}), 502
 
 
 
@@ -494,7 +509,7 @@ def api_wizi_issues():
 @require_role("editor")
 def api_wizi_bulk_fetch():
     """Fetch findings across all 9 query types for a subscription."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(silent=True) or {}
@@ -524,8 +539,9 @@ def api_wizi_bulk_fetch():
                 "nodes": all_nodes,
                 "totalCount": len(all_nodes),
             }
-        except Exception as e:
-            errors[query_type] = str(e)
+        except Exception:
+            _log.exception("bulk-fetch failed for query type %s", query_type)
+            errors[query_type] = "Internal error"
 
     return jsonify({
         "results": results,
@@ -538,7 +554,7 @@ def api_wizi_bulk_fetch():
 @require_role("editor")
 def api_wizi_bulk_fetch_single():
     """Fetch findings for a single query type (used for progress tracking)."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(silent=True) or {}
@@ -571,21 +587,22 @@ def api_wizi_bulk_fetch_single():
             },
             "resolvedSubscription": resolved,
         })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        _log.exception("Unexpected error in api_wizi_bulk_fetch_single")
+        return jsonify({"error": "Internal error"}), 500
 
 
 @wiz_bp.route("/find-by-id", methods=["POST"])
 @require_role("editor")
 def api_wizi_find_by_id():
     """Fetch findings from Wizi by ID or rule ID. Returns paginated results for user selection."""
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(silent=True) or {}
     finding_id = (data.get("id") or "").strip()
     subscription_filter = (data.get("subscription") or "").strip()
-    page_size = _safe_int(data.get("pageSize"), 5)
+    page_size = min(_safe_int(data.get("pageSize"), 5), 500)
     page = _safe_int(data.get("page"), 0)
     if not finding_id:
         return jsonify({"error": "No finding ID provided"}), 400
@@ -848,7 +865,7 @@ def api_wizi_ignore_issue():
 
     Accepts JSON: { issueId: "<uuid>", reason: "<optional text>", queryType: "<type>" }
     """
-    if not WIZI_CLIENT_ID or not WIZI_CLIENT_SECRET:
+    if not os.environ.get("WIZI_CLIENT_ID") or not os.environ.get("WIZI_CLIENT_SECRET"):
         return jsonify({"error": "Wizi integration not configured"}), 501
 
     data = request.get_json(force=True) or {}
@@ -917,5 +934,6 @@ def api_wizi_ignore_issue():
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         return jsonify({"error": f"Wiz API error: {e.code}", "details": body}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_wizi_ignore_issue")
+        return jsonify({"error": "Internal error"}), 502

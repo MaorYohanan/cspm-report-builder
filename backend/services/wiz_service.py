@@ -110,7 +110,12 @@ class WizService:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 result = json.loads(resp.read().decode("utf-8"))
 
-            self._token["access_token"] = result["access_token"]
+            token = result.get("access_token")
+            if not token:
+                raise RuntimeError(
+                    f"Unexpected auth response: missing access_token. Keys: {list(result.keys())}"
+                )
+            self._token["access_token"] = token
             self._token["expires_at"] = now + result.get("expires_in", 3600)
             return self._token["access_token"]
 
@@ -165,7 +170,12 @@ class WizService:
             CLOUD_ACCOUNTS_QUERY,
             {"first": 100, "filterBy": {"search": subscription_name}},
         )
-        nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+        if result.get("errors"):
+            raise RuntimeError(
+                f"Wiz GraphQL error in resolve_subscription: {result['errors']}"
+            )
+        data = result.get("data") or {}
+        nodes = data.get("cloudAccounts", {}).get("nodes", [])
 
         # 2. Partial token search (for hyphenated names like "M-CGov-Campusil-Dev")
         if not nodes:
@@ -180,6 +190,10 @@ class WizService:
                     CLOUD_ACCOUNTS_QUERY,
                     {"first": 100, "filterBy": {"search": part}},
                 )
+                if result.get("errors"):
+                    raise RuntimeError(
+                        f"Wiz GraphQL error in resolve_subscription: {result['errors']}"
+                    )
                 candidate_nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
                 # Keep only accounts whose name contains the full original string
                 filtered = [
@@ -202,6 +216,10 @@ class WizService:
                     CLOUD_ACCOUNTS_QUERY,
                     {"first": 1, "filterBy": {"id": [subscription_name]}},
                 )
+                if result.get("errors"):
+                    raise RuntimeError(
+                        f"Wiz GraphQL error in resolve_subscription: {result['errors']}"
+                    )
                 nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
             except Exception:
                 _log.exception("UUID subscription lookup failed for %r", subscription_name)
