@@ -1507,7 +1507,8 @@ import { ProductsPanel } from './products.js';
           vulnerabilityFindings: 'VULN', hostConfigurationRuleAssessments: 'HSPM',
           dataFindingsV2: 'DSPM', secretInstances: 'SECR',
           excessiveAccessFindings: 'EAPM', networkExposures: 'NEXP',
-          inventoryFindings: 'EOLM', endOfLifeFindings: 'EOLM'
+          inventoryFindings: 'EOLM', endOfLifeFindings: 'EOLM',
+          malwareFindings: 'MALW'
         };
 
         if (!nodes.length) {
@@ -1528,7 +1529,8 @@ import { ProductsPanel } from './products.js';
             networkExposures: importNetworkExposureFinding,
             inventoryFindings: importInventoryFinding,
             endOfLifeFindings: importEndOfLifeFinding,
-            softwareSupplyChainFindings: importSscFinding
+            softwareSupplyChainFindings: importSscFinding,
+            malwareFindings: importMalwareFinding
           };
           var fn = importers[qt] || importIssueFinding;
           fn(nodes[0]);
@@ -2578,6 +2580,7 @@ import { ProductsPanel } from './products.js';
         if (res.name) technical.push('Resource: ' + res.name);
         if (res.nativeType) technical.push('Type: ' + res.nativeType);
         if (item.result) technical.push('Result: ' + item.result);
+        if (item.filePath) technical.push('File Path: ' + item.filePath);
         if (rule.description) {
           var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
           if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
@@ -2595,6 +2598,64 @@ import { ProductsPanel } from './products.js';
           technical: technical,
           policies: [], recs: recs, priority: '',
           owner: sub.name || '',
+          evidence: []
+        });
+      }
+
+      function importMalwareFinding(item) {
+        var sev = mapWiziSeverity(item.severity);
+        var cat = 'HSPM';
+        var id = generateNextId(cat);
+        var res = item.resource || {};
+        var account = res.cloudAccount || {};
+        var fileDetails = item.fileDetails || {};
+
+        // Title: malware name
+        var title = item.name || 'Malware Finding ' + item.id;
+
+        // Description
+        var sevLabel = (state.severityMap[sev] || {}).text || sev;
+        var clf = item.classification || {};
+        var clfLabel = [clf.familyName, clf.type, clf.platform].filter(Boolean).join(' / ');
+        var description = item.description || (clfLabel ? clfLabel + ' malware detected' : title);
+
+        // Impact
+        var impact = 'זוהתה תוכנה זדונית ברמת חומרה ' + sevLabel;
+        if (res.name) impact += ' — ' + res.name;
+
+        // Technical
+        var technical = [];
+        if (account.cloudProvider) technical.push('Cloud: ' + account.cloudProvider);
+        if (account.name) technical.push('Subscription: ' + account.name);
+        if (res.name) technical.push('Resource: ' + res.name);
+        if (res.nativeType || res.type) technical.push('Type: ' + (res.nativeType || res.type));
+        if (fileDetails.path) technical.push('File Path: ' + fileDetails.path);
+        if (clfLabel) technical.push('Classification: ' + clfLabel);
+        if (item.detectionType) technical.push('Detection Type: ' + item.detectionType);
+        if (item.confidenceLevel) technical.push('Confidence: ' + item.confidenceLevel);
+        if (item.sha256) technical.push('SHA256: ' + item.sha256);
+
+        // Recommendations
+        var recs = [
+          'לבצע בידוד מיידי של המשאב הנגוע',
+          'לזהות ולהסיר את קובץ התוכנה הזדונית: ' + (fileDetails.path || 'לא ידוע'),
+          'לבצע סריקה מלאה של הסביבה לזיהוי התפשטות'
+        ];
+
+        var owner = '';
+        var projects = (item.projects || []).map(function(p) { return p.name; }).filter(Boolean);
+        if (projects.length) owner = projects.join(', ');
+        else if (account.name) owner = account.name;
+
+        state.findings.push({
+          id: id, category: cat,
+          title: title,
+          severity: sev,
+          description: description,
+          impact: impact,
+          technical: technical,
+          policies: [], recs: recs, priority: '',
+          owner: owner,
           evidence: []
         });
       }
@@ -2976,7 +3037,8 @@ import { ProductsPanel } from './products.js';
           { qt: 'excessiveAccessFindings',          label: 'EAPM — Excessive Access' },
           { qt: 'networkExposures',                 label: 'NEXP — Network Exposure' },
           { qt: 'inventoryFindings',                label: 'EOLM — Inventory / EOL' },
-          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' }
+          { qt: 'endOfLifeFindings',                label: 'EOL — End of Life Findings' },
+          { qt: 'malwareFindings',                  label: 'MALW — Malware Findings' }
         ];
         var totalStages = stages.length;
 
@@ -3112,7 +3174,8 @@ import { ProductsPanel } from './products.js';
           'excessiveAccessFindings': 'EAPM — Excessive Access',
           'networkExposures': 'NEXP — Network Exposure',
           'inventoryFindings': 'EOLM — Inventory / EOL',
-          'endOfLifeFindings': 'EOL — End of Life Findings'
+          'endOfLifeFindings': 'EOL — End of Life Findings',
+          'malwareFindings': 'MALW — Malware Findings'
         };
 
         var resolved = data.resolvedSubscription || {};
@@ -3426,7 +3489,8 @@ import { ProductsPanel } from './products.js';
         'networkExposures': importNetworkExposureFinding,
         'inventoryFindings': importInventoryFinding,
         'endOfLifeFindings': importEndOfLifeFinding,
-        'softwareSupplyChainFindings': importSscFinding
+        'softwareSupplyChainFindings': importSscFinding,
+        'malwareFindings': importMalwareFinding
       };
 
       function importSelectedBulkFindings() {
@@ -3745,6 +3809,102 @@ import { ProductsPanel } from './products.js';
               items = nonVpcItems;
               if (!items.length) return;
             }
+          }
+
+          // Special case: aggregate malware findings by malware name, listing all
+          // affected resources and file paths per the format:
+          // "Host-A,[/pathA,/pathB],Host-B,/pathC"
+          if (queryType === 'malwareFindings') {
+            var byMalwareName = {};
+            items.forEach(function(item) {
+              var mName = item.name || 'Unknown Malware';
+              if (!byMalwareName[mName]) byMalwareName[mName] = [];
+              byMalwareName[mName].push(item);
+            });
+
+            Object.keys(byMalwareName).forEach(function(mName) {
+              var mItems = byMalwareName[mName];
+              var firstItem = mItems[0];
+
+              // Duplicate detection
+              if (firstItem.id && state.findings.some(function(f) { return f._wizSourceId === firstItem.id; })) {
+                skipped += mItems.length;
+                return;
+              }
+
+              // Gather severity, subscriptions, and resource→paths map
+              var highestSev = 'high';
+              var subscriptions = [];
+              var resourcePaths = {}; // { resourceName: [path, ...] }
+
+              mItems.forEach(function(item) {
+                var sev = mapWiziSeverity(item.severity);
+                if (sev === 'critical') highestSev = 'critical';
+
+                var res = item.resource || {};
+                var account = res.cloudAccount || {};
+                var subName = account.name || '';
+                if (subName && subscriptions.indexOf(subName) === -1) subscriptions.push(subName);
+
+                var resName = res.name || 'Unknown Host';
+                var path = (item.fileDetails || {}).path || '';
+                if (!resourcePaths[resName]) resourcePaths[resName] = [];
+                if (path && resourcePaths[resName].indexOf(path) === -1) resourcePaths[resName].push(path);
+              });
+
+              // Build "Host-A,[/pathA,/pathB],Host-B,/pathC" string
+              var resourcePathStr = Object.keys(resourcePaths).map(function(resName) {
+                var paths = resourcePaths[resName];
+                if (!paths.length) return resName;
+                if (paths.length === 1) return resName + ',' + paths[0];
+                return resName + ',[' + paths.join(',') + ']';
+              }).join(',');
+
+              // Technical details
+              var firstRes = firstItem.resource || {};
+              var firstAccount = firstRes.cloudAccount || {};
+              var clf = firstItem.classification || {};
+              var clfLabel = [clf.familyName, clf.type, clf.platform].filter(Boolean).join(' / ');
+
+              var technical = [];
+              if (firstAccount.cloudProvider) technical.push('Cloud: ' + firstAccount.cloudProvider);
+              if (subscriptions.length) technical.push('Subscription: ' + subscriptions.join(', '));
+              technical.push('Total Affected: ' + mItems.length + ' instance' + (mItems.length !== 1 ? 's' : ''));
+              if (resourcePathStr) technical.push('Affected Resources: ' + resourcePathStr);
+              if (clfLabel) technical.push('Classification: ' + clfLabel);
+              if (firstItem.detectionType) technical.push('Detection Type: ' + firstItem.detectionType);
+              if (firstItem.confidenceLevel) technical.push('Confidence: ' + firstItem.confidenceLevel);
+              if (firstItem.sha256) technical.push('SHA256: ' + firstItem.sha256);
+
+              var sevLabel = (state.severityMap[highestSev] || {}).text || highestSev;
+              var cat = 'HSPM';
+              var id = generateNextId(cat);
+              var samplePath = Object.values ? Object.values(resourcePaths)[0] : resourcePaths[Object.keys(resourcePaths)[0]];
+              var samplePathStr = (samplePath && samplePath[0]) ? samplePath[0] : 'לא ידוע';
+
+              var finding = {
+                id: id, category: cat,
+                title: mName,
+                severity: highestSev,
+                description: (clfLabel || mName) + ' — זוהתה תוכנה זדונית ב-' + mItems.length + ' מופעים',
+                impact: 'זוהתה תוכנה זדונית ברמת חומרה ' + sevLabel + ' — ' + mItems.length + ' משאבים נגועים',
+                technical: technical,
+                policies: [],
+                recs: [
+                  'לבצע בידוד מיידי של המשאבים הנגועים',
+                  'לזהות ולהסיר את קובץ התוכנה הזדונית: ' + samplePathStr,
+                  'לבצע סריקה מלאה של הסביבה לזיהוי התפשטות'
+                ],
+                priority: '',
+                owner: subscriptions.join(', '),
+                evidence: []
+              };
+              if (firstItem.id) finding._wizSourceId = firstItem.id;
+              state.findings.push(finding);
+              imported++;
+              if (mItems.length > 1) consolidated += mItems.length - 1;
+            });
+            return; // malwareFindings fully handled
           }
 
           // Group by rule ID within this query type (same as single-query import)

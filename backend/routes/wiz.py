@@ -30,6 +30,7 @@ from backend.graphql.queries import (
     IGNORE_VULN_FINDING_MUTATION,
     INVENTORY_FINDINGS_QUERY,
     ISSUES_QUERY,
+    MALWARE_FINDINGS_QUERY,
     NETWORK_EXPOSURE_QUERY,
     PROJECTS_QUERY,
     QUERY_TYPE_MAP,
@@ -99,6 +100,7 @@ WIZI_NETWORK_EXPOSURE_QUERY = NETWORK_EXPOSURE_QUERY
 WIZI_INVENTORY_FINDINGS_QUERY = INVENTORY_FINDINGS_QUERY
 WIZI_END_OF_LIFE_QUERY = END_OF_LIFE_QUERY
 WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY = SOFTWARE_SUPPLY_CHAIN_QUERY
+WIZI_MALWARE_FINDINGS_QUERY = MALWARE_FINDINGS_QUERY
 WIZI_PROJECTS_QUERY = PROJECTS_QUERY
 
 
@@ -414,6 +416,18 @@ def api_wizi_issues():
         gql = WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY
         root_key = "softwareSupplyChainFindings"
 
+    elif query_type == "malwareFindings":
+        if severity:
+            filter_by["severity"] = eq_wrap(severity)
+        if status:
+            filter_by["status"] = eq_wrap(status)
+        if resolved_sub_ids:
+            filter_by["cloudAccount"] = {"id": {"equals": resolved_sub_ids}}
+        if project_id:
+            filter_by["projectId"] = as_list(project_id)
+        gql = WIZI_MALWARE_FINDINGS_QUERY
+        root_key = "malwareFindings"
+
     else:
         # Default: issues
         if severity:
@@ -600,6 +614,7 @@ def api_wizi_find_by_id():
         ("inventoryFindings", "inventoryFindings", WIZI_INVENTORY_FINDINGS_QUERY),
         ("endOfLifeFindings", "vulnerabilityFindings", WIZI_VULN_FINDINGS_QUERY),
         ("softwareSupplyChainFindings", "softwareSupplyChainFindings", WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY),
+        ("malwareFindings", "malwareFindings", WIZI_MALWARE_FINDINGS_QUERY),
     ]
 
     def _add_sub_filter(filter_by: dict, qt: str) -> dict:
@@ -627,6 +642,8 @@ def api_wizi_find_by_id():
             filter_by["resource"] = {"subscriptionId": {"equals": resolved_sub_ids}}
         elif qt == "endOfLifeFindings" and resolved_sub_ext_ids:
             filter_by["subscriptionExternalId"] = resolved_sub_ext_ids
+        elif qt == "malwareFindings" and resolved_sub_ids:
+            filter_by["cloudAccount"] = {"id": {"equals": resolved_sub_ids}}
 
         return filter_by
 

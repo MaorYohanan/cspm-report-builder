@@ -192,6 +192,30 @@ query EndOfLifeFindings($first: Int, $after: String, $filterBy: EndOfLifeFinding
 }
 """
 
+MALWARE_FINDINGS_QUERY = """
+query MalwareFindings($first: Int, $after: String, $filterBy: MalwareFindingFilters) {
+  malwareFindings(first: $first, after: $after, filterBy: $filterBy) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id name severity status
+      classification { familyName type platform }
+      confidenceLevel
+      detectionType
+      description
+      fileDetails { path fileSizeBytes }
+      md5 sha256
+      resource {
+        name type nativeType cloudPlatform
+        cloudAccount { name externalId cloudProvider }
+      }
+      projects { name }
+      createdAt
+    }
+  }
+}
+"""
+
 SOFTWARE_SUPPLY_CHAIN_QUERY = """
 query SoftwareSupplyChainFindings($first: Int, $after: String, $filterBy: SoftwareSupplyChainFindingFilters) {
   softwareSupplyChainFindings(first: $first, after: $after, filterBy: $filterBy) {
@@ -370,4 +394,5 @@ QUERY_TYPE_MAP = {
     "inventoryFindings": (INVENTORY_FINDINGS_QUERY, "inventoryFindings"),
     "endOfLifeFindings": (VULN_FINDINGS_QUERY, "vulnerabilityFindings"),
     "softwareSupplyChainFindings": (SOFTWARE_SUPPLY_CHAIN_QUERY, "softwareSupplyChainFindings"),
+    "malwareFindings": (MALWARE_FINDINGS_QUERY, "malwareFindings"),
 }
