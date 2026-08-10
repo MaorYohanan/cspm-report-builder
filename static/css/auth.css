@@ -1,0 +1,132 @@
+/* ── Auth pages (login.html, auth_error.html) ── */
+/* Served directly at /static/css/auth.css — NOT bundled via build_css.py */
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Base body ── */
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #0a0b0e;
+  color: #e8eaed;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Login page ── */
+.login-card {
+  background: #13151a;
+  border: 1px solid #2a2d35;
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 380px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #4f8ef7, #7c5cf8);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.brand-text { text-align: right; }
+.brand-name { font-size: 22px; font-weight: 700; color: #e8eaed; }
+.brand-sub { font-size: 11px; color: #7a8499; letter-spacing: 2px; }
+
+.login-card h1 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #e8eaed; }
+.subtitle { font-size: 14px; color: #7a8499; margin-bottom: 36px; line-height: 1.5; }
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #fff;
+  color: #3c4043;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  width: 100%;
+  cursor: pointer;
+  text-decoration: none;
+  transition: box-shadow 0.2s, background 0.2s;
+  font-family: inherit;
+}
+
+.google-btn:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); background: #f8f8f8; }
+
+.google-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #2a2d35;
+  margin: 32px 0 20px;
+}
+
+.footer-note { font-size: 12px; color: #4a5568; line-height: 1.5; }
+
+/* ── Auth error page ── */
+.card {
+  background: #13151a;
+  border: 1px solid #3d1a1a;
+  border-radius: 16px;
+  padding: 48px 40px;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+
+.card h1 { font-size: 20px; font-weight: 700; color: #f87171; margin-bottom: 12px; }
+
+.message {
+  font-size: 15px;
+  color: #a0aec0;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+/* .auth-btn scoped to avoid future collision with any shared .btn usage */
+.card .btn {
+  display: inline-block;
+  background: #2a2d35;
+  color: #e8eaed;
+  border: 1px solid #3a3d45;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+.card .btn:hover { background: #3a3d45; }

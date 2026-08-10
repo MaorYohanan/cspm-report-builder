@@ -43,7 +43,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
             '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
             '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
-            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + (f.id || '') + '</span>' +
+            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + escapeHtml(f.id || '') + '</span>' +
             '<span style="margin-right:auto;position:relative;">' +
               '<button class="btn-icon-sm" id="btn-detail-actions" title="פעולות">⋮</button>' +
               '<div class="actions-dropdown" id="detail-actions-menu" style="display:none;">' +
