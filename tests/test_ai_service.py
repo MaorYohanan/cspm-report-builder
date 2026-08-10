@@ -7,6 +7,8 @@ Run with:
 """
 from __future__ import annotations
 
+import urllib.error
+
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -182,3 +184,55 @@ class TestGenerateExecSummary:
         payload = mock_call.call_args[0][1]
         prompt_text = payload["contents"][0]["parts"][0]["text"]
         assert "ACME Corp" in prompt_text
+
+    def test_tone_hint_present_for_low_severity(self):
+        """1 critical + 5 high: critical_count=1 < 4 and high_and_above=6 <= 10 → hint added."""
+        svc = _make_service()
+        findings = (
+            [{"title": "C", "severity": "critical", "category": "CSPM",
+              "exception": {"active": False}}] * 1
+            + [{"title": "H", "severity": "high", "category": "CSPM",
+                "exception": {"active": False}}] * 5
+        )
+        with patch.object(svc, "_single_api_call", return_value="summary") as mock_call:
+            svc.generate_exec_summary(findings=findings)
+        payload = mock_call.call_args[0][1]
+        prompt_text = payload["contents"][0]["parts"][0]["text"]
+        assert "[הנחיית טון]" in prompt_text
+
+    def test_tone_hint_absent_for_high_severity(self):
+        """5 critical + 10 high: critical_count=5 >= 4 → hint NOT added."""
+        svc = _make_service()
+        findings = (
+            [{"title": "C", "severity": "critical", "category": "CSPM",
+              "exception": {"active": False}}] * 5
+            + [{"title": "H", "severity": "high", "category": "CSPM",
+                "exception": {"active": False}}] * 10
+        )
+        with patch.object(svc, "_single_api_call", return_value="summary") as mock_call:
+            svc.generate_exec_summary(findings=findings)
+        payload = mock_call.call_args[0][1]
+        prompt_text = payload["contents"][0]["parts"][0]["text"]
+        assert "[הנחיית טון]" not in prompt_text
+
+
+# ---------------------------------------------------------------------------
+# _call_gemini 429 model fallback
+# ---------------------------------------------------------------------------
+
+
+class TestModelFallback:
+    def test_429_triggers_model_fallback(self):
+        """A 429 on model-a must cause immediate fallback to model-b."""
+        svc = _make_service(models=["model-a", "model-b"], default_model="model-a")
+        http_429 = urllib.error.HTTPError(
+            url=None, code=429, msg="Too Many Requests", hdrs=None, fp=None
+        )
+        with patch.object(svc, "_single_api_call",
+                          side_effect=[http_429, "fallback response"]):
+            text, model = svc.summarize_remediation(
+                title="test finding",
+                remediation="fix it now by applying patch X to system Y",
+            )
+        assert model == "model-b"
+        assert text == "fallback response"
