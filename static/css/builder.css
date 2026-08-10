@@ -107,6 +107,18 @@ html {
   overflow-x: hidden;
 }
 
+/* ── Reduced motion — WCAG 2.1 SC 2.3.3 (AAA) / broadly recommended at AA
+   Blanket pattern: suppress all animations and transitions for users who
+   have enabled the OS-level "reduce motion" preference.
+   Does not affect report_template.html / report.css (separate stylesheet). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 
 /* ── App layout — sidebar + main ── */
 .app-layout {
@@ -620,6 +632,20 @@ html {
   color: var(--accent);
   text-decoration: none;
   font-weight: 500;
+}
+
+/* Reset browser button chrome so button.dashboard-link renders
+   identically to the original <a> element (WCAG 2.1 SC 4.1.2) */
+button.dashboard-link {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .dashboard-link:hover {
@@ -1632,16 +1658,17 @@ table caption {
 #findings-table-wrapper td:nth-child(5) { width: 70px; }
 
 /* ── Severity chips ── */
+/* border-right (not border-left) — right is the start/leading edge in RTL. */
 .severity-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
+  padding: 3px 10px; /* symmetric padding */
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.2px;
-  border-left: 3px solid;
+  border-right: 3px solid;
 }
 
 .severity-chip::before {
@@ -1653,11 +1680,11 @@ table caption {
   flex-shrink: 0;
 }
 
-.sev-critical { background: oklch(0.58 0.22 15 / 0.12); color: oklch(0.58 0.22 15); border-left-color: oklch(0.58 0.22 15); }
-.sev-high     { background: oklch(0.68 0.18 40 / 0.12); color: oklch(0.68 0.18 40); border-left-color: oklch(0.68 0.18 40); }
-.sev-medium   { background: oklch(0.72 0.16 80 / 0.12); color: oklch(0.72 0.16 80); border-left-color: oklch(0.72 0.16 80); }
-.sev-low      { background: oklch(0.62 0.17 155 / 0.12); color: oklch(0.62 0.17 155); border-left-color: oklch(0.62 0.17 155); }
-.sev-info     { background: oklch(0.6 0.02 220 / 0.10); color: oklch(0.6 0.02 220); border-left-color: oklch(0.6 0.02 220); }
+.sev-critical { background: oklch(0.58 0.22 15 / 0.12); color: oklch(0.58 0.22 15); border-right-color: oklch(0.58 0.22 15); }
+.sev-high     { background: oklch(0.68 0.18 40 / 0.12); color: oklch(0.68 0.18 40); border-right-color: oklch(0.68 0.18 40); }
+.sev-medium   { background: oklch(0.72 0.16 80 / 0.12); color: oklch(0.72 0.16 80); border-right-color: oklch(0.72 0.16 80); }
+.sev-low      { background: oklch(0.62 0.17 155 / 0.12); color: oklch(0.62 0.17 155); border-right-color: oklch(0.62 0.17 155); }
+.sev-info     { background: oklch(0.6 0.02 220 / 0.10); color: oklch(0.6 0.02 220); border-right-color: oklch(0.6 0.02 220); }
 
 @keyframes criticalPulse {
   0%, 100% { opacity: 1; }
@@ -3418,7 +3445,7 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px 18px;
-  text-align: center;
+  text-align: right;
   cursor: pointer;
   transition: border-color var(--transition), background var(--transition);
 }
@@ -3698,11 +3725,11 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
     radial-gradient(ellipse at 80% 80%, oklch(0.88 0.04 300 / 0.3) 0%, transparent 45%);
 }
 
-[data-theme="light"] .sev-critical { background: rgba(185, 28, 28, 0.1); color: #991b1b; border-left-color: #dc2626; }
-[data-theme="light"] .sev-high     { background: rgba(239, 68, 68, 0.1); color: #b91c1c; border-left-color: #ef4444; }
-[data-theme="light"] .sev-medium   { background: rgba(249, 115, 22, 0.1); color: #c2410c; border-left-color: #f97316; }
-[data-theme="light"] .sev-low      { background: rgba(34, 197, 94, 0.1); color: #15803d; border-left-color: #22c55e; }
-[data-theme="light"] .sev-info     { background: rgba(107, 114, 128, 0.1); color: #4b5563; border-left-color: #6b7280; }
+[data-theme="light"] .sev-critical { background: rgba(185, 28, 28, 0.1); color: #991b1b; border-right-color: #dc2626; }
+[data-theme="light"] .sev-high     { background: rgba(239, 68, 68, 0.1); color: #b91c1c; border-right-color: #ef4444; }
+[data-theme="light"] .sev-medium   { background: rgba(249, 115, 22, 0.1); color: #c2410c; border-right-color: #f97316; }
+[data-theme="light"] .sev-low      { background: rgba(34, 197, 94, 0.1); color: #15803d; border-right-color: #22c55e; }
+[data-theme="light"] .sev-info     { background: rgba(107, 114, 128, 0.1); color: #4b5563; border-right-color: #6b7280; }
 
 [data-theme="light"] .tag-inline { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.15); color: #2563eb; }
 [data-theme="light"] .cat-badge { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.15); color: #2563eb; }

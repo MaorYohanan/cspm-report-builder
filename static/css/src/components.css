@@ -554,16 +554,17 @@ table caption {
 #findings-table-wrapper td:nth-child(5) { width: 70px; }
 
 /* ── Severity chips ── */
+/* border-right (not border-left) — right is the start/leading edge in RTL. */
 .severity-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 10px;
+  padding: 3px 10px; /* symmetric padding */
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.2px;
-  border-left: 3px solid;
+  border-right: 3px solid;
 }
 
 .severity-chip::before {
@@ -575,11 +576,11 @@ table caption {
   flex-shrink: 0;
 }
 
-.sev-critical { background: oklch(0.58 0.22 15 / 0.12); color: oklch(0.58 0.22 15); border-left-color: oklch(0.58 0.22 15); }
-.sev-high     { background: oklch(0.68 0.18 40 / 0.12); color: oklch(0.68 0.18 40); border-left-color: oklch(0.68 0.18 40); }
-.sev-medium   { background: oklch(0.72 0.16 80 / 0.12); color: oklch(0.72 0.16 80); border-left-color: oklch(0.72 0.16 80); }
-.sev-low      { background: oklch(0.62 0.17 155 / 0.12); color: oklch(0.62 0.17 155); border-left-color: oklch(0.62 0.17 155); }
-.sev-info     { background: oklch(0.6 0.02 220 / 0.10); color: oklch(0.6 0.02 220); border-left-color: oklch(0.6 0.02 220); }
+.sev-critical { background: oklch(0.58 0.22 15 / 0.12); color: oklch(0.58 0.22 15); border-right-color: oklch(0.58 0.22 15); }
+.sev-high     { background: oklch(0.68 0.18 40 / 0.12); color: oklch(0.68 0.18 40); border-right-color: oklch(0.68 0.18 40); }
+.sev-medium   { background: oklch(0.72 0.16 80 / 0.12); color: oklch(0.72 0.16 80); border-right-color: oklch(0.72 0.16 80); }
+.sev-low      { background: oklch(0.62 0.17 155 / 0.12); color: oklch(0.62 0.17 155); border-right-color: oklch(0.62 0.17 155); }
+.sev-info     { background: oklch(0.6 0.02 220 / 0.10); color: oklch(0.6 0.02 220); border-right-color: oklch(0.6 0.02 220); }
 
 @keyframes criticalPulse {
   0%, 100% { opacity: 1; }
