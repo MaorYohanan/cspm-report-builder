@@ -8,6 +8,7 @@ Run with:
 """
 from __future__ import annotations
 
+import calendar
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -30,13 +31,16 @@ class TestPipelineStatusBoundary:
         does not accidentally push next_due < today when they share the same date.
         """
         today = datetime.now(UTC)
-        # published_at chosen so that _add_months(published_at, months) lands
-        # exactly on today's date.  We use monthly frequency and set
-        # published_at to one month ago at the same time-of-day.
-        one_month_ago = today.replace(
-            month=(today.month - 1) if today.month > 1 else 12,
-            year=today.year if today.month > 1 else today.year - 1,
-        )
+        # Compute published_at as the month-arithmetic inverse of _add_months(published_at, 1).
+        # _add_months(dt, 1) advances by one calendar month and clamps day to the
+        # target month's last day.  To guarantee next_due.date() == today.date() on
+        # any calendar date (including 29th/30th/31st), we go one month back and
+        # clamp today's day to the prior month's actual length — mirroring the
+        # same clamping that _add_months applies on the forward pass.
+        prev_month = today.month - 1 if today.month > 1 else 12
+        prev_year = today.year if today.month > 1 else today.year - 1
+        prev_day = min(today.day, calendar.monthrange(prev_year, prev_month)[1])
+        one_month_ago = today.replace(year=prev_year, month=prev_month, day=prev_day)
         status, next_due = _pipeline_status(one_month_ago, "monthly")
         # next_due may be a few seconds before 'today' in wall time if the test
         # runs near midnight, but .date() should be equal → due_this_month.

@@ -194,7 +194,8 @@ class WizService:
                     raise RuntimeError(
                         f"Wiz GraphQL error in resolve_subscription: {result['errors']}"
                     )
-                candidate_nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+                data2 = result.get("data") or {}
+                candidate_nodes = data2.get("cloudAccounts", {}).get("nodes", [])
                 # Keep only accounts whose name contains the full original string
                 filtered = [
                     n for n in candidate_nodes
@@ -220,7 +221,8 @@ class WizService:
                     raise RuntimeError(
                         f"Wiz GraphQL error in resolve_subscription: {result['errors']}"
                     )
-                nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
+                data3 = result.get("data") or {}
+                nodes = data3.get("cloudAccounts", {}).get("nodes", [])
             except Exception:
                 _log.exception("UUID subscription lookup failed for %r", subscription_name)
                 raise RuntimeError(f"Subscription lookup failed: {subscription_name!r}")
