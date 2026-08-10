@@ -105,6 +105,14 @@ CASES = [
         "softwareSupplyChainFindings",
         {},
     ),
+    (
+        "malwareFindings",
+        {
+            "severity": {"equals": ["CRITICAL", "HIGH"]},
+            "status": {"equals": ["OPEN", "IN_PROGRESS"]},
+            "cloudAccount": {"id": {"equals": SUB_IDS}},
+        },
+    ),
 ]
 
 
@@ -118,6 +126,13 @@ def test_build_bulk_filter_per_query_type(query_type, expected):
 def test_excessive_access_has_no_severity_or_status_keys():
     """excessiveAccessFindings uses a custom Wiz filter type that rejects severity/status."""
     actual = build_bulk_filter("excessiveAccessFindings", SUB_IDS, SUB_EXT_IDS)
+    assert "severity" not in actual
+    assert "status" not in actual
+
+
+def test_ssc_has_no_severity_or_status_keys():
+    """softwareSupplyChainFindings uses a Wiz filter type that rejects severity/status."""
+    actual = build_bulk_filter("softwareSupplyChainFindings", SUB_IDS, SUB_EXT_IDS)
     assert "severity" not in actual
     assert "status" not in actual
 

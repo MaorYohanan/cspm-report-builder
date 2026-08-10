@@ -417,12 +417,8 @@ def api_wizi_issues():
         gql_root_key = "vulnerabilityFindings"
 
     elif query_type == "softwareSupplyChainFindings":
-        if severity:
-            filter_by["severity"] = eq_wrap(severity)
-        if status:
-            filter_by["status"] = eq_wrap(status)
-        # SoftwareSupplyChainFindingFilters has no resource.subscriptionId field —
-        # subscription filtering is not supported directly for this query type.
+        # SoftwareSupplyChainFindingFilters does NOT support severity or status fields —
+        # sending them causes a Wiz API 400 error. No subscription scope field either.
         if project_id:
             filter_by["project"] = {"equals": as_list(project_id)}
         gql = WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY
