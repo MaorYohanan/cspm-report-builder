@@ -53,7 +53,9 @@ def _evict_stale_scan_jobs() -> None:
 
 def _safe_id(v) -> str | None:
     v = str(v or "").strip()
-    return v if v else None
+    if not v or ".." in v or "/" in v or "\\" in v:
+        return None
+    return v
 
 
 def _add_months(dt: datetime, months: int) -> datetime:
@@ -817,7 +819,6 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
     Mirrors the wizi.js >5-vuln special-case aggregation so pipeline scans
     produce one tidy VULN finding instead of hundreds of individual CVE rows.
     """
-    weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
     crit_count = high_count = 0
     highest_sev = "low"
     resource_names: list = []

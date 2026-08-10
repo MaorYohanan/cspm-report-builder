@@ -44,6 +44,7 @@ def callback():
     try:
         token = oauth.google.authorize_access_token()
     except Exception:
+        _log.exception("OAuth callback error")
         return redirect(url_for("auth.error", reason="invalid"))
     userinfo = token.get("userinfo", {})
     email = (userinfo.get("email") or "").lower().strip()

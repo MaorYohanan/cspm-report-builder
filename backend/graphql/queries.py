@@ -275,9 +275,12 @@ CLOUD_CONFIG_RULES_QUERY = """
 query CloudConfigRules($first: Int, $filterBy: CloudConfigurationRuleFilters) {
   cloudConfigurationRules(first: $first, filterBy: $filterBy) {
     nodes { id name shortId }
+    pageInfo { hasNextPage endCursor }
   }
 }
 """
+# NOTE: Full pagination for CLOUD_CONFIG_RULES_QUERY is not yet implemented.
+# Results beyond 100 will be truncated. Callers should pass first=100 or less.
 
 # ---------------------------------------------------------------------------
 # Introspection

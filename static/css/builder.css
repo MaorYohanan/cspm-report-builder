@@ -381,7 +381,7 @@ html {
 }
 
 .sidebar-collapse-btn {
-  margin-left: auto;
+  margin-inline-end: auto;
   font-weight: bold;
   color: var(--text);
 }
@@ -476,19 +476,21 @@ html {
   overflow: hidden;
 }
 
-.main-content::before {
-  content: '';
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.4;
-  background:
-    radial-gradient(ellipse at 20% 20%, oklch(0.25 0.08 260 / 0.3) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, oklch(0.22 0.06 300 / 0.25) 0%, transparent 45%);
+@media screen {
+  .main-content::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+    background:
+      radial-gradient(ellipse at 20% 20%, oklch(0.25 0.08 260 / 0.3) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, oklch(0.22 0.06 300 / 0.25) 0%, transparent 45%);
+  }
 }
 
 .main-content > * {
@@ -1228,7 +1230,7 @@ h1 {
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: nowrap;
-  margin-left: 8px;
+  margin-inline-start: 8px;
 }
 
 .autosave-indicator.visible {
@@ -1842,7 +1844,7 @@ table caption {
   content: '▸';
   font-size: 11px;
   color: var(--text-muted);
-  margin-left: 10px;
+  margin-inline-end: 10px;
   transition: transform 0.2s ease;
 }
 
@@ -1936,7 +1938,7 @@ select[multiple] option {
 .autocomplete-item .ac-sub {
   color: var(--text-muted);
   font-size: 11px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 /* ── Toast notifications ── */
@@ -3142,6 +3144,7 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   margin-top: 3px;
 }
 
+/* intentional: flex-end = inline-start in RTL for version action row */
 .version-row-actions {
   display: flex;
   gap: 5px;
