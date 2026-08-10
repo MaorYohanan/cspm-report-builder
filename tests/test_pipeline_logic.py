@@ -31,19 +31,22 @@ class TestPipelineStatusBoundary:
         does not accidentally push next_due < today when they share the same date.
         """
         today = datetime.now(UTC)
-        # Compute published_at as the month-arithmetic inverse of _add_months(published_at, 1).
-        # _add_months(dt, 1) advances by one calendar month and clamps day to the
-        # target month's last day.  To guarantee next_due.date() == today.date() on
-        # any calendar date (including 29th/30th/31st), we go one month back and
-        # clamp today's day to the prior month's actual length — mirroring the
-        # same clamping that _add_months applies on the forward pass.
         prev_month = today.month - 1 if today.month > 1 else 12
         prev_year = today.year if today.month > 1 else today.year - 1
-        prev_day = min(today.day, calendar.monthrange(prev_year, prev_month)[1])
-        one_month_ago = today.replace(year=prev_year, month=prev_month, day=prev_day)
+        last_day_of_prev_month = calendar.monthrange(prev_year, prev_month)[1]
+
+        if today.day > last_day_of_prev_month:
+            # today's day does not exist in the prior month — _add_months cannot
+            # produce today.date() from any date in that month, so skip this
+            # exact-boundary check.
+            pytest.skip(
+                f"today is {today.date()} — day {today.day} exceeds last day of "
+                f"previous month ({last_day_of_prev_month}); exact-boundary not testable."
+            )
+
+        # prev_day is safe here: today.day <= last_day_of_prev_month
+        one_month_ago = today.replace(year=prev_year, month=prev_month, day=today.day)
         status, next_due = _pipeline_status(one_month_ago, "monthly")
-        # next_due may be a few seconds before 'today' in wall time if the test
-        # runs near midnight, but .date() should be equal → due_this_month.
         assert status == "due_this_month", (
             f"Expected 'due_this_month', got {status!r}. next_due={next_due}, today={today}"
         )
