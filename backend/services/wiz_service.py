@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -72,10 +73,15 @@ class WizService:
         self.api_url = api_url
         self.auth_url = auth_url
         self._token: Dict[str, Any] = {"access_token": "", "expires_at": 0}
+        self._token_lock = threading.Lock()
 
     def _get_token(self) -> str:
         """
         Get a valid OAuth token, refreshing if expired.
+
+        Thread-safe: a single lock guards both reads and writes of self._token
+        so that concurrent callers cannot observe a partially-refreshed token
+        or trigger duplicate refresh requests (TOCTOU race).
 
         Returns:
             Valid OAuth access token
@@ -83,29 +89,30 @@ class WizService:
         Raises:
             urllib.error.HTTPError: If authentication fails
         """
-        now = time.time()
-        if self._token["access_token"] and self._token["expires_at"] > now + 60:
+        with self._token_lock:
+            now = time.time()
+            if self._token["access_token"] and self._token["expires_at"] > now + 60:
+                return self._token["access_token"]
+
+            payload = urllib.parse.urlencode({
+                "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+                "audience": "wiz-api",
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                self.auth_url,
+                data=payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+
+            self._token["access_token"] = result["access_token"]
+            self._token["expires_at"] = now + result.get("expires_in", 3600)
             return self._token["access_token"]
-
-        payload = urllib.parse.urlencode({
-            "grant_type": "client_credentials",
-            "client_id": self.client_id,
-            "client_secret": self.client_secret,
-            "audience": "wiz-api",
-        }).encode("utf-8")
-
-        req = urllib.request.Request(
-            self.auth_url,
-            data=payload,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            result = json.loads(resp.read().decode("utf-8"))
-
-        self._token["access_token"] = result["access_token"]
-        self._token["expires_at"] = now + result.get("expires_in", 3600)
-        return self._token["access_token"]
 
     def _graphql(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -339,16 +346,37 @@ class WizService:
 
     def fetch_projects(self, first: int = 500) -> List[Dict[str, Any]]:
         """
-        Fetch available projects from Wiz.
+        Fetch all available projects from Wiz, following pagination cursors.
 
         Args:
-            first: Number of results to fetch
+            first: Page size for each GraphQL request
 
         Returns:
-            List of project nodes
+            List of all project nodes across all pages
         """
-        result = self._graphql(PROJECTS_QUERY, {"first": first})
-        return result.get("data", {}).get("projects", {}).get("nodes", [])
+        all_nodes: List[Dict[str, Any]] = []
+        after: Optional[str] = None
+
+        while True:
+            variables: Dict[str, Any] = {"first": first}
+            if after:
+                variables["after"] = after
+
+            result = self._graphql(PROJECTS_QUERY, variables)
+            page = result.get("data", {}).get("projects", {})
+            all_nodes.extend(page.get("nodes", []))
+
+            pi = page.get("pageInfo", {})
+            if not pi.get("hasNextPage"):
+                break
+            after = pi.get("endCursor")
+            if not after:
+                _log.warning(
+                    "fetch_projects: hasNextPage=True but endCursor is None, stopping"
+                )
+                break
+
+        return all_nodes
 
     def fetch_cloud_accounts(
         self,

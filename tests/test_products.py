@@ -240,3 +240,36 @@ def test_delete_version_updates_product_latest(client):
 
     products = client.get("/api/products").get_json()
     assert products[0]["latestVersion"] is None
+
+
+# ---------------------------------------------------------------------------
+# DEV-H-4: body-size guard must fire before get_json() consumes the body
+# ---------------------------------------------------------------------------
+
+
+def test_save_version_body_size_limit(client):
+    """POST to save_version with a body > 50 MB must return HTTP 413.
+
+    The guard is implemented using request.get_data(cache=True) BEFORE
+    request.get_json(), so the size check is never dead even when Flask has
+    already buffered the body.  We mock get_data on the request object so we
+    do not have to actually transmit 50 MB over the wire.
+    """
+    from unittest.mock import patch
+
+    pid = client.post("/api/products", json=VALID_PRODUCT).get_json()["id"]
+
+    oversized = b"x" * (50 * 1024 * 1024 + 1)
+
+    # Patch flask.Request.get_data on the class so that every request inside
+    # this call returns the oversized bytes, regardless of what was actually sent.
+    with patch("flask.Request.get_data", return_value=oversized):
+        rv = client.post(
+            f"/api/products/{pid}/versions",
+            data=b'{"type":"minor","notes":"n","snapshot":{}}',
+            content_type="application/json",
+        )
+
+    assert rv.status_code == 413, (
+        f"Expected 413 for oversized body, got {rv.status_code}: {rv.get_json()}"
+    )

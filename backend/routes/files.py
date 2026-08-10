@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import uuid
 from pathlib import Path
@@ -55,9 +56,12 @@ def api_upload_state():
 
     state_id = uuid.uuid4().hex[:12]
     filename = f"state_{state_id}.json"
-    (STATES_DIR / filename).write_text(
+    final_path = STATES_DIR / filename
+    tmp_path = STATES_DIR / f".tmp_{state_id}.json"
+    tmp_path.write_text(
         json.dumps(parsed, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+    os.replace(tmp_path, final_path)
 
     return jsonify({"id": state_id, "filename": filename}), 201
 
