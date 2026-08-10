@@ -1074,16 +1074,6 @@ html {
 
 #findings-table-wrapper td:nth-child(2) { width: 45px; }
 
-/* ── Tab panels (no longer need container styling) ── */
-.tab-panel {
-  display: none;
-  animation: panelFadeIn 0.2s ease;
-}
-
-.tab-panel.active {
-  display: block;
-}
-
 @media (max-width: 900px) {
   .sidebar { width: 56px; }
   .sidebar-brand-text, .sidebar-new-sub, .sidebar-section-label,
@@ -1444,7 +1434,6 @@ select:not([multiple]):not([size]) {
   padding: 5px 10px;
   font-size: 11px;
   margin-top: 0;
-  margin-left: 4px;
   border-radius: 6px;
 }
 
@@ -1459,7 +1448,8 @@ select:not([multiple]):not([size]) {
   transition: max-height 0.25s ease, opacity 0.25s ease;
   overflow: hidden;
 }
-.priority-custom-wrapper.hidden {
+/* .collapsed used instead of .hidden to avoid conflict with the .hidden display:none utility */
+.priority-custom-wrapper.collapsed {
   max-height: 0;
   opacity: 0;
   pointer-events: none;
@@ -1479,7 +1469,14 @@ select:not([multiple]):not([size]) {
   border: 1px solid var(--border);
 }
 
-#btn-cancel-edit { margin-right: 8px; }
+/* ── Finding form button row ── */
+.finding-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
 
 /* ── Drop zone ── */
 .drop-zone {
@@ -1880,6 +1877,10 @@ table caption {
 @media (max-width: 700px) {
   .report-form-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Utility ── */
+/* Generic hide utility — use class="hidden" to hide any element via display:none */
+.hidden { display: none !important; }
 
 
 /* ── Wizi multi-select ── */
@@ -2349,7 +2350,7 @@ select[multiple] option {
 
 .bulk-section-summary::after {
   content: '▸';
-  margin-right: auto;
+  margin-left: auto;
   font-size: 12px;
   color: var(--text-muted);
   transition: transform 0.2s ease;
@@ -3628,7 +3629,7 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
 .pipeline-scan-modal-actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .pipeline-progress-bar {

@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=45">
+  <link rel="stylesheet" href="/static/css/builder.css?v=46">
 </head>
 <body>
   <!-- Toast container -->
   <div id="toast-container" aria-live="polite"></div>
 
   <!-- Keyboard shortcuts overlay -->
-  <div id="kbd-overlay" class="kbd-overlay" style="display:none;" role="dialog" aria-label="קיצורי מקלדת">
+  <div id="kbd-overlay" class="kbd-overlay hidden" role="dialog" aria-label="קיצורי מקלדת">
     <div class="kbd-overlay-content">
       <div class="kbd-overlay-header">
         <span>⌨️ קיצורי מקלדת</span>
@@ -427,7 +427,7 @@
               <option value="למעקב">למעקב</option>
               <option value="custom">אחר (טקסט חופשי)</option>
             </select>
-            <div class="priority-custom-wrapper hidden" id="priority-custom-wrapper" style="margin-top:6px;">
+            <div class="priority-custom-wrapper collapsed" id="priority-custom-wrapper" style="margin-top:6px;">
               <input type="text" id="f-priority-custom" placeholder="טקסט חופשי...">
             </div>
           </div>
@@ -440,10 +440,12 @@
             </div>
           </div>
         </div>
-        <button class="btn btn-primary" id="btn-add-finding">הוסף ממצא</button>
-        <button class="btn btn-secondary" id="btn-cancel-edit" style="display:none;">בטל עריכה</button>
-        <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
-        <span class="kbd-hint">Ctrl+Enter</span>
+        <div class="finding-form-actions">
+          <button class="btn btn-primary" id="btn-add-finding">הוסף ממצא</button>
+          <button class="btn btn-secondary" id="btn-cancel-edit" style="display:none;">בטל עריכה</button>
+          <button class="btn btn-secondary" id="btn-clear-form">נקה טופס</button>
+          <span class="kbd-hint">Ctrl+Enter</span>
+        </div>
         <span id="edit-state" class="muted small-text"></span>
 
         <!-- Exception toggle -->
@@ -820,6 +822,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=107"></script>
+  <script type="module" src="/static/js/src/main.js?v=109"></script>
 </body>
 </html>

@@ -226,7 +226,7 @@
 .pipeline-scan-modal-actions {
   display: flex;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .pipeline-progress-bar {

@@ -42,8 +42,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         headerEl.innerHTML =
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
             '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
-            '<span class="tag-inline">' + (f.category || 'CSPM') + '</span>' +
-            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + (f.id || '') + '</span>' +
+            '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
+            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + escapeHtml(f.id || '') + '</span>' +
             '<span style="margin-right:auto;position:relative;">' +
               '<button class="btn-icon-sm" id="btn-detail-actions" title="פעולות">⋮</button>' +
               '<div class="actions-dropdown" id="detail-actions-menu" style="display:none;">' +
@@ -783,12 +783,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
       function updatePriorityCustomVisibility() {
         if (prioritySelect.value === 'custom') {
-          priorityCustomWrapper.classList.remove('hidden');
+          priorityCustomWrapper.classList.remove('collapsed');
           priorityCustomWrapper.classList.add('visible');
           priorityCustom.focus();
         } else {
           priorityCustomWrapper.classList.remove('visible');
-          priorityCustomWrapper.classList.add('hidden');
+          priorityCustomWrapper.classList.add('collapsed');
           priorityCustom.value = '';
         }
       }
