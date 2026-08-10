@@ -129,9 +129,13 @@ def _extract_finding_title(f: dict) -> str:
         rule_name = rules[0].get("name") if rules else ""
         return rule_name or f.get("description") or f.get("id", "")
 
-    if qtype in ("configurationFindings", "inventoryFindings"):
+    if qtype == "configurationFindings":
         rule = f.get("rule") or {}
         return rule.get("name") or f.get("name") or ""
+
+    if qtype == "inventoryFindings":
+        rule = f.get("rule") or {}
+        return rule.get("name") or f"Inventory Finding {f.get('id', '')}"
 
     if qtype == "vulnerabilityFindings":
         return f.get("name") or f.get("detailedName") or ""
@@ -166,7 +170,7 @@ def _extract_finding_title(f: dict) -> str:
         return tech_label + (" — " + resource_name if resource_name else "")
 
     if qtype == "malwareFindings":
-        return f.get("name") or f"Malware Finding {f.get('id', '')}"
+        return f.get("name") or f"Malware Finding {f.get('id', '')}".strip()
 
     if qtype == "softwareSupplyChainFindings":
         res = f.get("resource") or {}
@@ -967,6 +971,16 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             # DEV-CRIT-3: abort if snapshot was published while we were fetching
             if snap is None or snap.status == "published":
                 _log.error("scan aborted: snapshot %s is published or missing", snapshot_id)
+                with _lock:
+                    if snapshot_id in _scan_jobs:
+                        _scan_jobs[snapshot_id]["status"] = "error"
+                        _scan_jobs[snapshot_id]["error"] = "aborted: snapshot was published"
+                if snap is not None:
+                    _d = dict(snap.snapshot_data or {})
+                    _d["_scan_status"] = "error"
+                    _d["_scan_error"] = "aborted: snapshot was published"
+                    snap.snapshot_data = _d
+                    db.session.commit()
                 return
             excepted_entries = ProductMemoryEntry.query.filter_by(
                 product_id=snap.product_id, source="excepted"
@@ -982,9 +996,12 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             risk = 0
             cat_counters: dict = {}
 
-            # Batch-commit every 200 findings to keep each write transaction short.
+            # Batch-flush every 200 findings to keep each write transaction short.
+            # Use written_count (not enumerate index) so skipped findings do not
+            # distort the flush interval or the final reported count.
             _BATCH = 200
-            for i, raw in enumerate(findings_to_store):
+            written_count = 0
+            for raw in findings_to_store:
                 # Aggregated VULN finding is already in enriched format;
                 # all other raw nodes need transformation.
                 if raw.get("id") == "VULN-001" and raw.get("category") == "VULN":
@@ -1009,14 +1026,15 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 ))
                 if not is_excepted:
                     risk += weights.get(sev, 0)
-                if (i + 1) % _BATCH == 0:
-                    db.session.commit()
+                written_count += 1
+                if written_count % _BATCH == 0:
+                    db.session.flush()
 
-            # Final batch + update snapshot metadata
+            # Final commit + update snapshot metadata
             snap = db.session.get(ReportSnapshot, snapshot_id)
             snap.risk_score = risk
             snap_data = dict(snap.snapshot_data or {})
-            snap_data["findings_count"] = len(findings_to_store)
+            snap_data["findings_count"] = written_count
             snap_data["_scan_status"] = "done"
             snap.snapshot_data = snap_data
 
@@ -1029,7 +1047,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             with _lock:
                 if snapshot_id in _scan_jobs:
                     _scan_jobs[snapshot_id]["status"] = "done"
-                    _scan_jobs[snapshot_id]["findings_count"] = len(findings_to_store)
+                    _scan_jobs[snapshot_id]["findings_count"] = written_count
                     _scan_jobs[snapshot_id]["completed_at"] = time.monotonic()
 
         except Exception as exc:

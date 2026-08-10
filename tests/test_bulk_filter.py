@@ -100,12 +100,10 @@ CASES = [
     ),
     (
         # softwareSupplyChainFindings: Wiz's SoftwareSupplyChainFindingFilters type
-        # has no subscription scope field — filtering by subscription is not supported.
+        # does NOT support severity or status fields — sending them causes a Wiz API
+        # 400 error. No subscription scope field either. Filter must be empty.
         "softwareSupplyChainFindings",
-        {
-            "severity": {"equals": ["CRITICAL", "HIGH"]},
-            "status": {"equals": ["OPEN", "IN_PROGRESS"]},
-        },
+        {},
     ),
 ]
 

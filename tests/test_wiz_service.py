@@ -2,12 +2,11 @@
 
 Tests:
   - Happy-path UUID lookup returns ids/externalIds/names from the API node.
-  - When _graphql raises during the id-based UUID lookup, the exception is
-    swallowed (logged), nodes falls back to [], and the function returns the
-    UUID directly as an externalId (the "use UUID as externalId" fallback).
-  - Non-UUID subscription names that match nothing raise nothing from
-    resolve_subscription; they return empty ids/externalIds and the caller
-    decides what to do.
+  - When _graphql raises during the id-based UUID lookup, a RuntimeError is
+    raised (not swallowed). Both failure modes — API error and zero nodes
+    returned — now raise RuntimeError so the caller fails fast.
+  - Non-UUID subscription names that match nothing return empty ids/externalIds
+    (no exception); the UUID-specific raise only applies when input is a UUID.
 
 No Wiz credentials or network access required.
 
@@ -117,11 +116,12 @@ class TestResolveSubscriptionUuidHappyPath:
 
 
 class TestResolveSubscriptionUuidFallbackOnException:
-    """DEV-CRIT-4: if _graphql raises during the UUID id-based lookup,
-    the exception must be logged (not silenced without trace) and the function
-    must return the UUID as an externalId rather than propagating the error."""
+    """DEV-CRIT-4: if _graphql raises during the UUID id-based lookup, a RuntimeError
+    must be raised (fail-fast). Both failure modes — API error and zero nodes returned
+    without error — raise RuntimeError so the caller is never silently given wrong data."""
 
-    def test_exception_during_uuid_lookup_returns_external_id_fallback(self):
+    def test_exception_during_uuid_lookup_raises_runtime_error(self):
+        """_graphql raising during the id-based UUID lookup must propagate as RuntimeError."""
         svc = _make_service()
         uuid = "deadbeef-dead-beef-dead-beefdeadbeef"
 
@@ -136,34 +136,22 @@ class TestResolveSubscriptionUuidFallbackOnException:
             return empty_response
 
         with patch.object(svc, "_graphql", side_effect=graphql_side_effect):
-            result = svc.resolve_subscription(uuid)
+            with pytest.raises(RuntimeError, match=uuid):
+                svc.resolve_subscription(uuid)
 
-        assert result["ids"] == []
-        assert result["externalIds"] == [uuid]
-        assert result["names"] == []
-
-    def test_exception_during_uuid_lookup_does_not_propagate(self):
-        """The caller must not receive an exception — only the fallback dict."""
+    def test_zero_nodes_from_uuid_lookup_raises_runtime_error(self):
+        """When the id-based UUID lookup returns zero nodes (no error), RuntimeError is raised."""
         svc = _make_service()
         uuid = "cafebabe-cafe-babe-cafe-babecafebabe"
 
         empty_response = _cloud_account_response([])
 
-        def graphql_side_effect(query, variables=None):
-            fby = (variables or {}).get("filterBy", {})
-            if fby.get("id") == [uuid]:
-                raise RuntimeError("Wiz 400: filterBy.id unsupported")
-            return empty_response
+        with patch.object(svc, "_graphql", return_value=empty_response):
+            with pytest.raises(RuntimeError, match=uuid):
+                svc.resolve_subscription(uuid)
 
-        with patch.object(svc, "_graphql", side_effect=graphql_side_effect):
-            # Must not raise
-            result = svc.resolve_subscription(uuid)
-
-        assert "externalIds" in result
-        assert uuid in result["externalIds"]
-
-    def test_exception_is_logged_as_warning(self, caplog):
-        """After DEV-CRIT-4, the exception must appear in the log (not silently dropped)."""
+    def test_exception_is_logged_with_exc_info(self, caplog):
+        """The exception must be logged via _log.exception (includes traceback)."""
         import logging
 
         svc = _make_service()
@@ -178,10 +166,11 @@ class TestResolveSubscriptionUuidFallbackOnException:
             return empty_response
 
         with patch.object(svc, "_graphql", side_effect=graphql_side_effect):
-            with caplog.at_level(logging.WARNING, logger="backend.services.wiz_service"):
-                svc.resolve_subscription(uuid)
+            with caplog.at_level(logging.ERROR, logger="backend.services.wiz_service"):
+                with pytest.raises(RuntimeError):
+                    svc.resolve_subscription(uuid)
 
-        # The warning message must mention the subscription name
+        # The log record from _log.exception must mention the subscription name
         assert any(uuid in r.message for r in caplog.records), (
             f"Expected a log record mentioning {uuid!r}; got: {[r.message for r in caplog.records]}"
         )
