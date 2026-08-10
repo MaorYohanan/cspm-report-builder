@@ -198,7 +198,14 @@ class WizService:
                 nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
             except Exception:
                 # CloudAccountFilters may not support id-based filtering on this tenant.
-                # Fall through to the "use UUID directly" path below.
+                # Log the exception and fall through to the "use UUID directly" path below.
+                _log.warning(
+                    "resolve_subscription: id-based lookup failed for %r "
+                    "(tenant may not support CloudAccountFilters.id); "
+                    "falling back to direct externalId use.",
+                    subscription_name,
+                    exc_info=True,
+                )
                 nodes = []
 
             if not nodes:
@@ -494,7 +501,7 @@ def build_bulk_filter(
         "hostConfigurationRuleAssessments", "endOfLifeFindings",
     ):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
+    elif query_type in ("networkExposures", "excessiveAccessFindings"):
         pass  # Non-standard filter schemas — no severity field
     elif query_type == "malwareFindings":
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
@@ -505,7 +512,7 @@ def build_bulk_filter(
     # ── Status ────────────────────────────────────────────────────────────────
     if query_type == "configurationFindings":
         filter_by["result"] = ["FAIL"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
+    elif query_type in ("networkExposures", "excessiveAccessFindings"):
         pass  # Non-standard filter schemas (no status field)
     elif query_type in (
         "issues", "vulnerabilityFindings",

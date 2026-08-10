@@ -165,6 +165,15 @@ def _extract_finding_title(f: dict) -> str:
         resource_name = asset.get("name") or res.get("name") or ""
         return tech_label + (" — " + resource_name if resource_name else "")
 
+    if qtype == "malwareFindings":
+        return f.get("name") or f"Malware Finding {f.get('id', '')}"
+
+    if qtype == "softwareSupplyChainFindings":
+        res = f.get("resource") or {}
+        pkg_name = f.get("packageName") or f.get("name") or "Software Package"
+        pkg_version = f.get("packageVersion") or ""
+        return pkg_name + (" " + pkg_version if pkg_version else "") + (" — " + res["name"] if res.get("name") else "")
+
     return f.get("name") or ""
 
 
@@ -955,8 +964,19 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             findings_to_store = other_raw + ([_aggregate_vulns(vuln_raw)] if vuln_raw else [])
 
             snap = db.session.get(ReportSnapshot, snapshot_id)
-            exceptions = ProductMemoryEntry.query.filter_by(product_id=snap.product_id).all()
-            exception_keys = {(e.subscription, e.title) for e in exceptions}
+            # DEV-CRIT-3: abort if snapshot was published while we were fetching
+            if snap is None or snap.status == "published":
+                _log.error("scan aborted: snapshot %s is published or missing", snapshot_id)
+                return
+            excepted_entries = ProductMemoryEntry.query.filter_by(
+                product_id=snap.product_id, source="excepted"
+            ).all()
+            # Dict mapping (subscription, title) → entry object so we can read .reason
+            exception_keys = {(e.subscription, e.title): e for e in excepted_entries}
+            deleted_entries = ProductMemoryEntry.query.filter_by(
+                product_id=snap.product_id, source="deleted"
+            ).all()
+            deleted_keys = {(e.subscription, e.title) for e in deleted_entries}
 
             weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
             risk = 0
@@ -974,9 +994,13 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 sev = enriched.get("severity") or ""
                 title = enriched.get("title", "").lower().strip()
                 sub = (raw.get("_sourceSubscription") or "").lower().strip()
-                is_excepted = (sub, title) in exception_keys
+                # DEV-CRIT-2: skip findings that the user has permanently deleted
+                if (sub, title) in deleted_keys:
+                    continue
+                mem_entry = exception_keys.get((sub, title))
+                is_excepted = mem_entry is not None
                 if is_excepted:
-                    enriched["exception"] = {"active": True, "reason": ""}
+                    enriched["exception"] = {"active": True, "reason": mem_entry.reason or ""}
                 db.session.add(Finding(
                     snapshot_id=snapshot_id,
                     severity=sev,
