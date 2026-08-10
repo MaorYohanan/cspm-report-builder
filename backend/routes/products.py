@@ -471,8 +471,11 @@ def save_version(product_id: str):
     if not db.session.get(Product, safe_id):
         return jsonify({"error": "Product not found"}), 404
 
-    content_length = request.content_length
-    if content_length is not None and content_length > 50 * 1024 * 1024:
+    # Read and size-check the raw body BEFORE calling get_json() so the guard
+    # is never dead (Flask buffers the body on first read; cache=True ensures
+    # the same bytes are available to get_json() immediately after).
+    raw_body = request.get_data(cache=True)
+    if len(raw_body) > 50 * 1024 * 1024:
         return jsonify({"error": "Snapshot too large"}), 413
 
     data = request.get_json(silent=True) or {}
@@ -493,10 +496,6 @@ def save_version(product_id: str):
 
     if isinstance(notes, str) and _contains_traversal(notes):
         return jsonify({"error": "Invalid field value: notes"}), 400
-
-    raw_body = request.get_data()
-    if len(raw_body) > 50 * 1024 * 1024:
-        return jsonify({"error": "Snapshot too large"}), 413
 
     latest = _latest_snapshot(safe_id)
     latest_status = latest.status if latest else None

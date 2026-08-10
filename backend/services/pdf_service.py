@@ -20,6 +20,7 @@ including header/footer templates and page splitting for long findings.
 
 from __future__ import annotations
 
+import html
 import tempfile
 from pathlib import Path
 from typing import Any, Dict
@@ -93,11 +94,11 @@ class PDFService:
         Returns:
             HTML string for the header template
         """
-        client = meta.get("client") or "__________"
-        env = meta.get("env") or "__________"
-        report_date = meta.get("reportDate") or "DD/MM/YYYY"
-        consultant = meta.get("consultant") or ""
-        team_name = meta.get("teamName") or "CSPM Report"
+        client    = html.escape(meta.get("client") or "__________")
+        env       = html.escape(meta.get("env") or "__________")
+        report_date = html.escape(meta.get("reportDate") or "DD/MM/YYYY")
+        consultant  = html.escape(meta.get("consultant") or "")
+        team_name   = html.escape(meta.get("teamName") or "CSPM Report")
 
         return f"""
     <div style="width:100%;box-sizing:border-box;padding:0 15mm;font-family:Arial;font-size:10px;">
@@ -124,8 +125,8 @@ class PDFService:
         Returns:
             HTML string for the footer template
         """
-        report_date = meta.get("reportDate") or "DD/MM/YYYY"
-        footer_text = meta.get("footerText") or ""
+        report_date = html.escape(meta.get("reportDate") or "DD/MM/YYYY")
+        footer_text = html.escape(meta.get("footerText") or "")
 
         return f"""
     <div style="width:100%;box-sizing:border-box;padding:0 15mm;font-family:Arial;font-size:10px;">

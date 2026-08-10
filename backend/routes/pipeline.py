@@ -1052,7 +1052,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
 
         except Exception as exc:
             db.session.rollback()
-            _log.error("Background Wiz fetch failed for snapshot %s: %s", snapshot_id, exc, exc_info=True)
+            _log.exception("Background Wiz fetch failed for snapshot %s: %s", snapshot_id, exc)
             with _lock:
                 if snapshot_id in _scan_jobs:
                     _scan_jobs[snapshot_id]["status"] = "error"

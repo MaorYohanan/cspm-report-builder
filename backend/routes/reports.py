@@ -35,7 +35,7 @@ def _safe_filename(name: str) -> str:
 
 
 @reports_bp.route("/api/render-pdf", methods=["POST"])
-@require_role("viewer")
+@require_role("editor")
 def api_render_pdf():
     """
     Accept JSON body with { html: "<full report html>", meta: {...} }
