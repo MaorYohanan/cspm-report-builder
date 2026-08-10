@@ -39,3 +39,12 @@ Phase 6 (audit low — DEV-L-1 through DEV-L-12, DES-L-01 through DES-L-08): ✅
 - Skipped: DES-L-02 (background-position in wizi.css is intentionally specialised for .bulk-page-size, not a duplicate)
 - Side effects: export.js updated to read data.files from paginated api_list_outputs response; main.js cache-buster bumped to v=110
 - Tests: 124 passed, 0 failed
+
+Phase 8 (audit tests): ✅ merged to main
+- Branch: fix/audit-tests
+- Date: 2026-08-11
+- Source fix: wiz.py api_wizi_issues SSC branch no longer injects severity/status into filter_by (SoftwareSupplyChainFindingFilters rejects those fields)
+- New test files: tests/test_product_memory.py, tests/test_transform_finding.py, tests/test_ai_service.py, tests/test_health.py
+- Extended test files: tests/test_bulk_filter.py (malwareFindings case + SSC no-severity/status guard), tests/test_products_extended.py (test_notes_length_capped)
+- Dropped: test_list_states_pagination (spec error — DEV-L-8 targeted api_list_outputs which was already paginated in Phase 6, not api_list_states)
+- Tests: 200 passed, 0 failed
