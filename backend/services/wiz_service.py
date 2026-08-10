@@ -197,24 +197,11 @@ class WizService:
                 )
                 nodes = result.get("data", {}).get("cloudAccounts", {}).get("nodes", [])
             except Exception:
-                # CloudAccountFilters may not support id-based filtering on this tenant.
-                # Fall through to the "use UUID directly" path below.
-                nodes = []
+                _log.exception("UUID subscription lookup failed for %r", subscription_name)
+                raise RuntimeError(f"Subscription lookup failed: {subscription_name!r}")
 
             if not nodes:
-                # Use the UUID directly — it might be an Azure subscription UUID
-                # (externalId) for which Wiz doesn't index the name.
-                _log.warning(
-                    "resolve_subscription: %r not found via name or ID search; "
-                    "using it directly as externalId. Subscription-scoped query types "
-                    "that rely on the Wiz internal UUID will be unfiltered.",
-                    subscription_name,
-                )
-                return {
-                    "ids": [],
-                    "externalIds": [subscription_name],
-                    "names": [],
-                }
+                raise RuntimeError(f"Subscription lookup failed: {subscription_name!r}")
 
         resolved_ids = [n["id"] for n in nodes if n.get("id")]
         resolved_ext_ids = [n["externalId"] for n in nodes if n.get("externalId")]
@@ -495,7 +482,7 @@ def build_bulk_filter(
     ):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
     elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
-        pass  # Non-standard filter schemas — no severity field
+        pass  # Non-standard filter schemas — no severity/status fields
     elif query_type == "malwareFindings":
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
     else:
@@ -506,7 +493,7 @@ def build_bulk_filter(
     if query_type == "configurationFindings":
         filter_by["result"] = ["FAIL"]
     elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
-        pass  # Non-standard filter schemas (no status field)
+        pass  # Non-standard filter schemas — no severity/status fields
     elif query_type in (
         "issues", "vulnerabilityFindings",
         "hostConfigurationRuleAssessments", "endOfLifeFindings",
