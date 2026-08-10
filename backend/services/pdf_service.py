@@ -70,6 +70,11 @@ class PDFService:
   .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
   .finding-section-title { break-after: avoid !important; page-break-after: avoid !important; }
   .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .findings-table tr,
+  .treatment-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
 }
 """
 

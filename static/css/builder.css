@@ -1,4 +1,41 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+/* Local Inter font faces — replaces Google Fonts @import to ensure availability
+   in Playwright's network-restricted Chromium during PDF rendering.
+   Files are served from /assets/fonts/inter/ via Flask static routes. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/assets/fonts/inter/Inter-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url('/assets/fonts/inter/Inter-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url('/assets/fonts/inter/Inter-SemiBold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url('/assets/fonts/inter/Inter-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 800;
+  font-display: block;
+  src: url('/assets/fonts/inter/Inter-ExtraBold.woff2') format('woff2');
+}
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -618,7 +655,7 @@ html {
 
 .dashboard-bar-count {
   width: 28px;
-  text-align: left;
+  text-align: left; /* intentional LTR: numeric digit alignment */
   color: var(--text-dim);
   font-weight: 600;
 }
@@ -958,7 +995,7 @@ html {
 .detail-note-msg .note-delete {
   position: absolute;
   top: 4px;
-  left: 4px;
+  right: 4px;
   font-size: 10px;
   cursor: pointer;
   opacity: 0;
@@ -1337,9 +1374,9 @@ select {
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238896b0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: left 10px center;
-  padding-left: 28px;
-  padding-right: 12px;
+  background-position: right 10px center; /* RTL inline-start */
+  padding-right: 28px;
+  padding-left: 10px;
 }
 
 /* Prevent standalone selects from stretching absurdly wide */
@@ -2702,24 +2739,25 @@ select[multiple] option {
 }
 
 /* ── Finding preview panel ── */
+/* RTL: panel anchored to right (start) side; slides in from off-screen right */
 .preview-panel {
   position: fixed;
   top: 0;
-  left: 0;
+  right: 0;
   width: 420px;
   height: 100vh;
   background: var(--bg-card);
-  border-right: 1px solid var(--border-hover);
+  border-left: 1px solid var(--border-hover);
   z-index: 9000;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.4);
   display: flex;
   flex-direction: column;
-  animation: slideInRight 0.2s ease;
+  animation: slideInLeft 0.2s ease;
   overflow: hidden;
 }
 
-@keyframes slideInRight {
-  from { transform: translateX(-100%); }
+@keyframes slideInLeft {
+  from { transform: translateX(100%); }
   to   { transform: translateX(0); }
 }
 

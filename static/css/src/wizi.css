@@ -855,24 +855,25 @@ select[multiple] option {
 }
 
 /* ── Finding preview panel ── */
+/* RTL: panel anchored to right (start) side; slides in from off-screen right */
 .preview-panel {
   position: fixed;
   top: 0;
-  left: 0;
+  right: 0;
   width: 420px;
   height: 100vh;
   background: var(--bg-card);
-  border-right: 1px solid var(--border-hover);
+  border-left: 1px solid var(--border-hover);
   z-index: 9000;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.4);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.4);
   display: flex;
   flex-direction: column;
-  animation: slideInRight 0.2s ease;
+  animation: slideInLeft 0.2s ease;
   overflow: hidden;
 }
 
-@keyframes slideInRight {
-  from { transform: translateX(-100%); }
+@keyframes slideInLeft {
+  from { transform: translateX(100%); }
   to   { transform: translateX(0); }
 }
 
