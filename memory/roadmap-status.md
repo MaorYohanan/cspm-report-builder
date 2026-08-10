@@ -30,3 +30,12 @@ Phase 5 (audit medium frontend — DES-M-01 through DES-M-10): ✅ merged to mai
 - Date: 2026-08-10
 - Fixes: CSS version sync kept in sync at v=46 (DES-M-01), dir="auto" on PDF template li elements replacing LTR heuristic (DES-M-02), duplicate .tab-panel block removed from components.css (DES-M-03), accordion chevron margin-right→margin-left for RTL (DES-M-04), kbd-overlay toggle migrated from style.display to classList.toggle('hidden') (DES-M-05), toastContainer null guard in showToast (DES-M-06), button-row physical margins replaced with gap:8px on flex container (DES-M-07), pipeline modal actions justify-content: center (DES-M-08), escapeHtml applied to f.category and f.id before innerHTML injection (DES-M-09), auth page inline styles extracted to static/css/auth.css (DES-M-10)
 - Review fixes: auth.css added to git tracking (was untracked), escapeHtml on f.id added alongside f.category fix
+
+Phase 6 (audit low — DEV-L-1 through DEV-L-12, DES-L-01 through DES-L-08): ✅ merged to main
+- Branch: fix/audit-low
+- Date: 2026-08-10
+- Backend fixes: datetime.utcnow deprecated (DEV-L-1), dead END_OF_LIFE_QUERY alias removed (DEV-L-2), _safe_id path-traversal check (DEV-L-3), 502 for upstream Wiz failures (DEV-L-4), unused weights dict in _aggregate_vulns removed (DEV-L-5), X-Forwarded-For for rate-limiter key gated on TRUSTED_PROXY env var (DEV-L-6), threading.Lock on _rate_store (DEV-L-7), api_list_outputs pagination (DEV-L-8), CLOUD_CONFIG_RULES_QUERY first raised to 100 + pageInfo added (DEV-L-9), Finding.severity nullable=False server_default=medium (DEV-L-10), OAuth callback exception logging (DEV-L-11), Product.name unique=True (DEV-L-12)
+- Frontend fixes: sidebar-collapse-btn margin-inline-end (DES-L-01), RTL comment on version-row-actions (DES-L-03), chevron ::before margin-inline-end (DES-L-04), viewport meta in report_template.html (DES-L-05), decorative ::before scoped to @media screen (DES-L-06), autosave-indicator margin-inline-start (DES-L-07), ac-sub margin-inline-end (DES-L-08)
+- Skipped: DES-L-02 (background-position in wizi.css is intentionally specialised for .bulk-page-size, not a duplicate)
+- Side effects: export.js updated to read data.files from paginated api_list_outputs response; main.js cache-buster bumped to v=110
+- Tests: 124 passed, 0 failed
