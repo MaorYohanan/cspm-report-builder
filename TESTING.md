@@ -25,6 +25,10 @@ tests/
 - Verifies the filter shape returned by `build_bulk_filter` for each of the 11 query types
 - Catches silent breakage when Wiz filter field names change or new query types are added
 
+**`test_ssc_query.py`**
+- Validates the software supply chain (`softwareSupplyChainFinding`) query filter shape
+- Catches regressions specific to the SSC query type
+
 ## Running Tests
 
 ```bash

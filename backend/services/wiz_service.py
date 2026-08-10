@@ -496,6 +496,8 @@ def build_bulk_filter(
         filter_by["severity"] = ["CRITICAL", "HIGH"]
     elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
         pass  # Non-standard filter schemas — no severity field
+    elif query_type == "malwareFindings":
+        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
     else:
         # dataFindingsV2, secretInstances, inventoryFindings
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
@@ -510,6 +512,8 @@ def build_bulk_filter(
         "hostConfigurationRuleAssessments", "endOfLifeFindings",
     ):
         filter_by["status"] = ["OPEN", "IN_PROGRESS"]
+    elif query_type == "malwareFindings":
+        filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
     else:
         # dataFindingsV2, secretInstances, inventoryFindings
         filter_by["status"] = {"equals": ["OPEN", "IN_PROGRESS"]}
@@ -543,5 +547,7 @@ def build_bulk_filter(
         if sub_ext_ids:
             filter_by["subscriptionExternalId"] = sub_ext_ids
     # softwareSupplyChainFindings: Wiz's SSC filter type has no subscription scope field.
+    elif query_type == "malwareFindings" and sub_ids:
+        filter_by["cloudAccount"] = {"id": {"equals": sub_ids}}
 
     return filter_by

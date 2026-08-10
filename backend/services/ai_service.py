@@ -265,6 +265,16 @@ class GeminiService:
         prompt = f"לקוח: {client}\n" if client else ""
         prompt += f"סיכום חומרות: {summary_line}\n\nרשימת ממצאים:\n" + "\n".join(lines)
 
+        critical_count = severity_counts.get("critical", 0)
+        high_and_above = critical_count + severity_counts.get("high", 0)
+        if critical_count < 4 and high_and_above <= 10:
+            prompt += (
+                "\n\n[הנחיית טון]: מספר הממצאים הקריטיים וה-High נמוך. "
+                "השתמש בטון מאוזן ומקצועי. "
+                "אל תשתמש בביטויים כמו 'חשיפות אבטחה משמעותיות' או ניסוח דרמטי מדי. "
+                "הדגש שיפורים אפשריים ותחומים לחיזוק, לא סכנה חמורה."
+            )
+
         return self._call_gemini(
             prompt=prompt,
             system_prompt=self.EXEC_SUMMARY_SYSTEM_PROMPT,

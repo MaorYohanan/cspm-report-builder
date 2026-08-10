@@ -445,6 +445,8 @@ def _transform_finding(f: dict, cat_counters: dict) -> dict:
                 technical.append(f"{label}: {res[key]}")
         if f.get("result"):
             technical.append(f"Result: {f['result']}")
+        if f.get("filePath"):
+            technical.append(f"File Path: {f['filePath']}")
         fs = _first_sentence(rule.get("description", ""))
         if fs:
             technical.append(f"Rule Detail: {fs}")
@@ -452,6 +454,53 @@ def _transform_finding(f: dict, cat_counters: dict) -> dict:
         policies = []
         if not owner:
             owner = sub.get("name") or ""
+
+    # ── malwareFindings ───────────────────────────────────────────────────────
+    elif qtype == "malwareFindings":
+        res = f.get("resource") or {}
+        account = res.get("cloudAccount") or {}
+        file_details = f.get("fileDetails") or {}
+        clf = f.get("classification") or {}
+        clf_label = " / ".join(filter(None, [clf.get("familyName"), clf.get("type"), clf.get("platform")]))
+        sev = _map_severity(f.get("severity", ""))
+        cat = "HSPM"
+        sev_label = _SEV_LABELS.get(sev, sev)
+        title = f.get("name") or f"Malware Finding {f.get('id', '')}"
+        description = f.get("description") or (clf_label + " malware detected" if clf_label else title)
+        impact = f"זוהתה תוכנה זדונית ברמת חומרה {sev_label}"
+        if res.get("name"):
+            impact += f" — {res['name']}"
+        technical = []
+        if account.get("cloudProvider"):
+            technical.append(f"Cloud: {account['cloudProvider']}")
+        if account.get("name"):
+            technical.append(f"Subscription: {account['name']}")
+        if res.get("name"):
+            technical.append(f"Resource: {res['name']}")
+        rtype = res.get("nativeType") or res.get("type") or ""
+        if rtype:
+            technical.append(f"Type: {rtype}")
+        if file_details.get("path"):
+            technical.append(f"File Path: {file_details['path']}")
+        if clf_label:
+            technical.append(f"Classification: {clf_label}")
+        if f.get("detectionType"):
+            technical.append(f"Detection Type: {f['detectionType']}")
+        if f.get("confidenceLevel"):
+            technical.append(f"Confidence: {f['confidenceLevel']}")
+        if f.get("sha256"):
+            technical.append(f"SHA256: {f['sha256']}")
+        recs = [
+            "לבצע בידוד מיידי של המשאב הנגוע",
+            f"לזהות ולהסיר את קובץ התוכנה הזדונית: {file_details.get('path', 'לא ידוע')}",
+            "לבצע סריקה מלאה של הסביבה לזיהוי התפשטות",
+        ]
+        policies = []
+        projects = [p.get("name") for p in (f.get("projects") or []) if p.get("name")]
+        if projects:
+            owner = ", ".join(projects)
+        elif not owner:
+            owner = account.get("name") or ""
 
     # ── dataFindingsV2 ────────────────────────────────────────────────────────
     elif qtype == "dataFindingsV2":

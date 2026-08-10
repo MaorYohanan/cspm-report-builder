@@ -36,7 +36,7 @@ docker compose up --build
 
 Open [http://localhost:8080](http://localhost:8080).
 
-No database, no external dependencies beyond Docker. State is persisted as JSON under `uploads/`.
+Uses SQLite by default — no database setup needed. State is persisted in a database; generated PDFs are saved under `output/`.
 
 ---
 
@@ -66,7 +66,7 @@ Manual    ──┘    (edit, sort,        (cover, TOC, severity chart,
 
 ## Architecture
 
-Layered Flask app with a thin frontend that concatenates ES5/ES6 source modules into a single bundle. No build step beyond `python build_js.py`. No frontend framework.
+Layered Flask app with a vanilla ES6 frontend using native browser modules — no bundler, no framework. JS requires no build step; CSS uses `python3 build_css.py`.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -109,42 +109,43 @@ Layered Flask app with a thin frontend that concatenates ES5/ES6 source modules 
 | `backend/routes/reports.py` | PDF rendering (`reports_bp`) — `/api/render-pdf`, `/api/upload-html` |
 | `backend/routes/files.py` | State + output file CRUD (`files_bp`) |
 | `backend/routes/products.py` | Product registry CRUD + versioning (`products_bp`) |
+| `backend/routes/auth.py` | Google OAuth + user management (`auth_bp`, prefix `/auth`, `/api`) |
+| `backend/routes/pipeline.py` | Pipeline dashboard — scan due/overdue per product (`pipeline_bp`, prefix `/api`) |
 | `backend/services/wiz_service.py` | OAuth2 client-credentials flow, GraphQL execution, auto-pagination, subscription resolution |
 | `backend/services/ai_service.py` | Gemini calls with retry + model fallback (Flash → Flash 2.5 → Pro) |
 | `backend/services/pdf_service.py` | Playwright Chromium → PDF with print CSS, headers/footers, page-break logic |
 | `backend/graphql/queries.py` | All Wiz GraphQL query strings + `QUERY_TYPE_MAP` (10 types) |
+| `backend/database.py` | SQLAlchemy setup and `db` instance |
+| `backend/models.py` | ORM models — Product, ReportSnapshot, Finding, User, ScanJob |
 
 ### Frontend layout
 
 ```
 static/js/
-├── builder.js           # built artifact (commit it; users serve from here)
-├── src/                 # source modules — concatenated by build_js.py
-│   ├── core.js          # opens the shared IIFE; global state, utilities, toast
-│   ├── ui.js            # theme, sidebar, tabs, modals, autocomplete
-│   ├── findings.js      # findings table, detail pane, form, batch, drag-drop
-│   ├── export.js        # report HTML builder, PDF/CSV/JSON export, autosave
-│   ├── wizi.js          # Wizi API client, bulk import, importFnMap
-│   ├── products.js      # Products grid, timeline, form, diff, saveAsVersion
-│   └── init.js          # final event wiring, closes the shared IIFE
-└── build_js.py          # concatenates src/*.js in FILE_ORDER → builder.js
+└── src/                 # native ES6 modules — no build step
+    ├── state.js         # shared mutable state object
+    ├── core.js          # security utilities, toast, confirm dialog
+    ├── ui.js            # theme, sidebar, mesh background, stepper, dashboard
+    ├── findings.js      # findings table, detail pane, form, batch ops, drag-drop
+    ├── export.js        # report HTML builder, PDF/CSV/JSON export, autosave, AI suggest
+    ├── wizi.js          # Wiz GraphQL API integration, import logic, bulk import
+    ├── products.js      # product registry: grid, timeline, form, diff, version management
+    ├── pipeline.js      # pipeline dashboard: KPI cards, filter bar, scan-due table
+    └── main.js          # entry point — imports all modules, wires /api/me auth check
 ```
 
-`products.js` and the other modules share a single outer IIFE that `core.js` opens and `init.js` closes — no per-file IIFE wrapping. After editing any source file, run `python build_js.py` and bump the `?v=N` cache-buster on the `<script>` tag in `index.html`. Frontend files are volume-mounted in Docker, so no rebuild is needed for frontend-only changes.
+Each file is a proper ES6 module (`import`/`export`). The browser loads `main.js` as `<script type="module">` — no concatenation, no IIFE. After editing any source file, hard-refresh the browser (`Ctrl+Shift+R`). To force a cache bust, bump the `?v=N` query param on the `<script>` tag in `index.html`. Frontend files are volume-mounted in Docker, so no container rebuild is needed for JS changes.
 
 ### Storage layout
 
 ```
-uploads/
-├── states/                 # ad-hoc JSON state files (state_<id>.json)
-└── products/               # product registry (one directory per product)
-    └── <product-slug>/
-        ├── meta.json       # {id, name, owner, ownerEmail, env, subscriptionIds, ...}
-        ├── v1.0.json       # version snapshots (draft or published)
-        ├── v1.1.json
-        └── v2.0.json
+instance/
+└── app.db                  # SQLite database (dev only — PostgreSQL in production)
+                            # contains: products, report snapshots, findings, users, scan jobs
 output/                     # generated PDFs and uploaded HTML reports
 ```
+
+In production the database is a Cloud SQL PostgreSQL instance; the `instance/` directory is not used.
 
 ---
 
@@ -328,13 +329,13 @@ Frontend files (`index.html`, `static/`) are volume-mounted in Docker — edit a
 docker compose up --build -d
 ```
 
-After editing any `static/js/src/*.js` file:
+After editing any `static/js/src/*.js` file — no build step needed. Hard-refresh the browser (`Ctrl+Shift+R`). To force a cache bust, bump `?v=N` on the `<script type="module">` tag in `index.html`.
+
+After editing any `static/css/src/*.css` file:
 
 ```bash
-python build_js.py
+python3 build_css.py
 ```
-
-Then bump the `?v=N` cache-buster on the `<script>` tag near the bottom of `index.html`.
 
 ### Running tests
 
@@ -348,6 +349,7 @@ python -m pytest tests/ -v
 |-----------|--------|
 | `tests/test_products.py` | `_slugify`, `_safe_param`, `_valid_version_str`, `_compute_risk_score`, `_next_version`, plus 8 endpoint smoke tests for the products blueprint |
 | `tests/test_bulk_filter.py` | Per-query-type filter shapes returned by `build_bulk_filter` in `wiz.py` (locks down the Wiz GraphQL filter contract) |
+| `tests/test_ssc_query.py` | Software supply chain query filter shape — catches SSC-specific regressions |
 | `tests/conftest.py` | Shared fixtures: `tmp_products_dir` (per-test products dir) and `client` (Flask test client with `products_bp` only) |
 
 Run after any major change to `backend/routes/products.py` or `backend/routes/wiz.py`.
@@ -356,52 +358,58 @@ Run after any major change to `backend/routes/products.py` or `backend/routes/wi
 
 ```
 cspm-report-builder/
-├── app.py                          # Flask entry, /, /assets, /api/health, middleware
-├── build_js.py                     # Concatenates static/js/src/*.js → builder.js
+├── app.py                          # Flask entry, /, /api/health, middleware, blueprint registration
+├── build_css.py                    # Concatenates static/css/src/*.css → static/css/builder.css
 ├── index.html                      # Builder UI (single-page)
 ├── requirements.txt
 ├── docker-compose.yml
 ├── Dockerfile
 │
 ├── backend/
-│   ├── routes/                     # Flask blueprints (5 registered in app.py)
+│   ├── routes/                     # Flask blueprints (7 registered in app.py)
 │   │   ├── wiz.py                  # /api/wizi/*
-│   │   ├── ai.py                   # /api/suggest, /api/summarize-remediation
+│   │   ├── ai.py                   # /api/suggest, /api/summarize-remediation, /api/executive-summary
 │   │   ├── reports.py              # /api/render-pdf, /api/upload-html
 │   │   ├── files.py                # /api/upload-state, /api/list-states, etc.
 │   │   ├── products.py             # /api/products[/<id>[/versions[/<ver>[/publish]]]]
-│   │   └── health.py               # (defined but NOT registered; health lives in app.py)
+│   │   ├── auth.py                 # /auth/login, /auth/callback, /api/me, /api/users
+│   │   └── pipeline.py             # /api/pipeline/*
 │   ├── services/
 │   │   ├── wiz_service.py
 │   │   ├── ai_service.py
 │   │   └── pdf_service.py
-│   └── graphql/
-│       └── queries.py              # All Wiz GraphQL strings + QUERY_TYPE_MAP
+│   ├── graphql/
+│   │   └── queries.py              # All Wiz GraphQL strings + QUERY_TYPE_MAP
+│   ├── database.py                 # SQLAlchemy setup and db instance
+│   ├── models.py                   # ORM models: Product, ReportSnapshot, Finding, User, ScanJob
+│   ├── oauth.py                    # Google OAuth2 flow helpers
+│   └── logging_config.py           # Structured JSON logging setup
 │
 ├── static/
 │   ├── js/
-│   │   ├── builder.js              # built artifact
-│   │   └── src/                    # source modules (concatenated, not bundled)
-│   │       ├── core.js  ui.js  findings.js  export.js
-│   │       ├── wizi.js  products.js  init.js
+│   │   └── src/                    # native ES6 modules — no build step
+│   │       ├── state.js  core.js  ui.js  findings.js
+│   │       ├── export.js  wizi.js  products.js  pipeline.js
+│   │       └── main.js             # entry point (<script type="module">)
 │   └── css/
-│       └── builder.css
+│       ├── builder.css             # built artifact (run build_css.py after editing src/)
+│       └── src/                    # CSS source files
 │
 ├── templates/
 │   └── report_template.html        # Jinja2 PDF template
 │
 ├── assets/
 │   ├── cover.png                   # Default report cover
-│   └── report.css                  # Generated report stylesheet
+│   └── report.css                  # PDF report stylesheet
 │
 ├── tests/                          # Regression test suite (pytest)
-│   ├── conftest.py                 # tmp_products_dir + client fixtures
+│   ├── conftest.py                 # shared fixtures
 │   ├── test_products.py
-│   └── test_bulk_filter.py
+│   ├── test_bulk_filter.py
+│   └── test_ssc_query.py
 │
-├── uploads/                        # JSON state + product registry (gitignored)
-│   ├── states/
-│   └── products/<product-slug>/{meta.json, v*.*.json}
+├── instance/                       # SQLite database — dev only (gitignored)
+│   └── app.db
 └── output/                         # Generated PDFs (gitignored)
 ```
 
