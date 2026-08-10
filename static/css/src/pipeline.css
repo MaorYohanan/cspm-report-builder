@@ -12,7 +12,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px 18px;
-  text-align: center;
+  text-align: right;
   cursor: pointer;
   transition: border-color var(--transition), background var(--transition);
 }

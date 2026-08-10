@@ -70,8 +70,12 @@
       <p>הדו"ח מסכם את מצב ה-POSTURE בסביבת הענן שנבדקה, לרבות ממצאים מרכזיים והערכת סיכון.</p>
     {% endif %}
     <p><strong>הערכת סיכון כללית:</strong> {{ meta.reportRisk or "נמוכה / בינונית / גבוהה" }}</p>
+  </section>
 
-    <h2 id="scope-method">2. תחום הבדיקה ומתודולוגיה</h2>
+  <!-- SCOPE — separate page-section so break-after: page in report.css
+       inserts a page break between exec summary and scope/methodology -->
+  <section class="page-section" id="scope-method">
+    <h2>2. תחום הבדיקה ומתודולוגיה</h2>
     <h3>2.1 תחום בדיקה</h3>
     <p>הבדיקה בוצעה על גבי חשבונות הענן/פרויקטים כפי שסוכם עם הלקוח.</p>
     <h3>2.2 כלי בדיקה</h3>

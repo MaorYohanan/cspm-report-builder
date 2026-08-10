@@ -225,6 +225,16 @@ export function updateStepper() {
   }
 }
 
+// ── oklch color helper ──
+// SVG presentation attributes and JS-injected CSS values are not processed by
+// the CSS engine's color-function parser in all browsers. This helper returns
+// the oklch literal when supported, and a pre-computed hex fallback otherwise.
+// (DES-I-02: role="img" + aria-label are added to the donut SVG string below,
+// so no separate <title> element is needed.)
+function safeColor(oklchVal, hexFallback) {
+  return CSS.supports('color', oklchVal) ? oklchVal : hexFallback;
+}
+
 // ── Dashboard ──
 export function renderDashboard() {
   var total = state.findings.length;
@@ -257,12 +267,13 @@ export function renderDashboard() {
       donutEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">אין ממצאים</div>';
     } else {
       var segments = [
-        { count: crit, color: 'oklch(0.58 0.22 15)', label: 'קריטי' },
-        { count: high, color: 'oklch(0.68 0.18 40)', label: 'גבוה' },
-        { count: med, color: 'oklch(0.72 0.16 80)', label: 'בינוני' },
-        { count: low, color: 'oklch(0.62 0.17 155)', label: 'נמוך' }
+        { count: crit, color: safeColor('oklch(0.58 0.22 15)', '#d94f3a'), label: 'קריטי' },
+        { count: high, color: safeColor('oklch(0.68 0.18 40)', '#d4813a'), label: 'גבוה' },
+        { count: med,  color: safeColor('oklch(0.72 0.16 80)', '#c8b23a'), label: 'בינוני' },
+        { count: low,  color: safeColor('oklch(0.62 0.17 155)', '#3aad72'), label: 'נמוך' }
       ].filter(function(s) { return s.count > 0; });
-      var svg = '<svg viewBox="0 0 120 120" width="100" height="100" style="display:block;margin:0 auto;">';
+      // DES-I-02: role="img" + aria-label make this SVG accessible without a <title> element.
+      var svg = '<svg viewBox="0 0 120 120" width="100" height="100" role="img" aria-label="תרשים עוגה לפי חומרה" style="display:block;margin:0 auto;">';
       var offset = 0;
       var circumference = 2 * Math.PI * 38;
       segments.forEach(function(seg) {
@@ -290,7 +301,17 @@ export function renderDashboard() {
     if (total === 0) {
       catsEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">אין נתונים</div>';
     } else {
-      var catColors = { CSPM:'oklch(0.58 0.2 220)', KSPM:'oklch(0.58 0.18 280)', DSPM:'oklch(0.58 0.2 180)', VULN:'oklch(0.58 0.22 15)', NEXP:'oklch(0.68 0.18 40)', EAPM:'oklch(0.72 0.16 80)', HSPM:'oklch(0.62 0.17 155)', SECR:'oklch(0.62 0.18 300)', EOLM:'oklch(0.6 0.02 220)' };
+      var catColors = {
+        CSPM: safeColor('oklch(0.58 0.2 220)',  '#3a7fd4'),
+        KSPM: safeColor('oklch(0.58 0.18 280)', '#7a5fd4'),
+        DSPM: safeColor('oklch(0.58 0.2 180)',  '#3ab5b5'),
+        VULN: safeColor('oklch(0.58 0.22 15)',  '#d94f3a'),
+        NEXP: safeColor('oklch(0.68 0.18 40)',  '#d4813a'),
+        EAPM: safeColor('oklch(0.72 0.16 80)',  '#c8b23a'),
+        HSPM: safeColor('oklch(0.62 0.17 155)', '#3aad72'),
+        SECR: safeColor('oklch(0.62 0.18 300)', '#b55fd4'),
+        EOLM: safeColor('oklch(0.6 0.02 220)',  '#6b7a8d')
+      };
       var maxCat = Math.max.apply(null, Object.values(cats));
       var barsHtml = '';
       Object.keys(cats).sort(function(a,b) { return cats[b] - cats[a]; }).forEach(function(cat) {
@@ -307,7 +328,10 @@ export function renderDashboard() {
   if (riskEl) {
     var riskField = document.getElementById('report-risk');
     var riskVal = riskField ? riskField.value : '';
-    var riskColor = riskVal === 'קריטית' ? 'oklch(0.58 0.22 15)' : riskVal === 'גבוהה' ? 'oklch(0.68 0.18 40)' : riskVal === 'בינונית' ? 'oklch(0.72 0.16 80)' : 'oklch(0.62 0.17 155)';
+    var riskColor = riskVal === 'קריטית' ? safeColor('oklch(0.58 0.22 15)', '#d94f3a') :
+                   riskVal === 'גבוהה'   ? safeColor('oklch(0.68 0.18 40)', '#d4813a') :
+                   riskVal === 'בינונית' ? safeColor('oklch(0.72 0.16 80)', '#c8b23a') :
+                                           safeColor('oklch(0.62 0.17 155)', '#3aad72');
     riskEl.innerHTML = '<div style="font-size:28px;font-weight:800;color:' + riskColor + ';">' + (riskVal || 'לא הוגדר') + '</div>' +
       '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">' + total + ' ממצאים | ' + crit + ' קריטיים | ' + high + ' גבוהים</div>';
   }

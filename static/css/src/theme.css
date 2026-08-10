@@ -34,11 +34,11 @@
     radial-gradient(ellipse at 80% 80%, oklch(0.88 0.04 300 / 0.3) 0%, transparent 45%);
 }
 
-[data-theme="light"] .sev-critical { background: rgba(185, 28, 28, 0.1); color: #991b1b; border-left-color: #dc2626; }
-[data-theme="light"] .sev-high     { background: rgba(239, 68, 68, 0.1); color: #b91c1c; border-left-color: #ef4444; }
-[data-theme="light"] .sev-medium   { background: rgba(249, 115, 22, 0.1); color: #c2410c; border-left-color: #f97316; }
-[data-theme="light"] .sev-low      { background: rgba(34, 197, 94, 0.1); color: #15803d; border-left-color: #22c55e; }
-[data-theme="light"] .sev-info     { background: rgba(107, 114, 128, 0.1); color: #4b5563; border-left-color: #6b7280; }
+[data-theme="light"] .sev-critical { background: rgba(185, 28, 28, 0.1); color: #991b1b; border-right-color: #dc2626; }
+[data-theme="light"] .sev-high     { background: rgba(239, 68, 68, 0.1); color: #b91c1c; border-right-color: #ef4444; }
+[data-theme="light"] .sev-medium   { background: rgba(249, 115, 22, 0.1); color: #c2410c; border-right-color: #f97316; }
+[data-theme="light"] .sev-low      { background: rgba(34, 197, 94, 0.1); color: #15803d; border-right-color: #22c55e; }
+[data-theme="light"] .sev-info     { background: rgba(107, 114, 128, 0.1); color: #4b5563; border-right-color: #6b7280; }
 
 [data-theme="light"] .tag-inline { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.15); color: #2563eb; }
 [data-theme="light"] .cat-badge { background: rgba(37, 99, 235, 0.06); border-color: rgba(37, 99, 235, 0.15); color: #2563eb; }

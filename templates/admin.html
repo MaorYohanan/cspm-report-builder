@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — ניהול משתמשים</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=46">
+  <link rel="stylesheet" href="/static/css/builder.css?v=48">
   <style>
     body { padding: 0; }
 
@@ -257,14 +257,19 @@
       setMsg('התפקיד עודכן', false);
     }
 
-    async function deleteUser(uid) {
-      if (!confirm('האם למחוק משתמש זה?')) return;
+    // DES-I-08: deleteUser is exposed on window so the inline onclick="deleteUser(...)"
+    // attribute in renderUsers can reach it. styledConfirm is loaded via dynamic import
+    // so no <script type="module"> conversion is needed for this script block.
+    window.deleteUser = async function(uid) {
+      const { styledConfirm } = await import('/static/js/src/core.js');
+      const yes = await styledConfirm('האם למחוק משתמש זה?', { title: 'מחיקת משתמש', danger: true, confirmText: 'מחק' });
+      if (!yes) return;
       const res  = await fetch(`/api/users/${uid}`, {method: 'DELETE'});
       const data = await res.json();
       if (!res.ok) { setMsg(data.error || 'שגיאה', true); return; }
       setMsg('המשתמש הוסר', false);
       loadUsers();
-    }
+    };
 
     loadUsers();
   </script>

@@ -107,3 +107,15 @@ html {
   overflow-x: hidden;
 }
 
+/* ── Reduced motion — WCAG 2.1 SC 2.3.3 (AAA) / broadly recommended at AA
+   Blanket pattern: suppress all animations and transitions for users who
+   have enabled the OS-level "reduce motion" preference.
+   Does not affect report_template.html / report.css (separate stylesheet). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

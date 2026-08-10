@@ -59,6 +59,20 @@
   font-weight: 500;
 }
 
+/* Reset browser button chrome so button.dashboard-link renders
+   identically to the original <a> element (WCAG 2.1 SC 4.1.2) */
+button.dashboard-link {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
 .dashboard-link:hover {
   text-decoration: underline;
 }
