@@ -94,7 +94,7 @@
 
 .dashboard-bar-count {
   width: 28px;
-  text-align: left;
+  text-align: left; /* intentional LTR: numeric digit alignment */
   color: var(--text-dim);
   font-weight: 600;
 }

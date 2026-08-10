@@ -315,8 +315,8 @@ _CSP = (
     "default-src 'self'; "
     "script-src 'self'; "
     # unsafe-inline required: the app sets inline style attributes throughout index.html
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-    "font-src 'self' https://fonts.gstatic.com; "
+    "style-src 'self' 'unsafe-inline'; "
+    "font-src 'self'; "
     # data: for base64 evidence images; blob: for PDF/export download object URLs
     "img-src 'self' data: blob:; "
     "connect-src 'self'; "

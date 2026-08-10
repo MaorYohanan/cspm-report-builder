@@ -154,25 +154,31 @@ import { escapeHtml } from './core.js';
 })();
 
 // ── Keyboard shortcuts overlay ──
-var kbdOverlay = document.getElementById('kbd-overlay');
-document.getElementById('btn-kbd-help').addEventListener('click', function() {
-  kbdOverlay.style.display = kbdOverlay.style.display === 'none' ? '' : 'none';
-});
-document.getElementById('kbd-overlay-close').addEventListener('click', function() {
-  kbdOverlay.style.display = 'none';
-});
-kbdOverlay.addEventListener('click', function(e) {
-  if (e.target === kbdOverlay) kbdOverlay.style.display = 'none';
-});
-document.addEventListener('keydown', function(e) {
-  if (e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes((document.activeElement||{}).tagName)) {
-    e.preventDefault();
-    kbdOverlay.style.display = kbdOverlay.style.display === 'none' ? '' : 'none';
+(function() {
+  var kbdOverlay = document.getElementById('kbd-overlay');
+  var btnKbdHelp = document.getElementById('btn-kbd-help');
+  var kbdClose   = document.getElementById('kbd-overlay-close');
+  if (kbdOverlay && btnKbdHelp && kbdClose) {
+    btnKbdHelp.addEventListener('click', function() {
+      kbdOverlay.style.display = kbdOverlay.style.display === 'none' ? '' : 'none';
+    });
+    kbdClose.addEventListener('click', function() {
+      kbdOverlay.style.display = 'none';
+    });
+    kbdOverlay.addEventListener('click', function(e) {
+      if (e.target === kbdOverlay) kbdOverlay.style.display = 'none';
+    });
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes((document.activeElement||{}).tagName)) {
+        e.preventDefault();
+        kbdOverlay.style.display = kbdOverlay.style.display === 'none' ? '' : 'none';
+      }
+      if (e.key === 'Escape' && kbdOverlay.style.display !== 'none') {
+        kbdOverlay.style.display = 'none';
+      }
+    });
   }
-  if (e.key === 'Escape' && kbdOverlay.style.display !== 'none') {
-    kbdOverlay.style.display = 'none';
-  }
-});
+})();
 
 // ── Progress / sidebar state ──
 export function updateStepper() {
