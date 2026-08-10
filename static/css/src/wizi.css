@@ -51,7 +51,7 @@ select[multiple] option {
 .autocomplete-item .ac-sub {
   color: var(--text-muted);
   font-size: 11px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
 }
 
 /* ── Toast notifications ── */

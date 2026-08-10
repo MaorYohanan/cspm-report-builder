@@ -18,6 +18,7 @@ import hmac
 import logging
 import os
 import secrets
+import threading
 import time
 from collections import defaultdict
 from datetime import timedelta
@@ -230,9 +231,16 @@ RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "60"))  # seconds
 RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "30"))  # requests per window
 
 _rate_store: Dict[str, list] = defaultdict(list)
+_rate_store_lock = threading.Lock()
 
 
 def _get_client_key() -> str:
+    # Only trust X-Forwarded-For when a proxy is explicitly configured.
+    # Without TRUSTED_PROXY, clients could spoof their IP and bypass rate limiting.
+    if os.environ.get("TRUSTED_PROXY"):
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+        ip = ip.split(",")[0].strip()
+        return ip or "unknown"
     return request.remote_addr or "unknown"
 
 
@@ -242,16 +250,17 @@ def check_rate_limit() -> bool:
         return True
     key = _get_client_key()
     now = time.time()
-    # Prune old entries
-    _rate_store[key] = [t for t in _rate_store[key] if t > now - RATE_LIMIT_WINDOW]
-    if len(_rate_store[key]) >= RATE_LIMIT_MAX:
-        return False
-    _rate_store[key].append(now)
-    # Periodic cleanup: remove stale keys to prevent memory growth
-    if len(_rate_store) > 1000:
-        stale = [k for k, v in _rate_store.items() if not v or v[-1] < now - RATE_LIMIT_WINDOW * 2]
-        for k in stale:
-            del _rate_store[k]
+    with _rate_store_lock:
+        # Prune old entries
+        _rate_store[key] = [t for t in _rate_store[key] if t > now - RATE_LIMIT_WINDOW]
+        if len(_rate_store[key]) >= RATE_LIMIT_MAX:
+            return False
+        _rate_store[key].append(now)
+        # Periodic cleanup: remove stale keys to prevent memory growth
+        if len(_rate_store) > 1000:
+            stale = [k for k, v in _rate_store.items() if not v or v[-1] < now - RATE_LIMIT_WINDOW * 2]
+            for k in stale:
+                del _rate_store[k]
     return True
 
 

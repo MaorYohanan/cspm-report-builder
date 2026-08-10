@@ -20,7 +20,6 @@ from backend.graphql.queries import (
     CLOUD_CONFIG_RULES_QUERY,
     CONFIG_FINDINGS_QUERY,
     DATA_FINDINGS_QUERY,
-    END_OF_LIFE_QUERY,
     EXCESSIVE_ACCESS_QUERY,
     HOST_CONFIG_QUERY,
     IGNORE_CONFIG_FINDING_MUTATION,
@@ -103,7 +102,6 @@ WIZI_SECRET_INSTANCES_QUERY = SECRET_INSTANCES_QUERY
 WIZI_EXCESSIVE_ACCESS_QUERY = EXCESSIVE_ACCESS_QUERY
 WIZI_NETWORK_EXPOSURE_QUERY = NETWORK_EXPOSURE_QUERY
 WIZI_INVENTORY_FINDINGS_QUERY = INVENTORY_FINDINGS_QUERY
-WIZI_END_OF_LIFE_QUERY = END_OF_LIFE_QUERY
 WIZI_SOFTWARE_SUPPLY_CHAIN_QUERY = SOFTWARE_SUPPLY_CHAIN_QUERY
 WIZI_MALWARE_FINDINGS_QUERY = MALWARE_FINDINGS_QUERY
 WIZI_PROJECTS_QUERY = PROJECTS_QUERY
@@ -587,6 +585,9 @@ def api_wizi_bulk_fetch_single():
             },
             "resolvedSubscription": resolved,
         })
+    except (urllib.error.URLError, ConnectionError, TimeoutError) as e:
+        _log.error("Wiz upstream error in bulk fetch: %s", e)
+        return jsonify({"error": "Upstream Wiz API error"}), 502
     except Exception:
         _log.exception("Unexpected error in api_wizi_bulk_fetch_single")
         return jsonify({"error": "Internal error"}), 500
@@ -790,7 +791,7 @@ def api_wizi_find_by_id():
     try:
         rule_lookup = wiz._graphql(
             CLOUD_CONFIG_RULES_QUERY,
-            {"first": 5, "filterBy": {"shortId": {"equals": [finding_id]}}}
+            {"first": 100, "filterBy": {"shortId": {"equals": [finding_id]}}}
         )
         rule_nodes = rule_lookup.get("data", {}).get("cloudConfigurationRules", {}).get("nodes", [])
         if rule_nodes:

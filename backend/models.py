@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from backend.database import db
 
@@ -14,7 +14,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(254), unique=True, nullable=False, index=True)
     role = db.Column(db.String(20), nullable=False)  # admin, editor, viewer
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class Product(db.Model):
@@ -24,12 +24,13 @@ class Product(db.Model):
     )
 
     id = db.Column(db.String(100), primary_key=True)  # URL-safe slug
-    name = db.Column(db.String(100), nullable=False)
+    # NOTE: unique=True applies to new databases only; no migration framework in use
+    name = db.Column(db.String(100), nullable=False, unique=True)
     owner = db.Column(db.String(100), nullable=False)
     owner_email = db.Column(db.String(254), nullable=False)
     env = db.Column(db.String(100), nullable=False)
     subscription_ids = db.Column(db.JSON, nullable=False, default=list)
-    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     scan_frequency = db.Column(db.String(20), nullable=False, default="quarterly")  # monthly, quarterly, annual
     # Denormalized for fast listing — kept in sync on every save/delete.
     latest_version = db.Column(db.String(20), nullable=True)
@@ -79,7 +80,8 @@ class Finding(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     snapshot_id = db.Column(db.Integer, db.ForeignKey("report_snapshots.id"), nullable=False, index=True)
     # Indexed columns for efficient risk-score calculation and future cross-snapshot queries.
-    severity = db.Column(db.String(20), nullable=True, index=True)
+    # NOTE: nullable=False applies to new databases only; no migration framework in use
+    severity = db.Column(db.String(20), nullable=False, default="medium", server_default="medium", index=True)
     exception_active = db.Column(db.Boolean, nullable=False, default=False, index=True)
     # Full finding payload (includes all dynamic Wiz fields: policies, resourceId, etc.)
     finding_data = db.Column(db.JSON, nullable=False, default=dict)

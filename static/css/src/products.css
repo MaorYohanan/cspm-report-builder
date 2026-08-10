@@ -248,6 +248,7 @@
   margin-top: 3px;
 }
 
+/* intentional: flex-end = inline-start in RTL for version action row */
 .version-row-actions {
   display: flex;
   gap: 5px;

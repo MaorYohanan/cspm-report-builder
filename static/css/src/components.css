@@ -152,7 +152,7 @@ h1 {
   opacity: 0;
   transition: opacity 0.4s ease;
   white-space: nowrap;
-  margin-left: 8px;
+  margin-inline-start: 8px;
 }
 
 .autosave-indicator.visible {
@@ -766,7 +766,7 @@ table caption {
   content: '▸';
   font-size: 11px;
   color: var(--text-muted);
-  margin-left: 10px;
+  margin-inline-end: 10px;
   transition: transform 0.2s ease;
 }
 

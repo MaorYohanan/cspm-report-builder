@@ -746,7 +746,8 @@ const dateInput       = document.getElementById('report-date');
         try {
           const resp = await fetch('/api/list-outputs');
           if (!resp.ok) throw new Error(resp.status);
-          const files = await resp.json();
+          const data = await resp.json();
+          const files = data.files || [];
           if (!files.length) {
             container.innerHTML = '<p class="muted">אין קבצי פלט.</p>';
             return;

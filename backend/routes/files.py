@@ -132,16 +132,40 @@ def api_download_output(filename: str):
 @files_bp.route("/api/list-outputs")
 @require_role("viewer")
 def api_list_outputs():
-    """List all files in the output directory."""
-    files = []
+    """List files in the output directory with optional pagination.
+
+    Query params:
+      page      — 1-based page number (default: 1)
+      page_size — items per page (default: 100, max: 200)
+    """
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    try:
+        page_size = max(1, min(200, int(request.args.get("page_size", 100))))
+    except (TypeError, ValueError):
+        page_size = 100
+
+    all_files = []
     for f in sorted(OUTPUT_DIR.iterdir()):
         if f.is_file():
-            files.append({
+            all_files.append({
                 "filename": f.name,
                 "size": f.stat().st_size,
                 "type": f.suffix.lstrip("."),
             })
-    return jsonify(files)
+
+    total = len(all_files)
+    start = (page - 1) * page_size
+    page_files = all_files[start:start + page_size]
+
+    return jsonify({
+        "files": page_files,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    })
 
 
 @files_bp.route("/api/delete-output/<filename>", methods=["DELETE"])
