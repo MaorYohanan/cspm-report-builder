@@ -7,7 +7,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import func
@@ -83,9 +83,9 @@ def _pipeline_status(published_at: datetime | None, frequency: str) -> tuple[str
     next_due = _add_months(published_at, months)
     today = datetime.now(UTC)
 
-    if next_due < today:
+    if next_due.date() < today.date():
         status = "overdue"
-    elif next_due.year == today.year and next_due.month == today.month:
+    elif next_due.date() <= (today + timedelta(days=30)).date():
         status = "due_this_month"
     else:
         status = "upcoming"
@@ -819,7 +819,7 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
     """
     weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
     crit_count = high_count = 0
-    highest_sev = "high"
+    highest_sev = "low"
     resource_names: list = []
     subscription_names: list = []
 
@@ -830,6 +830,8 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
             highest_sev = "critical"
         elif sev == "high":
             high_count += 1
+            if highest_sev != "critical":
+                highest_sev = "high"
 
         asset = item.get("vulnerableAsset") or {}
         res_name = asset.get("name") or ""
@@ -1166,7 +1168,7 @@ def start_scan(product_id):
         raise
 
     last = _last_published(safe_id)
-    snap_data = dict(last.snapshot_data) if last else {}
+    snap_data = dict(last.snapshot_data or {}) if last else {}
 
     # Ensure a minimal meta block exists so the report editor can open this
     # snapshot without the "JSON format mismatch" error from applySnapshot().

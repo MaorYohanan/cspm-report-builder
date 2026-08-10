@@ -213,3 +213,95 @@ class TestResolveSubscriptionTextSearchSuccess:
         assert result["ids"] == ["wiz-id-1"]
         assert result["externalIds"] == ["ext-1"]
         assert result["names"] == ["My Production Account"]
+
+
+# ---------------------------------------------------------------------------
+# fetch_projects — pagination exits on null cursor (regression: DEV-M-1 area)
+# ---------------------------------------------------------------------------
+
+
+class TestFetchProjectsPaginationExitsOnNullCursor:
+    """When hasNextPage=True but endCursor is None, the loop must stop
+    (not loop infinitely).  This guards against missing cursor guards in
+    fetch_projects."""
+
+    def test_pagination_exits_on_null_cursor(self):
+        """hasNextPage=True with endCursor=None must not loop infinitely."""
+        svc = _make_service()
+
+        call_count = 0
+
+        def graphql_side_effect(query, variables=None):
+            nonlocal call_count
+            call_count += 1
+            # Always return hasNextPage=True but endCursor=None
+            return {
+                "data": {
+                    "projects": {
+                        "nodes": [{"id": f"proj-{call_count}", "name": f"Project {call_count}"}],
+                        "pageInfo": {"hasNextPage": True, "endCursor": None},
+                    }
+                }
+            }
+
+        with patch.object(svc, "_graphql", side_effect=graphql_side_effect):
+            result = svc.fetch_projects()
+
+        # Must have stopped after the first call (null cursor → break)
+        assert call_count == 1, (
+            f"Expected exactly 1 GraphQL call when endCursor is None, got {call_count}"
+        )
+        assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# _get_token — raises RuntimeError on missing access_token (DEV-M-3)
+# ---------------------------------------------------------------------------
+
+
+class TestGetTokenMissingAccessToken:
+    """When the OAuth response is missing 'access_token', a descriptive
+    RuntimeError must be raised (not a raw KeyError)."""
+
+    def test_get_token_raises_on_missing_access_token(self):
+        """Empty auth response (no access_token key) raises RuntimeError."""
+        import json
+        import io
+        import urllib.request
+
+        svc = _make_service()
+
+        # Simulate the HTTP response returning {} (no access_token)
+        class _FakeResponse:
+            def read(self):
+                return b"{}"
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        with patch.object(urllib.request, "urlopen", return_value=_FakeResponse()):
+            with pytest.raises(RuntimeError, match="access_token"):
+                svc._get_token()
+
+    def test_get_token_raises_on_empty_string_access_token(self):
+        """access_token present but empty string is also treated as missing."""
+        import urllib.request
+
+        svc = _make_service()
+
+        class _FakeResponse:
+            def read(self):
+                return b'{"access_token": ""}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                pass
+
+        with patch.object(urllib.request, "urlopen", return_value=_FakeResponse()):
+            with pytest.raises(RuntimeError, match="access_token"):
+                svc._get_token()

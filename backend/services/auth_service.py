@@ -64,6 +64,9 @@ def get_or_create_user(email: str) -> User | None:
             return db.session.execute(
                 db.select(User).where(User.email == email)
             ).scalar_one_or_none()
+        except Exception:
+            db.session.rollback()
+            raise
         return user
 
     return None

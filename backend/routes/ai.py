@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 from flask import Blueprint, jsonify, request
@@ -9,6 +10,7 @@ from flask import Blueprint, jsonify, request
 from backend.services import GeminiService
 from backend.services.auth_service import require_role
 
+_log = logging.getLogger(__name__)
 ai_bp = Blueprint('ai', __name__)
 
 # Initialize Gemini service (lazy initialization when credentials are available)
@@ -71,8 +73,9 @@ def api_suggest():
         return jsonify({"error": str(e)}), 400
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_suggest")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @ai_bp.route("/api/summarize-remediation", methods=["POST"])
@@ -108,8 +111,9 @@ def api_summarize_remediation():
         return jsonify({"error": str(e)}), 400
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_summarize_remediation")
+        return jsonify({"error": "Internal error"}), 502
 
 
 @ai_bp.route("/api/generate-exec-summary", methods=["POST"])
@@ -158,5 +162,6 @@ def api_generate_exec_summary():
         return jsonify({"error": str(e)}), 400
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 502
-    except Exception as e:
-        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_generate_exec_summary")
+        return jsonify({"error": "Internal error"}), 502
