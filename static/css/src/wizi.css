@@ -465,7 +465,7 @@ select[multiple] option {
 
 .bulk-section-summary::after {
   content: '▸';
-  margin-right: auto;
+  margin-left: auto;
   font-size: 12px;
   color: var(--text-muted);
   transition: transform 0.2s ease;

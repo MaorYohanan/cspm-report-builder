@@ -160,21 +160,21 @@ import { escapeHtml } from './core.js';
   var kbdClose   = document.getElementById('kbd-overlay-close');
   if (kbdOverlay && btnKbdHelp && kbdClose) {
     btnKbdHelp.addEventListener('click', function() {
-      kbdOverlay.style.display = kbdOverlay.style.display === 'none' ? '' : 'none';
+      kbdOverlay.classList.toggle('hidden');
     });
     kbdClose.addEventListener('click', function() {
-      kbdOverlay.style.display = 'none';
+      kbdOverlay.classList.add('hidden');
     });
     kbdOverlay.addEventListener('click', function(e) {
-      if (e.target === kbdOverlay) kbdOverlay.style.display = 'none';
+      if (e.target === kbdOverlay) kbdOverlay.classList.add('hidden');
     });
     document.addEventListener('keydown', function(e) {
       if (e.key === '?' && !['INPUT','TEXTAREA','SELECT'].includes((document.activeElement||{}).tagName)) {
         e.preventDefault();
-        kbdOverlay.style.display = kbdOverlay.style.display === 'none' ? '' : 'none';
+        kbdOverlay.classList.toggle('hidden');
       }
-      if (e.key === 'Escape' && kbdOverlay.style.display !== 'none') {
-        kbdOverlay.style.display = 'none';
+      if (e.key === 'Escape' && !kbdOverlay.classList.contains('hidden')) {
+        kbdOverlay.classList.add('hidden');
       }
     });
   }

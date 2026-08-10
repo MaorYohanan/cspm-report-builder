@@ -25,6 +25,7 @@ export function sanitizeDataUrl(url) {
 // ── Toast notifications ──
 var toastContainer = document.getElementById('toast-container');
 export function showToast(message, type) {
+  if (!toastContainer) return;
   type = type || 'info';
   var duration = type === 'error' ? 10000 : 3200;
   var el = document.createElement('div');
