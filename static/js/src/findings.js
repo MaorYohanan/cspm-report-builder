@@ -278,13 +278,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       })();
 
       if (btnDetailNext) btnDetailNext.addEventListener('click', function() {
-        if (state.selectedFindingIndex !== null && state.selectedFindingIndex > 0) {
-          showFindingDetail(state.selectedFindingIndex - 1);
+        if (state.selectedFindingIndex !== null && state.selectedFindingIndex < state.findings.length - 1) {
+          showFindingDetail(state.selectedFindingIndex + 1);
         }
       });
       if (btnDetailPrev) btnDetailPrev.addEventListener('click', function() {
-        if (state.selectedFindingIndex !== null && state.selectedFindingIndex < state.findings.length - 1) {
-          showFindingDetail(state.selectedFindingIndex + 1);
+        if (state.selectedFindingIndex !== null && state.selectedFindingIndex > 0) {
+          showFindingDetail(state.selectedFindingIndex - 1);
         }
       });
       if (btnDetailEdit) btnDetailEdit.addEventListener('click', function() {
@@ -302,6 +302,67 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           promptReorderAfterDelete();
         }
       });
+
+      // ── Fullscreen toggle (#btn-detail-expand) ──
+      var btnDetailExpand = document.getElementById('btn-detail-expand');
+      var findingsDetailPane = document.getElementById('findings-detail-pane');
+
+      if (btnDetailExpand && findingsDetailPane) {
+        btnDetailExpand.addEventListener('click', function() {
+          if (!document.fullscreenElement) {
+            findingsDetailPane.requestFullscreen().catch(function(err) {
+              console.warn('בקשת מסך מלא נכשלה:', err);
+            });
+          } else {
+            document.exitFullscreen().catch(function(err) {
+              console.warn('יציאה ממסך מלא נכשלה:', err);
+            });
+          }
+        });
+
+        document.addEventListener('fullscreenchange', function() {
+          if (document.fullscreenElement) {
+            btnDetailExpand.title = 'צמצם';
+            btnDetailExpand.textContent = '✕';
+          } else {
+            btnDetailExpand.title = 'הרחב';
+            btnDetailExpand.textContent = '⛶';
+          }
+        });
+      }
+
+      // ── Copy to clipboard (#btn-detail-copy) ──
+      var btnDetailCopy = document.getElementById('btn-detail-copy');
+
+      if (btnDetailCopy) {
+        btnDetailCopy.addEventListener('click', function() {
+          // Guard: no finding selected
+          if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
+
+          var f = state.findings[state.selectedFindingIndex];
+          var text =
+            'מזהה: ' + (f.id || '') + '\n' +
+            'כותרת: ' + (f.title || '') + '\n' +
+            'חומרה: ' + (f.severity || '') + '\n' +
+            'קטגוריה: ' + (f.category || '') + '\n' +
+            'תיאור: ' + (Array.isArray(f.description) ? f.description.join(' ') : (f.description || '')) + '\n' +
+            'השפעה: ' + (f.impact || '') + '\n' +
+            'המלצות: ' + (Array.isArray(f.recs) ? f.recs.join('; ') : (f.recs || ''));
+
+          if (!navigator.clipboard) {
+            showToast('שגיאה בהעתקה', 'error');
+            return;
+          }
+
+          navigator.clipboard.writeText(text)
+            .then(function() {
+              showToast('ממצא הועתק ללוח', 'success');
+            })
+            .catch(function() {
+              showToast('שגיאה בהעתקה', 'error');
+            });
+        });
+      }
 
       // ── Exception toggle ──
       var btnDetailException = document.getElementById('btn-detail-exception');

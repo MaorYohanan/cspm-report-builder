@@ -141,6 +141,7 @@ html {
   padding: 0;
   z-index: 100;
   overflow: visible;
+  transition: width 0.2s ease;
 }
 
 .sidebar-brand {
@@ -570,6 +571,127 @@ html {
 
 .sidebar-admin-btn:hover {
   color: var(--accent, #7c9ef8);
+}
+
+/* ── Collapsed sidebar state ──
+   Width narrows to 52px; only icons remain visible.
+   overflow: visible is intentionally preserved so the flyout .sidebar-nav
+   panels (position: absolute; right: 100%) can still escape the sidebar
+   bounds and appear on hover of each .sidebar-group.
+   margin-right on .main-content mirrors the base rule which uses
+   margin-right: var(--sidebar-width) — same property, collapsed value. */
+
+.sidebar.collapsed {
+  width: 52px;
+}
+
+/* Main content expands to fill freed space */
+.sidebar.collapsed ~ .main-content,
+.sidebar.collapsed + .main-content {
+  margin-right: 52px;
+}
+
+/* Keep logo centered; hide brand name/sub text */
+.sidebar.collapsed .sidebar-brand {
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.sidebar.collapsed .sidebar-brand-text {
+  display: none;
+}
+
+/* Collapse the "new report" button to a centered '+' icon */
+.sidebar.collapsed .sidebar-new-report {
+  padding: 8px;
+  justify-content: center;
+  position: relative;
+}
+
+.sidebar.collapsed .sidebar-new-report span {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-new-report::before {
+  content: '+';
+  font-size: 20px;
+  font-weight: bold;
+  color: white;
+  line-height: 1;
+}
+
+/* Clip item text; center-align icon only */
+.sidebar.collapsed .sidebar-item {
+  overflow: hidden;
+  white-space: nowrap;
+  gap: 0;
+  padding: 8px;
+  justify-content: center;
+}
+
+.sidebar.collapsed .sidebar-item-icon {
+  flex-shrink: 0;
+}
+
+/* Keep section label visible as a slim divider; hide label text and chevron,
+   show only the top border as a visual separator */
+.sidebar.collapsed .sidebar-section-label {
+  padding: 8px 0;
+  justify-content: center;
+  border-bottom: none;
+  margin: 0;
+}
+
+.sidebar.collapsed .sidebar-section-label > span:first-child {
+  /* Hide the Hebrew section text, keep only the chevron icon area */
+  font-size: 0;
+  overflow: hidden;
+  width: 0;
+  display: none;
+}
+
+.sidebar.collapsed .section-chevron {
+  display: none;
+}
+
+/* Flyout nav: already works via .sidebar-group:hover .sidebar-nav —
+   no override needed. Ensure items inside have room to display properly. */
+
+/* Sidebar utils row: center-align the icon buttons */
+.sidebar.collapsed .sidebar-utils {
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Hide theme/keyboard-shortcut buttons in collapsed state to avoid overflow;
+   keep only the collapse/expand toggle visible */
+.sidebar.collapsed #btn-theme-toggle,
+.sidebar.collapsed #btn-kbd-help {
+  display: none;
+}
+
+.sidebar.collapsed .sidebar-collapse-btn {
+  margin-inline-end: 0;
+}
+
+/* Hide progress wrapper, autosave indicator, and user info */
+.sidebar.collapsed .sidebar-progress-wrapper,
+.sidebar.collapsed .sidebar-progress-label,
+.sidebar.collapsed #autosave-indicator,
+.sidebar.collapsed .sidebar-user {
+  display: none;
+}
+
+/* Keep footer visible but minimal */
+.sidebar.collapsed .sidebar-footer {
+  padding: 10px 4px 12px;
+}
+
+/* Hide badge in collapsed state — badge's margin-right: auto would misalign
+   the icon in collapsed sidebar items */
+.sidebar.collapsed .sidebar-badge {
+  display: none;
 }
 
 
@@ -1103,95 +1225,16 @@ button.dashboard-link {
 #findings-table-wrapper td:nth-child(2) { width: 45px; }
 
 @media (max-width: 900px) {
-  .sidebar { width: 56px; }
+  .sidebar { width: 52px; }
   .sidebar-brand-text, .sidebar-new-sub, .sidebar-section-label,
   .sidebar-progress-label, .sidebar-progress span:first-child { display: none; }
   .sidebar-item { padding: 10px 0; justify-content: center; font-size: 0; }
   .sidebar-item-icon { font-size: 18px; }
   .sidebar-new-report span:first-child { font-size: 0; }
-  .sidebar-new-report::before { content: '📄'; font-size: 16px; }
-  .main-content { margin-right: 56px; }
+  /* ::before content removed — collapsed layout.css block handles the '+' icon */
+  .main-content { margin-right: 52px; }
 }
 
-/* Sidebar collapsed state */
-.sidebar.collapsed {
-  width: 56px;
-}
-
-.sidebar.collapsed .sidebar-brand-text,
-.sidebar.collapsed .sidebar-new-sub,
-.sidebar.collapsed .sidebar-section-label,
-.sidebar.collapsed .sidebar-progress-label,
-.sidebar.collapsed .sidebar-progress span:first-child,
-.sidebar.collapsed .sidebar-badge {
-  display: none;
-}
-
-.sidebar.collapsed .autosave-indicator {
-  font-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-align: center;
-  cursor: pointer;
-}
-
-.sidebar.collapsed .autosave-indicator:hover {
-  opacity: 0.7;
-}
-
-.sidebar.collapsed .autosave-indicator::before {
-  content: '💾';
-  font-size: 14px;
-}
-
-.sidebar.collapsed .sidebar-new-report {
-  padding: 10px;
-  justify-content: center;
-  align-items: center;
-}
-
-.sidebar.collapsed .sidebar-new-report span:first-child {
-  display: none;
-}
-
-.sidebar.collapsed .sidebar-new-report::after {
-  content: '📄';
-  font-size: 16px;
-}
-
-.sidebar.collapsed .sidebar-item {
-  padding: 10px 0;
-  justify-content: center;
-  font-size: 0;
-}
-
-.sidebar.collapsed .sidebar-item-icon {
-  font-size: 18px;
-  margin: 0;
-}
-
-.sidebar.collapsed .sidebar-progress-bar {
-  display: none;
-}
-
-.sidebar.collapsed .sidebar-footer .sidebar-utils {
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.sidebar.collapsed .sidebar-collapse-btn {
-  margin-left: 0;
-  order: 3;
-}
-
-.sidebar.collapsed .sidebar-footer .sidebar-progress {
-  justify-content: center;
-}
-
-.sidebar.collapsed + .main-content {
-  margin-right: 56px;
-}
 
 /* ── Typography ── */
 h1, h2, h3 { margin-top: 0; color: var(--text-heading); font-weight: 600; }
