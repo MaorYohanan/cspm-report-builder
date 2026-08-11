@@ -2345,21 +2345,17 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           return t[key] || (state.severityMap[key] || {}).text || key;
         }
 
-        var findingsCardsHtml = '';
+        // Each category gets its own page-section + finding-page so:
+        // 1. break-after:page on .page-section puts each category on a new page.
+        // 2. .finding-page ancestor is present for every .finding-card, making
+        //    the card-splitter in pdf_service.py active for tall cards.
+        var findingsCategorySections = '';
         catKeys.forEach(function(cat) {
           var catLabel = categoryMap[cat] || cat;
           var catFindings = findingsByCategory[cat];
-          var isFirstInCat = true;
-          
+
+          var cardsHtml = '';
           catFindings.forEach(function(f) {
-
-          // For the first finding in each category, wrap the category header + card together
-          var catHeaderHtml = '';
-          if (isFirstInCat && catKeys.length > 1) {
-            catHeaderHtml = '<h2 style="margin-top:18px;margin-bottom:6px;border-right:3px solid #1d4ed8;padding-right:5px;">' + escapeHtml(cat + ' – ' + catLabel) + '</h2>\n';
-            isFirstInCat = false;
-          }
-
           const sev = state.severityMap[f.severity] || state.severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
 
@@ -2392,9 +2388,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               `
             : '';
 
-          findingsCardsHtml += `
+          cardsHtml += `
           <div class="finding-wrap">
-          ${catHeaderHtml}
           <div class="finding-card${(f.exception && f.exception.active) ? ' finding-card-exception' : ''}" id="${anchorId}">
             <div class="finding-header">
               <div>
@@ -2438,8 +2433,18 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             ${evidenceHtml}
           </div>
           </div>`;
-          findingsCardsHtml += '\n';
+          cardsHtml += '\n';
           });
+
+          // One section per category — break-after:page (from .page-section in
+          // CLEAN_PRINT_CSS) puts each category on its own page. The .finding-page
+          // class is also present so the card-splitter in pdf_service.py can find
+          // .finding-card ancestors via card.closest('.finding-page').
+          findingsCategorySections += `
+    <section class="page-section finding-page">
+      <h2>${escapeHtml(cat + ' – ' + catLabel)}</h2>
+      ${cardsHtml}
+    </section>`;
         });
 
         const treatmentTableHtml = state.findings.map(f => {
@@ -3113,13 +3118,14 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       ${catKeys.length > 1 ? '<h2>' + t.catBreakdown + '</h2>' + catMatrixHtml : ''}
     </section>
 
-    <section class="page-section">
+    <section class="page-section findings-intro">
       <h1 id="detailed-state.findings">${t.detailedFindings}</h1>
       <p>
         ${t.detailedFindingsText}
       </p>
-      ${findingsCardsHtml || '<p class="muted">' + t.noFindings + '</p>'}
+      ${!findingsCategorySections ? '<p class="muted">' + t.noFindings + '</p>' : ''}
     </section>
+    ${findingsCategorySections}
 
     <section class="page-section">
       <h1 id="recommendations">${t.recommendations}</h1>
