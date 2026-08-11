@@ -1,93 +1,14 @@
 @media (max-width: 900px) {
-  .sidebar { width: 56px; }
+  .sidebar { width: 52px; }
   .sidebar-brand-text, .sidebar-new-sub, .sidebar-section-label,
   .sidebar-progress-label, .sidebar-progress span:first-child { display: none; }
   .sidebar-item { padding: 10px 0; justify-content: center; font-size: 0; }
   .sidebar-item-icon { font-size: 18px; }
   .sidebar-new-report span:first-child { font-size: 0; }
-  .sidebar-new-report::before { content: '📄'; font-size: 16px; }
-  .main-content { margin-right: 56px; }
+  /* ::before content removed — collapsed layout.css block handles the '+' icon */
+  .main-content { margin-right: 52px; }
 }
 
-/* Sidebar collapsed state */
-.sidebar.collapsed {
-  width: 56px;
-}
-
-.sidebar.collapsed .sidebar-brand-text,
-.sidebar.collapsed .sidebar-new-sub,
-.sidebar.collapsed .sidebar-section-label,
-.sidebar.collapsed .sidebar-progress-label,
-.sidebar.collapsed .sidebar-progress span:first-child,
-.sidebar.collapsed .sidebar-badge {
-  display: none;
-}
-
-.sidebar.collapsed .autosave-indicator {
-  font-size: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-align: center;
-  cursor: pointer;
-}
-
-.sidebar.collapsed .autosave-indicator:hover {
-  opacity: 0.7;
-}
-
-.sidebar.collapsed .autosave-indicator::before {
-  content: '💾';
-  font-size: 14px;
-}
-
-.sidebar.collapsed .sidebar-new-report {
-  padding: 10px;
-  justify-content: center;
-  align-items: center;
-}
-
-.sidebar.collapsed .sidebar-new-report span:first-child {
-  display: none;
-}
-
-.sidebar.collapsed .sidebar-new-report::after {
-  content: '📄';
-  font-size: 16px;
-}
-
-.sidebar.collapsed .sidebar-item {
-  padding: 10px 0;
-  justify-content: center;
-  font-size: 0;
-}
-
-.sidebar.collapsed .sidebar-item-icon {
-  font-size: 18px;
-  margin: 0;
-}
-
-.sidebar.collapsed .sidebar-progress-bar {
-  display: none;
-}
-
-.sidebar.collapsed .sidebar-footer .sidebar-utils {
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.sidebar.collapsed .sidebar-collapse-btn {
-  margin-left: 0;
-  order: 3;
-}
-
-.sidebar.collapsed .sidebar-footer .sidebar-progress {
-  justify-content: center;
-}
-
-.sidebar.collapsed + .main-content {
-  margin-right: 56px;
-}
 
 /* ── Typography ── */
 h1, h2, h3 { margin-top: 0; color: var(--text-heading); font-weight: 600; }
