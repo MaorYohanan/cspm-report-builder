@@ -516,7 +516,8 @@ def build_bulk_filter(
     and _run_wiz_fetch (pipeline.py) so both flows produce identical Wiz API filters.
 
     Applies:
-    - Severity: CRITICAL + HIGH (schema-appropriate format per query type)
+    - Severity: CRITICAL + HIGH for most query types; MEDIUM + HIGH + CRITICAL
+      for endOfLifeFindings (schema-appropriate format per query type)
     - Status: OPEN + IN_PROGRESS (or FAIL for configurationFindings)
     - Subscription scope: correct filter field per query type
     """
@@ -526,9 +527,15 @@ def build_bulk_filter(
     # ── Severity ──────────────────────────────────────────────────────────────
     if query_type in (
         "issues", "configurationFindings", "vulnerabilityFindings",
-        "hostConfigurationRuleAssessments", "endOfLifeFindings",
+        "hostConfigurationRuleAssessments",
     ):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
+    elif query_type == "endOfLifeFindings":
+        # EOL findings default to Medium-and-above because most actionable EOL
+        # signals surface at MEDIUM severity; Critical/High are included so
+        # nothing is silently dropped. Bulk import has no per-import severity
+        # override — this is the canonical default for this query type.
+        filter_by["severity"] = ["MEDIUM", "HIGH", "CRITICAL"]
     elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
         pass  # Non-standard filter schemas — no severity/status fields
     elif query_type == "malwareFindings":
