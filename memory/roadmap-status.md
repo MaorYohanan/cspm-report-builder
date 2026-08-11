@@ -90,3 +90,18 @@ B.18 (CSV export readability): ✅ merged to main — 2026-08-12
 - Import reader colRec alias updated to accept both המלצות and המלצה for round-trip compatibility
 - JS cache-buster bumped to main.js?v=121
 - Tests: 200 passed, 0 failed
+
+B.4+B.5+B.9 (navbar restructure + accordion UX): ✅ merged to main — 2026-08-12
+- Branch: fix/navbar-restructure + fix/navbar-accordion-guard (guard fix)
+- Deleted nav-data section entirely; tab-wizi moved into nav-workspace, tab-cloud-manager moved into nav-output
+- Output section label and tab-export button text renamed to "קבצים ודוחות"
+- Final sidebar: 3 sections — אזור עבודה (5 tabs) | קבצים ודוחות (2 tabs) | מוצרים (2 tabs)
+- Active landing tab changed from tab-dashboard to tab-pipeline
+- Accordion behavior: .sidebar-nav hidden by default (display:none), shown when .is-pinned; collapsed-sidebar hover flyout preserved
+- pinSection() / pinSectionForTab() added to ui.js; switchToTab() in findings.js calls pinSectionForTab() for sync
+- Accordion state derived from cspm_active_tab (single source of truth — no separate sidebar-pinned-section key)
+- Guard: clicking an already-pinned section label is a no-op for mouse; keyboard (Enter/Space) retains collapse for screen reader accessibility
+- titleMap['tab-export'] updated to "קבצים ודוחות"; default tab fallback changed to tab-pipeline in findings.js
+- Dead CSS rules (.section-data, .sidebar-group-data) removed; build_css.py run; builder.css?v=50
+- JS cache-buster: main.js?v=124
+- Tests: 200 passed, 0 failed
