@@ -21,7 +21,7 @@ const dateInput       = document.getElementById('report-date');
           return;
         }
 
-        var csvHeaders = ['id', 'title', 'severity', 'category', 'description', 'impact', 'technical', 'policies', 'המלצות', 'priority', 'owner'];
+        var csvHeaders = ['כותרת', 'חומרה', 'קטגוריה', 'תיאור', 'השפעה', 'פרטים טכניים', 'מדיניות', 'המלצות', 'עדיפות', 'בעלים', 'מוחרג', 'סיבת חריג'];
 
         function csvEscape(val) {
           var s = (val === null || val === undefined) ? '' : String(val);
@@ -34,19 +34,28 @@ const dateInput       = document.getElementById('report-date');
         var lines = [];
         lines.push(csvHeaders.map(csvEscape).join(','));
 
-        state.findings.forEach(function(f) {
+        var severityWeight = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+        var sortedFindings = state.findings.slice().sort(function(a, b) {
+          // -1 fallback: unknown/blank severity sorts below 'info' (0)
+          var wa = severityWeight[(a.severity || '').toLowerCase()] !== undefined ? severityWeight[(a.severity || '').toLowerCase()] : -1;
+          var wb = severityWeight[(b.severity || '').toLowerCase()] !== undefined ? severityWeight[(b.severity || '').toLowerCase()] : -1;
+          return wb - wa;
+        });
+
+        sortedFindings.forEach(function(f) {
           var row = [
-            f.id || '',
             f.title || '',
             f.severity || '',
             f.category || '',
             f.description || '',
             f.impact || '',
-            Array.isArray(f.technical) ? f.technical.join('\n') : (f.technical || ''),
-            Array.isArray(f.policies) ? f.policies.join('\n') : (f.policies || ''),
-            Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || ''),
+            Array.isArray(f.technical) ? f.technical.join('; ') : (f.technical || ''),
+            Array.isArray(f.policies) ? f.policies.join('; ') : (f.policies || ''),
+            Array.isArray(f.recs) ? f.recs.join('; ') : (f.recs || ''),
             f.priority || '',
-            f.owner || ''
+            f.owner || '',
+            (f.exception && f.exception.active) ? 'כן' : 'לא',
+            (f.exception && f.exception.reason) ? f.exception.reason : ''
           ];
           lines.push(row.map(csvEscape).join(','));
         });
