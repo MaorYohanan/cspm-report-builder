@@ -2015,12 +2015,17 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         statusMsg.textContent = 'הטופס נוקה.';
       });
 
-      // Build a dynamic filename from client name + report date
+      // Build a dynamic filename from client name, cloud, env stages, and report date
       export function buildFilename(ext) {
-        var client = (document.getElementById('report-client').value || '').trim().replace(/[^\w\u0590-\u05FF\s-]/g, '').replace(/\s+/g, '_');
+        var sanitize = function(v) { return (v || '').trim().replace(/[^\w\u0590-\u05FF\s-]/g, '').replace(/\s+/g, '_'); };
+        var client = sanitize(document.getElementById('report-client').value);
+        var cloud  = sanitize((document.getElementById('report-cloud')?.value) || '');
+        var envStages = [...document.querySelectorAll('input[name="report-env-stage"]:checked')].map(function(cb) { return cb.value; }).join('-');
         var date = getDateAsDDMMYYYY().replace(/\//g, '-');
         var parts = ['cspm_report'];
         if (client) parts.push(client);
+        if (cloud) parts.push(cloud);
+        if (envStages) parts.push(envStages);
         if (date) parts.push(date);
         return parts.join('_') + '.' + ext;
       }
