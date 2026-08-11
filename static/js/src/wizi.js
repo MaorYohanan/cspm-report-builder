@@ -919,6 +919,19 @@ import { ProductsPanel } from './products.js';
             }
           }
 
+          // Silent suppression of [GovIL] findings — no toast, no counter
+          nodes = nodes.filter(function(item) {
+            var tag = '[govil]';
+            var nameTitle = (item.name || '').toLowerCase();
+            var ruleName = ((item.rule || {}).name || '').toLowerCase();
+            // issues query type: tag lives on sourceRules[0].name, not item.name/item.rule
+            var sourceRuleName = (((item.sourceRules || [])[0]) || {}).name;
+            var sourceRule = (sourceRuleName || '').toLowerCase();
+            return !nameTitle.includes(tag) &&
+                   !ruleName.includes(tag) &&
+                   !sourceRule.includes(tag);
+          });
+
           if (append) {
             wiziIssues = wiziIssues.concat(nodes);
           } else {

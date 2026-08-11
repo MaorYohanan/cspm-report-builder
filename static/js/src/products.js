@@ -137,7 +137,7 @@ export var ProductsPanel = {
       html += '</div>';
     } else {
       html += '<div class="products-grid">';
-      products.forEach(function(p) {
+      products.slice().sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); }).forEach(function(p) {
         var rs = p.latestRiskScore || 0;
         var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : p.latestVersion ? 'risk-low' : 'risk-none';
         html += '<div class="product-card">';
@@ -590,7 +590,7 @@ export var ProductsPanel = {
 
   _showProductPicker: function(products) {
     var self = this;
-    var opts = products.map(function(p){
+    var opts = products.slice().sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); }).map(function(p){
       return '<option value="' + _esc(p.id) + '">' + _esc(p.name||p.id) + '</option>';
     }).join('');
 
