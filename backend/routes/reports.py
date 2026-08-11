@@ -48,7 +48,7 @@ def _build_pdf_filename(meta: dict) -> str:
     client = slug(meta.get("client", "") or "")
     cloud = slug(meta.get("cloud", "") or "")
     env_raw = meta.get("env", "") or ""
-    env_slug = slug(env_raw.replace(",", "+")) if env_raw else ""
+    env_slug = "-".join(slug(v.strip()) for v in env_raw.split(",") if v.strip()) if env_raw else ""
 
     # report date: expected DD/MM/YYYY → convert to YYYY-MM-DD
     raw_date = meta.get("reportDate", "") or ""
