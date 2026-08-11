@@ -105,3 +105,9 @@ B.4+B.5+B.9 (navbar restructure + accordion UX): ✅ merged to main — 2026-08-
 - Dead CSS rules (.section-data, .sidebar-group-data) removed; build_css.py run; builder.css?v=50
 - JS cache-buster: main.js?v=124
 - Tests: 200 passed, 0 failed
+
+Sidebar visual fixes (fix/sidebar-visual): ✅ merged to main — 2026-08-12
+- Problem A (accordion overflow): .sidebar-nav.is-pinned given width:100%; min-width:0; box-sizing:border-box — overrides base min-width:185px so tab list stays within sidebar bounds; pinned nav hidden when sidebar collapses
+- Problem B1 (collapsed flyout appearance): hover flyout got min-width:180px, padding, border-radius, RTL-correct margin-left gap
+- Problem B2 (icons in collapsed mode): each .sidebar-section-label now has <span class="section-icon"> (🔧/📄/📦) + <span class="section-label-text">; collapsed mode hides section-label-text; broken CSS selector targeting wrong span replaced
+- CSS cache-buster bumped: builder.css?v=51
