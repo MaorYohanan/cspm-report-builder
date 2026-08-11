@@ -106,9 +106,23 @@
   cursor: pointer;
   display: flex;
   align-items: center;
+  gap: 6px;
   justify-content: space-between;
   user-select: none;
   transition: color var(--transition);
+}
+
+/* Icon shown in both expanded and collapsed; text shown in expanded only */
+.section-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.section-label-text {
+  flex: 1;
+  /* text-align: right — Hebrew label, RTL context */
+  text-align: right;
 }
 
 .sidebar-section-label:hover {
@@ -149,13 +163,31 @@
   box-shadow: -6px 4px 24px rgba(0,0,0,0.45);
 }
 
-/* Pinned section is visible */
+/* Pinned section is visible — constrained to sidebar width (Problem A fix).
+   min-width is overridden so the accordion tab list never exceeds its parent.
+   box-sizing: border-box ensures padding does not add to the 100% width. */
 .sidebar-nav.is-pinned {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-/* In collapsed mode, sections open as flyouts on hover for keyboard-free navigation */
+/* Hide any .is-pinned nav that was open when sidebar was collapsed.
+   Without this, Problem A's width: 100% would render a squished 52px column
+   inside the icon rail. Hover flyout rule below wins by source order at the
+   same specificity (0,3,0) so hovering still shows the flyout correctly. */
+.sidebar.collapsed .sidebar-nav.is-pinned {
+  display: none;
+}
+
+/* In collapsed mode, sections open as flyouts on hover (Problem B1 fix).
+   right: 100% is RTL-correct — flyout opens to the LEFT of the sidebar.
+   margin-left creates a visible gap between sidebar and flyout panel.
+   background, border, box-shadow are already on .sidebar-nav (lines above)
+   and inherit here; min-width and padding ensure the flyout is not too narrow. */
 .sidebar.collapsed .sidebar-group:hover .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -163,6 +195,10 @@
   right: 100%;
   top: 0;
   z-index: 200;
+  min-width: 180px;
+  margin-left: 6px;
+  padding: 8px;
+  border-radius: var(--radius);
 }
 
 .sidebar-item {
@@ -517,8 +553,8 @@
   flex-shrink: 0;
 }
 
-/* Keep section label visible as a slim divider; hide label text and chevron,
-   show only the top border as a visual separator */
+/* In collapsed mode: center the icon, hide text (handled by .section-label-text
+   rule below) and chevron. The section-icon becomes the sole visual element. */
 .sidebar.collapsed .sidebar-section-label {
   padding: 8px 0;
   justify-content: center;
@@ -526,11 +562,11 @@
   margin: 0;
 }
 
-.sidebar.collapsed .sidebar-section-label > span:first-child {
-  /* Hide the Hebrew section text, keep only the chevron icon area */
-  font-size: 0;
-  overflow: hidden;
-  width: 0;
+/* Problem B2 fix: hide the Hebrew label text in collapsed mode.
+   Previous rule targeted > span:first-child which matched .section-chevron
+   (the only span), not the text node. Now that text is wrapped in
+   .section-label-text we target it directly. */
+.sidebar.collapsed .section-label-text {
   display: none;
 }
 
