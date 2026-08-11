@@ -48,3 +48,5 @@ Phase 8 (audit tests): ✅ merged to main
 - Extended test files: tests/test_bulk_filter.py (malwareFindings case + SSC no-severity/status guard), tests/test_products_extended.py (test_notes_length_capped)
 - Dropped: test_list_states_pagination (spec error — DEV-L-8 targeted api_list_outputs which was already paginated in Phase 6, not api_list_states)
 - Tests: 200 passed, 0 failed
+
+UI feedback fixes (ui-feedback): ✅ merged to main — 2026-08-11
