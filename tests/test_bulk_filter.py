@@ -1,8 +1,8 @@
-"""Regression tests for build_bulk_filter in backend/routes/wiz.py.
+"""Regression tests for build_bulk_filter in backend/services/wiz_service.py.
 
 Locks down the per-query-type filter shape returned to the Wiz GraphQL API.
 The Wiz schema is unforgiving — a misnamed field or wrong wrapping silently
-returns zero results. Run after any change to backend/routes/wiz.py:
+returns zero results. Run after any change to backend/services/wiz_service.py:
 
     python -m pytest tests/test_bulk_filter.py -v
 """
@@ -90,9 +90,12 @@ CASES = [
         # The filter type is VulnerabilityFindingFilters — uses plain-list severity/status
         # and subscriptionExternalId (NOT resource.subscriptionId which belongs to
         # inventory-type filters). isEndOfLife=True narrows to EOL findings only.
+        # Severity defaults to MEDIUM+HIGH+CRITICAL (Medium-and-above) because most
+        # actionable EOL signals surface at MEDIUM; other query types default to
+        # CRITICAL+HIGH only. Bulk import has no per-import severity override.
         "endOfLifeFindings",
         {
-            "severity": ["CRITICAL", "HIGH"],
+            "severity": ["MEDIUM", "HIGH", "CRITICAL"],
             "status": ["OPEN", "IN_PROGRESS"],
             "isEndOfLife": True,
             "subscriptionExternalId": SUB_EXT_IDS,
