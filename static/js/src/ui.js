@@ -129,29 +129,92 @@ import { escapeHtml } from './core.js';
   });
 })();
 
-// ── Sidebar section collapse ──
-(function() {
-  var labels = document.querySelectorAll('.sidebar-section-label[data-collapse]');
-  labels.forEach(function(label) {
-    var targetId = label.getAttribute('data-collapse');
-    var nav = document.getElementById(targetId);
-    if (!nav) return;
+// ── Sidebar accordion ──
+// Derives which section to pin from the last-active tab (cspm_active_tab),
+// so accordion state and tab restore never get out of sync.
+// Map from tab ID to the nav ID of the section that contains it.
+// Exported so switchToTab() in findings.js can keep the accordion in sync
+// when navigating programmatically (brand click, "show all", add-finding nav).
+export var tabToNav = {
+  'tab-dashboard':      'nav-workspace',
+  'tab-report-details': 'nav-workspace',
+  'tab-findings-list':  'nav-workspace',
+  'tab-finding-form':   'nav-workspace',
+  'tab-wizi':           'nav-workspace',
+  'tab-export':         'nav-output',
+  'tab-cloud-manager':  'nav-output',
+  'tab-products':       'nav-products',
+  'tab-pipeline':       'nav-products'
+};
 
-    // Restore saved state
-    var key = 'cspm_nav_' + targetId;
-    var saved = localStorage.getItem(key);
-    if (saved === 'collapsed') {
-      label.classList.add('collapsed');
-      nav.classList.add('collapsed');
+// Update aria-expanded on the section label whose nav matches navId.
+// All other labels get aria-expanded="false".
+function updateLabelAriaExpanded(openNavId) {
+  document.querySelectorAll('.sidebar-section-label[data-section]').forEach(function(label) {
+    var isOpen = label.dataset.section === openNavId;
+    label.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+}
+
+export function pinSectionForTab(tabId) {
+  var navId = tabToNav[tabId] || 'nav-products';
+  pinSection(navId);
+}
+
+function pinSection(navId) {
+  document.querySelectorAll('nav.sidebar-nav').forEach(function(nav) {
+    nav.classList.remove('is-pinned');
+  });
+  var target = document.getElementById(navId);
+  if (target) {
+    target.classList.add('is-pinned');
+  }
+  updateLabelAriaExpanded(navId);
+}
+
+function initSidebarAccordion() {
+  // Wire section label clicks — toggle: click open section to close it,
+  // click a different section to open it (radio-style but collapsible)
+  document.querySelectorAll('.sidebar-section-label[data-section]').forEach(function(label) {
+    var navId = label.dataset.section;
+    function handleActivate() {
+      var nav = document.getElementById(navId);
+      if (nav && nav.classList.contains('is-pinned')) {
+        // Already open — collapse it
+        nav.classList.remove('is-pinned');
+        label.setAttribute('aria-expanded', 'false');
+      } else {
+        pinSection(navId);
+      }
     }
-
-    label.addEventListener('click', function() {
-      var isCollapsed = nav.classList.toggle('collapsed');
-      label.classList.toggle('collapsed', isCollapsed);
-      localStorage.setItem(key, isCollapsed ? 'collapsed' : 'open');
+    label.addEventListener('click', handleActivate);
+    // Keyboard: Enter and Space activate the label (WCAG 2.1 SC 2.1.1)
+    label.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleActivate();
+      }
     });
   });
-})();
+
+  // Wire tab clicks — pin the section that contains the clicked tab.
+  // switchToTab() is handled separately by findings.js; this only pins the section.
+  document.querySelectorAll('.sidebar-item').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var navId = (btn.closest('nav.sidebar-nav') || {}).id;
+      if (navId) pinSection(navId);
+    });
+  });
+
+  // Restore pinned section from cspm_active_tab (shared with findings.js tab restore);
+  // default to nav-products when no saved tab or tab is not mapped.
+  var savedTab = localStorage.getItem('cspm_active_tab');
+  var defaultNav = 'nav-products';
+  var navId = (savedTab && tabToNav[savedTab]) ? tabToNav[savedTab] : defaultNav;
+  pinSection(navId);
+}
+
+initSidebarAccordion();
 
 // ── Keyboard shortcuts overlay ──
 (function() {

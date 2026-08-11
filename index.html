@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=49">
+  <link rel="stylesheet" href="/static/css/builder.css?v=50">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -66,9 +66,9 @@
       </button>
 
       <div class="sidebar-group sidebar-group-workspace">
-        <div class="sidebar-section-label section-workspace">אזור עבודה <span class="section-chevron">›</span></div>
+        <div class="sidebar-section-label section-workspace" title="אזור עבודה" data-section="nav-workspace" role="button" tabindex="0" aria-expanded="false">אזור עבודה <span class="section-chevron">›</span></div>
         <nav class="sidebar-nav" id="nav-workspace" role="tablist">
-          <button class="sidebar-item active" role="tab" aria-selected="true" aria-controls="panel-dashboard" id="tab-dashboard" title="לוח בקרה">
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-dashboard" id="tab-dashboard" title="לוח בקרה">
             <span class="sidebar-item-icon icon-dashboard">▦</span> לוח בקרה
           </button>
           <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-report-details" id="tab-report-details" title="פרטי דו״ח">
@@ -80,14 +80,17 @@
           <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-finding-form" id="tab-finding-form" title="הוסף ממצא">
             <span class="sidebar-item-icon icon-add">+</span> הוסף ממצא
           </button>
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" title="Wiz Import">
+            <span class="sidebar-item-icon icon-wizi">🔍</span> Wiz Import
+          </button>
         </nav>
       </div>
 
-      <div class="sidebar-group sidebar-group-data">
-        <div class="sidebar-section-label section-data">נתונים <span class="section-chevron">›</span></div>
-        <nav class="sidebar-nav" id="nav-data">
-          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-wizi" id="tab-wizi" title="Wiz Import">
-            <span class="sidebar-item-icon icon-wizi">🔍</span> Wiz Import
+      <div class="sidebar-group sidebar-group-output">
+        <div class="sidebar-section-label section-output" title="קבצים ודוחות" data-section="nav-output" role="button" tabindex="0" aria-expanded="false">קבצים ודוחות <span class="section-chevron">›</span></div>
+        <nav class="sidebar-nav" id="nav-output" role="tablist">
+          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" title="קבצים ודוחות">
+            <span class="sidebar-item-icon icon-export">↑</span> קבצים ודוחות
           </button>
           <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-cloud-manager" id="tab-cloud-manager" title="קבצי שרת">
             <span class="sidebar-item-icon icon-cloud">☁️</span> קבצי שרת
@@ -95,23 +98,14 @@
         </nav>
       </div>
 
-      <div class="sidebar-group sidebar-group-output">
-        <div class="sidebar-section-label section-output">פלט <span class="section-chevron">›</span></div>
-        <nav class="sidebar-nav" id="nav-output">
-          <button class="sidebar-item" role="tab" aria-selected="false" aria-controls="panel-export" id="tab-export" title="ייצוא דו״ח">
-            <span class="sidebar-item-icon icon-export">↑</span> ייצוא דו"ח
-          </button>
-        </nav>
-      </div>
-
       <div class="sidebar-group sidebar-group-products">
-        <div class="sidebar-section-label section-products">מוצרים <span class="section-chevron">›</span></div>
-        <nav class="sidebar-nav" id="nav-products">
+        <div class="sidebar-section-label section-products" title="מוצרים" data-section="nav-products" role="button" tabindex="0" aria-expanded="false">מוצרים <span class="section-chevron">›</span></div>
+        <nav class="sidebar-nav" id="nav-products" role="tablist">
           <button class="sidebar-item" role="tab" aria-selected="false"
                   aria-controls="panel-products" id="tab-products" title="מוצרים">
             <span class="sidebar-item-icon icon-products">📦</span> מוצרים
           </button>
-          <button class="sidebar-item" role="tab" aria-selected="false"
+          <button class="sidebar-item active" role="tab" aria-selected="true"
                   aria-controls="panel-pipeline" id="tab-pipeline" title="לוח סריקות">
             <span class="sidebar-item-icon icon-pipeline">📅</span> לוח סריקות
           </button>
@@ -157,7 +151,7 @@
       </div>
 
     <!-- Panel: Dashboard -->
-    <section class="tab-panel active" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
+    <section class="tab-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
       <div class="section-body">
         <!-- KPI Row -->
         <div class="dashboard-kpi-row" id="dashboard-kpis">
@@ -823,7 +817,7 @@
     </section>
 
     <!-- Panel: לוח סריקות -->
-    <section class="tab-panel" id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline">
+    <section class="tab-panel active" id="panel-pipeline" role="tabpanel" aria-labelledby="tab-pipeline">
       <div id="pipeline-panel-content">
         <!-- Content rendered dynamically by pipeline.js -->
       </div>
@@ -832,6 +826,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=121"></script>
+  <script type="module" src="/static/js/src/main.js?v=122"></script>
 </body>
 </html>

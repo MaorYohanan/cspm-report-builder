@@ -79,3 +79,14 @@ B.2 (PDF filename + split environment field): ✅ merged to main — 2026-08-11
 - JS cache-buster bumped: main.js?v=117
 - Tests: 200 passed, 0 failed
 - Follow-up fix (2026-08-12, branch fix/pdf-filename-env-v2): env stages were absent from the browser-side download filename because buildFilename() in findings.js only read client+date; browser uses a.download (ignores Content-Disposition for blob URLs); fixed buildFilename to also read report-cloud and checked report-env-stage checkboxes; JS cache-buster bumped to main.js?v=119; Tests: 200 passed, 0 failed
+
+B.18 (CSV export readability): ✅ merged to main — 2026-08-12
+- Branch: fix/csv-readability (v2 fix on fix/csv-readability-v2)
+- All-Hebrew column headers: כותרת,חומרה,קטגוריה,תיאור,השפעה,פרטים טכניים,מדיניות,המלצות,עדיפות,בעלים,מוחרג,סיבת חריג
+- id field removed from export output
+- Findings sorted Critical → High → Medium → Low → Info (shallow copy, state.findings not mutated)
+- Array fields (technical, policies, recs) joined with '; ' for Excel single-cell compatibility
+- Exception columns added: מוחרג (כן/לא) and סיבת חריג (reason or empty)
+- Import reader colRec alias updated to accept both המלצות and המלצה for round-trip compatibility
+- JS cache-buster bumped to main.js?v=121
+- Tests: 200 passed, 0 failed

@@ -240,10 +240,16 @@ html {
 .section-chevron {
   font-size: 10px;
   opacity: 0.4;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .sidebar-group:hover .section-chevron {
+  opacity: 1;
+}
+
+/* Rotate chevron 90° when section is expanded (is-pinned on its nav) */
+.sidebar-group:has(.sidebar-nav.is-pinned) .section-chevron {
+  transform: rotate(90deg);
   opacity: 1;
 }
 
@@ -252,13 +258,10 @@ html {
   position: relative;
 }
 
-/* ── Flyout submenu — slides out to the left of the sidebar on hover ── */
+/* ── Accordion submenu — hidden by default, revealed by .is-pinned ── */
 .sidebar-nav {
-  position: absolute;
-  top: 0;
-  right: 100%;
   min-width: 185px;
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 1px;
   padding: 6px;
@@ -266,17 +269,22 @@ html {
   border: 1px solid var(--sidebar-border);
   border-radius: var(--radius);
   box-shadow: -6px 4px 24px rgba(0,0,0,0.45);
-  z-index: 200;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(8px);
-  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.sidebar-group:hover .sidebar-nav {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
+/* Pinned section is visible */
+.sidebar-nav.is-pinned {
+  display: flex;
+  flex-direction: column;
+}
+
+/* In collapsed mode, sections open as flyouts on hover for keyboard-free navigation */
+.sidebar.collapsed .sidebar-group:hover .sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  right: 100%;
+  top: 0;
+  z-index: 200;
 }
 
 .sidebar-item {
@@ -320,18 +328,15 @@ html {
 
 /* ── Section label colors ── */
 .section-workspace { color: oklch(0.7 0.15 220); }
-.section-data      { color: oklch(0.7 0.15 160); }
 .section-output    { color: oklch(0.7 0.15 40); }
 .section-products  { color: oklch(0.7 0.15 80); }
 
 .sidebar-group:hover .section-workspace { color: oklch(0.82 0.18 220); }
-.sidebar-group:hover .section-data      { color: oklch(0.82 0.18 160); }
 .sidebar-group:hover .section-output    { color: oklch(0.82 0.18 40); }
 .sidebar-group:hover .section-products  { color: oklch(0.82 0.18 80); }
 
-/* ── Group color variables — inherited by flyout items ── */
+/* ── Group color variables — inherited by accordion items ── */
 .sidebar-group-workspace { --group-color: oklch(0.7 0.15 220); --group-color-bright: oklch(0.82 0.18 220); }
-.sidebar-group-data      { --group-color: oklch(0.7 0.15 160); --group-color-bright: oklch(0.82 0.18 160); }
 .sidebar-group-output    { --group-color: oklch(0.7 0.15 40);  --group-color-bright: oklch(0.82 0.18 40); }
 .sidebar-group-products  { --group-color: oklch(0.7 0.15 80);  --group-color-bright: oklch(0.82 0.18 80); }
 
@@ -362,6 +367,7 @@ html {
 .icon-cloud      { color: oklch(0.72 0.14 210); }
 .icon-export     { color: oklch(0.7 0.16 80); }
 .icon-products   { color: oklch(0.72 0.14 80); }
+.icon-pipeline   { color: oklch(0.72 0.14 140); }
 
 .sidebar-item.active .sidebar-item-icon { color: var(--accent); }
 

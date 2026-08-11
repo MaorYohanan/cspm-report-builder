@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
-import { updateStepper, renderDashboard } from './ui.js';
+import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
@@ -443,7 +443,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           'tab-report-details': 'פרטי דו"ח',
           'tab-findings-list': 'ממצאים',
           'tab-finding-form': 'הוספת / עריכת ממצא',
-          'tab-export': 'ייצוא דו"ח',
+          'tab-export': 'קבצים ודוחות',
           'tab-cloud-manager': 'קבצי שרת',
           'tab-wizi': 'Wiz Import',
           'tab-products': 'מוצרים',
@@ -452,16 +452,17 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         var titleEl = document.getElementById('content-title');
         if (titleEl && titleMap[tabId]) titleEl.textContent = titleMap[tabId];
         if (tabId === 'tab-dashboard') renderDashboard();
+        // Keep accordion in sync for programmatic navigation (brand click, "show all", etc.)
+        pinSectionForTab(tabId);
         try { localStorage.setItem('cspm_active_tab', tabId); } catch(e) {}
         updateStepper();
       }
 
-      // Restore last active tab
+      // Restore last active tab; default to tab-pipeline when no saved state
       (function() {
         var saved = localStorage.getItem('cspm_active_tab');
-        if (saved && document.getElementById(saved)) {
-          switchToTab(saved);
-        }
+        var tabId = (saved && document.getElementById(saved)) ? saved : 'tab-pipeline';
+        switchToTab(tabId);
       })();
 
       document.querySelectorAll('.sidebar-item').forEach(function(btn) {
