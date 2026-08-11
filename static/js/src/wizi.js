@@ -2064,13 +2064,13 @@ import { ProductsPanel } from './products.js';
       document.getElementById('btn-wizi-autofill-accept').addEventListener('click', function() {
         if (!pendingAutoFill) return;
         var clientField = document.getElementById('report-client');
-        var envField = document.getElementById('report-env');
+        var cloudField = document.getElementById('report-cloud');
         var keyTopicsField = document.getElementById('report-key-topics');
         if (!clientField.value.trim() && pendingAutoFill.subscription) {
           clientField.value = pendingAutoFill.subscription;
         }
-        if (!envField.value.trim() && pendingAutoFill.cloud) {
-          envField.value = pendingAutoFill.cloud;
+        if (cloudField && !cloudField.value.trim() && pendingAutoFill.cloud) {
+          cloudField.value = pendingAutoFill.cloud;
         }
         if (!keyTopicsField.value.trim() && pendingAutoFill.keyTopics) {
           keyTopicsField.value = pendingAutoFill.keyTopics;

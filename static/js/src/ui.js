@@ -189,14 +189,16 @@ export function updateStepper() {
   }
   // Update sidebar env label
   var envLabel = document.getElementById('sidebar-env-label');
-  var envEl = document.getElementById('report-env');
-  if (envLabel && envEl) {
-    envLabel.textContent = envEl.value.trim() || 'לא הוגדרה סביבה';
-  }
+  var cloudEl = document.getElementById('report-cloud');
+  var envStageChecked = [...document.querySelectorAll('input[name="report-env-stage"]:checked')];
+  var cloudVal = (cloudEl && cloudEl.value.trim()) || '';
+  var envVal = envStageChecked.map(function(cb) { return cb.value; }).join(', ');
+  var combinedLabel = [cloudVal, envVal].filter(Boolean).join(' · ') || 'לא הוגדרה סביבה';
+  if (envLabel) envLabel.textContent = combinedLabel;
   // Update progress — 4 steps
   var clientEl = document.getElementById('report-client');
   var hasClient = !!(clientEl && clientEl.value.trim());
-  var hasEnv = !!(envEl && envEl.value.trim());
+  var hasEnv = !!(cloudVal || envStageChecked.length);
   var hasFindings = state.findings.length > 0;
   var hasExported = !!(localStorage.getItem('cspm_has_exported'));
 

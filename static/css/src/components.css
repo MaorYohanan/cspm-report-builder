@@ -728,3 +728,8 @@ table caption {
 /* Generic hide utility — use class="hidden" to hide any element via display:none */
 .hidden { display: none !important; }
 
+/* ── Env stage chips (B.2) ── */
+.env-stage-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.env-chip { display: flex; align-items: center; gap: 4px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-size: 13px; }
+.env-chip:has(input:checked) { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+

@@ -68,9 +68,10 @@ const dateInput       = document.getElementById('report-date');
 
       // ── דו"ח חדש — ניקוי הכל ──
       document.getElementById('btn-new-report').addEventListener('click', function() {
-        var hasData = state.findings.length > 0 || 
+        var hasData = state.findings.length > 0 ||
           (document.getElementById('report-client').value || '').trim() ||
-          (document.getElementById('report-env').value || '').trim();
+          (document.getElementById('report-cloud').value || '').trim() ||
+          document.querySelectorAll('input[name="report-env-stage"]:checked').length > 0;
         
         if (!hasData) { doNewReport(); return; }
         styledConfirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?<br>כל הנתונים שלא נשמרו יאבדו.', {
@@ -86,7 +87,7 @@ const dateInput       = document.getElementById('report-date');
 
         // Clear all meta fields
         var metaFields = [
-          'report-client', 'report-subscription-ids', 'report-env', 'report-range', 'report-consultant',
+          'report-client', 'report-subscription-ids', 'report-cloud', 'report-range', 'report-consultant',
           'report-risk', 'report-exec-summary', 'report-key-topics',
           'report-team-name', 'report-org-name', 'report-footer-text',
           'report-cover-note', 'report-version', 'report-lang'
@@ -95,6 +96,9 @@ const dateInput       = document.getElementById('report-date');
           var el = document.getElementById(id);
           if (el) el.value = el.id === 'report-version' ? '1.0' : (el.id === 'report-lang' ? 'he' : '');
         });
+
+        // Clear env stage checkboxes
+        document.querySelectorAll('input[name="report-env-stage"]').forEach(function(cb) { cb.checked = false; });
 
         // Clear date
         var dateEl = document.getElementById('report-date');
@@ -545,7 +549,7 @@ const dateInput       = document.getElementById('report-date');
       const defaultsStatus = document.getElementById('defaults-status');
 
       const defaultFields = [
-        'report-client', 'report-subscription-ids', 'report-env', 'report-consultant',
+        'report-client', 'report-subscription-ids', 'report-cloud', 'report-consultant',
         'report-team-name', 'report-org-name', 'report-footer-text',
         'report-cover-note', 'report-lang', 'report-exec-summary',
         'report-key-topics'
@@ -557,6 +561,8 @@ const dateInput       = document.getElementById('report-date');
           var el = document.getElementById(id);
           if (el) data[id] = el.value;
         });
+        // Persist env stage checkboxes as a comma-separated string
+        data['report-env-stage'] = [...document.querySelectorAll('input[name="report-env-stage"]:checked')].map(function(cb) { return cb.value; }).join(',');
         try {
           localStorage.setItem(DEFAULTS_KEY, JSON.stringify(data));
           defaultsStatus.textContent = '✓ ברירת מחדל נשמרה';
@@ -579,6 +585,15 @@ const dateInput       = document.getElementById('report-date');
             var el = document.getElementById(id);
             if (el && data[id] !== undefined) el.value = data[id];
           });
+          // Restore env stage checkboxes
+          if (data['report-env-stage'] !== undefined) {
+            var stages = data['report-env-stage']
+              ? data['report-env-stage'].split(',').map(function(s) { return s.trim(); })
+              : [];
+            document.querySelectorAll('input[name="report-env-stage"]').forEach(function(cb) {
+              cb.checked = stages.includes(cb.value);
+            });
+          }
           defaultsStatus.textContent = '✓ ברירת מחדל נטענה';
           setTimeout(function() { defaultsStatus.textContent = ''; }, 3000);
           return true;

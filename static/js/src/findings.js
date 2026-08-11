@@ -933,7 +933,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           meta: {
             client:          document.getElementById('report-client').value,
             subscriptionIds: document.getElementById('report-subscription-ids').value,
-            env:             document.getElementById('report-env').value,
+            cloud:           document.getElementById('report-cloud')?.value || '',
+            env:             [...document.querySelectorAll('input[name="report-env-stage"]:checked')].map(cb => cb.value).join(','),
             range:       document.getElementById('report-range').value,
             consultant:  document.getElementById('report-consultant').value,
             reportDate:  getDateAsDDMMYYYY(),
@@ -992,7 +993,19 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
         document.getElementById('report-client').value           = m.client          || '';
         document.getElementById('report-subscription-ids').value = m.subscriptionIds || '';
-        document.getElementById('report-env').value               = m.env             || '';
+        // data migration: old snapshots have env = cloud provider name
+        let _cloud = m.cloud || '';
+        let _env   = m.env   || '';
+        if (!_cloud && _env && /^(aws|gcp|azure|multi-cloud)$/i.test(_env.trim())) {
+          _cloud = _env;
+          _env   = '';
+        }
+        const _cloudEl = document.getElementById('report-cloud');
+        if (_cloudEl) _cloudEl.value = _cloud;
+        const _envValues = _env ? _env.split(',').map(s => s.trim()) : [];
+        document.querySelectorAll('input[name="report-env-stage"]').forEach(cb => {
+          cb.checked = _envValues.includes(cb.value);
+        });
         document.getElementById('report-range').value       = m.range       || '';
         syncPickersFromRange(m.range || '');
         document.getElementById('report-consultant').value  = m.consultant  || '';
@@ -2187,7 +2200,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           colPolicy: 'מדיניות ארגונית / סעיף', colFramework: 'תקן / Framework', colNotes: 'הערות',
           findingIdLabel: 'מזהה ממצא',
           coverSubtitle: 'בדיקת מצב אבטחה, תצורה ועמידה במדיניות בסביבת הענן הארגונית',
-          clientLabel: 'שם הלקוח', envLabel: 'סביבת בדיקה / ענן', rangeLabel: 'טווח הבדיקה',
+          clientLabel: 'שם הלקוח', cloudLabel: 'ענן', envLabel: 'סביבת בדיקה', rangeLabel: 'טווח הבדיקה',
           consultantLabel: 'יועץ / גורם מבצע', dateLabel: 'תאריך דו"ח', versionLabel: 'גרסה',
           reportDateFooter: 'תאריך הדו"ח',
           defaultExecSummary: 'הדו"ח מסכם את מצב ה-POSTURE בסביבת הענן שנבדקה, לרבות ממצאים קריטיים, תרחישי סיכון מרכזיים והערכת סיכון כללית.',
@@ -2239,7 +2252,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           colPolicy: 'Organizational Policy', colFramework: 'Standard / Framework', colNotes: 'Notes',
           findingIdLabel: 'Finding ID',
           coverSubtitle: 'Cloud Security Posture Assessment – Configuration, Compliance & Risk Analysis',
-          clientLabel: 'Client', envLabel: 'Environment / Cloud', rangeLabel: 'Assessment Period',
+          clientLabel: 'Client', cloudLabel: 'Cloud', envLabel: 'Environment', rangeLabel: 'Assessment Period',
           consultantLabel: 'Consultant', dateLabel: 'Report Date', versionLabel: 'Version',
           reportDateFooter: 'Report Date',
           defaultExecSummary: 'This report summarizes the security posture of the assessed cloud environment, including critical state.findings, key risk scenarios, and an overall risk assessment.',
@@ -2253,7 +2266,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         const t = i18n[lang] || i18n.he;
         const client          = document.getElementById('report-client').value.trim();
         const subscriptionIds = document.getElementById('report-subscription-ids').value.trim();
-        const env             = document.getElementById('report-env').value.trim();
+        const cloud           = (document.getElementById('report-cloud')?.value || '').trim();
+        const env             = [...document.querySelectorAll('input[name="report-env-stage"]:checked')].map(cb => cb.value).join(', ');
         const range       = document.getElementById('report-range').value.trim();
         const consultant  = document.getElementById('report-consultant').value.trim();
         const reportDate  = getDateAsDDMMYYYY();
@@ -2985,7 +2999,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         <div class="cover-meta">
           <p><strong>${t.clientLabel}:</strong> ${escapeHtml(client || '__________')}</p>
           ${subscriptionIds ? `<p><strong>Subscription IDs:</strong> ${escapeHtml(subscriptionIds).replace(/\n/g, ', ')}</p>` : ''}
-          <p><strong>${t.envLabel}:</strong> ${escapeHtml(env || '__________')}</p>
+          <p><strong>${t.cloudLabel}:</strong> ${escapeHtml(cloud || '__________')}</p>
+          ${env ? `<p><strong>${t.envLabel}:</strong> ${escapeHtml(env)}</p>` : ''}
           <p><strong>${t.rangeLabel}:</strong> ${escapeHtml(range || '__________')}</p>
           <p><strong>${t.consultantLabel}:</strong> ${escapeHtml(consultant || '__________')}</p>
           <p><strong>${t.dateLabel}:</strong> ${escapeHtml(reportDate || '__________')}</p>
