@@ -59,6 +59,13 @@ B.1 (PDF cover page version mismatch): ✅ merged to main — 2026-08-11
 - JS cache-buster bumped: main.js?v=116
 - Tests: 200 passed, 0 failed
 
+B.3 (PDF section 4: each category starts on a new page): ✅ merged to main — 2026-08-11
+- Branch: fix/pdf-category-page-breaks
+- buildReportHtml() restructured: each finding category is its own <section class="page-section finding-page">; existing break-after:page rule causes per-category page breaks; .finding-page ancestor now present for every .finding-card, activating pdf_service.py card-splitter
+- Intro h1+p moved to a separate <section class="page-section findings-intro"> so findings-intro CSS exception keeps it from forcing a blank page before the first category
+- JS cache-buster bumped: main.js?v=118
+- Tests: 200 passed, 0 failed
+
 B.2 (PDF filename + split environment field): ✅ merged to main — 2026-08-11
 - Branch: fix/pdf-filename
 - Split single report-env text input into report-cloud (text) + env-stage checkboxes (dev/test/prod/preprod) in index.html
