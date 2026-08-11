@@ -21,7 +21,7 @@ const dateInput       = document.getElementById('report-date');
           return;
         }
 
-        var csvHeaders = ['id', 'title', 'severity', 'category', 'description', 'impact', 'technical', 'policies', 'recommendation', 'priority', 'owner'];
+        var csvHeaders = ['id', 'title', 'severity', 'category', 'description', 'impact', 'technical', 'policies', 'המלצות', 'priority', 'owner'];
 
         function csvEscape(val) {
           var s = (val === null || val === undefined) ? '' : String(val);
@@ -343,7 +343,7 @@ const dateInput       = document.getElementById('report-date');
               var colImpact = headers.findIndex(function(h) { return h === 'impact' || h === 'השפעה'; });
               var colTech = headers.findIndex(function(h) { return h === 'technical' || h === 'פרטים טכניים'; });
               var colPolicies = headers.findIndex(function(h) { return h === 'policies' || h === 'מדיניות'; });
-              var colRec = headers.findIndex(function(h) { return h === 'recommendation' || h === 'remediation' || h === 'המלצה' || h === 'fix'; });
+              var colRec = headers.findIndex(function(h) { return h === 'recommendation' || h === 'remediation' || h === 'המלצות' || h === 'המלצה' || h === 'fix'; });
               var colPriority = headers.findIndex(function(h) { return h === 'priority' || h === 'עדיפות'; });
               var colOwner = headers.findIndex(function(h) { return h === 'owner' || h === 'בעלים' || h === 'team' || h === 'צוות'; });
 
