@@ -235,8 +235,17 @@
               <textarea id="report-subscription-ids" rows="3" placeholder="הכנס Subscription ID אחד בכל שורה" style="resize:vertical;"></textarea>
             </div>
             <div class="form-field">
-              <label for="report-env">סביבת בדיקה / ענן</label>
-              <input type="text" id="report-env" placeholder="AWS / Azure / GCP / Multi-Cloud">
+              <label for="report-cloud">ענן</label>
+              <input type="text" id="report-cloud" placeholder="AWS / GCP / Azure / Multi-Cloud">
+            </div>
+            <div class="form-field">
+              <label>סביבת בדיקה</label>
+              <div class="env-stage-chips" id="report-env-chips">
+                <label class="env-chip"><input type="checkbox" name="report-env-stage" value="dev"> dev</label>
+                <label class="env-chip"><input type="checkbox" name="report-env-stage" value="test"> test</label>
+                <label class="env-chip"><input type="checkbox" name="report-env-stage" value="prod"> prod</label>
+                <label class="env-chip"><input type="checkbox" name="report-env-stage" value="preprod"> preprod</label>
+              </div>
             </div>
             <div class="form-field">
               <label for="report-consultant">יועץ / גוף מבצע</label>
@@ -823,6 +832,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=116"></script>
+  <script type="module" src="/static/js/src/main.js?v=117"></script>
 </body>
 </html>

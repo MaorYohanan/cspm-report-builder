@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 import uuid
 from pathlib import Path
 
@@ -33,6 +34,36 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 def _safe_filename(name: str) -> str:
     """Strip path separators to prevent directory traversal."""
     return Path(name).name
+
+
+def _build_pdf_filename(meta: dict) -> str:
+    """Build a descriptive PDF download filename from report metadata."""
+
+    def slug(s: str) -> str:
+        s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()
+        s = re.sub(r'[^\w\s.\-]', '', s)
+        s = re.sub(r'[\s_]+', '-', s).strip('-')
+        return s
+
+    client = slug(meta.get("client", "") or "")
+    cloud = slug(meta.get("cloud", "") or "")
+    env_raw = meta.get("env", "") or ""
+    env_slug = slug(env_raw.replace(",", "+")) if env_raw else ""
+
+    # report date: expected DD/MM/YYYY → convert to YYYY-MM-DD
+    raw_date = meta.get("reportDate", "") or ""
+    date_slug = ""
+    try:
+        parts = raw_date.strip().split("/")
+        if len(parts) == 3:
+            date_slug = f"{parts[2]}-{parts[1]}-{parts[0]}"
+    except Exception:
+        pass
+
+    parts_list = [p for p in [client, cloud, env_slug, date_slug] if p]
+    name = "-".join(parts_list) or "cspm_report"
+    name = name[:60].rstrip('-')  # max 60 chars; strip any trailing hyphen from truncation
+    return f"{name}.pdf"
 
 
 @reports_bp.route("/api/render-pdf", methods=["POST"])
@@ -80,11 +111,12 @@ def api_render_pdf():
     out_path = OUTPUT_DIR / out_name
     out_path.write_bytes(pdf_bytes)
 
+    filename = _build_pdf_filename(meta)
     return send_file(
         out_path,
         mimetype="application/pdf",
         as_attachment=True,
-        download_name="cspm_report.pdf",
+        download_name=filename,
     )
 
 

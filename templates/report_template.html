@@ -11,7 +11,7 @@
   <!-- running header/footer blocks -->
   <div class="hdr-left">
     <div style="font-weight:800;color:#0b3c5d;">{{ meta.teamName or "CSPM Report" }}</div>
-    <div style="font-size:10px;color:#64748b;">{{ meta.client or "__________" }} · {{ meta.env or "__________" }}</div>
+    <div style="font-size:10px;color:#64748b;">{{ meta.client or "__________" }} · {{ meta.cloud or meta.env or "__________" }}</div>
   </div>
 
   <div class="hdr-right">
@@ -35,7 +35,8 @@
 
       <div class="cover-meta">
         <p><strong>שם הלקוח:</strong> {{ meta.client or "__________" }}</p>
-        <p><strong>סביבת בדיקה / ענן:</strong> {{ meta.env or "__________" }}</p>
+        <p><strong>ענן:</strong> {{ meta.cloud or meta.env or "__________" }}</p>
+        {% if meta.env %}<p><strong>סביבת בדיקה:</strong> {{ meta.env }}</p>{% endif %}
         <p><strong>טווח הבדיקה:</strong> {{ meta.range or "__________" }}</p>
         <p><strong>יועץ / גורם מבצע:</strong> {{ meta.consultant or "__________" }}</p>
         <p><strong>תאריך דו"ח:</strong> {{ meta.reportDate or "__________" }}</p>
