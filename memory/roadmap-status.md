@@ -58,3 +58,16 @@ B.1 (PDF cover page version mismatch): ✅ merged to main — 2026-08-11
 - Backend /api/render-pdf: accepts optional ?productId&ver query params, validates (length cap + regex), logs for auditing
 - JS cache-buster bumped: main.js?v=116
 - Tests: 200 passed, 0 failed
+
+B.2 (PDF filename + split environment field): ✅ merged to main — 2026-08-11
+- Branch: fix/pdf-filename
+- Split single report-env text input into report-cloud (text) + env-stage checkboxes (dev/test/prod/preprod) in index.html
+- findings.js: buildSnapshot/applySnapshot updated; data-migration for old snapshots where env held a cloud name; buildReportHtml reads both fields; i18n tables split envLabel into cloudLabel + envLabel
+- ui.js: updateStepper reads report-cloud + env-stage checkboxes for sidebar label and progress bar
+- wizi.js: auto-fill redirected from report-env to report-cloud
+- export.js: hasData guard, doNewReport checkbox reset, saveDefaults/loadDefaults checkbox serialization
+- reports.py: _build_pdf_filename helper (client + cloud + env_stages + date slug, max 60 chars); unicodedata import at module level
+- report_template.html: header and cover page use meta.cloud with meta.env fallback; cover shows two separate rows for cloud and env
+- CSS: .env-chip uses CSS variables (--border, --accent, --accent-glow) for dark-mode compatibility
+- JS cache-buster bumped: main.js?v=117
+- Tests: 200 passed, 0 failed
