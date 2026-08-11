@@ -9,6 +9,7 @@ Routes:
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from pathlib import Path
 
@@ -51,6 +52,22 @@ def api_render_pdf():
         return jsonify({"error": "Missing 'html' field"}), 400
     if len(html_content) > 20 * 1024 * 1024:
         return jsonify({"error": "HTML content too large (max 20 MB)"}), 413
+
+    # Optional query params for timeline export — validate and log for auditing.
+    # The cover-page version override is handled on the frontend before the HTML
+    # is submitted, so these params serve as audit metadata only.
+    product_id = request.args.get("productId")
+    ver = request.args.get("ver")
+    if product_id or ver:
+        if not product_id or not ver:
+            return jsonify({"error": "Both productId and ver are required together"}), 400
+        if len(product_id) > 200 or len(ver) > 20:
+            return jsonify({"error": "invalid productId or ver"}), 400
+        if not re.fullmatch(r'[\w.\-]+', product_id):
+            return jsonify({"error": "invalid productId"}), 400
+        if not re.fullmatch(r'[\d.]+', ver):
+            return jsonify({"error": "invalid ver"}), 400
+        _log.info("render-pdf: timeline export productId=%s ver=%s", product_id, ver)
 
     try:
         pdf_bytes = pdf_service.render_pdf(html_content, meta)

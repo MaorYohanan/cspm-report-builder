@@ -1,5 +1,5 @@
 import { showToast, styledConfirm } from './core.js';
-import { buildSnapshot, applySnapshot, switchToTab } from './findings.js';
+import { buildSnapshot, applySnapshot, switchToTab, buildReportHtml, buildFilename } from './findings.js';
 
 // ═══════════════════════════════════════════
 // Product Registry — products.js
@@ -294,6 +294,7 @@ export var ProductsPanel = {
         html += '<button class="btn btn-secondary btn-sm" data-action="load" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="טען לעורך">טען</button>';
         html += '<button class="btn btn-secondary btn-sm" data-action="compare" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="השוואה">⇄</button>';
         html += '<button class="btn btn-secondary btn-sm" data-action="download" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="הורד JSON">⬇</button>';
+        html += '<button class="btn btn-secondary btn-sm" data-action="export-pdf" data-ver="' + _esc(v.version) + '" style="margin-top:0;" title="ייצוא PDF">PDF</button>';
         if (isDraft) {
           html += '<button class="btn btn-primary btn-sm" data-action="publish" data-ver="' + _esc(v.version) + '" style="margin-top:0;">פרסם</button>';
         }
@@ -353,6 +354,8 @@ export var ProductsPanel = {
           self._compareFlow(versions, ver);
         } else if (action === 'download') {
           self._downloadVersion(product.id, ver);
+        } else if (action === 'export-pdf') {
+          self._exportVersionAsPdf(product.id, ver);
         } else if (action === 'publish') {
           styledConfirm('לפרסם את גרסה v' + ver + '? לא ניתן לבטל.', { title: 'פרסום גרסה', confirmText: 'פרסם' }).then(function(confirmed) {
             if (!confirmed) return;
@@ -382,6 +385,63 @@ export var ProductsPanel = {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  },
+
+  _exportVersionAsPdf: async function(productId, ver) {
+    showToast('מכין PDF לגרסה v' + ver + '...', 'info');
+    try {
+      // Fetch the stored version snapshot
+      var versionData = await this.fetchVersion(productId, ver);
+
+      // The system-assigned version is the top-level "version" field (e.g. "1.1"),
+      // NOT meta.reportVersion which is the user-typed form value.
+      var systemVersion = versionData.version || ver;
+
+      // Apply the snapshot to populate the editor state (findings, meta, etc.)
+      applySnapshot(versionData);
+
+      // Override the report-version form field with the authoritative system version
+      // BEFORE buildReportHtml() reads it, so the cover page shows the correct version.
+      var versionField = document.getElementById('report-version');
+      var previousVersionValue = versionField ? versionField.value : '';
+      if (versionField) versionField.value = systemVersion;
+
+      var html;
+      try {
+        html = buildReportHtml();
+      } finally {
+        // Restore the form field to the value set by applySnapshot (meta.reportVersion).
+        // Note: applySnapshot already replaced the full editor state with the snapshot,
+        // so previousVersionValue holds meta.reportVersion, not the user's pre-click value.
+        if (versionField) versionField.value = previousVersionValue;
+      }
+
+      var snapshot = buildSnapshot();
+      var url = '/api/render-pdf?productId=' + encodeURIComponent(productId) + '&ver=' + encodeURIComponent(ver);
+      var resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: html, meta: snapshot.meta })
+      });
+
+      if (!resp.ok) {
+        var err = await resp.json().catch(function() { return {}; });
+        throw new Error(err.error || 'Server error');
+      }
+
+      var blob = await resp.blob();
+      var objUrl = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = objUrl;
+      a.download = buildFilename('pdf');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+      showToast('PDF לגרסה v' + ver + ' הורד בהצלחה', 'success');
+    } catch (e) {
+      showToast('שגיאה בייצוא PDF: ' + e.message, 'error');
+    }
   },
 
   _newCheckWithPrefill: function(product) {
