@@ -3530,6 +3530,13 @@ import { ProductsPanel } from './products.js';
           });
         });
 
+        // Suppress [GovIL] findings across all query types before importing
+        Object.keys(selectedByType).forEach(function(qt) {
+          selectedByType[qt] = selectedByType[qt].filter(function(item) {
+            return !getWiziItemTitle(item, qt).toLowerCase().includes('[govil]');
+          });
+        });
+
         // For secrets: merge any existing SECR state.findings that share a title into one
         if (selectedByType['secretInstances'] && selectedByType['secretInstances'].length) {
           var bSecrByTitle = {};
