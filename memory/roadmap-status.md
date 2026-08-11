@@ -50,3 +50,11 @@ Phase 8 (audit tests): ✅ merged to main
 - Tests: 200 passed, 0 failed
 
 UI feedback fixes (ui-feedback): ✅ merged to main — 2026-08-11
+
+B.1 (PDF cover page version mismatch): ✅ merged to main — 2026-08-11
+- Branch: fix/pdf-cover-version
+- Added "Export PDF" button to product timeline view (products.js)
+- _exportVersionAsPdf(): fetches stored version JSON, reads top-level `version` field (system version), applies snapshot, overrides report-version DOM field before buildReportHtml(), restores via try/finally
+- Backend /api/render-pdf: accepts optional ?productId&ver query params, validates (length cap + regex), logs for auditing
+- JS cache-buster bumped: main.js?v=116
+- Tests: 200 passed, 0 failed
