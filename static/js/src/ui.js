@@ -173,26 +173,33 @@ function pinSection(navId) {
 }
 
 function initSidebarAccordion() {
-  // Wire section label clicks — toggle: click open section to close it,
-  // click a different section to open it (radio-style but collapsible)
+  // Wire section label clicks — click to pin a section; clicking the already-pinned section does nothing.
   document.querySelectorAll('.sidebar-section-label[data-section]').forEach(function(label) {
     var navId = label.dataset.section;
-    function handleActivate() {
+    label.addEventListener('click', function() {
       var nav = document.getElementById(navId);
-      if (nav && nav.classList.contains('is-pinned')) {
-        // Already open — collapse it
-        nav.classList.remove('is-pinned');
-        label.setAttribute('aria-expanded', 'false');
-      } else {
+      if (nav && !nav.classList.contains('is-pinned')) {
         pinSection(navId);
       }
-    }
-    label.addEventListener('click', handleActivate);
-    // Keyboard: Enter and Space activate the label (WCAG 2.1 SC 2.1.1)
+      // Already pinned: no-op for mouse clicks — do not collapse the active section
+    });
+    // Keyboard: Enter and Space activate the label (WCAG 2.1 SC 2.1.1).
+    // Screen reader users can collapse a pinned section via keyboard to reach a no-section state.
     label.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        handleActivate();
+        var nav = document.getElementById(navId);
+        if (nav && nav.classList.contains('is-pinned')) {
+          // Already pinned: keyboard collapse — leave all sections unpinned.
+          // This is intentional: screen reader users get an escape hatch that mouse users do not.
+          document.querySelectorAll('nav.sidebar-nav').forEach(function(n) {
+            n.classList.remove('is-pinned');
+          });
+          // Pass null so every label gets aria-expanded="false" (no section open)
+          updateLabelAriaExpanded(null);
+        } else {
+          pinSection(navId);
+        }
       }
     });
   });
