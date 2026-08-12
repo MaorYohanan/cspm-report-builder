@@ -14,7 +14,10 @@ import unicodedata
 import uuid
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_file
+import datetime
+import json as _json
+
+from flask import Blueprint, Response, jsonify, render_template, request, send_file
 
 from backend.services.pdf_service import PDFService
 from backend.services.auth_service import require_role
@@ -140,3 +143,57 @@ def api_upload_html():
     out_path.write_bytes(content)
 
     return jsonify({"filename": out_name}), 201
+
+
+@reports_bp.route("/api/export/html", methods=["POST"])
+@require_role("editor")
+def api_export_html():
+    """
+    Accept a full report snapshot as a JSON body, render it into the
+    interactive HTML export template, and return the rendered HTML as a
+    downloadable attachment.
+
+    Body size cap: 20 MB (enforced manually after reading; the global
+    MAX_CONTENT_LENGTH of 50 MB acts as the hard outer limit).
+    """
+    raw = request.get_data()
+    if len(raw) > 20 * 1024 * 1024:
+        return jsonify({"error": "Request body too large (max 20 MB)"}), 413
+
+    try:
+        snapshot = _json.loads(raw)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+
+    if not isinstance(snapshot, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
+    # Derive a YYYY-MM-DD date string for the download filename.
+    meta = snapshot.get("meta") or {}
+    raw_date = (meta.get("reportDate") or "").strip()
+    date_str = ""
+    try:
+        parts = raw_date.split("/")
+        if len(parts) == 3 and all(p.isdigit() for p in parts):
+            date_str = f"{parts[2]}-{parts[1]}-{parts[0]}"
+    except Exception:
+        pass
+    if not date_str:
+        date_str = datetime.date.today().isoformat()
+
+    try:
+        report_data_json = _json.dumps(snapshot, ensure_ascii=False)
+        html = render_template(
+            "interactive_export_template.html",
+            report_data_json=report_data_json,
+        )
+        return Response(
+            html,
+            mimetype="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="report-{date_str}.html"'
+            },
+        )
+    except Exception:
+        _log.exception("HTML export failed")
+        return jsonify({"error": "Export failed"}), 500

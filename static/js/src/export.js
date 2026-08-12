@@ -625,12 +625,14 @@ const dateInput       = document.getElementById('report-date');
       const isCloud = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.protocol.startsWith('file');
 
       const renderPdfBtn = document.getElementById('btn-render-pdf');
+      const exportHtmlBtn = document.getElementById('btn-export-html');
       const saveStateCloudBtn = document.getElementById('btn-save-state-cloud');
       const cloudUploadStateInput = document.getElementById('cloud-upload-state');
 
-      // Enable PDF button when state.findings exist
+      // Enable PDF and HTML export buttons when state.findings exist
       function updateCloudButtons() {
         if (renderPdfBtn) renderPdfBtn.disabled = !state.findings.length;
+        if (exportHtmlBtn) exportHtmlBtn.disabled = !state.findings.length;
       }
 
       // Override the renderFindingsTable to also update cloud buttons
@@ -678,6 +680,43 @@ const dateInput       = document.getElementById('report-date');
             showToast('שגיאה ביצירת PDF', 'error');
           } finally {
             renderPdfBtn.disabled = !state.findings.length;
+          }
+        });
+      }
+
+      // --- Export interactive HTML via server ---
+      if (exportHtmlBtn) {
+        exportHtmlBtn.addEventListener('click', async function() {
+          if (!state.findings.length) { showToast('אין ממצאים לייצוא', 'warning'); return; }
+          statusMsg.textContent = 'מייצר HTML אינטראקטיבי...';
+          exportHtmlBtn.disabled = true;
+          try {
+            const snapshot = buildSnapshot();
+            const resp = await fetch('/api/export/html', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(snapshot)
+            });
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({}));
+              throw new Error(err.error || 'שגיאת שרת');
+            }
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = buildFilename('html');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            statusMsg.textContent = 'HTML אינטראקטיבי הורד בהצלחה.';
+            showToast('HTML אינטראקטיבי הורד בהצלחה', 'success');
+          } catch (e) {
+            statusMsg.textContent = 'שגיאה בייצוא HTML: ' + e.message;
+            showToast('שגיאה בייצוא HTML אינטראקטיבי', 'error');
+          } finally {
+            exportHtmlBtn.disabled = !state.findings.length;
           }
         });
       }

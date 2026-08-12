@@ -155,3 +155,14 @@ B.12 (Findings exclude list — pattern-based suppression rules): ✅ merged to 
 - Fix: duplicate var rid renamed to var delRid in exclude_rules.js (cosmetic, no runtime impact)
 
 Wave 5 (B.16 + B.12) — COMPLETE ✅
+
+Post-Wave 5 hotfixes (2026-08-12):
+- panel-exclude-rules blank page: inline style="display:none" on the panel section overrode CSS .tab-panel.active — removed inline style (index.html)
+- [GovIL] rule not visible in exclude rules UI: hardcoded wizi.js filter predated B.12 DB system; seeded [govil] rule in DB on startup (app.py), replaced both hardcoded filter blocks in wizi.js with isExcludedByRules() — rule now manageable from UI; JS cache-buster: main.js?v=130
+
+Wave 6 — Task 2.4 (Interactive HTML Export): ✅ merged to main — 2026-08-12
+- Branch: feature/interactive-html-export
+- New template: templates/interactive_export_template.html (self-contained interactive HTML, all inline — Designer delivered)
+- New route: POST /api/export/html in backend/routes/reports.py (@require_role("editor"), 20 MB cap, render_template only, no PDF pipeline)
+- New button: btn-export-html in export panel (index.html + export.js); disabled when no findings via updateCloudButtons()
+- JS cache-buster: main.js?v=131

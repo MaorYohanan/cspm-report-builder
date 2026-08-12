@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>דו"ח CSPM — ייצוא אינטראקטיבי</title>
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+      color: #1a202c;
+      background: #f7f8fa;
+      direction: rtl;
+      text-align: right;
+    }
+
+    /* ─── Page wrapper ─────────────────────────────────────────────────── */
+    .page-wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    /* ─── Report header ────────────────────────────────────────────────── */
+    .report-header {
+      background: #0b3c5d;
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 28px 32px 24px;
+      margin-bottom: 24px;
+    }
+
+    .report-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .report-title {
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .report-subtitle {
+      font-size: 13px;
+      opacity: 0.8;
+    }
+
+    .risk-badge {
+      display: inline-block;
+      padding: 6px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      background: rgba(255,255,255,0.15);
+      border: 1.5px solid rgba(255,255,255,0.35);
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .report-meta-row {
+      margin-top: 14px;
+      font-size: 13px;
+      opacity: 0.85;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    /* ─── Controls bar ─────────────────────────────────────────────────── */
+    .controls-bar {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .controls-bar label {
+      font-size: 14px;
+      color: #2d3748;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .controls-bar input[type="text"] {
+      direction: rtl;
+      text-align: right;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      padding: 7px 12px;
+      font-size: 14px;
+      color: #1a202c;
+      background: #f9fafb;
+      outline: none;
+      width: 220px;
+    }
+
+    .controls-bar input[type="text"]:focus {
+      border-color: #3182ce;
+      background: #fff;
+    }
+
+    .controls-bar select {
+      direction: rtl;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 14px;
+      color: #1a202c;
+      background: #f9fafb;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .controls-bar select:focus {
+      border-color: #3182ce;
+    }
+
+    .controls-bar input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: #3182ce;
+    }
+
+    /* ─── Summary bar ──────────────────────────────────────────────────── */
+    .summary-bar {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 10px 20px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #2d3748;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .summary-bar .summary-total {
+      font-weight: 700;
+      color: #1a202c;
+    }
+
+    .summary-sep {
+      color: #a0aec0;
+    }
+
+    .summary-count {
+      font-weight: 600;
+    }
+
+    .summary-count.critical { color: #e53e3e; }
+    .summary-count.high     { color: #dd6b20; }
+    .summary-count.medium   { color: #d69e2e; }
+    .summary-count.low      { color: #38a169; }
+
+    /* ─── Empty state ──────────────────────────────────────────────────── */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: #718096;
+      font-size: 15px;
+    }
+
+    /* ─── Finding cards ────────────────────────────────────────────────── */
+    .findings-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .finding-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: visible;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .finding-card.is-excepted {
+      border-right: 4px solid #a0aec0;
+    }
+
+    .finding-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      cursor: pointer;
+      user-select: none;
+      /* right = start in RTL */
+      border-right: 4px solid transparent;
+      border-radius: 8px;
+      transition: background 0.15s;
+    }
+
+    .finding-card:not(.is-excepted) .finding-card-header {
+      border-right-color: var(--sev-color, #a0aec0);
+    }
+
+    .finding-card-header:hover {
+      background: #f7fafc;
+    }
+
+    .finding-card-header-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .finding-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a202c;
+      word-break: break-word;
+      text-align: right;
+    }
+
+    .finding-id {
+      font-size: 12px;
+      color: #718096;
+      font-family: monospace;
+      margin-top: 2px;
+      text-align: right;
+    }
+
+    .finding-chips {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      justify-content: flex-start; /* left side in RTL = end side */
+    }
+
+    /* Severity badge */
+    .sev-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+    }
+
+    .sev-badge.critical { background: #e53e3e; }
+    .sev-badge.high     { background: #dd6b20; }
+    .sev-badge.medium   { background: #d69e2e; }
+    .sev-badge.low      { background: #38a169; }
+    .sev-badge.info     { background: #718096; color: #fff; }
+
+    /* Exception badge */
+    .exc-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #e2e8f0;
+      color: #4a5568;
+      white-space: nowrap;
+    }
+
+    /* Category chip */
+    .category-chip {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #ebf4ff;
+      color: #2b6cb0;
+      white-space: nowrap;
+    }
+
+    /* Expand/collapse chevron */
+    .chevron {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      color: #a0aec0;
+      transition: transform 0.2s;
+      /* placed on left (end) side in RTL flex row */
+    }
+
+    .finding-card.expanded .chevron {
+      transform: rotate(180deg);
+    }
+
+    /* ─── Finding card body (collapsed by default) ─────────────────────── */
+    .finding-card-body {
+      display: none;
+      padding: 0 20px 20px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .finding-card.expanded .finding-card-body {
+      display: block;
+    }
+
+    .finding-section {
+      margin-top: 16px;
+    }
+
+    .finding-section-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+      text-align: right;
+    }
+
+    .finding-section-text {
+      font-size: 14px;
+      color: #2d3748;
+      text-align: right;
+    }
+
+    .finding-section ul {
+      padding-right: 20px; /* start-side indentation in RTL */
+      list-style-position: inside;
+      font-size: 14px;
+      color: #2d3748;
+      text-align: right;
+    }
+
+    .finding-section ul li {
+      margin-bottom: 4px;
+      text-align: right;
+    }
+
+    .muted {
+      color: #a0aec0;
+      font-style: italic;
+    }
+
+    /* Exception block inside card body */
+    .exception-block {
+      margin-top: 16px;
+      background: #fffbeb;
+      border: 1px solid #f6e05e;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #744210;
+      text-align: right;
+    }
+
+    .exception-block strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    /* Evidence images */
+    .evidence-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .evidence-grid img {
+      max-width: 100%;
+      max-height: 280px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      object-fit: contain;
+    }
+
+    /* ─── Footer ───────────────────────────────────────────────────────── */
+    .report-footer {
+      margin-top: 48px;
+      text-align: center;
+      font-size: 12px;
+      color: #a0aec0;
+    }
+  </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+  <!-- Report header — populated by JS from window.__REPORT_DATA__ -->
+  <div class="report-header">
+    <div class="report-header-top">
+      <div>
+        <div class="report-title" id="hdr-client">דו"ח CSPM</div>
+        <div class="report-subtitle" id="hdr-team"></div>
+      </div>
+      <div id="hdr-risk" class="risk-badge" style="display:none;"></div>
+    </div>
+    <div class="report-meta-row">
+      <span id="hdr-date"></span>
+      <span id="hdr-cloud"></span>
+      <span id="hdr-consultant"></span>
+    </div>
+  </div>
+
+  <!-- Controls bar -->
+  <div class="controls-bar" id="controls-bar">
+    <label>
+      <input type="text" id="search-input" placeholder="חיפוש..." autocomplete="off" />
+    </label>
+    <label>
+      <select id="severity-select">
+        <option value="">הכל</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="info">Info</option>
+      </select>
+    </label>
+    <label>
+      <input type="checkbox" id="show-excepted-cb" />
+      הצג חריגות
+    </label>
+  </div>
+
+  <!-- Live summary bar -->
+  <div class="summary-bar" id="summary-bar">
+    <span class="summary-total"><span id="sum-total">0</span> <span id="sum-label">ממצאים פעילים</span></span>
+    <span class="summary-sep">|</span>
+    <span class="summary-count critical">Critical: <span id="sum-critical">0</span></span>
+    <span class="summary-sep">|</span>
+    <span class="summary-count high">High: <span id="sum-high">0</span></span>
+    <span class="summary-sep">|</span>
+    <span class="summary-count medium">Medium: <span id="sum-medium">0</span></span>
+    <span class="summary-sep">|</span>
+    <span class="summary-count low">Low: <span id="sum-low">0</span></span>
+    <span class="summary-sep">|</span>
+    <span class="summary-count info">Info: <span id="sum-info">0</span></span>
+  </div>
+
+  <!-- Findings list — rendered by JS -->
+  <div class="findings-list" id="findings-list"></div>
+
+  <div class="report-footer" id="report-footer">
+    דו"ח זה הופק מתוך מחולל דו"חות CSPM
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ─── Data ──────────────────────────────────────────────────────────── */
+  window.__REPORT_DATA__ = {{ report_data_json | safe }};
+
+  var data     = window.__REPORT_DATA__;
+  var meta     = (data && data.meta)     || {};
+  var findings = (data && Array.isArray(data.findings)) ? data.findings : [];
+
+  /* ─── Severity helpers ──────────────────────────────────────────────── */
+  var SEV_ORDER = ['critical', 'high', 'medium', 'low', 'info'];
+
+  var SEV_LABEL = {
+    critical: 'Critical',
+    high:     'High',
+    medium:   'Medium',
+    low:      'Low',
+    info:     'Info'
+  };
+
+  function normSev(s) {
+    if (!s) return 'medium';
+    var l = String(s).toLowerCase();
+    if (SEV_ORDER.indexOf(l) !== -1) return l;
+    return 'medium';
+  }
+
+  /* ─── HTML escape ───────────────────────────────────────────────────── */
+  function esc(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ─── Render header ─────────────────────────────────────────────────── */
+  function renderHeader() {
+    var clientEl     = document.getElementById('hdr-client');
+    var teamEl       = document.getElementById('hdr-team');
+    var riskEl       = document.getElementById('hdr-risk');
+    var dateEl       = document.getElementById('hdr-date');
+    var cloudEl      = document.getElementById('hdr-cloud');
+    var consultantEl = document.getElementById('hdr-consultant');
+
+    clientEl.textContent = meta.client || 'דו"ח CSPM';
+
+    if (meta.teamName) {
+      teamEl.textContent = meta.teamName;
+    }
+
+    if (meta.reportDate) {
+      dateEl.textContent = 'תאריך: ' + meta.reportDate;
+    }
+
+    if (meta.cloud) {
+      cloudEl.textContent = 'ענן: ' + meta.cloud;
+    }
+
+    if (meta.consultant) {
+      consultantEl.textContent = 'יועץ: ' + meta.consultant;
+    }
+
+    if (meta.reportRisk) {
+      riskEl.style.display = '';
+      riskEl.textContent   = 'רמת סיכון: ' + meta.reportRisk;
+    }
+
+    // Page title
+    document.title = (meta.client ? meta.client + ' — ' : '') + 'דו"ח CSPM';
+  }
+
+  /* ─── Build one finding card DOM element ────────────────────────────── */
+  function buildCard(f, idx) {
+    var sev     = normSev(f.severity);
+    var isExc   = !!(f.exception && f.exception.active);
+    var excReason = (f.exception && f.exception.reason) ? f.exception.reason : '';
+
+    /* Outer card */
+    var card = document.createElement('div');
+    card.className = 'finding-card' + (isExc ? ' is-excepted' : '');
+    card.dataset.idx      = idx;
+    card.dataset.sev      = sev;
+    card.dataset.excepted = isExc ? '1' : '0';
+    card.dataset.title    = String(f.title       || '').toLowerCase();
+    card.dataset.desc     = String(f.description || '').toLowerCase();
+    card.dataset.category = String(f.category    || '').toLowerCase();
+
+    /* ── Header ── */
+    var header = document.createElement('div');
+    header.className = 'finding-card-header';
+    /* severity accent color on border-right via CSS variable */
+    var sevColors = {
+      critical: '#e53e3e',
+      high:     '#dd6b20',
+      medium:   '#d69e2e',
+      low:      '#38a169'
+    };
+    card.style.setProperty('--sev-color', sevColors[sev] || '#a0aec0');
+
+    /* Title + ID text block */
+    var textBlock = document.createElement('div');
+    textBlock.className = 'finding-card-header-text';
+
+    var titleEl = document.createElement('div');
+    titleEl.className   = 'finding-title';
+    titleEl.textContent = f.title || '(ללא כותרת)';
+
+    var idEl = document.createElement('div');
+    idEl.className   = 'finding-id';
+    idEl.textContent = f.id ? 'מזהה: ' + f.id : '';
+
+    textBlock.appendChild(titleEl);
+    if (f.id) textBlock.appendChild(idEl);
+
+    /* Chips block (severity, exception, category) */
+    var chips = document.createElement('div');
+    chips.className = 'finding-chips';
+
+    var sevBadge = document.createElement('span');
+    sevBadge.className   = 'sev-badge ' + sev;
+    sevBadge.textContent = SEV_LABEL[sev] || sev;
+    chips.appendChild(sevBadge);
+
+    if (isExc) {
+      var excBadge = document.createElement('span');
+      excBadge.className   = 'exc-badge';
+      excBadge.textContent = 'חריגה';
+      chips.appendChild(excBadge);
+    }
+
+    if (f.category) {
+      var catChip = document.createElement('span');
+      catChip.className   = 'category-chip';
+      catChip.textContent = f.category;
+      chips.appendChild(catChip);
+    }
+
+    /* Chevron SVG — placed last so it sits on the left (end side in RTL) */
+    var chevron = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    chevron.setAttribute('viewBox', '0 0 20 20');
+    chevron.setAttribute('fill', 'currentColor');
+    chevron.classList.add('chevron');
+    chevron.innerHTML = '<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>';
+
+    header.appendChild(textBlock);
+    header.appendChild(chips);
+    header.appendChild(chevron);
+
+    /* ── Body (collapsed by default) ── */
+    var body = document.createElement('div');
+    body.className = 'finding-card-body';
+
+    /* Description */
+    body.appendChild(makeSection('תיאור הממצא', f.description, 'text'));
+
+    /* Impact */
+    body.appendChild(makeSection('השפעה עסקית / סיכון', f.impact, 'text'));
+
+    /* Technical details */
+    body.appendChild(makeSection('פרטים טכניים', f.technical, 'list'));
+
+    /* Policies */
+    body.appendChild(makeSection('חוקים / מדיניות רלוונטיים', f.policies, 'list'));
+
+    /* Recommendations */
+    body.appendChild(makeSection('המלצות', f.recs, 'list'));
+
+    /* Priority */
+    if (f.priority) {
+      body.appendChild(makeSection('עדיפות טיפול', f.priority, 'text'));
+    }
+
+    /* Owner */
+    if (f.owner) {
+      body.appendChild(makeSection('בעלים', f.owner, 'text'));
+    }
+
+    /* Evidence images */
+    if (Array.isArray(f.evidence) && f.evidence.length) {
+      var evidSection = document.createElement('div');
+      evidSection.className = 'finding-section';
+      var evidLabel = document.createElement('div');
+      evidLabel.className   = 'finding-section-label';
+      evidLabel.textContent = 'הוכחת ממצא';
+      evidSection.appendChild(evidLabel);
+      var grid = document.createElement('div');
+      grid.className = 'evidence-grid';
+      f.evidence.forEach(function (src) {
+        var img = document.createElement('img');
+        img.src = src;
+        img.alt = 'הוכחת ממצא';
+        grid.appendChild(img);
+      });
+      evidSection.appendChild(grid);
+      body.appendChild(evidSection);
+    }
+
+    /* Exception block */
+    if (isExc) {
+      var excBlock = document.createElement('div');
+      excBlock.className = 'exception-block';
+      var excTitle = document.createElement('strong');
+      excTitle.textContent = 'ממצא מוחרג — אושר כחריגה מדיניות';
+      excBlock.appendChild(excTitle);
+      if (excReason) {
+        var excReasonEl = document.createElement('span');
+        excReasonEl.textContent = excReason;
+        excBlock.appendChild(excReasonEl);
+      }
+      body.appendChild(excBlock);
+    }
+
+    /* Assemble card */
+    card.appendChild(header);
+    card.appendChild(body);
+
+    /* Expand / collapse toggle */
+    header.addEventListener('click', function () {
+      card.classList.toggle('expanded');
+    });
+
+    return card;
+  }
+
+  /* Helper: build a labelled section node */
+  function makeSection(label, value, type) {
+    var section = document.createElement('div');
+    section.className = 'finding-section';
+
+    var labelEl = document.createElement('div');
+    labelEl.className   = 'finding-section-label';
+    labelEl.textContent = label;
+    section.appendChild(labelEl);
+
+    if (type === 'list') {
+      var arr = Array.isArray(value) ? value : [];
+      if (arr.length) {
+        var ul = document.createElement('ul');
+        arr.forEach(function (item) {
+          var li = document.createElement('li');
+          li.textContent = item;
+          ul.appendChild(li);
+        });
+        section.appendChild(ul);
+      } else {
+        var empty = document.createElement('p');
+        empty.className   = 'muted';
+        empty.textContent = 'לא סופקו פרטים.';
+        section.appendChild(empty);
+      }
+    } else {
+      /* 'text' */
+      var p = document.createElement('p');
+      p.className = 'finding-section-text';
+      if (value) {
+        p.textContent = value;
+      } else {
+        p.className  += ' muted';
+        p.textContent = 'לא סופק מידע.';
+      }
+      section.appendChild(p);
+    }
+
+    return section;
+  }
+
+  /* ─── Render all cards ──────────────────────────────────────────────── */
+  var cardEls = [];
+
+  function renderCards() {
+    var list = document.getElementById('findings-list');
+    list.innerHTML = '';
+    cardEls = [];
+
+    if (!findings.length) {
+      var empty = document.createElement('div');
+      empty.className   = 'empty-state';
+      empty.textContent = 'לא נוספו ממצאים לדו"ח זה.';
+      list.appendChild(empty);
+      return;
+    }
+
+    findings.forEach(function (f, idx) {
+      var card = buildCard(f, idx);
+      cardEls.push(card);
+      list.appendChild(card);
+    });
+  }
+
+  /* ─── Filter & summary logic ────────────────────────────────────────── */
+  function applyFilters() {
+    var searchVal    = document.getElementById('search-input').value.toLowerCase();
+    var sevVal       = document.getElementById('severity-select').value;
+    var showExcepted = document.getElementById('show-excepted-cb').checked;
+
+    var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+    var visibleTotal = 0;
+
+    cardEls.forEach(function (card) {
+      var isExc  = card.dataset.excepted === '1';
+      var sev    = card.dataset.sev;
+
+      /* Exception visibility rule */
+      if (isExc && !showExcepted) {
+        card.style.display = 'none';
+        return;
+      }
+
+      /* Severity filter */
+      if (sevVal && sev !== sevVal) {
+        card.style.display = 'none';
+        return;
+      }
+
+      /* Text search: title, description, category — AND with severity */
+      if (searchVal) {
+        var titleMatch = card.dataset.title.indexOf(searchVal) !== -1;
+        var descMatch  = card.dataset.desc.indexOf(searchVal)  !== -1;
+        var catMatch   = card.dataset.category.indexOf(searchVal) !== -1;
+        if (!titleMatch && !descMatch && !catMatch) {
+          card.style.display = 'none';
+          return;
+        }
+      }
+
+      /* Card is visible */
+      card.style.display = '';
+
+      /* Accumulate counts for non-excepted visible findings only */
+      if (!isExc) {
+        visibleTotal++;
+        if (counts[sev] !== undefined) counts[sev]++;
+      }
+    });
+
+    /* Update summary bar */
+    document.getElementById('sum-total').textContent    = visibleTotal;
+    document.getElementById('sum-critical').textContent = counts.critical;
+    document.getElementById('sum-high').textContent     = counts.high;
+    document.getElementById('sum-medium').textContent   = counts.medium;
+    document.getElementById('sum-low').textContent      = counts.low;
+    document.getElementById('sum-info').textContent     = counts.info;
+    document.getElementById('sum-label').textContent = showExcepted ? 'ממצאים' : 'ממצאים פעילים';
+
+    /* Show/hide empty state if all cards are hidden */
+    var list   = document.getElementById('findings-list');
+    var hasVis = cardEls.some(function (c) { return c.style.display !== 'none'; });
+    var existing = list.querySelector('.empty-state');
+    if (!hasVis && findings.length) {
+      if (!existing) {
+        var msg = document.createElement('div');
+        msg.className   = 'empty-state';
+        msg.textContent = 'אין ממצאים התואמים את הסינון.';
+        list.appendChild(msg);
+      }
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+
+  /* ─── Wire up controls ──────────────────────────────────────────────── */
+  function wireControls() {
+    document.getElementById('search-input')
+      .addEventListener('input', applyFilters);
+
+    document.getElementById('severity-select')
+      .addEventListener('change', applyFilters);
+
+    document.getElementById('show-excepted-cb')
+      .addEventListener('change', applyFilters);
+  }
+
+  /* ─── Bootstrap ─────────────────────────────────────────────────────── */
+  renderHeader();
+  renderCards();
+  wireControls();
+  applyFilters(); /* initial pass to hide excepted findings (checkbox unchecked) */
+
+})();
+</script>
+</body>
+</html>
