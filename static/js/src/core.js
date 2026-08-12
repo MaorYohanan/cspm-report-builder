@@ -96,6 +96,7 @@ export function styledConfirm(message, opts) {
     document.body.appendChild(overlay);
 
     function cleanup(result) {
+      document.removeEventListener('keydown', handler);
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       resolve(result);
     }
@@ -104,8 +105,8 @@ export function styledConfirm(message, opts) {
     dialog.querySelector('#confirm-no').addEventListener('click', function() { cleanup(false); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) cleanup(false); });
     document.addEventListener('keydown', function handler(e) {
-      if (e.key === 'Escape') { document.removeEventListener('keydown', handler); cleanup(false); }
-      if (e.key === 'Enter') { if (!danger) { document.removeEventListener('keydown', handler); cleanup(true); } }
+      if (e.key === 'Escape') { cleanup(false); }
+      if (e.key === 'Enter') { if (!danger) { cleanup(true); } }
     });
 
     dialog.querySelector('#confirm-yes').focus();
