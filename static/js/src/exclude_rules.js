@@ -251,8 +251,8 @@ function _wireEvents() {
       }
       var deleteBtn = e.target.closest('.exclude-rule-delete-btn');
       if (deleteBtn) {
-        var rid = parseInt(deleteBtn.getAttribute('data-rule-id'), 10);
-        _handleDelete(rid);
+        var delRid = parseInt(deleteBtn.getAttribute('data-rule-id'), 10);
+        _handleDelete(delRid);
       }
     });
   }
