@@ -140,3 +140,18 @@ B.16 (Bulk import: "Start fresh" vs "Keep existing"): ✅ merged to main — 202
 - styledConfirm core.js fixes: Enter guard disabled on danger:true dialogs; removeEventListener moved into cleanup() via var handler declaration (fixes listener leak + ReferenceError)
 - JS cache-buster bumped: main.js?v=128
 - Tests: 200 passed, 0 failed
+
+B.12 (Findings exclude list — pattern-based suppression rules): ✅ merged to main — 2026-08-12
+- Branch: feature/exclude-list
+- New ExcludeRule ORM model in backend/models.py: id, field (title|category), operator (startsWith|contains|regex), pattern (≤500 chars), active (bool), created_at
+- 4 CRUD routes on wiz_bp at /api/wizi/exclude-rules: GET (viewer), POST/PUT/DELETE (editor); allowlist validation on field+operator; rollback on SQLAlchemyError; no stack trace leakage
+- app.py: CREATE TABLE IF NOT EXISTS exclude_rules backfill for existing SQLite DBs
+- New static/js/src/exclude_rules.js: rule fetch+cache (eager on init), isExcludedByRules() filter, panel UI (render/add/toggle/delete with escapeHtml on all user data), #exclude-rules-active-count update
+- wizi.js: exclude-rules filter applied additively in BOTH bulk import path (after [GovIL] suppression) and single-query import path; safe degradation if fetch not yet complete
+- Designer (Part 1): sidebar tab-exclude-rules in nav-products accordion, panel-exclude-rules with add-rule form + table skeleton, wizi sub-tab ⚙ כללי סינון + summary panel; CSS in wizi.css; builder.css?v=53
+- titleMap + tabToNav entries added in findings.js and ui.js
+- JS cache-buster: main.js?v=129
+- Tests: 214 passed, 0 failed (14 new tests in tests/test_exclude_rules.py)
+- Fix: duplicate var rid renamed to var delRid in exclude_rules.js (cosmetic, no runtime impact)
+
+Wave 5 (B.16 + B.12) — COMPLETE ✅
