@@ -111,3 +111,32 @@ Sidebar visual fixes (fix/sidebar-visual): ✅ merged to main — 2026-08-12
 - Problem B1 (collapsed flyout appearance): hover flyout got min-width:180px, padding, border-radius, RTL-correct margin-left gap
 - Problem B2 (icons in collapsed mode): each .sidebar-section-label now has <span class="section-icon"> (🔧/📄/📦) + <span class="section-label-text">; collapsed mode hides section-label-text; broken CSS selector targeting wrong span replaced
 - CSS cache-buster bumped: builder.css?v=51
+
+B.7 (Product registry: list-view toggle): ✅ merged to main — 2026-08-12
+- Branch: feature/products-list-view
+- Toggle [רשת | רשימה] injected into products header; preference persisted in localStorage key products-view-mode
+- renderListView() renders <table class="products-list-table"> with 6 columns: שם מוצר | סביבה | גרסה | ציון סיכון | תאריך אחרון | פעולות
+- Action buttons (timeline/edit/delete) use same data-action delegation as grid view
+- Empty-state guard: when products.length === 0, toggle is hidden and existing empty-state card renders (matches renderGrid behaviour)
+- CSS: .products-view-toggle, .products-list-table, .actions-cell added to products.css; build_css.py run; builder.css rebuilt
+- JS cache-buster: main.js?v=125
+- Tests: 200 passed, 0 failed
+
+B.8 (Exception list view — cross-product): ✅ merged to main — 2026-08-12
+- Branch: feature/exception-list-view
+- New GET /api/exceptions endpoint in products.py: queries all products, returns flat list of excepted findings from latest published snapshot per product; products with no published version return publishedAt: null placeholder; @require_role("viewer"); try/except with no stack trace leak
+- New static/js/src/exceptions.js: fetches endpoint once (module-scope _loaded guard), renders filterable table into #exceptions-tbody; _esc() on all dynamic values including _fmtDate(publishedAt); applyFilters() for search + severity without re-fetch
+- Sidebar: "רשימת חריגות" button (tab-exceptions) added to מוצרים accordion section; panel-exceptions panel added
+- titleMap and tabToNav entries added in findings.js and ui.js
+- CSS: .exceptions-table, .exceptions-filter-bar, .exceptions-no-published added to products.css; builder.css?v=52
+- JS cache-buster: main.js?v=126
+- Tests: 200 passed, 0 failed
+
+B.16 (Bulk import: "Start fresh" vs "Keep existing"): ✅ merged to main — 2026-08-12
+- Branch: feature/bulk-import-mode
+- Mode-selection dialog before bulk import: "הוסף לקיים" (keep existing, right/safe in RTL) vs "דוח חדש" (start fresh, left/destructive)
+- Second danger confirm required for "דוח חדש": "פעולה זו תמחק את כל הממצאים הקיימים (מכל הקטגוריות). להמשיך?"
+- state.findings = [] + beforeCount reset to 0 before import loop on start-fresh path
+- styledConfirm core.js fixes: Enter guard disabled on danger:true dialogs; removeEventListener moved into cleanup() via var handler declaration (fixes listener leak + ReferenceError)
+- JS cache-buster bumped: main.js?v=128
+- Tests: 200 passed, 0 failed
