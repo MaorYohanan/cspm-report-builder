@@ -7,6 +7,10 @@ import './products.js';
 import './export.js';
 import './wizi.js';
 import './pipeline.js';
+import './exceptions.js';
+import { ExcludeRulesPanel } from './exclude_rules.js';
+
+ExcludeRulesPanel.init();
 
 // Auth: show current user in sidebar
 (function initUserInfo() {

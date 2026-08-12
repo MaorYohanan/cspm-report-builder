@@ -43,6 +43,9 @@ from backend.graphql.queries import (
 )
 from backend.services.wiz_service import WizService, build_bulk_filter
 from backend.services.auth_service import require_role
+from backend.database import db
+from backend.models import ExcludeRule
+from sqlalchemy.exc import SQLAlchemyError
 
 wiz_bp = Blueprint('wiz', __name__, url_prefix='/api/wizi')
 
@@ -819,6 +822,123 @@ def api_wizi_find_by_id():
         pass
 
     return jsonify({"error": "Finding not found", "id": finding_id}), 404
+
+
+_VALID_FIELDS    = {'title', 'category'}
+_VALID_OPERATORS = {'startsWith', 'contains', 'regex'}
+
+
+def _rule_to_dict(rule: ExcludeRule) -> dict:
+    return {
+        'id':         rule.id,
+        'field':      rule.field,
+        'operator':   rule.operator,
+        'pattern':    rule.pattern,
+        'active':     rule.active,
+        'created_at': rule.created_at.isoformat() if rule.created_at else None,
+    }
+
+
+@wiz_bp.route('/exclude-rules', methods=['GET'])
+@require_role('viewer')
+def api_exclude_rules_list():
+    """Return all exclude rules."""
+    try:
+        rules = ExcludeRule.query.order_by(ExcludeRule.id).all()
+        return jsonify({'rules': [_rule_to_dict(r) for r in rules]})
+    except SQLAlchemyError:
+        _log.exception("Failed to list exclude rules")
+        return jsonify({'error': 'Internal error'}), 500
+
+
+@wiz_bp.route('/exclude-rules', methods=['POST'])
+@require_role('editor')
+def api_exclude_rules_create():
+    """Create a new exclude rule."""
+    data = request.get_json(silent=True) or {}
+    field    = (data.get('field') or '').strip()
+    operator = (data.get('operator') or '').strip()
+    pattern  = (data.get('pattern') or '').strip()
+    active   = bool(data.get('active', True))
+
+    if field not in _VALID_FIELDS:
+        return jsonify({'error': f"field must be one of {sorted(_VALID_FIELDS)}"}), 400
+    if operator not in _VALID_OPERATORS:
+        return jsonify({'error': f"operator must be one of {sorted(_VALID_OPERATORS)}"}), 400
+    if not pattern:
+        return jsonify({'error': 'pattern must be non-empty'}), 400
+    if len(pattern) > 500:
+        return jsonify({'error': 'pattern must be ≤500 characters'}), 400
+
+    try:
+        rule = ExcludeRule(field=field, operator=operator, pattern=pattern, active=active)
+        db.session.add(rule)
+        db.session.commit()
+        return jsonify({'rule': _rule_to_dict(rule)}), 201
+    except SQLAlchemyError:
+        db.session.rollback()
+        _log.exception("Failed to create exclude rule")
+        return jsonify({'error': 'Internal error'}), 500
+
+
+@wiz_bp.route('/exclude-rules/<int:rule_id>', methods=['PUT'])
+@require_role('editor')
+def api_exclude_rules_update(rule_id: int):
+    """Update an existing exclude rule."""
+    rule = db.session.get(ExcludeRule, rule_id)
+    if rule is None:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    if 'field' in data:
+        field = (data['field'] or '').strip()
+        if field not in _VALID_FIELDS:
+            return jsonify({'error': f"field must be one of {sorted(_VALID_FIELDS)}"}), 400
+        rule.field = field
+
+    if 'operator' in data:
+        operator = (data['operator'] or '').strip()
+        if operator not in _VALID_OPERATORS:
+            return jsonify({'error': f"operator must be one of {sorted(_VALID_OPERATORS)}"}), 400
+        rule.operator = operator
+
+    if 'pattern' in data:
+        pattern = (data['pattern'] or '').strip()
+        if not pattern:
+            return jsonify({'error': 'pattern must be non-empty'}), 400
+        if len(pattern) > 500:
+            return jsonify({'error': 'pattern must be ≤500 characters'}), 400
+        rule.pattern = pattern
+
+    if 'active' in data:
+        rule.active = bool(data['active'])
+
+    try:
+        db.session.commit()
+        return jsonify({'rule': _rule_to_dict(rule)})
+    except SQLAlchemyError:
+        db.session.rollback()
+        _log.exception("Failed to update exclude rule %d", rule_id)
+        return jsonify({'error': 'Internal error'}), 500
+
+
+@wiz_bp.route('/exclude-rules/<int:rule_id>', methods=['DELETE'])
+@require_role('editor')
+def api_exclude_rules_delete(rule_id: int):
+    """Delete an exclude rule."""
+    rule = db.session.get(ExcludeRule, rule_id)
+    if rule is None:
+        return jsonify({'error': 'Rule not found'}), 404
+
+    try:
+        db.session.delete(rule)
+        db.session.commit()
+        return jsonify({'deleted': rule_id})
+    except SQLAlchemyError:
+        db.session.rollback()
+        _log.exception("Failed to delete exclude rule %d", rule_id)
+        return jsonify({'error': 'Internal error'}), 500
 
 
 _DEFAULT_IGNORE_NOTE = "Marked as ignored via CSPM Report Builder"

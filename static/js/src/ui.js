@@ -144,7 +144,9 @@ export var tabToNav = {
   'tab-export':         'nav-output',
   'tab-cloud-manager':  'nav-output',
   'tab-products':       'nav-products',
-  'tab-pipeline':       'nav-products'
+  'tab-pipeline':       'nav-products',
+  'tab-exceptions':     'nav-products',
+  'tab-exclude-rules':  'nav-products'
 };
 
 // Update aria-expanded on the section label whose nav matches navId.

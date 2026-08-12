@@ -4,6 +4,34 @@ import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml
 import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
 import { ProductsPanel } from './products.js';
+import { getActiveExcludeRules, isExcludedByRules } from './exclude_rules.js';
+
+// ── queryType → CSPM category assigned at import time ───────────────────────
+// Used by the exclude-rules filter to match on 'category' field.
+// 'issues' resolves dynamically via mapWiziCategory() — not listed here.
+var _QUERY_TYPE_TO_CAT = {
+  configurationFindings:            'CSPM',
+  vulnerabilityFindings:            'VULN',
+  hostConfigurationRuleAssessments: 'HSPM',
+  dataFindingsV2:                   'DSPM',
+  secretInstances:                  'SECR',
+  excessiveAccessFindings:          'EAPM',
+  networkExposures:                 'NEXP',
+  inventoryFindings:                'EOLM',
+  endOfLifeFindings:                'EOLM',
+  softwareSupplyChainFindings:      'EOLM',
+  malwareFindings:                  'HSPM',
+};
+
+// ── Resolve category for an item given its queryType ─────────────────────────
+// For 'issues' we use the same dynamic mapping as importIssueFinding.
+function _resolveItemCategory(item, qt) {
+  if (qt === 'issues') {
+    var entity = item.entitySnapshot || {};
+    return mapWiziCategory(entity);
+  }
+  return _QUERY_TYPE_TO_CAT[qt] || 'CSPM';
+}
 
       var isCloud = (window.location.protocol === 'http:' || window.location.protocol === 'https:') && !window.location.protocol.startsWith('file');
       var wiziResults = document.getElementById('wizi-results');
@@ -1044,6 +1072,27 @@ import { ProductsPanel } from './products.js';
 
         if (!selected.length) {
           wiziStatusMsg.textContent = 'לא נבחרו ממצאים לייבוא.';
+          return;
+        }
+
+        // Apply exclude rules filter (additive — runs after [GovIL] suppression which
+        // already happened on the displayed wiziIssues list)
+        var _singleActiveRules = getActiveExcludeRules();
+        if (_singleActiveRules.length) {
+          var _beforeExclude = selected.length;
+          selected = selected.filter(function(item) {
+            var _t = getWiziItemTitle(item, wiziQueryType);
+            var _c = _resolveItemCategory(item, wiziQueryType);
+            return !isExcludedByRules(_t, _c);
+          });
+          var _excludedCount = _beforeExclude - selected.length;
+          if (_excludedCount > 0) {
+            showToast('סוננו ' + _excludedCount + ' ממצאים לפי כללי סינון', 'info');
+          }
+        }
+
+        if (!selected.length) {
+          wiziStatusMsg.textContent = 'כל הממצאים שנבחרו סוננו על ידי כללי הסינון.';
           return;
         }
 
@@ -3536,6 +3585,24 @@ import { ProductsPanel } from './products.js';
             return !getWiziItemTitle(item, qt).toLowerCase().includes('[govil]');
           });
         });
+
+        // Apply exclude rules filter (additive — after [GovIL] suppression)
+        var _bulkActiveRules = getActiveExcludeRules();
+        if (_bulkActiveRules.length) {
+          var _bulkExcludedTotal = 0;
+          Object.keys(selectedByType).forEach(function(qt) {
+            var before = selectedByType[qt].length;
+            selectedByType[qt] = selectedByType[qt].filter(function(item) {
+              var _t = getWiziItemTitle(item, qt);
+              var _c = _resolveItemCategory(item, qt);
+              return !isExcludedByRules(_t, _c);
+            });
+            _bulkExcludedTotal += before - selectedByType[qt].length;
+          });
+          if (_bulkExcludedTotal > 0) {
+            showToast('סוננו ' + _bulkExcludedTotal + ' ממצאים לפי כללי סינון', 'info');
+          }
+        }
 
         // For secrets: merge any existing SECR state.findings that share a title into one
         if (selectedByType['secretInstances'] && selectedByType['secretInstances'].length) {

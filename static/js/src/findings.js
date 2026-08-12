@@ -447,7 +447,9 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           'tab-cloud-manager': 'קבצי שרת',
           'tab-wizi': 'Wiz Import',
           'tab-products': 'מוצרים',
-          'tab-pipeline': 'לוח סריקות'
+          'tab-pipeline': 'לוח סריקות',
+          'tab-exceptions': 'רשימת חריגות',
+          'tab-exclude-rules': 'רשימת סינון ממצאים'
         };
         var titleEl = document.getElementById('content-title');
         if (titleEl && titleMap[tabId]) titleEl.textContent = titleMap[tabId];

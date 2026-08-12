@@ -142,6 +142,16 @@ if not os.environ.get("DATABASE_URL"):
                 "ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly'",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_status ON report_snapshots (status)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_published_at ON report_snapshots (published_at)",
+                (
+                    "CREATE TABLE IF NOT EXISTS exclude_rules ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "field VARCHAR(20) NOT NULL, "
+                    "operator VARCHAR(20) NOT NULL, "
+                    "pattern VARCHAR(500) NOT NULL, "
+                    "active BOOLEAN NOT NULL DEFAULT 1, "
+                    "created_at DATETIME"
+                    ")"
+                ),
             ]:
                 try:
                     _c.execute(_text(_stmt))

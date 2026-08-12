@@ -104,3 +104,13 @@ class ProductMemoryEntry(db.Model):
     source = db.Column(db.String(20), nullable=False, default="excepted")  # excepted, deleted
 
     product = db.relationship("Product", back_populates="memory_entries")
+
+
+class ExcludeRule(db.Model):
+    __tablename__ = 'exclude_rules'
+    id         = db.Column(db.Integer, primary_key=True)
+    field      = db.Column(db.String(20),  nullable=False)   # 'title' | 'category'
+    operator   = db.Column(db.String(20),  nullable=False)   # 'startsWith' | 'contains' | 'regex'
+    pattern    = db.Column(db.String(500), nullable=False)
+    active     = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
