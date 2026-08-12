@@ -1006,3 +1006,177 @@ tr.dragging {
 tr.drag-over-top { border-top: 2px solid var(--accent); }
 tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
 
+/* ── Exclude Rules — add-rule form (B.12) ── */
+/* RTL: flex row flows right-to-left; items read: field → operator → pattern → active → button */
+.exclude-rule-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.exclude-rule-form select {
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  /* LTR arrow positioned on the left (end side in RTL) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238896b0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 8px center;
+  padding-inline-end: 10px;
+  padding-inline-start: 28px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.exclude-rule-form select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.exclude-rule-form input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.exclude-rule-form input[type="text"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.exclude-rule-form input[type="text"]::placeholder {
+  color: var(--text-muted);
+}
+
+/* Active checkbox label — inline-flex so label text stays adjacent to checkbox */
+.exclude-rule-active-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.exclude-rule-active-label input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Status feedback span (shown by JS after add/error) */
+.exclude-rules-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 1em;
+}
+
+.exclude-rules-status.status-ok {
+  color: #86efac; /* green-300 — success */
+}
+
+.exclude-rules-status.status-error {
+  color: var(--danger);
+}
+
+/* ── Exclude Rules — rules table (B.12) ── */
+.exclude-rules-table-wrap {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+.exclude-rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* RTL: Hebrew content is right-aligned; explicit override because Playwright
+   does not reliably inherit dir="rtl" for table cells (W3C CSS Writing Modes). */
+.exclude-rules-table th,
+.exclude-rules-table td {
+  padding: 8px 12px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+.exclude-rules-table thead th {
+  background: var(--bg-card);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.exclude-rules-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* "מחיקה" column — action buttons, centered for visual balance */
+.exclude-rules-table td:last-child,
+.exclude-rules-table th:last-child {
+  text-align: center; /* intentional LTR-neutral centering for icon action column */
+}
+
+/* Toggle active / delete buttons rendered by JS */
+.exclude-rule-toggle-btn,
+.exclude-rule-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background var(--transition);
+  background: transparent;
+  padding: 0;
+  margin: 0 2px;
+}
+
+.exclude-rule-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.exclude-rule-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+/* ── Exclude Rules — wizi sub-panel summary (B.12) ── */
+.exclude-rules-summary {
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.exclude-rules-summary strong {
+  color: var(--accent);
+}
+

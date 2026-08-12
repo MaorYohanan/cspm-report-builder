@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=52">
+  <link rel="stylesheet" href="/static/css/builder.css?v=53">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -112,6 +112,10 @@
           <button class="sidebar-item" role="tab" aria-selected="false"
                   aria-controls="panel-exceptions" id="tab-exceptions" title="רשימת חריגות">
             <span class="sidebar-item-icon icon-exceptions">⚠</span> רשימת חריגות
+          </button>
+          <button class="sidebar-item" role="tab" aria-selected="false"
+                  aria-controls="panel-exclude-rules" id="tab-exclude-rules" title="רשימת סינון ממצאים">
+            <span class="sidebar-item-icon icon-exclude-rules">🚫</span> רשימת סינון
           </button>
         </nav>
       </div>
@@ -669,6 +673,7 @@
           <button class="wizi-sub-tab active" data-wizi-panel="wizi-panel-bulk">📦 ייבוא מרוכז</button>
           <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-find-id">🔎 שליפה לפי מזהה</button>
           <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-query">🔍 שאילתה מסוננת</button>
+          <button class="wizi-sub-tab" data-wizi-panel="wizi-panel-exclude-rules">🚫 סינון ממצאים</button>
         </nav>
 
         <!-- Sub-panel: Bulk Import -->
@@ -810,6 +815,17 @@
           <span id="wizi-selected-count" class="muted small-text" style="margin-right:10px;"></span>
         </div>
         </div><!-- /wizi-panel-query -->
+
+        <!-- Sub-panel: Exclude Rules summary -->
+        <div class="wizi-sub-panel" id="wizi-panel-exclude-rules">
+          <p class="exclude-rules-summary">
+            כללי סינון פעילים: <strong id="exclude-rules-active-count">—</strong>
+          </p>
+          <button class="btn btn-secondary" id="btn-go-to-exclude-rules" data-target-tab="tab-exclude-rules">
+            ניהול כללי סינון
+          </button>
+        </div><!-- /wizi-panel-exclude-rules -->
+
       </div>
     </section>
 
@@ -860,6 +876,56 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- Panel: רשימת סינון ממצאים (B.12) -->
+    <section class="tab-panel" id="panel-exclude-rules" role="tabpanel" aria-labelledby="tab-exclude-rules" style="display:none">
+      <div class="section-body">
+
+        <div class="panel-header">
+          <h2>רשימת סינון ממצאים</h2>
+          <p class="panel-subtitle">כללים לסינון ממצאים בייבוא מכמה (Wiz)</p>
+        </div>
+
+        <!-- Add-rule form -->
+        <div class="exclude-rule-form">
+          <select id="exclude-rule-field">
+            <option value="title">כותרת</option>
+            <option value="category">קטגוריה</option>
+          </select>
+          <select id="exclude-rule-operator">
+            <option value="startsWith">מתחיל ב-</option>
+            <option value="contains">מכיל</option>
+            <option value="regex">ביטוי רגולרי</option>
+          </select>
+          <input type="text" id="exclude-rule-pattern" placeholder="תבנית..." maxlength="500" />
+          <label class="exclude-rule-active-label">
+            <input type="checkbox" id="exclude-rule-active" checked />
+            פעיל
+          </label>
+          <button id="btn-add-exclude-rule" class="btn btn-primary">הוסף כלל</button>
+          <span id="exclude-rules-status" class="exclude-rules-status"></span>
+        </div>
+
+        <!-- Rules table -->
+        <div class="exclude-rules-table-wrap">
+          <table class="exclude-rules-table">
+            <thead>
+              <tr>
+                <th>תבנית</th>
+                <th>שדה</th>
+                <th>אופרטור</th>
+                <th>פעיל</th>
+                <th>מחיקה</th>
+              </tr>
+            </thead>
+            <tbody id="exclude-rules-tbody">
+              <!-- JS will render rows here -->
+            </tbody>
+          </table>
+        </div>
+
       </div>
     </section>
 
