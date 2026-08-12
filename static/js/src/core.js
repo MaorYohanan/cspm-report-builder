@@ -104,10 +104,11 @@ export function styledConfirm(message, opts) {
     dialog.querySelector('#confirm-yes').addEventListener('click', function() { cleanup(true); });
     dialog.querySelector('#confirm-no').addEventListener('click', function() { cleanup(false); });
     overlay.addEventListener('click', function(e) { if (e.target === overlay) cleanup(false); });
-    document.addEventListener('keydown', function handler(e) {
+    var handler = function(e) {
       if (e.key === 'Escape') { cleanup(false); }
       if (e.key === 'Enter') { if (!danger) { cleanup(true); } }
-    });
+    };
+    document.addEventListener('keydown', handler);
 
     dialog.querySelector('#confirm-yes').focus();
   });
