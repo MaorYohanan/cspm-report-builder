@@ -111,7 +111,12 @@ export var ProductsPanel = {
     container.innerHTML = '<div class="section-body"><p class="muted">טוען...</p></div>';
     var self = this;
     this.fetchProducts().then(function(products) {
-      self.renderGrid(products);
+      var viewMode = localStorage.getItem('products-view-mode');
+      if (viewMode === 'list') {
+        self.renderListView(products);
+      } else {
+        self.renderGrid(products);
+      }
     }).catch(function(err) {
       showToast(err.message || 'שגיאת רשת', 'error');
       container.innerHTML = '<div class="section-body"><p class="muted">שגיאה בטעינת המוצרים</p></div>';
@@ -123,13 +128,22 @@ export var ProductsPanel = {
     var container = document.getElementById('products-panel-content');
     if (!container) return;
 
+    var currentMode = localStorage.getItem('products-view-mode') || 'grid';
+    var hasProducts = products && products.length > 0;
+
     var html = '<div class="section-body">';
     html += '<div class="products-header">';
     html += '<h2>📦 מוצרים</h2>';
+    if (hasProducts) {
+      html += '<div class="products-view-toggle">';
+      html += '<button class="btn' + (currentMode !== 'list' ? ' active' : '') + '" data-view="grid">רשת</button>';
+      html += '<button class="btn' + (currentMode === 'list' ? ' active' : '') + '" data-view="list">רשימה</button>';
+      html += '</div>';
+    }
     html += '<button class="btn btn-primary btn-sm" id="btn-products-new" style="margin-top:0;">+ מוצר חדש</button>';
     html += '</div>';
 
-    if (!products || products.length === 0) {
+    if (!hasProducts) {
       html += '<div class="products-empty">';
       html += '<div class="products-empty-icon">📦</div>';
       html += '<div class="products-empty-text">אין מוצרים רשומים עדיין.<br>לחץ על "+ מוצר חדש" כדי להתחיל.</div>';
@@ -193,6 +207,129 @@ export var ProductsPanel = {
                 self.showGrid();
               }).catch(function(err){ showToast(err.message, 'error'); });
           });
+        }
+      });
+    });
+
+    // Toggle view mode buttons
+    container.querySelectorAll('.products-view-toggle [data-view]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (btn.classList.contains('active')) return; // already active — no-op
+        var mode = btn.getAttribute('data-view');
+        localStorage.setItem('products-view-mode', mode);
+        container.querySelectorAll('.products-view-toggle [data-view]').forEach(function(b) {
+          b.classList.toggle('active', b.getAttribute('data-view') === mode);
+        });
+        if (mode === 'list') {
+          self.renderListView(products);
+        } else {
+          self.renderGrid(products);
+        }
+      });
+    });
+  },
+
+  renderListView: function(products) {
+    var self = this;
+    var container = document.getElementById('products-panel-content');
+    if (!container) return;
+
+    if (!products || products.length === 0) {
+      var html = '<div class="section-body">';
+      html += '<div class="products-header">';
+      html += '<h2>📦 מוצרים</h2>';
+      html += '<button class="btn btn-primary btn-sm" id="btn-products-new" style="margin-top:0;">+ מוצר חדש</button>';
+      html += '</div>';
+      html += '<div class="products-empty">';
+      html += '<div class="products-empty-icon">📦</div>';
+      html += '<div class="products-empty-text">אין מוצרים רשומים עדיין.<br>לחץ על "+ מוצר חדש" כדי להתחיל.</div>';
+      html += '<button class="btn btn-primary" id="btn-products-new-empty" style="margin-top:0;">+ מוצר חדש</button>';
+      html += '</div>';
+      html += '</div>';
+      container.innerHTML = html;
+      var newBtn = document.getElementById('btn-products-new');
+      if (newBtn) newBtn.addEventListener('click', function() { self.showForm(null); });
+      var newBtnEmpty = document.getElementById('btn-products-new-empty');
+      if (newBtnEmpty) newBtnEmpty.addEventListener('click', function() { self.showForm(null); });
+      return;
+    }
+
+    var html = '<div class="section-body">';
+    html += '<div class="products-header">';
+    html += '<h2>📦 מוצרים</h2>';
+    html += '<div class="products-view-toggle">';
+    html += '<button class="btn" data-view="grid">רשת</button>';
+    html += '<button class="btn active" data-view="list">רשימה</button>';
+    html += '</div>';
+    html += '<button class="btn btn-primary btn-sm" id="btn-products-new" style="margin-top:0;">+ מוצר חדש</button>';
+    html += '</div>';
+
+    html += '<table class="products-list-table">';
+    html += '<thead><tr>';
+    html += '<th>שם מוצר</th>';
+    html += '<th>סביבה</th>';
+    html += '<th>גרסה</th>';
+    html += '<th>ציון סיכון</th>';
+    html += '<th>תאריך אחרון</th>';
+    html += '<th>פעולות</th>';
+    html += '</tr></thead>';
+    html += '<tbody>';
+
+    products.slice().sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); }).forEach(function(p) {
+      var rs = p.latestRiskScore || 0;
+      var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : p.latestVersion ? 'risk-low' : 'risk-none';
+
+      html += '<tr>';
+      html += '<td>' + _esc(p.name || '') + '</td>';
+      html += '<td>' + (p.env ? _esc(p.env) : '—') + '</td>';
+      html += '<td>' + (p.latestVersion ? _esc(p.latestVersion) : '—') + '</td>';
+      html += '<td><span class="product-stat-chip ' + riskClass + '">' + rs + '</span></td>';
+      html += '<td>' + (p.lastChecked ? _esc(p.lastChecked.slice(0, 10)) : '—') + '</td>';
+      html += '<td class="actions-cell">';
+      html += '<button class="btn btn-secondary" data-action="timeline" data-id="' + _esc(p.id) + '">📋 היסטוריה</button>';
+      html += '<button class="btn btn-secondary" data-action="edit" data-id="' + _esc(p.id) + '">✏️ ערוך</button>';
+      html += '<button class="btn btn-danger" data-action="delete" data-id="' + _esc(p.id) + '" data-name="' + _esc(p.name || '') + '">🗑</button>';
+      html += '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '</div>';
+    container.innerHTML = html;
+
+    var newBtn = document.getElementById('btn-products-new');
+    if (newBtn) newBtn.addEventListener('click', function() { self.showForm(null); });
+
+    container.querySelectorAll('[data-action]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var action = btn.getAttribute('data-action');
+        var id = btn.getAttribute('data-id');
+        if (action === 'timeline') { self._loadTimeline(id); }
+        else if (action === 'edit') { self._loadProductAndEdit(id); }
+        else if (action === 'delete') {
+          var name = btn.getAttribute('data-name');
+          styledConfirm('האם למחוק את המוצר "' + name + '" וכל גרסאותיו?', { title: 'מחיקת מוצר', danger: true, confirmText: 'מחק' }).then(function(confirmed) {
+            if (!confirmed) return;
+            fetch('/api/products/' + encodeURIComponent(id), { method: 'DELETE' })
+              .then(function(r) {
+                if (!r.ok) return r.json().then(function(b){ throw new Error(b.error||'שגיאה'); });
+                self.showGrid();
+              }).catch(function(err){ showToast(err.message, 'error'); });
+          });
+        }
+      });
+    });
+
+    // Toggle view mode buttons
+    container.querySelectorAll('.products-view-toggle [data-view]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (btn.classList.contains('active')) return; // already active — no-op
+        var mode = btn.getAttribute('data-view');
+        localStorage.setItem('products-view-mode', mode);
+        if (mode === 'grid') {
+          self.renderGrid(products);
+        } else {
+          self.renderListView(products);
         }
       });
     });

@@ -507,3 +507,101 @@
   border-top: 1px solid var(--border);
   background: oklch(0.72 0.16 60 / 0.05);
 }
+
+/* ══════════════════════════════════════════════════════
+   List view — segmented toggle + table
+   ══════════════════════════════════════════════════════ */
+
+/* ── View-mode toggle (רשת / רשימה) ──
+   inline-flex container with a shared outer border and border-radius.
+   overflow: hidden clips the child buttons so their corners match the
+   container radius without each button needing its own border-radius. */
+.products-view-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border-hover);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* Reset .btn base styles that conflict with the segmented layout:
+   - margin-top: 8px (base) would push the toggle below the header row
+   - border-radius: var(--radius) (base) would leave rounded inner edges
+   - border: none (base) is fine; inner separator uses border-inline-end
+   Inactive background uses --bg-card (not --bg-surface) because on light
+   theme --bg-surface is #ffffff — indistinguishable from the page background.
+   --bg-card is #f8fafc on light / #161f30 on dark, both visually distinct. */
+.products-view-toggle .btn {
+  margin-top: 0;
+  border-radius: 0;
+  border: none;
+  /* Logical property: inline-end = left side in RTL — the separator between
+     the two buttons. Last child removes the trailing separator. */
+  border-inline-end: 1px solid var(--border-hover);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  padding: 5px 12px;
+  font-size: 12px;
+  transition: background var(--transition), color var(--transition);
+}
+
+.products-view-toggle .btn:last-child {
+  border-inline-end: none;
+}
+
+.products-view-toggle .btn:hover:not(.active) {
+  background: var(--bg-card-hover);
+  color: var(--text);
+}
+
+/* Active state: accent background with white text.
+   --accent on dark theme is oklch(0.58 0.2 260) and on light theme
+   oklch(0.48 0.2 260) — both dark enough that white text passes WCAG 4.5:1. */
+.products-view-toggle .btn.active {
+  background: var(--accent);
+  color: white;
+}
+
+/* ── Product list table ── */
+
+/* width: 100% fills the .content-body container.
+   border-collapse: collapse so cell borders do not double up.
+   direction is intentionally NOT set — inherited from .app-layout (rtl). */
+.products-list-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* th: muted, uppercase label row for the column headers */
+.products-list-table thead th {
+  text-align: right;       /* RTL default — Hebrew column labels align to start */
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-hover);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* td: standard data cells, bottom-border only (no vertical dividers) */
+.products-list-table tbody td {
+  text-align: right;       /* RTL default */
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Row hover scoped to tbody so the header row does not flash */
+.products-list-table tbody tr:hover {
+  background: var(--bg-surface);
+}
+
+/* Actions column — text-align: left is intentional.
+   In RTL flow the actions column is the last column in DOM order but
+   renders at the visual left (inline-end). Left-aligning the action
+   buttons clusters them at the cell's end edge, which is correct. */
+.products-list-table .actions-cell {
+  white-space: nowrap;
+  text-align: left; /* intentional: inline-end in RTL context */
+}
