@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=51">
+  <link rel="stylesheet" href="/static/css/builder.css?v=52">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -108,6 +108,10 @@
           <button class="sidebar-item active" role="tab" aria-selected="true"
                   aria-controls="panel-pipeline" id="tab-pipeline" title="לוח סריקות">
             <span class="sidebar-item-icon icon-pipeline">📅</span> לוח סריקות
+          </button>
+          <button class="sidebar-item" role="tab" aria-selected="false"
+                  aria-controls="panel-exceptions" id="tab-exceptions" title="רשימת חריגות">
+            <span class="sidebar-item-icon icon-exceptions">⚠</span> רשימת חריגות
           </button>
         </nav>
       </div>
@@ -823,9 +827,45 @@
       </div>
     </section>
 
+    <!-- Panel: רשימת חריגות (B.8) -->
+    <section class="tab-panel" id="panel-exceptions" role="tabpanel" aria-labelledby="tab-exceptions">
+      <div class="section-body">
+        <h2>רשימת חריגות</h2>
+
+        <div class="exceptions-filter-bar">
+          <input type="text" id="exceptions-search" placeholder="חיפוש לפי מוצר או ממצא...">
+          <select id="exceptions-filter-severity">
+            <option value="">כל החומרות</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+
+        <div id="exceptions-table-wrapper">
+          <table id="exceptions-table" class="exceptions-table">
+            <thead>
+              <tr>
+                <th>מוצר</th>
+                <th>ממצא</th>
+                <th>חומרה</th>
+                <th>קטגוריה</th>
+                <th>סיבת חריגה</th>
+                <th>תאריך</th>
+              </tr>
+            </thead>
+            <tbody id="exceptions-tbody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=125"></script>
+  <script type="module" src="/static/js/src/main.js?v=127"></script>
 </body>
 </html>

@@ -4245,42 +4245,80 @@ import { ProductsPanel } from './products.js';
       var btnBulkImportSelected = document.getElementById('btn-bulk-import-selected');
       if (btnBulkImportSelected) {
         btnBulkImportSelected.addEventListener('click', function() {
-          var beforeCount = state.findings.length;
           var bulkSubscription = (document.getElementById('bulk-import-sub') || {}).value || '';
           bulkSubscription = bulkSubscription.trim();
-          var result = importSelectedBulkFindings();
-          if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
-            showToast('לא נבחרו ממצאים לייבוא', 'warning');
-            return;
-          }
-          var message = 'יובאו ' + result.imported + ' ממצאים';
-          if (result.consolidated) message += ' (' + result.consolidated + ' משאבים נוספים אוחדו)';
-          if (result.updated) message += ' (' + result.updated + ' ממצאים עודכנו)';
-          if (result.skipped) message += ' (' + result.skipped + ' כפולים דולגו)';
-          showToast(message, 'success');
-          renderFindingsTable();
-          updateStepper();
-          prefillId();
-          autoSave();
-          switchToTab('tab-findings-list');
 
-          // Stamp source subscription and apply product memory
-          var newFindings = state.findings.slice(beforeCount);
-          if (bulkSubscription) {
-            newFindings.forEach(function(f) {
-              if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;
-            });
-          }
-          applyProductMemory(newFindings, bulkSubscription);
+          // Step 1: Mode picker.
+          // "הוסף לקיים" is confirmText (yesBtn) → renders on the RIGHT in RTL (safe default).
+          // "דוח חדש" is cancelText (noBtn) → renders on the LEFT in RTL (destructive).
+          // Promise resolves true = keep existing, false = start fresh (or dismissed).
+          styledConfirm('ייבוא ממצאים — בחר מצב:', {
+            icon: '📋',
+            title: 'ייבוא ממצאים',
+            confirmText: 'הוסף לקיים',
+            cancelText: 'דוח חדש'
+          }).then(function(keepExisting) {
+            // Step 2: If destructive path chosen, require a second danger confirmation.
+            var dangerPromise;
+            if (!keepExisting) {
+              dangerPromise = styledConfirm(
+                'פעולה זו תמחק את כל הממצאים הקיימים (מכל הקטגוריות). להמשיך?',
+                { icon: '⚠️', danger: true, confirmText: 'אישור', cancelText: 'ביטול' }
+              );
+            } else {
+              dangerPromise = Promise.resolve(null); // sentinel: skip clear
+            }
 
-          // Enrich newly imported state.findings with AI remediation summaries
-          if (newFindings.length) {
-            styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
-              icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
-            }).then(function(yes) {
-              if (yes) enrichFindingsWithAiSummaries(newFindings);
+            dangerPromise.then(function(dangerOk) {
+              // Abort if: mode picker was dismissed/cancelled without confirming start-fresh,
+              // or if the danger confirmation was cancelled.
+              if (!keepExisting && !dangerOk) return;
+
+              var beforeCount;
+              if (!keepExisting && dangerOk) {
+                // Start fresh: clear all findings before import.
+                state.findings = [];
+                beforeCount = 0;
+              } else {
+                // Keep existing: append to current findings.
+                beforeCount = state.findings.length;
+              }
+
+              var result = importSelectedBulkFindings();
+              if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
+                showToast('לא נבחרו ממצאים לייבוא', 'warning');
+                return;
+              }
+              var message = 'יובאו ' + result.imported + ' ממצאים';
+              if (result.consolidated) message += ' (' + result.consolidated + ' משאבים נוספים אוחדו)';
+              if (result.updated) message += ' (' + result.updated + ' ממצאים עודכנו)';
+              if (result.skipped) message += ' (' + result.skipped + ' כפולים דולגו)';
+              showToast(message, 'success');
+              renderFindingsTable();
+              updateStepper();
+              prefillId();
+              autoSave();
+              switchToTab('tab-findings-list');
+
+              // Stamp source subscription and apply product memory to newly imported findings only.
+              var newFindings = state.findings.slice(beforeCount);
+              if (bulkSubscription) {
+                newFindings.forEach(function(f) {
+                  if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;
+                });
+              }
+              applyProductMemory(newFindings, bulkSubscription);
+
+              // Enrich newly imported findings with AI remediation summaries.
+              if (newFindings.length) {
+                styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
+                  icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
+                }).then(function(yes) {
+                  if (yes) enrichFindingsWithAiSummaries(newFindings);
+                });
+              }
             });
-          }
+          });
         });
       }
 
