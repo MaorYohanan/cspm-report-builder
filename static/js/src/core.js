@@ -105,7 +105,7 @@ export function styledConfirm(message, opts) {
     overlay.addEventListener('click', function(e) { if (e.target === overlay) cleanup(false); });
     document.addEventListener('keydown', function handler(e) {
       if (e.key === 'Escape') { document.removeEventListener('keydown', handler); cleanup(false); }
-      if (e.key === 'Enter') { document.removeEventListener('keydown', handler); cleanup(true); }
+      if (e.key === 'Enter') { if (!danger) { document.removeEventListener('keydown', handler); cleanup(true); } }
     });
 
     dialog.querySelector('#confirm-yes').focus();

@@ -4263,13 +4263,18 @@ import { ProductsPanel } from './products.js';
             if (!keepExisting) {
               dangerPromise = styledConfirm(
                 'פעולה זו תמחק את כל הממצאים הקיימים (מכל הקטגוריות). להמשיך?',
-                { icon: '⚠️', danger: true, confirmText: 'אישור', cancelText: 'ביטול' }
+                { icon: '⚠️', danger: true, confirmText: 'ביטול', cancelText: 'אישור — מחק הכל' }
               );
             } else {
               dangerPromise = Promise.resolve(null); // sentinel: skip clear
             }
 
-            dangerPromise.then(function(dangerOk) {
+            dangerPromise.then(function(v) {
+              // For the danger dialog, labels are swapped for RTL safety:
+              // v=true  → user clicked "ביטול" (yesBtn, right side) → safe cancel → do NOT proceed
+              // v=false → user clicked "אישור — מחק הכל" (noBtn, left side) → destructive confirm → proceed
+              // v=null  → keepExisting sentinel (skip clear path)
+              var dangerOk = (v === null) ? null : !v;
               // Abort if: mode picker was dismissed/cancelled without confirming start-fresh,
               // or if the danger confirmation was cancelled.
               if (!keepExisting && !dangerOk) return;
