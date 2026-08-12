@@ -716,6 +716,75 @@ def publish_version(product_id: str, ver: str):
 
 
 # ---------------------------------------------------------------------------
+# Cross-product exceptions endpoint
+# ---------------------------------------------------------------------------
+
+def _latest_published_snapshot(product_id: str) -> ReportSnapshot | None:
+    """Return the most recently published ReportSnapshot for a product, or None."""
+    return (
+        ReportSnapshot.query
+        .filter_by(product_id=product_id, status="published")
+        .order_by(ReportSnapshot.id.desc())
+        .first()
+    )
+
+
+@products_bp.route("/api/exceptions", methods=["GET"])
+@require_role("viewer")
+def list_exceptions():
+    try:
+        products = Product.query.all()
+        result = []
+        for p in products:
+            snap = _latest_published_snapshot(p.id)
+            if snap is None:
+                result.append({
+                    "productName": p.name,
+                    "productId": str(p.id),
+                    "findingTitle": None,
+                    "findingId": None,
+                    "severity": None,
+                    "category": None,
+                    "exceptionReason": None,
+                    "publishedAt": None,
+                })
+            else:
+                published_at = _fmt_dt(snap.published_at)
+                findings = Finding.query.filter_by(
+                    snapshot_id=snap.id, exception_active=True
+                ).all()
+                for f in findings:
+                    fd = f.finding_data or {}
+                    exception_reason = (
+                        fd.get("exception_reason")
+                        or fd.get("exceptionReason")
+                        or (fd.get("exception") or {}).get("reason")
+                    )
+                    result.append({
+                        "productName": p.name,
+                        "productId": str(p.id),
+                        "findingTitle": fd.get("title"),
+                        "findingId": fd.get("id"),
+                        "severity": f.severity,
+                        "category": fd.get("category"),
+                        "exceptionReason": exception_reason,
+                        "publishedAt": published_at,
+                    })
+
+        # Sort: productName asc, then publishedAt desc (None values sort last).
+        # ISO-8601 strings are lexicographically equivalent to chronological order,
+        # so inverting the string is not needed — a two-pass sort achieves the
+        # same result: first by publishedAt descending, then stable-sort by
+        # productName ascending.
+        result.sort(key=lambda x: x["publishedAt"] or "", reverse=True)
+        result.sort(key=lambda x: x["productName"] or "")
+        return jsonify(result), 200
+    except Exception:
+        _log.exception("list_exceptions failed")
+        return jsonify({"error": "internal error"}), 500
+
+
+# ---------------------------------------------------------------------------
 # Product Memory endpoints
 # ---------------------------------------------------------------------------
 

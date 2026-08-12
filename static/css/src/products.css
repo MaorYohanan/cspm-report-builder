@@ -605,3 +605,86 @@
   white-space: nowrap;
   text-align: left; /* intentional: inline-end in RTL context */
 }
+
+/* ══════════════════════════════════════════════════════
+   B.8 Exception List View
+   ══════════════════════════════════════════════════════ */
+
+/* Filter bar: horizontal flex row, RTL-correct flow (items start from right).
+   gap and margin-bottom match the pipeline filter bar spacing. */
+.exceptions-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Input and select controls: match existing form controls throughout the app.
+   Uses the same variable-based borders, background, and radius as .filter-select
+   in findings.css and .form-field input in components.css. */
+.exceptions-filter-bar input,
+.exceptions-filter-bar select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.exceptions-filter-bar input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.exceptions-filter-bar input:focus,
+.exceptions-filter-bar select:focus {
+  border-color: var(--accent);
+}
+
+/* Table: width: 100% fills the .section-body container.
+   border-collapse: collapse so cell borders do not double up.
+   direction is intentionally NOT set — inherited from <html dir="rtl">. */
+.exceptions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* th: muted column header labels — mirrors .products-list-table thead th.
+   text-align: right required; Playwright does not reliably inherit dir
+   attribute on table cells (W3C CSS Writing Modes Level 3). */
+.exceptions-table th {
+  text-align: right;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border-hover);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* td: standard data cells — mirrors .products-list-table tbody td.
+   text-align: right explicitly set (same Playwright inheritance caveat). */
+.exceptions-table td {
+  text-align: right;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* Row hover scoped to tbody so the header row does not flash */
+.exceptions-table tbody tr:hover {
+  background: var(--bg-surface);
+}
+
+/* Empty-state row for findings with no published version.
+   font-style: italic signals "placeholder / not applicable". */
+.exceptions-no-published {
+  color: var(--text-muted);
+  font-style: italic;
+}

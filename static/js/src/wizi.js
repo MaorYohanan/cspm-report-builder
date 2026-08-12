@@ -947,17 +947,9 @@ function _resolveItemCategory(item, qt) {
             }
           }
 
-          // Silent suppression of [GovIL] findings — no toast, no counter
+          // Apply exclude rules at display time (title-based rules only; category unknown pre-import)
           nodes = nodes.filter(function(item) {
-            var tag = '[govil]';
-            var nameTitle = (item.name || '').toLowerCase();
-            var ruleName = ((item.rule || {}).name || '').toLowerCase();
-            // issues query type: tag lives on sourceRules[0].name, not item.name/item.rule
-            var sourceRuleName = (((item.sourceRules || [])[0]) || {}).name;
-            var sourceRule = (sourceRuleName || '').toLowerCase();
-            return !nameTitle.includes(tag) &&
-                   !ruleName.includes(tag) &&
-                   !sourceRule.includes(tag);
+            return !isExcludedByRules(getWiziItemTitle(item, qt), '');
           });
 
           if (append) {
@@ -3579,14 +3571,7 @@ function _resolveItemCategory(item, qt) {
           });
         });
 
-        // Suppress [GovIL] findings across all query types before importing
-        Object.keys(selectedByType).forEach(function(qt) {
-          selectedByType[qt] = selectedByType[qt].filter(function(item) {
-            return !getWiziItemTitle(item, qt).toLowerCase().includes('[govil]');
-          });
-        });
-
-        // Apply exclude rules filter (additive — after [GovIL] suppression)
+        // Apply exclude rules filter
         var _bulkActiveRules = getActiveExcludeRules();
         if (_bulkActiveRules.length) {
           var _bulkExcludedTotal = 0;

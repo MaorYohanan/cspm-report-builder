@@ -182,6 +182,17 @@ with app.app_context():
     except Exception as _exc:
         _log.warning("Startup scan-orphan cleanup failed (non-fatal): %s", _exc)
 
+# Seed built-in exclude rule for [GovIL] findings if not already present.
+with app.app_context():
+    try:
+        from backend.models import ExcludeRule as _ER
+        from backend.database import db as _seed_db
+        if not _ER.query.filter_by(pattern='[govil]').first():
+            _seed_db.session.add(_ER(field='title', operator='contains', pattern='[govil]', active=True))
+            _seed_db.session.commit()
+    except Exception as _exc:
+        _log.warning("GovIL rule seed failed (non-fatal): %s", _exc)
+
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — enabled when GOOGLE_CLIENT_ID is set)
 # ---------------------------------------------------------------------------
