@@ -643,6 +643,55 @@ const dateInput       = document.getElementById('report-date');
         origObserver.observe(tableWrapper, { childList: true });
       }
 
+      // ── Golden 5 chapter builder ──
+      function buildGolden5Html() {
+        const SEV_WEIGHT = { critical: 4, high: 3, medium: 2, low: 1, info: 0 };
+        const SEV_LABEL  = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info' };
+
+        // Filter out excepted findings, sort by severity weight descending, take top 5.
+        // .filter() already returns a new array so no .slice() copy is needed before .sort().
+        const top5 = (state.findings || [])
+          .filter(function(f) { return !(f.exception && f.exception.active); })
+          .sort(function(a, b) {
+            return (SEV_WEIGHT[b.severity] !== undefined ? SEV_WEIGHT[b.severity] : -1)
+                 - (SEV_WEIGHT[a.severity] !== undefined ? SEV_WEIGHT[a.severity] : -1);
+          })
+          .slice(0, 5);
+
+        if (!top5.length) return '';
+
+        function esc(s) {
+          return String(s || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        }
+        function trunc(s, n) {
+          s = String(s || '');
+          return s.length > n ? s.slice(0, n) + '…' : s;
+        }
+
+        var cards = top5.map(function(f, i) {
+          var sev = (f.severity || 'low').toLowerCase();
+          var rec = Array.isArray(f.recs) ? (f.recs[0] || '') : String(f.recs || '');
+          return '<div class="golden5-card sev-border-' + esc(sev) + '">\n' +
+            '  <div class="golden5-header">\n' +
+            '    <span class="golden5-rank">#' + (i + 1) + '</span>\n' +
+            '    <span class="golden5-title">' + esc(trunc(f.title, 80)) + '</span>\n' +
+            '    <span class="sev-badge sev-' + esc(sev) + '">' + esc(SEV_LABEL[sev] || sev) + '</span>\n' +
+            '  </div>\n' +
+            (f.impact ? '  <p class="golden5-impact">' + esc(trunc(f.impact, 200)) + '</p>\n' : '') +
+            (rec       ? '  <p class="golden5-rec">'    + esc(trunc(rec, 150))       + '</p>\n' : '') +
+            '</div>';
+        }).join('\n');
+
+        return '<section class="page-section golden5-chapter" id="golden5">\n' +
+          '  <h1>5 הממצאים המשמעותיים ביותר</h1>\n' +
+          cards + '\n' +
+          '</section>';
+      }
+
       // --- Render PDF via server ---
       if (renderPdfBtn) {
         renderPdfBtn.addEventListener('click', async function() {
@@ -650,7 +699,32 @@ const dateInput       = document.getElementById('report-date');
           statusMsg.textContent = 'מייצר PDF בשרת...';
           renderPdfBtn.disabled = true;
           try {
-            const html = buildReportHtml();
+            let html = buildReportHtml();
+
+            // exec-summary and scope-method are in the same <section> in buildReportHtml().
+            // The only available insertion point is after that combined section closes
+            // and before the findings-summary <section> — which is what this regex targets.
+            if (golden5Chk && golden5Chk.checked) {
+              const g5html = buildGolden5Html();
+              if (g5html) {
+                // Use a replacer function — never a replacement string — so that
+                // '$' characters in finding text are not misinterpreted as
+                // back-references by String.prototype.replace(). See MDN:
+                // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#specifying_a_function_as_the_replacement
+                html = html.replace(
+                  /(<\/section>)(\s*)(<section\s[^>]*>\s*<h1\s+id="findings-summary")/,
+                  function(_, p1, p2, p3) { return p1 + p2 + g5html + '\n\n' + p3; }
+                );
+                // Also inject a TOC entry for #golden5.
+                // buildReportHtml() generates its own TOC without a Golden 5 entry;
+                // we add it between the exec-summary and scope-method entries.
+                html = html.replace(
+                  /(<a href="#exec-summary">[^<]*<\/a><\/span>\s*<\/li>)(\s*<li[^>]*>\s*<span>\s*<a href="#scope-method">)/,
+                  function(_, p1, p2) { return p1 + '\n<li class="toc-item"><span><a href="#golden5">5 הממצאים המשמעותיים ביותר</a></span></li>' + p2; }
+                );
+              }
+            }
+
             const snapshot = buildSnapshot();
             const resp = await fetch('/api/render-pdf', {
               method: 'POST',
@@ -1115,6 +1189,16 @@ const dateInput       = document.getElementById('report-date');
           if (panel) panel.classList.add('active');
         });
       });
+
+      // ── Golden 5 chapter — localStorage persistence ──
+      const golden5Chk = document.getElementById('chk-golden5');
+      if (golden5Chk) {
+        const saved = localStorage.getItem('export-golden5-enabled');
+        golden5Chk.checked = saved === null ? true : saved === 'true';
+        golden5Chk.addEventListener('change', function() {
+          localStorage.setItem('export-golden5-enabled', String(golden5Chk.checked));
+        });
+      }
 
       // Bootstrap — deferred so all modules finish their synchronous init before
       // we call into findings.js (avoids TDZ errors from the circular dep chain)

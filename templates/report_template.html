@@ -54,6 +54,7 @@
     <p class="muted">לחיצה על סעיף תקפיץ למיקום המתאים במסמך.</p>
     <ul>
       <li><a href="#exec-summary">1. תקציר מנהלים</a></li>
+      {% if golden5_findings %}<li><a href="#golden5">1.5. 5 הממצאים המשמעותיים ביותר</a></li>{% endif %}
       <li><a href="#scope-method">2. תחום הבדיקה ומתודולוגיה</a></li>
       <li><a href="#findings-summary">3. סיכום ממצאים לפי רמת חומרה</a></li>
       <li><a href="#detailed-findings">4. ממצאים עיקריים (CSPM)</a></li>
@@ -72,6 +73,24 @@
     {% endif %}
     <p><strong>הערכת סיכון כללית:</strong> {{ meta.reportRisk or "נמוכה / בינונית / גבוהה" }}</p>
   </section>
+
+  <!-- GOLDEN 5 — injected by JS before PDF render; this Jinja2 block is reference only -->
+  {% if golden5_findings %}
+  <section class="page-section golden5-chapter" id="golden5">
+    <h1>5 הממצאים המשמעותיים ביותר</h1>
+    {% for f in golden5_findings %}
+    <div class="golden5-card sev-border-{{ f.severity }}">
+      <div class="golden5-header">
+        <span class="golden5-rank">#{{ loop.index }}</span>
+        <span class="golden5-title">{{ f.title }}</span>
+        <span class="sev-badge sev-{{ f.severity }}">{{ f.severity }}</span>
+      </div>
+      {% if f.impact %}<p class="golden5-impact">{{ f.impact }}</p>{% endif %}
+      {% if f.recs %}<p class="golden5-rec">{{ f.recs[0] }}</p>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
 
   <!-- SCOPE — separate page-section so break-after: page in report.css
        inserts a page break between exec summary and scope/methodology -->

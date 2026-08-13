@@ -166,3 +166,13 @@ Wave 6 — Task 2.4 (Interactive HTML Export): ✅ merged to main — 2026-08-12
 - New route: POST /api/export/html in backend/routes/reports.py (@require_role("editor"), 20 MB cap, render_template only, no PDF pipeline)
 - New button: btn-export-html in export panel (index.html + export.js); disabled when no findings via updateCloudButtons()
 - JS cache-buster: main.js?v=131
+
+Wave 6 — Task 3.2 (PDF Golden 5 chapter): ✅ merged to main — 2026-08-12
+- Branch: feature/pdf-golden-5
+- Checkbox "כלול פרק Golden 5" in export panel (chk-golden5), default checked, localStorage persisted
+- buildGolden5Html(): top 5 non-excepted findings sorted by severity weight, title ≤80 chars, impact ≤200 chars, rec ≤150 chars
+- Chapter injected into HTML string before POST to /api/render-pdf (after exec-summary/scope-method section, before findings-summary section)
+- Injection point regex: matches </section> whitespace <section ... <h1 id="findings-summary"
+- CSS: .golden5-chapter, .golden5-card, .golden5-header, .golden5-rank, .golden5-title, .golden5-impact, .golden5-rec, .sev-border-* in assets/report.css (Designer Part 1)
+- JS cache-buster: main.js?v=132
+- Tests: 214 passed, 0 failed

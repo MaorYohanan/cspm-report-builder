@@ -95,6 +95,8 @@ th { background: #0b3c5d; color: #fff; font-weight: bold; }
 .finding-id { font-size: 11px; color:#6b7280; }
 .finding-section-title { break-after: avoid; page-break-after: avoid; }
 .severity-badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; color:#fff; font-weight:700; }
+/* .sev-badge — alias used by report_template.html line 86 (sev-badge sev-{{ f.severity }}) */
+.sev-badge      { padding: 2px 8px; border-radius: 999px; font-size: 11px; color:#fff; font-weight:700; }
 
 .sev-critical { background:#b91c1c; }
 .sev-high     { background:#ef4444; }
@@ -142,3 +144,62 @@ img { max-width: 100%; height: auto; }
 .finding-card-exception {
   border-color: #bbf7d0;
 }
+
+/* ── Golden 5 chapter ── */
+/* Severity accent border on the RIGHT (RTL start/lead side) — intentional per RTL convention.
+   sev-border-* classes override border-right color; border-left is NOT used here. */
+
+.golden5-chapter {
+  margin-bottom: 0;
+}
+
+.golden5-card {
+  border: 1px solid #e2e8f0;   /* thin surrounding border on all four sides */
+  border-right: 4px solid #cbd5e0; /* severity accent — overrides the 1px right from shorthand above; overridden by sev-border-* per severity */
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  break-inside: avoid;         /* W3C CSS Fragmentation Module Level 3 */
+  page-break-inside: avoid;    /* legacy alias required for Playwright compatibility */
+}
+
+.golden5-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.golden5-rank {
+  font-weight: 800;
+  font-size: 15px;
+  color: #0b3c5d;
+  min-width: 24px;
+  flex-shrink: 0;
+}
+
+.golden5-title {
+  font-weight: 600;
+  font-size: 12px;
+  flex: 1;
+}
+
+.golden5-impact {
+  font-size: 10px;
+  color: #4a5568;
+  margin: 2px 0;
+}
+
+.golden5-rec {
+  font-size: 10px;
+  color: #2d3748;
+  font-style: italic;
+  margin: 2px 0;
+}
+
+/* Severity accent border overrides — right side (RTL start) matches sev-badge palette */
+.sev-border-critical { border-right-color: #b91c1c; }
+.sev-border-high     { border-right-color: #ef4444; }
+.sev-border-medium   { border-right-color: #f97316; }
+.sev-border-low      { border-right-color: #22c55e; }
+.sev-border-info     { border-right-color: #6b7280; }
