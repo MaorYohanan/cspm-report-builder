@@ -203,3 +203,44 @@ img { max-width: 100%; height: auto; }
 .sev-border-medium   { border-right-color: #f97316; }
 .sev-border-low      { border-right-color: #22c55e; }
 .sev-border-info     { border-right-color: #6b7280; }
+
+/* ── Regression chapter ── */
+.regression-chapter {
+  margin-bottom: 0;
+  break-inside: avoid;           /* W3C CSS Fragmentation Module Level 3 */
+  page-break-inside: avoid;     /* legacy alias required for Playwright compatibility */
+}
+
+.regression-chapter h1 {
+  margin-top: 0;
+}
+
+/* Zombie findings table — inherits global table styles but gets a slightly
+   lighter header to visually distinguish it from the main findings tables. */
+.regression-table th {
+  background: #1d4ed8;
+}
+
+.regression-table tr {
+  break-inside: avoid;           /* W3C CSS Fragmentation Module Level 3 */
+  page-break-inside: avoid;     /* legacy alias required for Playwright compatibility */
+}
+
+/* Trend paragraph — rendered beneath the zombie table */
+.trend-paragraph {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #1e293b;
+  background: #f8fafc;
+  border-right: 4px solid #1d4ed8;  /* RTL start accent */
+  border-radius: 4px;
+  padding: 8px 14px;
+  margin-top: 6mm;
+}
+
+/* No-zombie state message */
+.regression-no-zombies {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}

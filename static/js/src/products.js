@@ -8,6 +8,105 @@ import { buildSnapshot, applySnapshot, switchToTab, buildReportHtml, buildFilena
 // ═══════════════════════════════════════════
 
 // ---------------------------------------------------------------------------
+// Regression chapter helpers (duplicated from export.js — no shared import path)
+// ---------------------------------------------------------------------------
+
+/**
+ * Return true when the version string represents a minor version
+ * (e.g. "1.1", "2.3") rather than a major version ("1.0", "2.0").
+ */
+function _isMinorVersion(versionStr) {
+  var match = /^(\d+)\.(\d+)$/.exec((versionStr || '').trim());
+  if (!match) return false;
+  return parseInt(match[2], 10) > 0;
+}
+
+/**
+ * Detect zombie findings: findings that were previously excepted in the
+ * baseline snapshot and now reappear as active (non-excepted) in the current
+ * snapshot. Matching is done by normalised title (lowercase, trimmed).
+ *
+ * Does NOT mutate either array.
+ *
+ * @param {Array} baselineFindings - Findings from the prior published snapshot.
+ * @param {Array} currFindings     - Findings from the current snapshot.
+ * @returns {Array} zombie finding objects with an extra `prevStatus` field.
+ */
+function _detectZombies(baselineFindings, currFindings) {
+  var prevExceptedTitles = {};
+  (baselineFindings || []).forEach(function(f) {
+    if (!f || typeof f !== 'object') return;
+    var normTitle = String(f.title || '').trim().toLowerCase();
+    if (!normTitle) return;
+    if (f.exception && f.exception.active) {
+      prevExceptedTitles[normTitle] = 'הוחרג';
+    }
+  });
+
+  var zombies = [];
+  (currFindings || []).forEach(function(f) {
+    if (!f || typeof f !== 'object') return;
+    var normTitle = String(f.title || '').trim().toLowerCase();
+    var currExcepted = f.exception && f.exception.active;
+    if (currExcepted) return;
+    if (prevExceptedTitles[normTitle]) {
+      zombies.push(Object.assign({}, f, { prevStatus: prevExceptedTitles[normTitle] }));
+    }
+  });
+
+  return zombies;
+}
+
+/**
+ * Build the regression chapter HTML block. Returns '' when zombies is
+ * empty/falsy — the caller must skip injection and the Gemini call.
+ *
+ * @param {string} trendText - AI-generated trend paragraph (may be empty).
+ * @param {Array}  zombies   - Array of zombie finding objects.
+ * @returns {string} HTML string or ''.
+ */
+function _buildRegressionChapterHtml(trendText, zombies) {
+  if (!zombies || !zombies.length) return '';
+
+  function esc(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  var SEV_LABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info' };
+
+  var rows = zombies.map(function(z) {
+    var sev = (z.severity || 'low').toLowerCase();
+    var sevLabel = SEV_LABEL[sev] || sev;
+    return '<tr>' +
+      '<td>' + esc(z.title) + '</td>' +
+      '<td><span class="sev-badge sev-' + esc(sev) + '">' + esc(sevLabel) + '</span></td>' +
+      '<td>' + esc(z.prevStatus || '') + '</td>' +
+      '</tr>';
+  }).join('\n');
+
+  var zombieTableHtml =
+    '<table class="regression-table">\n' +
+    '  <thead><tr><th>כותרת ממצא</th><th>חומרה</th><th>מצב קודם</th></tr></thead>\n' +
+    '  <tbody>\n' + rows + '\n  </tbody>\n' +
+    '</table>';
+
+  var trendParaHtml = trendText
+    ? '<p class="trend-paragraph">' + esc(trendText) + '</p>'
+    : '';
+
+  return '<section class="page-section regression-chapter" id="regression-trend">\n' +
+    '  <h1>ניתוח מגמות והשוואה לדוח קודם</h1>\n' +
+    '  <h2>ממצאי Zombie (חזרו לאחר שנסגרו או הוחרגו)</h2>\n' +
+    zombieTableHtml + '\n' +
+    trendParaHtml + '\n' +
+    '</section>';
+}
+
+// ---------------------------------------------------------------------------
 // Pure helpers (also used by tests)
 // ---------------------------------------------------------------------------
 
@@ -551,6 +650,125 @@ export var ProductsPanel = {
         // Note: applySnapshot already replaced the full editor state with the snapshot,
         // so previousVersionValue holds meta.reportVersion, not the user's pre-click value.
         if (versionField) versionField.value = previousVersionValue;
+      }
+
+      // ── Regression chapter — only for minor versions (e.g. 1.1, 2.3) ──
+      if (_isMinorVersion(systemVersion)) {
+        try {
+          // Fetch all versions for this product and find the most recent
+          // published version that precedes the current version by number.
+          var allVersions = await this.fetchVersions(productId);
+
+          // Parse the current version into [major, minor] for comparison.
+          var curParts = String(systemVersion).split('.');
+          var curMajor = parseInt(curParts[0], 10) || 0;
+          var curMinor = parseInt(curParts[1], 10) || 0;
+
+          // Find the highest-numbered published version that is strictly
+          // less than the current version (compare major first, then minor).
+          var priorVersion = null;
+          var priorKey = null;
+          (allVersions || []).forEach(function(v) {
+            if (!v || !v.version || v.status !== 'published') return;
+            var parts = String(v.version).split('.');
+            if (parts.length !== 2) return;
+            var maj = parseInt(parts[0], 10) || 0;
+            var min = parseInt(parts[1], 10) || 0;
+            // Must be strictly less than current version
+            if (maj > curMajor || (maj === curMajor && min >= curMinor)) return;
+            if (!priorKey || maj > priorKey[0] || (maj === priorKey[0] && min > priorKey[1])) {
+              priorVersion = v.version;
+              priorKey = [maj, min];
+            }
+          });
+
+          if (priorVersion) {
+            // Fetch the prior published snapshot and detect zombies.
+            var priorData = await this.fetchVersion(productId, priorVersion);
+            var priorFindings = priorData.findings || [];
+            var currFindings = versionData.findings || [];
+            var zombies = _detectZombies(priorFindings, currFindings);
+
+            // Only call Gemini and inject the chapter when there are actual zombies.
+            if (zombies.length > 0) {
+              var trendText = '';
+              try {
+                var aiModelEl = document.getElementById('ai-model');
+                var model = (aiModelEl && aiModelEl.value) || '';
+                var trendResp = await fetch('/api/generate-regression-trend', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    prev_snapshot_data: {
+                      riskScore: priorData.riskScore || null,
+                      findings: priorFindings.map(function(f) {
+                        return {
+                          title: f.title || '',
+                          severity: f.severity || '',
+                          exception: { active: !!(f.exception && f.exception.active) }
+                        };
+                      })
+                    },
+                    curr_findings: currFindings.map(function(f) {
+                      return {
+                        title: f.title || '',
+                        severity: f.severity || '',
+                        exception: { active: !!(f.exception && f.exception.active) }
+                      };
+                    }),
+                    zombies: zombies.map(function(z) {
+                      return {
+                        title: z.title || '',
+                        severity: z.severity || '',
+                        prevStatus: z.prevStatus || ''
+                      };
+                    }),
+                    model: model
+                  })
+                });
+                if (trendResp.ok) {
+                  var trendData = await trendResp.json();
+                  trendText = trendData.trend_text || '';
+                } else {
+                  console.warn('Regression trend API error:', trendResp.status);
+                }
+              } catch (trendErr) {
+                console.warn('Regression trend fetch failed (graceful degrade):', trendErr);
+              }
+
+              var regHtml = _buildRegressionChapterHtml(trendText, zombies);
+              if (regHtml) {
+                // Inject before the findings-summary section (or before golden5 if present).
+                // Use a replacer function — never a replacement string — so that '$' characters
+                // in finding titles are not misinterpreted as back-references.
+                // See MDN: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/replace#specifying_a_function_as_the_replacement
+                var golden5Present = html.indexOf('class="page-section golden5-chapter"') !== -1;
+                if (golden5Present) {
+                  html = html.replace(
+                    /(<section\s[^>]*class="[^"]*golden5-chapter[^"]*")/,
+                    function(_, p1) { return regHtml + '\n\n' + p1; }
+                  );
+                } else {
+                  html = html.replace(
+                    /(<\/section>)(\s*)(<section\s[^>]*>\s*<h1\s+id="findings-summary")/,
+                    function(_, p1, p2, p3) { return p1 + p2 + regHtml + '\n\n' + p3; }
+                  );
+                }
+
+                // Inject TOC entry for #regression-trend after the exec-summary TOC entry.
+                html = html.replace(
+                  /(<a href="#exec-summary">[^<]*<\/a><\/span>\s*<\/li>)(\s*<li[^>]*>)/,
+                  function(_, p1, p2) {
+                    return p1 + '\n<li class="toc-item"><span><a href="#regression-trend">ניתוח מגמות</a></span></li>' + p2;
+                  }
+                );
+              }
+            }
+          }
+        } catch (regErr) {
+          // Regression chapter failure must never block PDF export.
+          console.warn('Regression chapter failed gracefully:', regErr);
+        }
       }
 
       var snapshot = buildSnapshot();

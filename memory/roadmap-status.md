@@ -176,3 +176,12 @@ Wave 6 — Task 3.2 (PDF Golden 5 chapter): ✅ merged to main — 2026-08-12
 - CSS: .golden5-chapter, .golden5-card, .golden5-header, .golden5-rank, .golden5-title, .golden5-impact, .golden5-rec, .sev-border-* in assets/report.css (Designer Part 1)
 - JS cache-buster: main.js?v=132
 - Tests: 214 passed, 0 failed
+
+Wave 6 — Task 3.1 (PDF Regression Chapter): ✅ merged to main — 2026-08-13
+- Branch: feature/pdf-regression-chapter
+- New GeminiService.generate_regression_trend(prev_snapshot_data, curr_findings, zombies, curr_risk_score=None) in backend/services/ai_service.py
+- New POST /api/generate-regression-trend route in backend/routes/ai.py (@require_role("editor")); imports _compute_risk_score from products.py (one-liner); sanitizes inputs; returns {"trend_text": "...", "model": "..."}; 400 on missing fields, 501 on no API key, 502 on Gemini failure
+- export.js: _loadedBaseline variable stores full baseline snapshot on load; _isMinorVersion() checks version string; _detectZombies() detects reappeared findings by normalised title; buildRegressionChapterHtml() builds <section class="page-section regression-chapter"> with .regression-table and .trend-paragraph; injection into PDF HTML string before POST to /api/render-pdf; only active when _loadedBaseline is set and version is minor (e.g. 1.1, 2.3); graceful degrade on AI fetch failure; TOC entry injected for #regression-trend
+- CSS: .regression-chapter, .regression-table th, .trend-paragraph, .regression-no-zombies added to assets/report.css (Playwright-safe: no fixed/sticky, no external fonts, no min-height:100vh)
+- JS cache-buster: main.js?v=133
+- Tests: 214 passed, 0 failed

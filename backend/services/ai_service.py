@@ -284,6 +284,119 @@ class GeminiService:
             enable_fallback=True
         )
 
+    REGRESSION_TREND_SYSTEM_PROMPT = (
+        "You are a senior cloud security consultant writing a CSPM assessment report. "
+        "You are given data comparing two consecutive security assessment snapshots for the same product. "
+        "Write a professional regression trend analysis consisting of exactly 2-3 sentences:\n"
+        "1. Describe the overall security posture trend (improving / stable / regressing) based on risk score change.\n"
+        "2. Highlight any zombie findings (previously resolved or excepted findings that reappeared) and their impact.\n"
+        "3. If new findings appeared, note their significance.\n\n"
+        "Rules:\n"
+        "- Write in formal, professional Hebrew.\n"
+        "- Keep technical terms in English (IAM, S3, VPC, MFA, RBAC, GCP, AWS, Azure, Kubernetes, etc.).\n"
+        "- Do NOT use bullet points — write flowing prose only.\n"
+        "- Do NOT repeat raw numbers from the data verbatim — synthesize them into insights.\n"
+        "- Return ONLY the 2-3 sentences. No headers, no markdown, no extra text."
+    )
+
+    def generate_regression_trend(
+        self,
+        prev_snapshot_data: dict,
+        curr_findings: list,
+        zombies: list,
+        curr_risk_score: int | None = None,
+        model: str | None = None,
+        temperature: float = 0.4,
+        max_tokens: int = 2048,
+    ) -> tuple[str, str]:
+        """
+        Generate a Hebrew regression trend paragraph comparing two consecutive snapshots.
+
+        Args:
+            prev_snapshot_data: Previous snapshot dict (may contain riskScore, findings, meta).
+            curr_findings: Current list of finding dicts.
+            zombies: List of zombie finding dicts (previously resolved/excepted, now reappeared).
+            curr_risk_score: Pre-computed risk score for current findings, or None.
+            model: Preferred Gemini model. Falls back on 429.
+            temperature: Sampling temperature.
+            max_tokens: Maximum output tokens.
+
+        Returns:
+            Tuple of (trend_text, model_used)
+
+        Raises:
+            RuntimeError: If all models fail or content is blocked.
+        """
+        # Extract previous snapshot metadata
+        prev_findings = prev_snapshot_data.get("findings") or []
+        prev_risk = prev_snapshot_data.get("riskScore")
+        if prev_risk is None:
+            # Compute from snapshot if not stored
+            prev_weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+            prev_risk = sum(
+                prev_weights.get(str(f.get("severity", "")).lower(), 0)
+                for f in prev_findings
+                if isinstance(f, dict)
+                and not (isinstance(f.get("exception"), dict) and f["exception"].get("active"))
+            )
+
+        prev_total = len(prev_findings)
+        prev_excepted = sum(
+            1 for f in prev_findings
+            if isinstance(f, dict)
+            and isinstance(f.get("exception"), dict)
+            and f["exception"].get("active")
+        )
+
+        curr_total = len(curr_findings)
+        curr_excepted = sum(
+            1 for f in curr_findings
+            if isinstance(f, dict)
+            and isinstance(f.get("exception"), dict)
+            and f["exception"].get("active")
+        )
+
+        # Count new findings (present in curr but not in prev by title normalization)
+        prev_titles = {str(f.get("title", "")).strip().lower() for f in prev_findings if isinstance(f, dict)}
+        new_count = sum(
+            1 for f in curr_findings
+            if isinstance(f, dict) and str(f.get("title", "")).strip().lower() not in prev_titles
+        )
+
+        zombie_count = len(zombies) if isinstance(zombies, list) else 0
+        curr_score_str = str(curr_risk_score) if curr_risk_score is not None else "לא ידוע"
+
+        zombie_lines = ""
+        if zombie_count and isinstance(zombies, list):
+            zombie_details = []
+            for z in zombies[:5]:  # Cap at 5 to keep prompt concise
+                if isinstance(z, dict):
+                    title = (z.get("title") or "")[:80]
+                    sev = (z.get("severity") or "").lower()
+                    prev_status = z.get("prevStatus") or "נסגר/הוחרג"
+                    zombie_details.append(f"  - [{sev.upper()}] {title} (מצב קודם: {prev_status})")
+            if zombie_details:
+                zombie_lines = "\nממצאי zombie (חזרו לאחר שנסגרו/הוחרגו):\n" + "\n".join(zombie_details)
+
+        prompt = (
+            f"ציון סיכון קודם: {prev_risk}\n"
+            f"ציון סיכון נוכחי: {curr_score_str}\n"
+            f"סה\"כ ממצאים קודם: {prev_total} (מתוכם מוחרגים: {prev_excepted})\n"
+            f"סה\"כ ממצאים נוכחי: {curr_total} (מתוכם מוחרגים: {curr_excepted})\n"
+            f"ממצאים חדשים שלא היו בדוח הקודם: {new_count}\n"
+            f"ממצאי zombie שחזרו: {zombie_count}"
+            + zombie_lines
+        )
+
+        return self._call_gemini(
+            prompt=prompt,
+            system_prompt=self.REGRESSION_TREND_SYSTEM_PROMPT,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            enable_fallback=True,
+        )
+
     def _call_gemini(
         self,
         prompt: str,

@@ -405,6 +405,10 @@ const dateInput       = document.getElementById('report-date');
       var baselineInput = document.getElementById('input-import-baseline');
       var trendContainer = document.getElementById('trend-comparison');
 
+      // Holds the full baseline snapshot (not just findings) so the PDF render
+      // button can pass prev_snapshot_data to /api/generate-regression-trend.
+      var _loadedBaseline = null;
+
       baselineBtn.addEventListener('click', function() { baselineInput.click(); });
 
       baselineInput.addEventListener('change', function() {
@@ -417,6 +421,7 @@ const dateInput       = document.getElementById('report-date');
             if (!baseline.findings || !Array.isArray(baseline.findings)) {
               alert('קובץ JSON לא תואם לפורמט המחולל.'); return;
             }
+            _loadedBaseline = baseline;
             showTrendComparison(baseline.findings);
           } catch(e) { alert('שגיאה בקריאת קובץ JSON.'); }
           finally { baselineInput.value = ''; }

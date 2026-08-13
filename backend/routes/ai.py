@@ -9,6 +9,7 @@ from flask import Blueprint, jsonify, request
 
 from backend.services import GeminiService
 from backend.services.auth_service import require_role
+from backend.routes.products import _compute_risk_score
 
 _log = logging.getLogger(__name__)
 ai_bp = Blueprint('ai', __name__)
@@ -164,4 +165,94 @@ def api_generate_exec_summary():
         return jsonify({"error": str(e)}), 502
     except Exception:
         _log.exception("Unexpected error in api_generate_exec_summary")
+        return jsonify({"error": "Internal error"}), 502
+
+
+@ai_bp.route("/api/generate-regression-trend", methods=["POST"])
+@require_role("editor")
+def api_generate_regression_trend():
+    """Generate a Hebrew regression trend paragraph comparing two consecutive snapshots."""
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI assist not configured (GEMINI_API_KEY not set)"}), 501
+
+    data = request.get_json(silent=True) or {}
+    prev_snapshot_data = data.get("prev_snapshot_data")
+    curr_findings = data.get("curr_findings")
+    zombies = data.get("zombies")
+    model = (data.get("model") or "").strip()
+
+    if not isinstance(prev_snapshot_data, dict):
+        return jsonify({"error": "prev_snapshot_data must be an object"}), 400
+    if not isinstance(curr_findings, list):
+        return jsonify({"error": "curr_findings must be a list"}), 400
+    if not isinstance(zombies, list):
+        return jsonify({"error": "zombies must be a list"}), 400
+
+    prev_findings_raw = prev_snapshot_data.get("findings") or []
+    if not isinstance(prev_findings_raw, list):
+        return jsonify({"error": "prev_snapshot_data.findings must be a list"}), 400
+    if len(curr_findings) > 500:
+        return jsonify({"error": "Too many curr_findings (max 500)"}), 400
+    if len(prev_findings_raw) > 500:
+        return jsonify({"error": "Too many prev_snapshot_data.findings (max 500)"}), 400
+    if len(zombies) > 500:
+        return jsonify({"error": "Too many zombies (max 500)"}), 400
+
+    if not model or model not in GEMINI_MODELS:
+        model = GEMINI_DEFAULT_MODEL
+
+    # Compute current risk score from curr_findings using the existing pure helper.
+    # _compute_risk_score expects a snapshot dict with a "findings" key.
+    curr_risk_score = _compute_risk_score({"findings": curr_findings})
+
+    # Sanitize inputs — keep only safe scalar fields to avoid prompt injection
+    safe_prev = {
+        "riskScore": prev_snapshot_data.get("riskScore"),
+        "findings": [
+            {
+                "title": (f.get("title") or "")[:200],
+                "severity": (f.get("severity") or "")[:20],
+                "exception": {"active": bool((f.get("exception") or {}).get("active", False))},
+            }
+            for f in prev_findings_raw
+            if isinstance(f, dict)
+        ],
+    }
+
+    safe_curr = [
+        {
+            "title": (f.get("title") or "")[:200],
+            "severity": (f.get("severity") or "")[:20],
+            "exception": {"active": bool((f.get("exception") or {}).get("active", False))},
+        }
+        for f in curr_findings
+        if isinstance(f, dict)
+    ]
+
+    safe_zombies = [
+        {
+            "title": (z.get("title") or "")[:200],
+            "severity": (z.get("severity") or "")[:20],
+            "prevStatus": (z.get("prevStatus") or "")[:50],
+        }
+        for z in zombies
+        if isinstance(z, dict)
+    ]
+
+    try:
+        gemini = get_gemini_service()
+        trend_text, used_model = gemini.generate_regression_trend(
+            prev_snapshot_data=safe_prev,
+            curr_findings=safe_curr,
+            zombies=safe_zombies,
+            curr_risk_score=curr_risk_score,
+            model=model,
+        )
+        return jsonify({"trend_text": trend_text, "model": used_model})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_generate_regression_trend")
         return jsonify({"error": "Internal error"}), 502
