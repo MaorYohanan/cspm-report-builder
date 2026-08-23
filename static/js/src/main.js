@@ -9,8 +9,20 @@ import './wizi.js';
 import './pipeline.js';
 import './exceptions.js';
 import { ExcludeRulesPanel } from './exclude_rules.js';
+import { getLang, setLang } from './i18n.js';
 
 ExcludeRulesPanel.init();
+
+// Restore saved UI language on page load
+setLang(getLang());
+
+// Wire lang toggle button
+var langToggleBtn = document.getElementById('btn-lang-toggle');
+if (langToggleBtn) {
+  langToggleBtn.addEventListener('click', function() {
+    setLang(getLang() === 'he' ? 'en' : 'he');
+  });
+}
 
 // Auth: show current user in sidebar
 (function initUserInfo() {

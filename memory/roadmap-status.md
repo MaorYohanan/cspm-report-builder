@@ -177,6 +177,18 @@ Wave 6 — Task 3.2 (PDF Golden 5 chapter): ✅ merged to main — 2026-08-12
 - JS cache-buster: main.js?v=132
 - Tests: 214 passed, 0 failed
 
+Wave 6 — Task 3.3 (Multi-language UI + PDF toggle): ✅ merged to main — 2026-08-13
+- New file: static/js/src/i18n.js (TRANSLATIONS dict, setLang, getLang, t helpers)
+- New file: static/css/src/ltr-overrides.css (LTR layout overrides for [dir="ltr"]) — Designer Part 1
+- 248 data-i18n attributes added to index.html — Designer Part 1
+- btn-lang-toggle button in sidebar footer — Designer Part 1
+- UI language persisted in localStorage key ui-lang; restored on page load via setLang(getLang()) in main.js
+- PDF language (report-lang select) persisted in localStorage key export-pdf-lang; restored in export.js queueMicrotask block
+- #btn-lang-toggle hidden in collapsed sidebar (layout.css updated, build_css.py run)
+- JS cache-buster: main.js?v=135
+- CSS cache-buster: builder.css?v=55
+- Tests: 214 passed, 0 failed
+
 Wave 6 — Task 3.1 (PDF Regression Chapter): ✅ merged to main — 2026-08-13
 - Branch: feature/pdf-regression-chapter
 - New GeminiService.generate_regression_trend(prev_snapshot_data, curr_findings, zombies, curr_risk_score=None) in backend/services/ai_service.py

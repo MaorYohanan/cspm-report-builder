@@ -469,7 +469,7 @@
   'use strict';
 
   /* ─── Data ──────────────────────────────────────────────────────────── */
-  window.__REPORT_DATA__ = {{ report_data_json | safe }};
+  window.__REPORT_DATA__ = {{ report_data | tojson }};
 
   var data     = window.__REPORT_DATA__;
   var meta     = (data && data.meta)     || {};

@@ -19,6 +19,7 @@ FILE_ORDER = [
     'products.css',    # Product registry: grid, timeline, version rows, diff panel
     'pipeline.css',    # Pipeline Dashboard — KPI cards, status badges, filter bar, table
     'theme.css',       # Light theme overrides
+    'ltr-overrides.css', # LTR layout overrides for Hebrew/English language toggle
 ]
 
 parts = []

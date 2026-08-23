@@ -182,10 +182,9 @@ def api_export_html():
         date_str = datetime.date.today().isoformat()
 
     try:
-        report_data_json = _json.dumps(snapshot, ensure_ascii=False)
         html = render_template(
             "interactive_export_template.html",
-            report_data_json=report_data_json,
+            report_data=snapshot,
         )
         return Response(
             html,

@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request
 
 from backend.services import GeminiService
 from backend.services.auth_service import require_role
-from backend.routes.products import _compute_risk_score
+from backend.utils import compute_risk_score
 
 _log = logging.getLogger(__name__)
 ai_bp = Blueprint('ai', __name__)
@@ -201,9 +201,9 @@ def api_generate_regression_trend():
     if not model or model not in GEMINI_MODELS:
         model = GEMINI_DEFAULT_MODEL
 
-    # Compute current risk score from curr_findings using the existing pure helper.
-    # _compute_risk_score expects a snapshot dict with a "findings" key.
-    curr_risk_score = _compute_risk_score({"findings": curr_findings})
+    # Compute current risk score from curr_findings using the shared utility.
+    # compute_risk_score expects a snapshot dict with a "findings" key.
+    curr_risk_score = compute_risk_score({"findings": curr_findings})
 
     # Sanitize inputs — keep only safe scalar fields to avoid prompt injection
     safe_prev = {

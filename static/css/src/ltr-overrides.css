@@ -1,0 +1,187 @@
+/* ── LTR layout overrides ──────────────────────────────────────────────────
+   Applied when <html dir="ltr"> is set by the language toggle (i18n.js).
+   All rules use the [dir="ltr"] attribute selector so they only activate
+   in LTR mode. No RTL rules are removed or altered — this file only adds.
+
+   Physical property pairs (margin-right/left, padding-right/left,
+   border-right/left, right/left) are used here intentionally, matching the
+   RTL base rules in layout.css and components.css that also use physical
+   properties. Logical properties (margin-inline-*) do not need overrides
+   as the browser resolves them automatically from dir="ltr".
+
+   Reference: W3C CSS Writing Modes Level 3
+              W3C CSS Logical Properties and Values
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── Sidebar: flip from right-anchored to left-anchored ── */
+[dir="ltr"] .sidebar {
+  right: auto;
+  left: 0;
+  /* Base RTL rule: border-left: 1px solid var(--sidebar-border) */
+  border-left: none;
+  border-right: 1px solid var(--sidebar-border);
+}
+
+/* ── Collapsed flyout: flip from right:100% to left:100% ──
+   Base RTL rule: right: 100%; margin-left: 6px
+   In LTR the flyout must open to the RIGHT of the sidebar. */
+[dir="ltr"] .sidebar.collapsed .sidebar-group:hover .sidebar-nav {
+  right: auto;
+  left: 100%;
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+/* ── Main content: flip margin from right-side to left-side ──
+   Base RTL rule: margin-right: var(--sidebar-width) */
+[dir="ltr"] .main-content {
+  margin-right: 0;
+  margin-left: var(--sidebar-width);
+}
+
+/* ── Collapsed sidebar: flip main-content margin ──
+   Base RTL rules (both selectors in layout.css):
+     .sidebar.collapsed ~ .main-content  { margin-right: 52px; }
+     .sidebar.collapsed + .main-content  { margin-right: 52px; } */
+[dir="ltr"] .sidebar.collapsed ~ .main-content,
+[dir="ltr"] .sidebar.collapsed + .main-content {
+  margin-right: 0;
+  margin-left: 52px;
+}
+
+/* Responsive breakpoint override (components.css line 9) */
+@media (max-width: 900px) {
+  [dir="ltr"] .main-content {
+    margin-right: 0;
+    margin-left: 52px;
+  }
+}
+
+/* ── Sidebar items: text alignment and active indicator ──
+   Base RTL rule: text-align: right; border-right: 3px solid transparent; */
+[dir="ltr"] .sidebar-item {
+  text-align: left;
+  border-right: none;
+  border-left: 3px solid transparent;
+}
+
+[dir="ltr"] .sidebar-item.active {
+  /* Base RTL rule: border-right-color: var(--accent) */
+  border-right-color: transparent;
+  border-left-color: var(--accent);
+}
+
+/* Group-colored active items */
+[dir="ltr"] .sidebar-group .sidebar-nav .sidebar-item.active {
+  border-right-color: transparent;
+  border-left-color: var(--group-color);
+}
+
+/* ── Sidebar badge: flip auto margin so it pushes to end in LTR ──
+   Base RTL rule: margin-right: auto (pushes badge to the left end) */
+[dir="ltr"] .sidebar-badge {
+  margin-right: 0;
+  margin-left: auto;
+}
+
+/* ── Section label text: flip text alignment ──
+   Base RTL rule: text-align: right */
+[dir="ltr"] .section-label-text {
+  text-align: left;
+}
+
+/* ── Tab panels and section bodies: text alignment ── */
+[dir="ltr"] .tab-panel,
+[dir="ltr"] .section-body {
+  text-align: left;
+}
+
+/* ── Form labels ──
+   label is display:block with no explicit text-align in the base;
+   in RTL context the browser default is right-aligned. Explicit override. */
+[dir="ltr"] label {
+  text-align: left;
+}
+
+/* ── Tables: flip text alignment ──
+   Base RTL rule (components.css): text-align: right on th, td */
+[dir="ltr"] th,
+[dir="ltr"] td {
+  text-align: left;
+}
+
+[dir="ltr"] table caption {
+  text-align: left;
+}
+
+/* ── Selected/active row indicator: flip border side ──
+   Base RTL rules: border-right: 3px solid var(--accent) */
+[dir="ltr"] tbody tr.selected {
+  border-right: none;
+  border-left: 3px solid var(--accent);
+}
+
+[dir="ltr"] tbody tr.active-row {
+  border-right: none;
+  border-left: 3px solid var(--accent);
+}
+
+/* ── Severity chips: flip border side ──
+   Base RTL rule: border-right: 3px solid (start edge in RTL) */
+[dir="ltr"] .severity-chip {
+  border-right: none;
+  border-left: 3px solid;
+}
+
+/* ── Select dropdown: flip chevron icon position ──
+   Base RTL rule: background-position: right 10px center; padding-right: 28px; padding-left: 10px */
+[dir="ltr"] select {
+  background-position: left 10px center;
+  padding-left: 28px;
+  padding-right: 10px;
+}
+
+/* ── App header actions: flip absolute position ──
+   Base RTL rule: left: 0 (LTR-intentional for RTL layout — the end side)
+   In LTR the end side is the right. */
+[dir="ltr"] .app-header-actions {
+  left: auto;
+  right: 0;
+}
+
+/* ── Progress tooltip: flip horizontal anchor ──
+   Base RTL rule: right: 0; left: 0 (full width) — no change needed for width,
+   but explicit reset in case of directional stacking context issues. */
+[dir="ltr"] .progress-tooltip {
+  right: 0;
+  left: 0;
+}
+
+/* ── Button rows: ensure natural LTR flex direction ──
+   RTL flex context reverses row direction; in LTR mode reset to normal. */
+[dir="ltr"] .finding-form-actions,
+[dir="ltr"] .sidebar-utils,
+[dir="ltr"] .ai-suggestion-actions {
+  flex-direction: row;
+}
+
+/* ── KBD hint spacing: flip margin side ──
+   Base RTL rule: margin-right: 10px */
+[dir="ltr"] .kbd-hint {
+  margin-right: 0;
+  margin-left: 10px;
+}
+
+/* ── AI suggestion box: flip direction ──
+   Base RTL rule: direction: rtl; text-align: right */
+[dir="ltr"] .ai-suggestion-box {
+  direction: ltr;
+  text-align: left;
+}
+
+/* ── Tag inline: flip margin side ──
+   Base RTL rule: margin-left: 4px (end-side gap in RTL) */
+[dir="ltr"] .tag-inline {
+  margin-left: 0;
+  margin-right: 4px;
+}

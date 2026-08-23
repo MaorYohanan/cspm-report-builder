@@ -105,7 +105,6 @@ const dateInput       = document.getElementById('report-date');
           var el = document.getElementById(id);
           if (el) el.value = el.id === 'report-version' ? '1.0' : (el.id === 'report-lang' ? 'he' : '');
         });
-
         // Clear env stage checkboxes
         document.querySelectorAll('input[name="report-env-stage"]').forEach(function(cb) { cb.checked = false; });
 
@@ -1218,5 +1217,15 @@ const dateInput       = document.getElementById('report-date');
         }
         prefillId();
         renderFindingsTable();
+
+        // Restore PDF language selection from localStorage
+        var reportLangSelect = document.getElementById('report-lang');
+        if (reportLangSelect) {
+          var savedPdfLang = localStorage.getItem('export-pdf-lang');
+          if (savedPdfLang) reportLangSelect.value = savedPdfLang;
+          reportLangSelect.addEventListener('change', function() {
+            localStorage.setItem('export-pdf-lang', reportLangSelect.value);
+          });
+        }
       });
 

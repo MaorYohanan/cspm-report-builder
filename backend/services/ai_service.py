@@ -289,7 +289,7 @@ class GeminiService:
         "You are given data comparing two consecutive security assessment snapshots for the same product. "
         "Write a professional regression trend analysis consisting of exactly 2-3 sentences:\n"
         "1. Describe the overall security posture trend (improving / stable / regressing) based on risk score change.\n"
-        "2. Highlight any zombie findings (previously resolved or excepted findings that reappeared) and their impact.\n"
+        "2. Highlight any zombie findings (previously excepted findings that reappeared) and their impact.\n"
         "3. If new findings appeared, note their significance.\n\n"
         "Rules:\n"
         "- Write in formal, professional Hebrew.\n"
@@ -315,7 +315,7 @@ class GeminiService:
         Args:
             prev_snapshot_data: Previous snapshot dict (may contain riskScore, findings, meta).
             curr_findings: Current list of finding dicts.
-            zombies: List of zombie finding dicts (previously resolved/excepted, now reappeared).
+            zombies: List of zombie finding dicts (previously excepted, now reappeared).
             curr_risk_score: Pre-computed risk score for current findings, or None.
             model: Preferred Gemini model. Falls back on 429.
             temperature: Sampling temperature.

@@ -584,10 +584,11 @@
   gap: 4px;
 }
 
-/* Hide theme/keyboard-shortcut buttons in collapsed state to avoid overflow;
+/* Hide theme/keyboard-shortcut/lang buttons in collapsed state to avoid overflow;
    keep only the collapse/expand toggle visible */
 .sidebar.collapsed #btn-theme-toggle,
-.sidebar.collapsed #btn-kbd-help {
+.sidebar.collapsed #btn-kbd-help,
+.sidebar.collapsed #btn-lang-toggle {
   display: none;
 }
 
