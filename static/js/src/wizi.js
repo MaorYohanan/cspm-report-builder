@@ -53,6 +53,11 @@ function _resolveItemCategory(item, qt) {
       var wiziEnabled = false;
       var wiziProjects = [];
       var wiziSubscriptions = [];
+      // Pre-resolved subscription IDs set when user selects from the autocomplete dropdown.
+      // Sent to the backend so it can skip the non-paginated resolve_subscription() lookup.
+      var selectedSubWizId = null;
+      var selectedSubExternalId = null;
+      var selectedSubName = null;
       var wiziQueryType = 'issues';
       var wiziQueryTypeSelect = document.getElementById('wizi-query-type');
       var wiziStatusSelect = document.getElementById('wizi-status');
@@ -301,6 +306,10 @@ function _resolveItemCategory(item, qt) {
 
         input.addEventListener('input', function() {
           hiddenInput.value = '';
+          // Reset pre-resolved IDs when the user changes the input manually
+          selectedSubWizId = null;
+          selectedSubExternalId = null;
+          selectedSubName = null;
           render(input.value);
         });
 
@@ -311,9 +320,21 @@ function _resolveItemCategory(item, qt) {
         listEl.addEventListener('click', function(e) {
           var item = e.target.closest('.autocomplete-item');
           if (item) {
-            input.value = item.getAttribute('data-label');
+            var label = item.getAttribute('data-label');
+            input.value = label;
             hiddenInput.value = item.getAttribute('data-id');
             listEl.classList.remove('open');
+            // Look up the full entry so we can capture the pre-resolved Wiz IDs
+            var items = getItems();
+            var match = null;
+            for (var i = 0; i < items.length; i++) {
+              if (items[i].label === label) { match = items[i]; break; }
+            }
+            if (match) {
+              selectedSubWizId = match.wizId || null;
+              selectedSubExternalId = match.externalId || null;
+              selectedSubName = match.label || null;
+            }
           }
         });
 
@@ -359,9 +380,14 @@ function _resolveItemCategory(item, qt) {
           listEl.classList.remove('open');
         });
 
-        // Clear button behavior — if user clears the field, reset hidden ID
+        // Clear button behavior — if user clears the field, reset hidden ID and pre-resolved IDs
         input.addEventListener('change', function() {
-          if (!input.value.trim()) hiddenInput.value = '';
+          if (!input.value.trim()) {
+            hiddenInput.value = '';
+            selectedSubWizId = null;
+            selectedSubExternalId = null;
+            selectedSubName = null;
+          }
         });
       }
 
@@ -378,11 +404,12 @@ function _resolveItemCategory(item, qt) {
           .then(function(data) {
             if (data.subscriptions && data.subscriptions.length) {
               wiziSubscriptions = data.subscriptions.map(function(s) {
-                return { 
-                  id: s.name, 
-                  label: s.name, 
+                return {
+                  id: s.name,
+                  label: s.name,
                   sub: s.cloudProvider + ' · ' + (s.externalId || (s.id ? s.id.substring(0, 8) : '')),
-                  externalId: s.externalId || ''
+                  externalId: s.externalId || '',
+                  wizId: s.id || ''
                 };
               });
             }
@@ -905,6 +932,10 @@ function _resolveItemCategory(item, qt) {
         var body = { queryType: qt, first: limit, severity: sevFilter, status: statusFilter };
         // Send subscription filter (from either subscription field or project field)
         if (subscription) body.subscription = subscription;
+        // Include pre-resolved IDs from the autocomplete selection to bypass resolve_subscription()
+        if (selectedSubWizId) body.subscriptionWizId = selectedSubWizId;
+        if (selectedSubExternalId) body.subscriptionExternalId = selectedSubExternalId;
+        if (selectedSubName) body.subscriptionName = selectedSubName;
         if (append && wiziEndCursor) body.after = wiziEndCursor;
 
         fetch('/api/wizi/issues', {
@@ -3169,10 +3200,15 @@ function _resolveItemCategory(item, qt) {
           var stage = stages[stageIdx];
           setProgress(stageIdx, stage.label, 'start');
 
+          var bulkPayload = { subscription: sub, queryType: stage.qt };
+          // Include pre-resolved IDs if user selected from autocomplete, to bypass resolve_subscription()
+          if (selectedSubWizId) bulkPayload.subscriptionWizId = selectedSubWizId;
+          if (selectedSubExternalId) bulkPayload.subscriptionExternalId = selectedSubExternalId;
+          if (selectedSubName) bulkPayload.subscriptionName = selectedSubName;
           fetch('/api/wizi/bulk-fetch-single', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subscription: sub, queryType: stage.qt })
+            body: JSON.stringify(bulkPayload)
           })
           .then(function(resp) {
             if (resp.status === 501) { progressDiv.textContent = 'Wizi לא מוגדר'; return { _abort: true }; }

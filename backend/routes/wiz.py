@@ -267,6 +267,9 @@ def api_wizi_issues():
     status = data.get("status") or None
     project_id = data.get("project") or None
     subscription_id = data.get("subscription") or None
+    subscription_wiz_id = (data.get("subscriptionWizId") or "").strip()
+    subscription_external_id = (data.get("subscriptionExternalId") or "").strip()
+    subscription_name = (data.get("subscriptionName") or "").strip()
 
     variables: Dict[str, Any] = {"first": first}
     if after:
@@ -287,19 +290,25 @@ def api_wizi_issues():
     resolved_sub_names: list = []
     subscription_resolution_failed = False
     if subscription_id:
-        try:
-            resolved = wiz.resolve_subscription(subscription_id)
-            resolved_sub_ids = resolved["ids"]
-            resolved_sub_ext_ids = resolved["externalIds"]
-            resolved_sub_names = resolved["names"]
+        if subscription_wiz_id:
+            # Frontend already resolved the IDs from the subscription list — use directly
+            resolved_sub_ids = [subscription_wiz_id]
+            resolved_sub_ext_ids = [subscription_external_id] if subscription_external_id else []
+            resolved_sub_names = [subscription_name] if subscription_name else []
+        else:
+            try:
+                resolved = wiz.resolve_subscription(subscription_id)
+                resolved_sub_ids = resolved["ids"]
+                resolved_sub_ext_ids = resolved["externalIds"]
+                resolved_sub_names = resolved["names"]
 
-            # If still no results, mark as failed for user feedback
-            if not resolved_sub_ids and not resolved_sub_ext_ids:
+                # If still no results, mark as failed for user feedback
+                if not resolved_sub_ids and not resolved_sub_ext_ids:
+                    subscription_resolution_failed = True
+            except Exception:
+                _log.exception("Subscription resolution failed for %r", subscription_id)
                 subscription_resolution_failed = True
-        except Exception:
-            _log.exception("Subscription resolution failed for %r", subscription_id)
-            subscription_resolution_failed = True
-            # Log error but continue - client-side filter will still apply
+                # Log error but continue - client-side filter will still apply
 
     filter_by: Dict[str, Any] = {}
     gql_root_key = None  # override for when gql root key differs from the HTTP response key
@@ -511,12 +520,23 @@ def api_wizi_bulk_fetch():
 
     data = request.get_json(silent=True) or {}
     subscription = (data.get("subscription") or "").strip()
+    subscription_wiz_id = (data.get("subscriptionWizId") or "").strip()
+    subscription_external_id = (data.get("subscriptionExternalId") or "").strip()
+    subscription_name = (data.get("subscriptionName") or "").strip()
     if not subscription:
         return jsonify({"error": "יש להזין שם Subscription"}), 400
 
     # --- Resolve subscription name → cloud account UUIDs + externalIds ---
     wiz = get_wiz_service()
-    resolved = wiz.resolve_subscription(subscription)
+    if subscription_wiz_id:
+        # Frontend already resolved the IDs from the subscription list — use directly
+        resolved = {
+            "ids": [subscription_wiz_id],
+            "externalIds": [subscription_external_id] if subscription_external_id else [],
+            "names": [subscription_name] if subscription_name else [],
+        }
+    else:
+        resolved = wiz.resolve_subscription(subscription)
     resolved_sub_ids = resolved["ids"]
     resolved_sub_ext_ids = resolved["externalIds"]
     resolved_sub_names = resolved["names"]
@@ -557,6 +577,9 @@ def api_wizi_bulk_fetch_single():
     data = request.get_json(silent=True) or {}
     subscription = (data.get("subscription") or "").strip()
     query_type = (data.get("queryType") or "").strip()
+    subscription_wiz_id = (data.get("subscriptionWizId") or "").strip()
+    subscription_external_id = (data.get("subscriptionExternalId") or "").strip()
+    subscription_name = (data.get("subscriptionName") or "").strip()
 
     if not subscription:
         return jsonify({"error": "יש להזין שם Subscription"}), 400
@@ -567,7 +590,15 @@ def api_wizi_bulk_fetch_single():
     try:
         # --- Resolve subscription name → cloud account UUIDs + externalIds ---
         wiz = get_wiz_service()
-        resolved = wiz.resolve_subscription(subscription)
+        if subscription_wiz_id:
+            # Frontend already resolved the IDs from the subscription list — use directly
+            resolved = {
+                "ids": [subscription_wiz_id],
+                "externalIds": [subscription_external_id] if subscription_external_id else [],
+                "names": [subscription_name] if subscription_name else [],
+            }
+        else:
+            resolved = wiz.resolve_subscription(subscription)
         resolved_sub_ids = resolved["ids"]
         resolved_sub_ext_ids = resolved["externalIds"]
         resolved_sub_names = resolved["names"]
@@ -602,6 +633,9 @@ def api_wizi_find_by_id():
     data = request.get_json(silent=True) or {}
     finding_id = (data.get("id") or "").strip()
     subscription_filter = (data.get("subscription") or "").strip()
+    subscription_wiz_id = (data.get("subscriptionWizId") or "").strip()
+    subscription_external_id = (data.get("subscriptionExternalId") or "").strip()
+    subscription_name = (data.get("subscriptionName") or "").strip()
     page_size = min(_safe_int(data.get("pageSize"), 5), 500)
     page = _safe_int(data.get("page"), 0)
     if not finding_id:
@@ -614,10 +648,16 @@ def api_wizi_find_by_id():
     resolved_sub_names: list = []
 
     if subscription_filter:
-        resolved = wiz.resolve_subscription(subscription_filter)
-        resolved_sub_ids = resolved["ids"]
-        resolved_sub_ext_ids = resolved["externalIds"]
-        resolved_sub_names = resolved["names"]
+        if subscription_wiz_id:
+            # Frontend already resolved the IDs from the subscription list — use directly
+            resolved_sub_ids = [subscription_wiz_id]
+            resolved_sub_ext_ids = [subscription_external_id] if subscription_external_id else []
+            resolved_sub_names = [subscription_name] if subscription_name else []
+        else:
+            resolved = wiz.resolve_subscription(subscription_filter)
+            resolved_sub_ids = resolved["ids"]
+            resolved_sub_ext_ids = resolved["externalIds"]
+            resolved_sub_names = resolved["names"]
 
     queries = [
         ("issues", "issues", WIZI_ISSUES_QUERY),
