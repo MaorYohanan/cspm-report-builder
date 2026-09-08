@@ -577,18 +577,18 @@
             <div class="detail-severity-bar" id="detail-severity-bar"></div>
             <div class="findings-detail-header" id="findings-detail-header"></div>
             <div class="detail-position" id="detail-position"></div>
-            <div class="findings-detail-tabs">
-              <button class="findings-detail-tab active" data-detail-tab="description" data-i18n="תיאור">תיאור</button>
-              <button class="findings-detail-tab" data-detail-tab="impact" data-i18n="השפעה">השפעה</button>
-              <button class="findings-detail-tab" data-detail-tab="technical" data-i18n="טכני">טכני</button>
-              <button class="findings-detail-tab" data-detail-tab="recs" data-i18n="המלצות">המלצות</button>
-              <button class="findings-detail-tab" data-detail-tab="policies" data-i18n="תקנים">תקנים</button>
-              <button class="findings-detail-tab" data-detail-tab="evidence" data-i18n="הוכחות">הוכחות</button>
-              <button class="findings-detail-tab" data-detail-tab="info" data-i18n="מידע נוסף">מידע נוסף</button>
-              <button class="findings-detail-tab" data-detail-tab="notes" data-i18n="הערות">הערות</button>
-              <button class="findings-detail-tab" data-detail-tab="exception" data-i18n="מוחרג">מוחרג</button>
+            <div class="findings-detail-tabs" role="tablist" aria-label="פרטי ממצא">
+              <button class="findings-detail-tab active" role="tab" aria-selected="true" id="detail-tab-description" aria-controls="findings-detail-body" tabindex="0" data-detail-tab="description" data-i18n="תיאור">תיאור</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-impact" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="impact" data-i18n="השפעה">השפעה</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-technical" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="technical" data-i18n="טכני">טכני</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-recs" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="recs" data-i18n="המלצות">המלצות</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-policies" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="policies" data-i18n="תקנים">תקנים</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-evidence" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="evidence" data-i18n="הוכחות">הוכחות</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-info" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="info" data-i18n="מידע נוסף">מידע נוסף</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-notes" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="notes" data-i18n="הערות">הערות</button>
+              <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-exception" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="exception" data-i18n="מוחרג">מוחרג</button>
             </div>
-            <div class="findings-detail-body" id="findings-detail-body"></div>
+            <div class="findings-detail-body" id="findings-detail-body" role="tabpanel" aria-labelledby="detail-tab-description" tabindex="0"></div>
             <div id="detail-exception-dialog" class="detail-exception-dialog" style="display:none;">
               <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="סיבת ההחרגה (אופציונלי)">סיבת ההחרגה (אופציונלי)</label>
               <textarea id="detail-exception-reason-input" rows="2"
@@ -938,6 +938,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=136"></script>
+  <script type="module" src="/static/js/src/main.js?v=139"></script>
 </body>
 </html>

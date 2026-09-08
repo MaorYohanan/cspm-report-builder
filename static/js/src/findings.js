@@ -203,13 +203,49 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         bodyEl.innerHTML = '<div class="detail-content-block">' + escapeHtml(content) + '</div>';
       }
 
-      // Wire detail tabs
-      document.querySelectorAll('.findings-detail-tab').forEach(function(tab) {
+      // Wire detail tabs — ARIA APG roving-tabindex pattern (RTL: ArrowLeft→next, ArrowRight→prev)
+      var tabs = Array.from(document.querySelectorAll('.findings-detail-tab'));
+
+      function activateDetailTab(tab) {
+        tabs.forEach(function(t) {
+          t.classList.remove('active');
+          t.setAttribute('aria-selected', 'false');
+          t.setAttribute('tabindex', '-1');
+        });
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+        tab.setAttribute('tabindex', '0');
+        document.getElementById('findings-detail-body').setAttribute('aria-labelledby', tab.id);
+        state.activeDetailTab = tab.getAttribute('data-detail-tab');
+        renderDetailTab();
+      }
+
+      tabs.forEach(function(tab) {
         tab.addEventListener('click', function() {
-          document.querySelectorAll('.findings-detail-tab').forEach(function(t) { t.classList.remove('active'); });
-          tab.classList.add('active');
-          state.activeDetailTab = tab.getAttribute('data-detail-tab');
-          renderDetailTab();
+          activateDetailTab(tab);
+        });
+      });
+
+      // Keyboard navigation — RTL reverses arrow direction per ARIA APG
+      tabs.forEach(function(tab, i) {
+        tab.addEventListener('keydown', function(e) {
+          var next = -1;
+          if (e.key === 'ArrowLeft') {
+            // RTL: ArrowLeft moves to the next tab (index + 1)
+            next = (i + 1) % tabs.length;
+          } else if (e.key === 'ArrowRight') {
+            // RTL: ArrowRight moves to the previous tab (index - 1)
+            next = (i - 1 + tabs.length) % tabs.length;
+          } else if (e.key === 'Home') {
+            next = 0;
+          } else if (e.key === 'End') {
+            next = tabs.length - 1;
+          }
+          if (next !== -1) {
+            e.preventDefault();
+            tabs[next].focus();
+            activateDetailTab(tabs[next]);
+          }
         });
       });
 
