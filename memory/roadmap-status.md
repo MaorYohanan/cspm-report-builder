@@ -197,3 +197,15 @@ Wave 6 — Task 3.1 (PDF Regression Chapter): ✅ merged to main — 2026-08-13
 - CSS: .regression-chapter, .regression-table th, .trend-paragraph, .regression-no-zombies added to assets/report.css (Playwright-safe: no fixed/sticky, no external fonts, no min-height:100vh)
 - JS cache-buster: main.js?v=133
 - Tests: 214 passed, 0 failed
+
+Wave 7 — Phase 3 (Critical/High Frontend Bugs — DES-CRIT-1/2, DES-H-1 through DES-H-7): ✅ complete — 2026-09-08
+- Branch: fix/wave7-phase3-status (status update only — all items confirmed already fixed as side effects of earlier waves)
+- DES-CRIT-1: ✅ already fixed — base.css uses local @font-face from /assets/fonts/inter/; Google Fonts @import already gone
+- DES-CRIT-2: ✅ already fixed — ui.js null guard already wraps kbdOverlay, btnKbdHelp, kbdClose
+- DES-H-1: ✅ already fixed — pdf_service.py lines 73-77 inject break-inside: avoid !important on .findings-table tr and .treatment-table tr
+- DES-H-2: ✅ confirmed correct — .filter-select background-position: left 8px center is the correct RTL position (matches native select arrow placement at physical inline-end); original code was already right
+- DES-H-3: ✅ already fixed — findings.css note delete button already at right: 4px
+- DES-H-4: ✅ already fixed — wizi.css preview panel already uses right: 0, border-left, translateX(100%)
+- DES-H-5: ✅ already fixed — dashboard.css bar count already has /* intentional LTR: numeric digit alignment */ comment
+- DES-H-6: ⏭️ skipped — stale spec; no back/חזרה link exists in index.html; existing ← chars are correct RTL forward-nav arrows
+- DES-H-7: ✅ already fixed — ui.js sidebar collapse reads isCollapsed ? '»' : '«' — correct semantic state
