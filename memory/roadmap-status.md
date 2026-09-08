@@ -209,3 +209,22 @@ Wave 7 — Phase 3 (Critical/High Frontend Bugs — DES-CRIT-1/2, DES-H-1 throug
 - DES-H-5: ✅ already fixed — dashboard.css bar count already has /* intentional LTR: numeric digit alignment */ comment
 - DES-H-6: ⏭️ skipped — stale spec; no back/חזרה link exists in index.html; existing ← chars are correct RTL forward-nav arrows
 - DES-H-7: ✅ already fixed — ui.js sidebar collapse reads isCollapsed ? '»' : '«' — correct semantic state
+
+Phase 7 (audit frontend improvements — DES-I-01 through DES-I-09): ✅ merged to main
+- Branch: fix/audit-improvements
+- Date: 2026-09-09
+- Pre-scan result: 8 of 9 items confirmed already fixed as side effects of earlier waves
+  - DES-I-02: SVG donut already has role="img" and aria-label in ui.js
+  - DES-I-03: show-all control already a <button type="button"> in index.html
+  - DES-I-04: exec-summary and scope/methodology already in separate page-section elements in report_template.html
+  - DES-I-05: prefers-reduced-motion media query already in base.css
+  - DES-I-06: .severity-chip already uses border-right with RTL comment in components.css
+  - DES-I-07: all oklch() calls already wrapped in safeColor() with CSS.supports() fallback in ui.js
+  - DES-I-08: admin.html already uses styledConfirm via dynamic import (DES-I-08 comment present)
+  - DES-I-09: .pipeline-kpi-card already has text-align: right in pipeline.css
+- DES-I-01: ✅ fixed — finding detail tab strip ARIA pattern fully implemented (3 rounds):
+    Round 1: role="tablist", role="tab", aria-selected on all 9 buttons + JS handler
+    Round 2: aria-controls, unique ids, tabindex (roving), role="tabpanel", aria-labelledby, aria-label on tablist
+    Round 3: tabindex="0" on panel, activateDetailTab() helper, RTL arrow-key keydown handler
+- JS cache-buster: main.js?v=136 → v=139 (3 rounds; v=137 and v=138 consumed by intermediate iterations)
+- Tests: 214 passed, 0 failed
