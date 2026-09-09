@@ -228,3 +228,9 @@ Phase 7 (audit frontend improvements — DES-I-01 through DES-I-09): ✅ merged 
     Round 3: tabindex="0" on panel, activateDetailTab() helper, RTL arrow-key keydown handler
 - JS cache-buster: main.js?v=136 → v=139 (3 rounds; v=137 and v=138 consumed by intermediate iterations)
 - Tests: 214 passed, 0 failed
+
+Bug fix — exclude-rules pattern field RTL mirroring: ✅ merged to main — 2026-09-09
+- Branch: main (direct commit ebd879f)
+- Problem: typing "[" in the תבנית input rendered "]" due to Unicode Bidi Algorithm reversing bracket chars in RTL context
+- Fix: added dir="ltr" to #exclude-rule-pattern input in index.html; added dir="ltr" to <code> tag in exclude_rules.js table renderer
+- JS cache-buster: main.js?v=140
