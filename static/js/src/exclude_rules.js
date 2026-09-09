@@ -92,7 +92,7 @@ function _render() {
     var toggleLabel = isActive ? 'השבת' : 'הפעל';
     var rowClass = isActive ? '' : 'exclude-rule-inactive';
     html += '<tr class="' + rowClass + '" data-rule-id="' + rule.id + '">';
-    html += '<td><code>' + escapeHtml(rule.pattern) + '</code></td>';
+    html += '<td><code dir="ltr">' + escapeHtml(rule.pattern) + '</code></td>';
     html += '<td>' + escapeHtml(_FIELD_LABELS[rule.field] || rule.field) + '</td>';
     html += '<td>' + escapeHtml(_OP_LABELS[rule.operator] || rule.operator) + '</td>';
     html += '<td>';
