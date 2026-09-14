@@ -2741,7 +2741,7 @@ let priorityTouched = false;
     padding: 14mm 10mm 12mm 10mm;
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
     border-radius: 6px;
-    border-top: 5px solid #0b3c5d;
+    border-top: 2px solid #0b3c5d;
   }
 
   .page-section:last-child {
