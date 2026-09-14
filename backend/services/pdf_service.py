@@ -74,6 +74,12 @@ class PDFService:
   .page-section { padding-bottom: 0 !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
+  /* Continuation pages share a finding across pages — override the navy 5px accent
+     with a thin grey divider so readers do not mistake it for a new top-level section.
+     No !important needed: specificity (0,1,0) matches .page-section, and CLEAN_PRINT_CSS
+     is injected via add_style_tag() after the inline <style> block in the report HTML,
+     so later source order wins without a specificity escalation. */
+  .finding-continuation { border-top: 1px solid #e5e7eb; }
   /* Findings intro: don't force page break after, so first finding shares the page */
   .findings-intro { break-after: auto !important; page-break-after: auto !important; }
   .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
