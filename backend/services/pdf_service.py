@@ -86,13 +86,6 @@ class PDFService:
   .finding-page { padding-top: 4mm !important; }
   /* Category heading: keep heading with the first card on the same page */
   .finding-category-header { break-after: avoid !important; page-break-after: avoid !important; }
-  /* Force a page break after each continuation section so Chromium does not
-     flow continuation content onto the same physical page as the next finding.
-     No :not(:last-child) guard is needed: .page-section:last-child (specificity
-     0,2,0) overrides this rule (specificity 0,1,0) via the CSS cascade when an
-     element is both .finding-continuation and :last-child — even with !important,
-     the higher-specificity declaration wins. */
-  .finding-continuation { break-after: page !important; page-break-after: always !important; }
   /* Cards now pre-split, each chunk fits on one page */
   /* break-inside without !important lets Chromium override for genuinely tiny chunks */
   .finding-card { break-inside: avoid; page-break-inside: avoid; overflow: visible !important; overflow-wrap: break-word !important; word-break: break-word !important; }
