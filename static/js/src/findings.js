@@ -2996,6 +2996,14 @@ let priorityTouched = false;
     color: #fff;
     font-weight: bold;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+    /* Prevent mid-word wrap when badge is a flex item under compression.
+       white-space:nowrap: Hebrew text (e.g. "קריטי") must not split across lines.
+       flex-shrink:0: badge must not be compressed when .finding-header flex row
+       is tight due to a long title (reproduces on EAPM-006, 109-char title).
+       Both properties apply to .toc-item .severity-badge and the Top 5 proposal
+       too — write once here rather than duplicating in per-section rules. */
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .sev-critical { background: #b91c1c; }
