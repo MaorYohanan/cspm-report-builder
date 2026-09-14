@@ -50,7 +50,7 @@ html, body {
   break-after: page;
   background: #ffffff;
   padding: 10mm 10mm 12mm 10mm;
-  border-top: 3px solid #0b3c5d; /* הפס הכחול — reduced from 5px; see arithmetic note in pdf_service.py */
+  border-top: 5px solid #0b3c5d; /* הפס הכחול שלך */
 }
 
 .page-section:last-child {

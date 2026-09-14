@@ -10,18 +10,11 @@ including header/footer templates and page splitting for long findings.
   - page.pdf margin.bottom=20mm → matches footer height plus gap
   - page.pdf margin.left/right=10mm → max content width (10mm, not 15mm)
   - MAX_PAGE_CARD_HEIGHT_PX=908 → early-return guard (card.offsetHeight, border-box)
-                                   = 933.54px printable − 3px border-top − 15.12px padding-top
-                                   − 5px safety, floor → 910 exact
-                                   ⚠ border reduced 5px→3px (commit fix/pdf-layout-fragmentation);
-                                     exact derivation is now 910; constant kept at 908 (2px
-                                     over-conservative). Decision required before raising to 910:
-                                     a +2px shift changes split points on near-threshold cards.
+                                   = 933.54px printable − 5px border-top − 15.12px padding-top
+                                   − 5px safety, floor → 908
   - MAX_PACK_HEIGHT_PX=886      → per-chunk packer budget (getBoundingClientRect delta)
-                                   = 933.54px − 18.12px section overhead − 22px card border+padding
-                                   − 5px safety, floor → 888 exact
-                                   ⚠ section overhead updated 20.12px→18.12px (border 5px→3px);
-                                     exact derivation is now 888; constant kept at 886 (2px
-                                     over-conservative). Same decision gate as above.
+                                   = 933.54px − 20.12px section overhead − 22px card border+padding
+                                   − 5px safety, floor → 886
   - page.emulate_media("print") → REQUIRED, without it @media print is ignored
   - .page-section padding-top: 4mm, padding-bottom: 0 in CLEAN_PRINT_CSS
 
@@ -75,14 +68,13 @@ class PDFService:
   /* Reclaim the 45.35px (12mm) padding-bottom that the screen rule sets but the
      previous print reset did not clear. Reclaiming it restores ~45px of page budget
      per section and allows the card's margin-bottom to collapse out instead of
-     consuming space. Section overhead is now: 3px border-top + 15.12px padding-top
-     = 18.12px total. Constants 908 and 886 are kept at their prior values (each 2px
-     over-conservative after border reduced from 5px to 3px); see arithmetic notes in
-     the module docstring and the JS evaluate block below. */
+     consuming space. Section overhead is now: 5px border-top + 15.12px padding-top
+     = 20.12px total — matching the derivation of MAX_PAGE_CARD_HEIGHT_PX and
+     MAX_PACK_HEIGHT_PX in pdf_service.py. */
   .page-section { padding-bottom: 0 !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
-  /* Continuation pages share a finding across pages — override the navy 3px accent
+  /* Continuation pages share a finding across pages — override the navy 5px accent
      with a thin grey divider so readers do not mistake it for a new top-level section.
      No !important needed: specificity (0,1,0) matches .page-section, and CLEAN_PRINT_CSS
      is injected via add_style_tag() after the inline <style> block in the report HTML,
@@ -295,26 +287,22 @@ class PDFService:
                                 //   (297 - 50) mm x (96 / 25.4) px/mm = 933.54 px
                                 //
                                 // .page-section overhead (after reclaiming padding-bottom):
-                                //   border-top:     3.00 px   ← reduced from 5px (border change
-                                //                               in assets/report.css); constants
-                                //                               kept unchanged — see module docstring
+                                //   border-top:     5.00 px
                                 //   padding-top:   15.12 px  (4mm)
                                 //   padding-bottom: 0.00 px  (reclaimed via CLEAN_PRINT_CSS)
-                                //   Total overhead = 18.12 px
+                                //   Total overhead = 20.12 px
                                 //
                                 // .finding-card border + padding: 22 px
                                 //
                                 // MAX_PAGE_CARD_HEIGHT_PX = 908
                                 //   Measurement method: card.offsetHeight (border-box, excludes margins)
-                                //   Derivation: 933.54 - 3 (border-top) - 15.12 (padding-top) = 915.42
-                                //              minus 5 px safety, floor = 910 exact
-                                //   ⚠ Constant held at 908 (2px over-conservative). See module docstring.
+                                //   Derivation: 933.54 - 5 (border-top) - 15.12 (padding-top) = 913.42
+                                //              minus 5 px safety, floor = 908
                                 //
                                 // MAX_PACK_HEIGHT_PX = 886
                                 //   Measurement method: getBoundingClientRect delta (captures collapsed margins)
-                                //   Derivation: 933.54 - 18.12 (section overhead) - 22 (card border+padding)
-                                //              = 893.42, minus 5 px safety, floor = 888 exact
-                                //   ⚠ Constant held at 886 (2px over-conservative). See module docstring.
+                                //   Derivation: 933.54 - 20.12 (section overhead) - 22 (card border+padding)
+                                //              = 891.42, minus 5 px safety, floor = 886
                                 //
                                 // These two constants measure DIFFERENT things with DIFFERENT methods.
                                 // Do not conflate them: swapping the methods was the original bug.
