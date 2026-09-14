@@ -284,11 +284,8 @@ BL-26 (Skeleton Rows During Wiz Bulk Import): ✅ merged to main — 2026-09-10
 
 ## PDF Layout Fragmentation Fix
 
-PDF layout fragmentation fix (7 issues from pdf-layout-remaining-issues.md): 🔄 in progress
-- Branch: fix/pdf-layout-fragmentation (not yet created)
-- Planned commits:
-  1. CSS fragmentation fixes for orphaned headings (break-inside / break-after rules)
-  2. Splitter height-budget correction (MAX_CARD_HEIGHT_PX and MAX_PACK_HEIGHT_PX rederived from empirical measurement)
-  3. Recursive ul/li splitter (block-level children that are list items)
-- Current step: empirical box-model measurement — all constants must be derived from measured values, NOT estimates; measurement precedes any code change
-- Note: empirical measurement step completed 2026-09-14; implementation not yet started
+PDF layout fragmentation fix (7 issues from pdf-layout-remaining-issues.md): 🔍 awaiting merge approval
+- Branch: fix/pdf-layout-fragmentation
+- Commits: a4d0dd0, a7de68c, 0ffcf85, ad7f99d
+- Summary: scoped heading break-after rules to children (not wrapper), replaced untraceable 918px budget with empirically-measured MAX_PAGE_CARD_HEIGHT_PX=908 / MAX_PACK_HEIGHT_PX=886, reclaimed 45.35px padding-bottom leak, registered UL/OL descent in generic splitElement
+- QA: four commits landed and passed QA on branch; awaiting user merge approval to main

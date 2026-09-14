@@ -252,7 +252,7 @@ env_s = html.escape(meta.get("env", ""))
 1. Download Inter font files (woff2, weights 400/500/600/700/800) and place under `assets/fonts/inter/`.
 2. Replace the Google Fonts `@import` with `@font-face` declarations pointing to `assets/fonts/inter/`.
 3. Run `python3 build_css.py` to rebuild `builder.css`.
-4. Run pdf-qa agent after to verify card heights are unaffected.
+4. Run the **`qa`** agent after to verify card heights are unaffected.
 **Verification:** Render a PDF in an offline environment and confirm Inter font renders correctly with no fallback substitution.
 
 ---
@@ -289,7 +289,7 @@ if (kbdOverlay && btnKbdHelp && kbdClose) {
 .findings-table tr,
 .treatment-table tr { break-inside: avoid; }
 ```
-2. Run pdf-qa agent to confirm no row is split across pages in a real render.
+2. Run the **`qa`** agent to confirm no row is split across pages in a real render.
 **Verification:** Render a PDF with a long findings table and confirm no row is visually split across a page boundary.
 
 ---
@@ -1090,7 +1090,7 @@ With:
 **What:** The executive summary and scope/methodology content share one HTML block, preventing clean page-break separation in the PDF output.
 **Steps:**
 1. Split executive summary and scope/methodology into separate `<section class="page-break">` elements.
-2. Run pdf-qa agent to confirm page breaks appear at the correct locations.
+2. Run the **`qa`** agent to confirm page breaks appear at the correct locations.
 **Verification:** Render a PDF and confirm executive summary and scope/methodology start on separate pages.
 
 ---
