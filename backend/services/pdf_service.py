@@ -313,6 +313,15 @@ class PDFService:
                                 // type (e.g. 'DIV' for .detail-box in a future commit) requires only
                                 // adding to this constant — the splitting routine has no type-specific
                                 // assumptions.
+                                //
+                                // OL NOTE — path is unproven: no template currently emits <ol>
+                                // (grep across the repo confirms zero occurrences of <ol in any
+                                // template or JS builder as of 2026-09-14). The OL branch in
+                                // splitElement() — specifically the start= attribute continuation
+                                // logic — has therefore never executed in a real render. The generic
+                                // capability is deliberate and stays; verify the start= ordinal
+                                // arithmetic with a real <ol> document before shipping any template
+                                // that uses ordered lists inside finding cards.
                                 const ELIGIBLE_SPLIT_TYPES = new Set(['UL', 'OL']);
 
                                 /**
