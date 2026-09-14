@@ -6,16 +6,22 @@ including header/footer templates and page splitting for long findings.
 
 ⚠️  CRITICAL — DO NOT CHANGE THESE VALUES WITHOUT UNDERSTANDING WHY:
 
-  - page.pdf margin.top=30mm   → matches header HTML height (~14mm) plus gap
+  - page.pdf margin.top=30mm    → matches header HTML height (~14mm) plus gap
   - page.pdf margin.bottom=20mm → matches footer height plus gap
-  - page.pdf margin.left/right=10mm → max content width
-  - MAX_CARD_HEIGHT_PX=918      → printable area at A4 = ~933px, minus 15px section padding = 918px max
+  - page.pdf margin.left/right=10mm → max content width (10mm, not 15mm)
+  - MAX_PAGE_CARD_HEIGHT_PX=908 → early-return guard (card.offsetHeight, border-box)
+                                   = 933.54px printable − 5px border-top − 15.12px padding-top
+                                   − 5px safety, floor → 908
+  - MAX_PACK_HEIGHT_PX=886      → per-chunk packer budget (getBoundingClientRect delta)
+                                   = 933.54px − 20.12px section overhead − 22px card border+padding
+                                   − 5px safety, floor → 886
   - page.emulate_media("print") → REQUIRED, without it @media print is ignored
-  - .page-section / .finding-page padding-top: 4mm in CLEAN_PRINT_CSS
+  - .page-section padding-top: 4mm, padding-bottom: 0 in CLEAN_PRINT_CSS
 
-  These values were tuned together. Changing any one will break the layout
-  (header overlap, content cut-off, or huge blank space). See AGENTS.md
-  "PDF Rendering" section for the full rationale.
+  These two constants measure DIFFERENT things with DIFFERENT methods.
+  Do not conflate them — swapping the methods produced the original bug.
+  Changing any margin/padding value requires re-deriving both constants.
+  Measured 2026-09-14 in print-emulated headless Chromium, viewport 720x900.
 """
 
 from __future__ import annotations
@@ -59,6 +65,13 @@ class PDFService:
   body { margin: 0 !important; padding: 0 !important; overflow: visible !important; }
   .report-content, .page-section, .finding-card { overflow: visible !important; }
   .page-section { box-shadow: none !important; border-radius: 0 !important; padding-top: 4mm !important; }
+  /* Reclaim the 45.35px (12mm) padding-bottom that the screen rule sets but the
+     previous print reset did not clear. Reclaiming it restores ~45px of page budget
+     per section and allows the card's margin-bottom to collapse out instead of
+     consuming space. Section overhead is now: 5px border-top + 15.12px padding-top
+     = 20.12px total — matching the derivation of MAX_PAGE_CARD_HEIGHT_PX and
+     MAX_PACK_HEIGHT_PX in pdf_service.py. */
+  .page-section { padding-bottom: 0 !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
   /* Findings intro: don't force page break after, so first finding shares the page */
@@ -73,7 +86,13 @@ class PDFService:
   .finding-page { padding-top: 4mm !important; }
   /* Category heading: keep heading with the first card on the same page */
   .finding-category-header { break-after: avoid !important; page-break-after: avoid !important; }
-  .finding-continuation { break-after: auto !important; page-break-after: auto !important; }
+  /* Force a page break after each continuation section so Chromium does not
+     flow continuation content onto the same physical page as the next finding.
+     No :not(:last-child) guard is needed: .page-section:last-child (specificity
+     0,2,0) overrides this rule (specificity 0,1,0) via the CSS cascade when an
+     element is both .finding-continuation and :last-child — even with !important,
+     the higher-specificity declaration wins. */
+  .finding-continuation { break-after: page !important; page-break-after: always !important; }
   /* Cards now pre-split, each chunk fits on one page */
   /* break-inside without !important lets Chromium override for genuinely tiny chunks */
   .finding-card { break-inside: avoid; page-break-inside: avoid; overflow: visible !important; overflow-wrap: break-word !important; word-break: break-word !important; }
@@ -227,7 +246,7 @@ class PDFService:
                         try:
                             page = browser.new_page()
                             # A4 viewport at 96 DPI: 794 x 1123 px.
-                            # Set viewport to printable A4 width (after 15mm margins)
+                            # Set viewport to printable A4 width (after 10mm left/right margins)
                             # so measurements match PDF.
                             page.set_viewport_size({"width": 720, "height": 900})
                             page.goto(html_path.as_uri(), wait_until="load", timeout=30000)
@@ -245,15 +264,54 @@ class PDFService:
                             # multiple sections so each split chunk becomes a new section
                             # (with padding-top from CSS).
                             page.evaluate("""() => {
-                                // Available content height per page in pixels.
-                                // A4 = 297mm. Playwright top margin 30mm + bottom 20mm = 50mm.
-                                // Printable: 297 - 50 = 247mm. At 96 DPI: ~933px.
-                                // 918 = 933px printable − 15px section padding-top.
-                                const MAX_CARD_HEIGHT_PX = 918;
+                                // ──────────────────────────────────────────────────────────────
+                                // HEIGHT CONSTANTS — empirically derived 2026-09-14
+                                // Measured in print-emulated headless Chromium with CLEAN_PRINT_CSS
+                                // injected, viewport 720x900, using getComputedStyle /
+                                // getBoundingClientRect.
+                                //
+                                // Printable height (A4 297mm, 30mm top + 20mm bottom margin):
+                                //   (297 - 50) mm x (96 / 25.4) px/mm = 933.54 px
+                                //
+                                // .page-section overhead (after reclaiming padding-bottom):
+                                //   border-top:     5.00 px
+                                //   padding-top:   15.12 px  (4mm)
+                                //   padding-bottom: 0.00 px  (reclaimed via CLEAN_PRINT_CSS)
+                                //   Total overhead = 20.12 px
+                                //
+                                // .finding-card border + padding: 22 px
+                                //
+                                // MAX_PAGE_CARD_HEIGHT_PX = 908
+                                //   Measurement method: card.offsetHeight (border-box, excludes margins)
+                                //   Derivation: 933.54 - 5 (border-top) - 15.12 (padding-top) = 913.42
+                                //              minus 5 px safety, floor = 908
+                                //
+                                // MAX_PACK_HEIGHT_PX = 886
+                                //   Measurement method: getBoundingClientRect delta (captures collapsed margins)
+                                //   Derivation: 933.54 - 20.12 (section overhead) - 22 (card border+padding)
+                                //              = 891.42, minus 5 px safety, floor = 886
+                                //
+                                // These two constants measure DIFFERENT things with DIFFERENT methods.
+                                // Do not conflate them: swapping the methods was the original bug.
+                                // A sum-of-offsetHeight approach would require subtracting 48.72 px
+                                // (worst-case collapsed margin) as an extra pessimistic allowance;
+                                // BCR-delta avoids that entirely.
+                                // ──────────────────────────────────────────────────────────────
+
+                                // MAX_PAGE_CARD_HEIGHT_PX: early-return guard.
+                                // Measurement method: card.offsetHeight (border-box, excludes margins).
+                                const MAX_PAGE_CARD_HEIGHT_PX = 908;
+
+                                // MAX_PACK_HEIGHT_PX: per-chunk packer budget.
+                                // Measurement method: getBoundingClientRect delta (captures collapsed margins).
+                                const MAX_PACK_HEIGHT_PX = 886;
+
+                                const MIN_CONTINUATION_HEIGHT_PX = 200;
 
                                 const cards = document.querySelectorAll('.finding-card');
                                 cards.forEach((card) => {
-                                    if (card.offsetHeight <= MAX_CARD_HEIGHT_PX) return;
+                                    // Early-return guard: card.offsetHeight (border-box) vs MAX_PAGE_CARD_HEIGHT_PX.
+                                    if (card.offsetHeight <= MAX_PAGE_CARD_HEIGHT_PX) return;
 
                                     // Card is too tall — split into per-page sections.
                                     const parentSection = card.closest('.finding-page');
@@ -265,19 +323,49 @@ class PDFService:
                                     );
                                     if (!headerEl) return;
 
-                                    // Greedy element-level packing: fill page 1 as much as
-                                    // possible, even if a section doesn't fit entirely.
                                     const headerIdx = children.indexOf(headerEl);
                                     const afterHeader = children.slice(headerIdx + 1);
 
+                                    // ── Collect all BCRs before any DOM mutation ──────────────
+                                    // Layout is frozen: print emulation is active and
+                                    // CLEAN_PRINT_CSS is applied. Reading BCRs now ensures
+                                    // measurements match the layout being split. Any DOM
+                                    // mutation after this point would invalidate rects — read
+                                    // everything needed before touching the DOM.
+                                    const bcrOf = new Map();
+                                    children.forEach(el => bcrOf.set(el, el.getBoundingClientRect()));
+
+                                    // ── Greedy BCR-delta packer ───────────────────────────────
+                                    // Uses getBoundingClientRect delta (MAX_PACK_HEIGHT_PX) — not
+                                    // offsetHeight sum — so inter-element collapsed margins are
+                                    // automatically captured without a pessimistic allowance.
                                     const chunks = [];
                                     let currentChunk = [headerEl];
-                                    let currentHeight = headerEl.offsetHeight;
+                                    let chunkFirstBcr = bcrOf.get(headerEl);
 
                                     afterHeader.forEach((el) => {
-                                        const elH = el.offsetHeight;
-                                        if (currentHeight + elH > MAX_CARD_HEIGHT_PX
-                                                && currentChunk.length > 0) {
+                                        const elBcr = bcrOf.get(el);
+
+                                        // BCR-delta: distance from top of chunk's first element to
+                                        // bottom of this element. Captures collapsed margins exactly.
+                                        //
+                                        // First-element case (explicit branch): when currentChunk is
+                                        // empty, this element IS the chunk's first child and the
+                                        // delta is just its own height — there is no prior
+                                        // first-child top to subtract from. Written as an explicit
+                                        // branch so the intention is clear, not relying on
+                                        // arithmetic falling out of a null chunkFirstBcr.
+                                        let delta;
+                                        if (currentChunk.length === 0) {
+                                            // First-child case: delta equals the element's own height.
+                                            delta = elBcr.height;
+                                        } else {
+                                            // General case: BCR-delta from chunk start to element bottom.
+                                            // Pairs with MAX_PACK_HEIGHT_PX (BCR-delta method).
+                                            delta = elBcr.bottom - chunkFirstBcr.top;
+                                        }
+
+                                        if (delta > MAX_PACK_HEIGHT_PX) {
                                             // Avoid orphaned section title at page bottom:
                                             // carry it forward to the next page.
                                             const last = currentChunk[currentChunk.length - 1];
@@ -285,33 +373,68 @@ class PDFService:
                                                 currentChunk.pop();
                                                 chunks.push(currentChunk);
                                                 currentChunk = [last, el];
-                                                currentHeight = last.offsetHeight + elH;
+                                                chunkFirstBcr = bcrOf.get(last);
                                             } else {
                                                 chunks.push(currentChunk);
                                                 currentChunk = [el];
-                                                currentHeight = elH;
+                                                chunkFirstBcr = elBcr;
                                             }
                                         } else {
                                             currentChunk.push(el);
-                                            currentHeight += elH;
                                         }
                                     });
                                     if (currentChunk.length) chunks.push(currentChunk);
 
-                                    // Merge tiny tail chunks back into the previous chunk to avoid near-empty continuation pages.
-                                    const MIN_CONTINUATION_HEIGHT_PX = 200;
+                                    // ── Min-tail merge with capacity check ────────────────────
+                                    // Only merge the short tail into the previous chunk if the
+                                    // combined height stays within MAX_PACK_HEIGHT_PX (BCR-delta
+                                    // method). Without this check, merging could push the
+                                    // receiving chunk back over budget — recreating the overflow
+                                    // the packer was meant to prevent.
                                     while (chunks.length > 1) {
                                         const lastChunk = chunks[chunks.length - 1];
-                                        const lastHeight = lastChunk.reduce((h, el) => h + el.offsetHeight, 0);
-                                        if (lastHeight < MIN_CONTINUATION_HEIGHT_PX) {
-                                            chunks[chunks.length - 2] = chunks[chunks.length - 2].concat(lastChunk);
-                                            chunks.pop();
+                                        const prevChunk = chunks[chunks.length - 2];
+
+                                        // Tail height via BCR-delta (consistent with packer method).
+                                        const tailFirst  = lastChunk[0];
+                                        const tailLast   = lastChunk[lastChunk.length - 1];
+                                        const tailHeight = lastChunk.length === 1
+                                            ? bcrOf.get(tailFirst).height
+                                            : bcrOf.get(tailLast).bottom - bcrOf.get(tailFirst).top;
+
+                                        if (tailHeight < MIN_CONTINUATION_HEIGHT_PX) {
+                                            // Capacity check: only merge if the receiving chunk
+                                            // has room. Uses BCR-delta from prev chunk's first
+                                            // element to tail's last element.
+                                            const prevFirst    = prevChunk[0];
+                                            const mergedLast   = lastChunk[lastChunk.length - 1];
+                                            const mergedHeight =
+                                                bcrOf.get(mergedLast).bottom - bcrOf.get(prevFirst).top;
+
+                                            if (mergedHeight <= MAX_PACK_HEIGHT_PX) {
+                                                chunks[chunks.length - 2] = prevChunk.concat(lastChunk);
+                                                chunks.pop();
+                                            } else {
+                                                // Merging would overflow the receiving chunk — leave tail.
+                                                break;
+                                            }
                                         } else {
                                             break;
                                         }
                                     }
 
-                                    if (chunks.length <= 1) return;
+                                    // ── No single-chunk bail-out ──────────────────────────────
+                                    // The old code returned early here when chunks.length <= 1,
+                                    // leaving oversized cards for Chromium to break naturally.
+                                    // Those natural breaks produced sub-200 px spill pages
+                                    // (e.g. p38/p42) because Chromium, not the splitter, chose
+                                    // the break point.
+                                    //
+                                    // We now always proceed to section creation. A single-chunk
+                                    // card gets one page-section finding-page (structurally
+                                    // identical to the original), ensuring all cards that passed
+                                    // MAX_PAGE_CARD_HEIGHT_PX are rebuilt consistently rather
+                                    // than silently left for the browser's fragmenter.
 
                                     // Build page sections. Continuation pages carry no header —
                                     // content flows directly from where the previous page ended.
@@ -329,7 +452,7 @@ class PDFService:
                                     });
 
                                     // Insert new sections before the original and remove
-                                    // the original
+                                    // the original.
                                     newCards.forEach(
                                         s => parentSection.parentNode.insertBefore(
                                             s, parentSection
