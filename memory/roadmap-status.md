@@ -202,7 +202,7 @@ Wave 7 — Phase 3 (Critical/High Frontend Bugs — DES-CRIT-1/2, DES-H-1 throug
 - Branch: fix/wave7-phase3-status (status update only — all items confirmed already fixed as side effects of earlier waves)
 - DES-CRIT-1: ✅ already fixed — base.css uses local @font-face from /assets/fonts/inter/; Google Fonts @import already gone
 - DES-CRIT-2: ✅ already fixed — ui.js null guard already wraps kbdOverlay, btnKbdHelp, kbdClose
-- DES-H-1: ✅ already fixed — pdf_service.py lines 73-77 inject break-inside: avoid !important on .findings-table tr and .treatment-table tr
+- DES-H-1: ❌ NOT FIXED — the step as written targets .findings-table tr and .treatment-table tr, but neither class is ever emitted by findings.js into the PDF HTML (the only match in findings.js is the getElementById lookup for findings-table-wrapper, a live-UI element). Row-splitting behaviour attributed to this fix comes from elsewhere; the rule is inert against the rendered PDF DOM. The separately-present .report-table tr rule in CLEAN_PRINT_CSS does provide row atomicity for actual PDF tables, but that is a different selector added for different reasons and does not constitute a fix for DES-H-1 as specified.
 - DES-H-2: ✅ confirmed correct — .filter-select background-position: left 8px center is the correct RTL position (matches native select arrow placement at physical inline-end); original code was already right
 - DES-H-3: ✅ already fixed — findings.css note delete button already at right: 4px
 - DES-H-4: ✅ already fixed — wizi.css preview panel already uses right: 0, border-left, translateX(100%)
@@ -286,6 +286,6 @@ BL-26 (Skeleton Rows During Wiz Bulk Import): ✅ merged to main — 2026-09-10
 
 PDF layout fragmentation fix (7 issues from pdf-layout-remaining-issues.md): 🔍 awaiting merge approval
 - Branch: fix/pdf-layout-fragmentation
-- Commits: a4d0dd0, a7de68c, 0ffcf85, ad7f99d
-- Summary: scoped heading break-after rules to children (not wrapper), replaced untraceable 918px budget with empirically-measured MAX_PAGE_CARD_HEIGHT_PX=908 / MAX_PACK_HEIGHT_PX=886, reclaimed 45.35px padding-bottom leak, registered UL/OL descent in generic splitElement
-- QA: four commits landed and passed QA on branch; awaiting user merge approval to main
+- Commits: a4d0dd0 (C1), a7de68c (C2), 0ffcf85 (dead-rule strip), ad7f99d (C3), 615b1d4 (housekeeping), fb29fd9 (Item 1 — continuation border), 3985cc4 (Item 2 — gitignore), plus Item 3/4/5 commits from closing session 2026-09-14
+- Summary: scoped heading break-after rules to children (not wrapper), replaced untraceable 918px budget with empirically-measured MAX_PAGE_CARD_HEIGHT_PX=908 / MAX_PACK_HEIGHT_PX=886, reclaimed 45.35px padding-bottom leak, registered UL/OL descent in generic splitElement, thin grey border on continuation pages replacing navy section accent, gitignore cleanup, deferred items logged
+- QA: geometry verified after border change — 66 pages / 2 spills / 0 near-blank / 915.3px max unchanged; awaiting user merge approval to main
