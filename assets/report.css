@@ -1,4 +1,42 @@
-/* assets/report.css */
+/*
+ * ============================================================
+ * DEAD CODE — NOT IN THE PDF RENDER PATH
+ * ============================================================
+ * This file is NOT loaded during PDF generation.
+ *
+ * Proof:
+ *   1. The backend never calls render_template('report_template.html')
+ *      anywhere (exhaustive grep confirmed; only active render_template()
+ *      calls are for auth_error.html, admin.html, and
+ *      interactive_export_template.html).
+ *   2. buildReportHtml() in static/js/src/findings.js emits NO
+ *      <link rel="stylesheet"> — the HTML is loaded from a file:// URI.
+ *   3. The rendered document has exactly TWO stylesheets:
+ *        a. The inline <style> block emitted by buildReportHtml()
+ *           (static/js/src/findings.js, approx. lines 2650–3010).
+ *        b. CLEAN_PRINT_CSS, injected via page.add_style_tag() in
+ *           backend/services/pdf_service.py.
+ *      This file is in neither.
+ *
+ * Where PDF styling actually lives:
+ *   - Inline <style> block → static/js/src/findings.js (~lines 2650–3010)
+ *   - CLEAN_PRINT_CSS      → backend/services/pdf_service.py
+ *
+ * WARNING: Editing this file will NOT change PDF output.
+ * A commit that did exactly that was reverted on branch
+ * fix/pdf-layout-fragmentation.
+ *
+ * Non-PDF usage status (verified 2026-09-15):
+ *   app.py:410–413 registers a live /assets/<path:filename> route via
+ *   send_from_directory, so /assets/report.css IS HTTP-accessible.
+ *   However, exhaustive grep of all .py, .html, .js, .css, .yml, and
+ *   Dockerfile files found ZERO live requests for this URL. The docstring
+ *   on that route ("CSS used by generated reports") is outdated.
+ *   The designer-observed 3px border cannot be traced to any current code
+ *   path. Do not delete without first confirming whether any external or
+ *   ad-hoc tooling depends on the /assets/report.css HTTP endpoint.
+ * ============================================================
+ */
 @page {
   size: A4;
   margin: 22mm 15mm 18mm 15mm; /* top right bottom left: שמור header/footer */

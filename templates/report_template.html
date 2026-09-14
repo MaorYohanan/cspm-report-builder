@@ -1,3 +1,46 @@
+<!--
+  ============================================================
+  DEAD CODE — NOT IN THE PDF RENDER PATH
+  ============================================================
+  This file is NOT used during PDF generation.
+
+  Proof:
+    1. The backend never calls render_template('report_template.html')
+       anywhere (exhaustive grep confirmed; only active render_template()
+       calls are for auth_error.html, admin.html, and
+       interactive_export_template.html).
+    2. buildReportHtml() in static/js/src/findings.js emits NO
+       <link rel="stylesheet"> — the HTML is loaded from a file:// URI.
+    3. The rendered document has exactly TWO stylesheets:
+         a. The inline <style> block emitted by buildReportHtml()
+            (static/js/src/findings.js, approx. lines 2650–3010).
+         b. CLEAN_PRINT_CSS, injected via page.add_style_tag() in
+            backend/services/pdf_service.py.
+       This template is in neither path.
+
+  Additional note: This template uses @page and position: running()
+  CSS features that Chromium does not support. This is further evidence
+  it was written for a different renderer (e.g. Prince or WeasyPrint),
+  not the Playwright-based pipeline currently in use.
+
+  Where PDF styling actually lives:
+    - Inline <style> block → static/js/src/findings.js (~lines 2650–3010)
+    - CLEAN_PRINT_CSS      → backend/services/pdf_service.py
+
+  WARNING: Editing this file will NOT change PDF output.
+  A commit that edited assets/report.css (the stylesheet this template
+  links via {{ css_path }}) expecting PDF changes was reverted on branch
+  fix/pdf-layout-fragmentation.
+
+  Non-PDF usage status (verified 2026-09-15):
+    app.py:410–413 serves /assets/<path:filename> but does NOT serve
+    /templates/. Exhaustive grep of all .py, .html, .js, .css, .yml,
+    and Dockerfile files found ZERO live references to this template —
+    no render_template() call, no static-file serve, no JS fetch. This
+    file is entirely unreachable in the current application. Do not
+    delete until the non-PDF preview question is fully resolved.
+  ============================================================
+-->
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
