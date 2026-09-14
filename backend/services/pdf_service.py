@@ -64,7 +64,12 @@ class PDFService:
   /* Findings intro: don't force page break after, so first finding shares the page */
   .findings-intro { break-after: auto !important; page-break-after: auto !important; }
   .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
-  .section-intro { break-after: auto !important; page-break-after: auto !important; }
+  /* Keep section headings and their intro paragraph glued to the table that
+     follows. The break we need to suppress is INTERNAL to .section-intro,
+     between its child siblings — not after the section itself. */
+  .section-intro h1,
+  .section-intro h2,
+  .section-intro p { break-after: avoid !important; page-break-after: avoid !important; }
   .finding-page { padding-top: 4mm !important; }
   /* Category heading: keep heading with the first card on the same page */
   .finding-category-header { break-after: avoid !important; page-break-after: avoid !important; }
@@ -79,7 +84,13 @@ class PDFService:
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
-  .report-table { break-inside: avoid !important; page-break-inside: avoid !important; }
+  /* break-inside REMOVED: the treatment and appendix tables are taller than one
+     page, making `avoid` unsatisfiable. Chromium first honours it by pushing the
+     whole table to the next fragmentainer — stranding the heading and leaving a
+     ~92% blank page — then breaks the table anyway. Row atomicity is preserved by
+     the .report-table tr rule below; <thead> repeats automatically because
+     Chromium defaults thead to display: table-header-group (CSS 2.1 §17.5.1). */
+  .report-table { break-inside: auto; page-break-inside: auto; }
   .report-table thead { break-after: avoid !important; page-break-after: avoid !important; }
   .detail-box { overflow: visible !important; max-height: none !important; }
 }
