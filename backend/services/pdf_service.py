@@ -97,6 +97,20 @@ class PDFService:
   .section-intro h1,
   .section-intro h2,
   .section-intro p { break-after: avoid !important; page-break-after: avoid !important; }
+  /* Back-matter sections must start on a fresh page.
+     :has() targets each section by its heading id without editing the locked findings.js.
+     No !important: break-before: page is a forced break and supersedes break-after: auto
+     on any preceding element per CSS Fragmentation Level 3 §3.2.
+     Adjacent forced breaks (e.g. the preceding .page-section break-after:page plus this
+     break-before:page) collapse into a single break — no blank page is created.
+     Sweep: #recommendations gets the rule defensively (no-findings edge case where
+     findings-intro break-after:auto is the last forced break before it); #appendix-a
+     gets it to fix the confirmed mid-page start. */
+  section.section-intro:has(#recommendations),
+  section.section-intro:has(#appendix-a) {
+    break-before: page;
+    page-break-before: always;
+  }
   .finding-page { padding-top: 4mm !important; }
   /* Category heading: keep heading with the first card on the same page */
   .finding-category-header { break-after: avoid !important; page-break-after: avoid !important; }

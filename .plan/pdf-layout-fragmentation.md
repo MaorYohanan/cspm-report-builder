@@ -1,6 +1,49 @@
-# PDF Layout — Remaining Issues Report
+# PDF Layout — Fragmentation Fix Branch (`fix/pdf-layout-fragmentation`)
 
-Generated: 2026-09-14
+---
+
+## Authoritative Geometry — Corrected Figures (2026-09-14)
+
+The table below was measured with the **repaired** harness (drawing-aware filter; commit
+range up to `02fd203`).  Earlier figures in this branch's history came from two successive
+broken instruments and must be disregarded; see "Instrument Faults" below.
+
+| Snapshot | Pages | Spills | Near-blank |
+|---|---|---|---|
+| baseline | 68 | 5 | 2 |
+| after_commit1 | 66 | 3 | 0 |
+| after_commit2 | 67 | 2 | 1 |
+| after_commit3 | 66 | 1 | 0 |
+| after_border | 66 | 1 | 0 |
+
+### Active gates (spills and near-blank; max-content-height retired)
+
+- **Spill count** (content height < 150 pt): gate value **1** (p04, ~104.9 pt)
+- **Near-blank count** (content < 50 pt OR > 90% blank): gate value **0**
+- **Max-content-height**: **dropped as a gate**.  The metric sits at ~697.2 pt on every
+  clean run of this template; any threshold either false-alarms or is trivially satisfied.
+  The only actionable signal it carries is the 701.0 sentinel (see "Instrument Faults").
+
+### Instrument faults — why earlier numbers in this branch are wrong
+
+**Fault 1 — text-only measurement.**  The first harness measured `get_text("blocks")`
+only.  Pages whose structure is carried by vector card borders (dark finding-card outlines)
+appeared shorter than reality; page and spill counts were under-reported.
+
+**Fault 2 — white-container saturation.**  The drawing-aware repair added
+`get_drawings()` but did not filter white, unstroked background container rects.  A
+full-height white rect (the page wrapper box) survived the filter and pinned every page's
+`first_y` → TOP_MARGIN and `last_y` → BOT_MARGIN, collapsing `cont_h` to exactly
+701.0 pt = BOT_MARGIN (786) − TOP_MARGIN (85) = USABLE_H.  This saturated
+`max_h_pt` to 701.0 pt on all documents, masking all real variation.
+
+**Working filter** (committed to `03_measure_pdf.py`):
+`fill == (1,1,1) AND color is None (no stroke) AND width > 50% of page width`.
+This drops page containers while keeping dark finding-card borders, which extend
+measurements correctly beyond raw text extent.  If `max_content_height` ever reads
+exactly **701.0 pt**, the filter has broken — treat it as an invalid run, not a
+measurement.  (This sentinel is also documented as a code comment in
+`03_measure_pdf.py`.)
 
 ---
 
