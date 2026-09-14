@@ -17,6 +17,8 @@ const priorityCustom = document.getElementById('f-priority-custom');
 const evidenceInput  = document.getElementById('f-evidence');
 const exportJsonBtn  = document.getElementById('btn-export-json');
 
+let priorityTouched = false;
+
       // ── Finding Detail Pane ──
       export function showFindingDetail(idx) {
         state.selectedFindingIndex = idx;
@@ -722,6 +724,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       document.getElementById('f-category').addEventListener('change', function() {
         if (state.editingIndex === null) {
           prefillId();
+        } else {
+          // Edit mode — auto-update the ID field to the next available slot
+          // in the newly selected category.
+          var newId = generateNextId(this.value);
+          var idField = document.getElementById('f-id');
+          if (idField) idField.value = newId;
         }
       });
 
@@ -893,8 +901,25 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         }
       }
 
-      prioritySelect.addEventListener('change', updatePriorityCustomVisibility);
+      prioritySelect.addEventListener('change', function() {
+        priorityTouched = true;
+        updatePriorityCustomVisibility();
+      });
       updatePriorityCustomVisibility();
+
+      // --- Severity → priority auto-default ---
+      const severityMap = {
+        critical: 'מיידי (0–7 ימים)',
+        high: 'גבוהה (עד 30 ימים)',
+        medium: 'בינונית (30–60 ימים)',
+        low: 'נמוכה (60–120 ימים)'
+      };
+      document.getElementById('f-severity').addEventListener('change', function() {
+        if (!priorityTouched && prioritySelect.value === '') {
+          const mapped = severityMap[this.value];
+          if (mapped) prioritySelect.value = mapped;
+        }
+      });
 
       // Exception checkbox toggle
       (function() {
@@ -1059,6 +1084,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         document.getElementById('report-version').value    = m.reportVersion || '1.0';
         document.getElementById('report-lang').value       = m.reportLang || 'he';
 
+        const sysVerBadge = document.getElementById('system-version-badge');
+        if (sysVerBadge) {
+          const ver = snapshot.version;
+          sysVerBadge.textContent = (typeof ver === 'string' && ver) ? 'v' + ver : '—';
+        }
+
         // Restore custom cover image if present
         if (m.coverImage) {
           showCoverPreview(m.coverImage);
@@ -1133,6 +1164,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             }
           }
         }
+
+        // Track whether the loaded version is a draft so preview/export callers can
+        // show the watermark when appropriate.  snapshot.status is set by products.js
+        // when loading from the timeline; it is undefined for local-file imports, so we
+        // fall back to null (no watermark).
+        state.loadedVersionStatus = snapshot.status || null;
 
         statusMsg.textContent =
           'נטען דו"ח קיים' +
@@ -1414,6 +1451,11 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             batchCountInline.textContent = '';
             batchCountInline.style.display = 'none';
           }
+          // Reset all batch controls so stale values don't appear on next selection
+          document.getElementById('batch-severity').value = '';
+          var _bp = document.getElementById('batch-priority'); if (_bp) _bp.value = '';
+          var _bc = document.getElementById('batch-category'); if (_bc) _bc.value = '';
+          var _bo = document.getElementById('batch-owner');    if (_bo) _bo.value = '';
         }
       }
 
@@ -1462,6 +1504,29 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           }
         });
       })();
+
+      // Batch category change
+      var batchCategoryEl = document.getElementById('batch-category');
+      if (batchCategoryEl) {
+        batchCategoryEl.addEventListener('change', function() {
+          var newCat = this.value;
+          if (!newCat) return;
+          var indices = getSelectedFindingIndices();
+          indices.forEach(function(idx) {
+            if (state.findings[idx]) {
+              state.findings[idx].category = newCat;
+              // Rewrite ID prefix so reorderFindingIds() groups by new category
+              var m = (state.findings[idx].id || '').match(/^[A-Z]+(-\d+)$/);
+              if (m) state.findings[idx].id = newCat + m[1];
+            }
+          });
+          reorderFindingIds();
+          this.value = '';
+          renderFindingsTable();
+          autoSave();
+          showToast('קטגוריה עודכנה ל-' + indices.length + ' ממצאים', 'success');
+        });
+      }
 
       // Batch delete
       document.getElementById('btn-batch-delete').addEventListener('click', function() {
@@ -1647,6 +1712,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         document.getElementById('f-owner').value = '';
         prioritySelect.value = '';
         priorityCustom.value = '';
+        priorityTouched = false;
         evidenceInput.value = '';
         clearEvidencePreview();
         updatePriorityCustomVisibility();
@@ -1699,6 +1765,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           prioritySelect.value = '';
           priorityCustom.value = '';
         }
+        // Lock auto-fill when editing a finding that already has a saved priority
+        priorityTouched = !!f.priority;
 
         updatePriorityCustomVisibility();
         evidenceInput.value = '';
@@ -2245,7 +2313,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           findingIdLabel: 'מזהה ממצא',
           coverSubtitle: 'בדיקת מצב אבטחה, תצורה ועמידה במדיניות בסביבת הענן הארגונית',
           clientLabel: 'שם הלקוח', cloudLabel: 'ענן', envLabel: 'סביבת בדיקה', rangeLabel: 'טווח הבדיקה',
-          consultantLabel: 'יועץ / גורם מבצע', dateLabel: 'תאריך דו"ח', versionLabel: 'גרסה',
+          consultantLabel: 'יועץ / גורם מבצע', dateLabel: 'תאריך דו"ח', versionLabel: 'גרסת דו"ח',
           reportDateFooter: 'תאריך הדו"ח',
           defaultExecSummary: 'הדו"ח מסכם את מצב ה-POSTURE בסביבת הענן שנבדקה, לרבות ממצאים קריטיים, תרחישי סיכון מרכזיים והערכת סיכון כללית.',
           defaultKeyTopics: 'ניתן להרחיב נושאי מפתח כגון IAM, חשיפה לאינטרנט, הצפנה, רשתות, Kubernetes ועוד.',
@@ -2305,7 +2373,23 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         }
       };
 
-      export function buildReportHtml() {
+      // Strips common Markdown syntax from a string, producing plain text safe
+      // for escapeHtml() and PDF rendering.  No HTML tags are emitted — only
+      // plain characters — so this must run BEFORE escapeHtml().
+      function stripMarkdown(text) {
+        if (typeof text !== 'string') return text;
+        return text
+          // [link text](url) → link text (url)
+          .replace(/\[([^\]]*)\]\(([^)]*)\)/g, function(_, linkText, url) { return linkText + ' (' + url + ')'; })
+          // **bold** → bold (process before single * to avoid partial match)
+          .replace(/\*\*([^*]+)\*\*/g, '$1')
+          // *italic* → italic
+          .replace(/\*([^*]+)\*/g, '$1')
+          // `code` → code (strip backticks)
+          .replace(/`([^`]+)`/g, '$1');
+      }
+
+      export function buildReportHtml({ isDraft = false } = {}) {
         const lang = document.getElementById('report-lang').value || 'he';
         const t = i18n[lang] || i18n.he;
         const client          = document.getElementById('report-client').value.trim();
@@ -2322,7 +2406,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         const orgName     = document.getElementById('report-org-name').value.trim();
         const footerText  = document.getElementById('report-footer-text').value.trim();
         const coverNote   = document.getElementById('report-cover-note').value.trim() || 'מסמך זה מסכם את ממצאי בדיקת האבטחה כפי שאותרו, כולל ניתוח סיכונים והמלצות לטיפול.';
-        const reportVersion = document.getElementById('report-version').value.trim() || '1.0';
+        const reportVersion = document.getElementById('report-version').value.trim();
 
         const critCount  = countSeverity('critical');
         const highCount  = countSeverity('high');
@@ -2371,7 +2455,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         var catKeys = Object.keys(findingsByCategory);
         var catMatrixHtml = '';
         if (catKeys.length > 0) {
-          catMatrixHtml = '<table><thead><tr><th>' + t.catHeader + '</th><th>' + t.critical + '</th><th>' + t.high + '</th><th>' + t.medium + '</th><th>' + t.low + '</th><th>' + t.info + '</th><th>' + t.totalHeader + '</th></tr></thead><tbody>';
+          catMatrixHtml = '<table class="report-table"><thead><tr><th>' + t.catHeader + '</th><th>' + t.critical + '</th><th>' + t.high + '</th><th>' + t.medium + '</th><th>' + t.low + '</th><th>' + t.info + '</th><th>' + t.totalHeader + '</th></tr></thead><tbody>';
           catKeys.forEach(function(cat) {
             var items = findingsByCategory[cat];
             var c = items.filter(function(f){return f.severity==='critical';}).length;
@@ -2389,10 +2473,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           return t[key] || (state.severityMap[key] || {}).text || key;
         }
 
-        // Each category gets its own page-section + finding-page so:
-        // 1. break-after:page on .page-section puts each category on a new page.
-        // 2. .finding-page ancestor is present for every .finding-card, making
-        //    the card-splitter in pdf_service.py active for tall cards.
+        // Each card gets its own <section class="page-section finding-page"> so:
+        // 1. break-after:page on .page-section puts each card on its own page.
+        // 2. .finding-page is present per card, so the splitter in pdf_service.py
+        //    (card.closest('.finding-page') → parentSection.remove()) removes only
+        //    the oversized card's section — not all siblings in the category.
+        // Category headings use a plain <div class="finding-category-header"> (no
+        // .page-section) so the heading shares the page with the first card.
         var findingsCategorySections = '';
         catKeys.forEach(function(cat) {
           var catLabel = categoryMap[cat] || cat;
@@ -2405,8 +2492,17 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
           const liDir = text => /^[a-zA-Z]/.test((text || '').replace(/^[^a-zA-Z֐-׿]+/, '')) ? 'dir="ltr" style="text-align:left;"' : '';
 
+          // Safety net for legacy state: a single comma-separated resource blob longer than
+          // 300 chars (created before the wizi.js cap was applied) is truncated here so it
+          // does not span multiple PDF pages (Issue 2).
+          function capTechnicalItem(item) {
+            if (item.length <= 300 || item.indexOf(', ') === -1) return item;
+            var cutoff = item.lastIndexOf(', ', 299);
+            if (cutoff === -1) cutoff = 299;
+            return item.slice(0, cutoff) + ' ... (ראה דוח Wiz)';
+          }
           const technicalHtml = f.technical.length
-            ? `<ul>${f.technical.map(item => `<li ${liDir(item)}>${escapeHtml(item)}</li>`).join('')}</ul>`
+            ? `<ul>${f.technical.map(item => { var safe = stripMarkdown(capTechnicalItem(item)); return `<li ${liDir(safe)}>${escapeHtml(safe)}</li>`; }).join('')}</ul>`
             : `<p class="muted">${t.noTech}</p>`;
 
           const policyHtml = f.policies.length
@@ -2414,7 +2510,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             : `<p class="muted">${t.noPolicies}</p>`;
 
           const recHtml = f.recs.length
-            ? `<ul>${f.recs.map(r => `<li ${liDir(r)}>${escapeHtml(r)}</li>`).join('')}</ul>`
+            ? `<ul>${f.recs.map(r => `<li ${liDir(r)}>${escapeHtml(stripMarkdown(r))}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
@@ -2432,63 +2528,71 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               `
             : '';
 
+          // Each card gets its own .page-section.finding-page section so the
+          // card-splitter in pdf_service.py (card.closest('.finding-page') →
+          // parentSection.remove()) removes only THIS card, not all siblings in
+          // the category.  Before this fix, all cards shared one section and a
+          // single oversized card's removal wiped every sibling.
           cardsHtml += `
-          <div class="finding-wrap">
-          <div class="finding-card${(f.exception && f.exception.active) ? ' finding-card-exception' : ''}" id="${anchorId}">
-            <div class="finding-header">
-              <div>
-                <div class="finding-title">${escapeHtml(f.title)}</div>
-                <div class="finding-id">${t.findingIdLabel}: ${escapeHtml(f.id)}</div>
-              </div>
-              <div class="severity-badge ${sev.class}">${sevText(f.severity)}</div>
-            </div>
-
-            ${(f.exception && f.exception.active) ? `
-            <div class="exception-banner-pdf">
-              ⚠ ממצא מוחרג — אושר כחריגה מדיניות
-              ${f.exception.reason ? '<div class="exception-reason-pdf">' + escapeHtml(f.exception.reason) + '</div>' : ''}
-            </div>` : ''}
-
-            <div class="finding-section-title">${t.findingDesc}</div>
-            ${Array.isArray(f.description)
-              ? (f.description.length ? '<ul>' + f.description.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
-              : '<p>' + escapeHtml(f.description) + '</p>'}
-
-            <div class="finding-section-title">${t.findingImpact}</div>
-            ${Array.isArray(f.impact)
-              ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
-              : '<p>' + escapeHtml(f.impact) + '</p>'}
-
-            <div class="detail-box">
-              <div class="finding-section-title">${t.findingTech}</div>
-              ${technicalHtml}
-            </div>
-
-            <div class="detail-box">
-              <div class="finding-section-title">${t.findingPolicies}</div>
-              ${policyHtml}
-            </div>
-
-            <div class="finding-section-title">${t.findingRecs}</div>
-            ${recHtml}
-
-            <div class="finding-section-title">${t.findingPriority}</div>
-            ${priorityHtml}
-            ${evidenceHtml}
+    <section class="page-section finding-page">
+      <div class="finding-wrap">
+      <div class="finding-card${(f.exception && f.exception.active) ? ' finding-card-exception' : ''}" id="${anchorId}">
+        <div class="finding-header">
+          <div>
+            <div class="finding-title">${escapeHtml(f.title)}</div>
+            <div class="finding-id">${t.findingIdLabel}: ${escapeHtml(f.id)}</div>
           </div>
-          </div>`;
+          <div class="severity-badge ${sev.class}">${sevText(f.severity)}</div>
+        </div>
+
+        ${(f.exception && f.exception.active) ? `
+        <div class="exception-banner-pdf">
+          ⚠ ממצא מוחרג — אושר כחריגה מדיניות
+          ${f.exception.reason ? '<div class="exception-reason-pdf">' + escapeHtml(f.exception.reason) + '</div>' : ''}
+        </div>` : ''}
+
+        <div class="finding-section-title">${t.findingDesc}</div>
+        ${Array.isArray(f.description)
+          ? (f.description.length ? '<ul>' + f.description.map(d => '<li>' + escapeHtml(stripMarkdown(d)) + '</li>').join('') + '</ul>' : '<p></p>')
+          : '<p>' + escapeHtml(stripMarkdown(f.description)) + '</p>'}
+
+        <div class="finding-section-title">${t.findingImpact}</div>
+        ${Array.isArray(f.impact)
+          ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(stripMarkdown(d)) + '</li>').join('') + '</ul>' : '<p></p>')
+          : '<p>' + escapeHtml(stripMarkdown(f.impact)) + '</p>'}
+
+        <div class="detail-box">
+          <div class="finding-section-title">${t.findingTech}</div>
+          ${technicalHtml}
+        </div>
+
+        <div class="detail-box">
+          <div class="finding-section-title">${t.findingPolicies}</div>
+          ${policyHtml}
+        </div>
+
+        <div class="finding-section-title">${t.findingRecs}</div>
+        ${recHtml}
+
+        <div class="finding-section-title">${t.findingPriority}</div>
+        ${priorityHtml}
+        ${evidenceHtml}
+      </div>
+      </div>
+    </section>`;
           cardsHtml += '\n';
           });
 
-          // One section per category — break-after:page (from .page-section in
-          // CLEAN_PRINT_CSS) puts each category on its own page. The .finding-page
-          // class is also present so the card-splitter in pdf_service.py can find
-          // .finding-card ancestors via card.closest('.finding-page').
+          // Category heading in a plain div (no .page-section class) so it does
+          // not trigger break-after:page by itself.  It flows onto the same page
+          // as the first card's section.  The per-card sections above carry the
+          // break-after:page rule, producing one finding per page — consistent
+          // with how the card-splitter already produces one section per chunk.
           findingsCategorySections += `
-    <section class="page-section finding-page">
+    <div class="finding-category-header">
       <h2>${escapeHtml(cat + ' – ' + catLabel)}</h2>
-      ${cardsHtml}
-    </section>`;
+    </div>
+    ${cardsHtml}`;
         });
 
         const treatmentTableHtml = state.findings.map(f => {
@@ -2518,12 +2622,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         }).join('\n');
 
         const appendixHtml = state.findings.map(f => {
-          const firstPolicy = f.policies[0] || '';
+          // Join all policies; empty array produces '' (falsy) → falls back to '—'
+          const allPolicies = f.policies.join(', ');
           return `
             <tr>
               <td>${escapeHtml(f.id)}</td>
-              <td>${firstPolicy ? escapeHtml(firstPolicy) : '—'}</td>
-              <td>${firstPolicy ? 'ISO / NIST' : '—'}</td>
+              <td>${allPolicies ? escapeHtml(allPolicies) : '—'}</td>
+              <td>${allPolicies ? escapeHtml(allPolicies) : '—'}</td>
               <td></td>
             </tr>`;
         }).join('\n');
@@ -2534,6 +2639,28 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
         const keyTopicsHtml = linesToListHtml(keyTopics) ||
           `<p class="muted">${t.defaultKeyTopics}</p>`;
+
+        const draftWatermarkStyle = isDraft ? `
+<style>
+.page-section {
+  position: relative;
+  isolation: isolate;
+}
+.page-section::before {
+  content: "${lang === 'he' ? 'טיוטה' : 'DRAFT'}";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: 120px;
+  font-weight: 900;
+  color: #888;
+  opacity: 0.15;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: -1;
+}
+</style>` : '';
 
         const html = `<!DOCTYPE html>
 <html lang="${t.lang}" dir="${t.dir}">
@@ -3023,7 +3150,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     }
   }
 </style>
-
+${draftWatermarkStyle}
 </head>
 <body>
 
@@ -3053,7 +3180,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           <p><strong>${t.rangeLabel}:</strong> ${escapeHtml(range || '__________')}</p>
           <p><strong>${t.consultantLabel}:</strong> ${escapeHtml(consultant || '__________')}</p>
           <p><strong>${t.dateLabel}:</strong> ${escapeHtml(reportDate || '__________')}</p>
-          <p><strong>${t.versionLabel}:</strong> ${escapeHtml(reportVersion)}</p>
+          ${reportVersion ? `<p><strong>${t.versionLabel}:</strong> ${escapeHtml(reportVersion)}</p>` : ''}
         </div>
 
         <div class="cover-badge">
@@ -3095,11 +3222,15 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     <section class="page-section">
       <h1 id="exec-summary">${t.execSummary}</h1>
       ${execSummaryHtml}
-      <p><strong>${t.riskLabel}:</strong> ${escapeHtml(reportRisk || (t[riskScore.level] || riskScore.label))}.</p>
+      <p><strong>${t.riskLabel}:</strong> ${escapeHtml(riskScore.label || (t[riskScore.level] || '—'))} (מחושב אוטומטית).</p>
+      <!-- BUG NOTE: calcRiskScore() weights (critical:10, high:7, medium:4, low:1) differ
+           from the domain model in CONTEXT.md (critical:4, high:3, medium:2, low:1).
+           The reportRisk free-text field is preserved in state but not rendered here to
+           avoid contradicting the computed label. Track as a separate weight-fix task. -->
       ${state.findings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
+    </section>
 
-      <div class="section-divider"></div>
-
+    <section class="section-intro" style="margin-top: 2rem;">
       <h2 id="scope-method">${t.scopeMethod}</h2>
       <h3>${t.scopeTitle}</h3>
       <p>${t.scopeText}</p>
@@ -3113,13 +3244,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       </ul>
     </section>
 
-    <section class="page-section">
+    <section class="section-intro">
       <h1 id="findings-summary">${t.findingsSummary}</h1>
       <p>${t.findingsSummaryText}</p>
 
       ${buildSeverityChartSvg({ critical: critCount, high: highCount, medium: medCount, low: lowCount, info: infoCount }, { critical: t.critical, high: t.high, medium: t.medium, low: t.low, info: t.info })}
 
-      <table>
+      <table class="report-table">
         <thead>
           <tr>
             <th>${t.sevHeader}</th>
@@ -3171,11 +3302,11 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     </section>
     ${findingsCategorySections}
 
-    <section class="page-section">
+    <section class="section-intro">
       <h1 id="recommendations">${t.recommendations}</h1>
       <p>${t.recsText}</p>
 
-      <table>
+      <table class="report-table">
         <thead>
           <tr>
             <th>${t.colId}</th>
@@ -3192,11 +3323,11 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       </table>
     </section>
 
-    <section class="page-section">
+    <section class="section-intro">
       <h1 id="appendix-a">${t.appendix}</h1>
       <p>${t.appendixText}</p>
 
-      <table>
+      <table class="report-table">
         <thead>
           <tr>
             <th>${t.colId}</th>
@@ -3228,7 +3359,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           alert('אין ממצאים לייצוא.');
           return;
         }
-        const html = buildReportHtml();
+        const html = buildReportHtml({ isDraft: state.loadedVersionStatus === 'draft' });
         const win = window.open('', '_blank');
         if (!win) {
           alert('הדפדפן חסם פתיחת חלון. צריך לאפשר Popups לדף הזה.');
@@ -3245,7 +3376,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           alert('אין ממצאים לייצוא.');
           return;
         }
-        const html = buildReportHtml();
+        const html = buildReportHtml({ isDraft: state.loadedVersionStatus === 'draft' });
         const blob = new Blob([html], { type: 'text/html' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -3276,4 +3407,130 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         URL.revokeObjectURL(url);
         statusMsg.textContent = 'תצורת הדו"ח יוצאה כקובץ JSON (meta + ממצאים).';
       });
+
+      // ── AI Exception Reason Improver — Add Finding form ──────────────────────
+      export function attachExceptionReasonButton_AddForm() {
+        var excReasonWrap = document.getElementById('f-exception-reason-wrap');
+        if (!excReasonWrap) return;
+        // Double-attachment guard
+        if (excReasonWrap.querySelector('.ai-improve-exception-add-row')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-ai btn-sm';
+        btn.textContent = '✨ שפר ניסוח';
+        btn.style.marginTop = '6px';
+
+        var row = document.createElement('div');
+        row.className = 'ai-improve-exception-add-row';
+        row.appendChild(btn);
+
+        var statusSpan = document.createElement('span');
+        statusSpan.className = 'ai-status-msg';
+        statusSpan.style.cssText = 'font-size:0.85em; margin-right:8px; color:#c0392b;';
+        row.appendChild(statusSpan);
+
+        excReasonWrap.appendChild(row);
+
+        btn.addEventListener('click', function() {
+          var textarea = document.getElementById('f-exception-reason');
+          if (!textarea) return;
+          var text = textarea.value.trim();
+          statusSpan.textContent = '';
+          if (!text) { statusSpan.textContent = 'אין טקסט לשיפור.'; return; }
+          var modelSelect = document.getElementById('ai-model');
+          var model = (modelSelect && modelSelect.value) || '';
+
+          btn.disabled = true;
+          btn.textContent = '⏳ משפר...';
+
+          fetch('/api/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, field: 'exception_reason', model: model })
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            textarea.value = data.suggestion || '';
+            textarea.dispatchEvent(new Event('input'));
+          })
+          .catch(function(err) {
+            showToast('שגיאה בשיפור הניסוח: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '✨ שפר ניסוח';
+          });
+        });
+      }
+
+      // ── AI Exception Reason Improver — Detail Pane dialog ────────────────────
+      export function attachExceptionReasonButton_DetailPane() {
+        var detailExceptionDialog = document.getElementById('detail-exception-dialog');
+        if (!detailExceptionDialog) return;
+        // Double-attachment guard
+        if (detailExceptionDialog.querySelector('.ai-improve-exception-detail-row')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-ai btn-sm';
+        btn.textContent = '✨ שפר ניסוח';
+        btn.style.marginTop = '6px';
+
+        var row = document.createElement('div');
+        row.className = 'ai-improve-exception-detail-row';
+        row.appendChild(btn);
+
+        var statusSpan = document.createElement('span');
+        statusSpan.className = 'ai-status-msg';
+        statusSpan.style.cssText = 'font-size:0.85em; margin-right:8px; color:#c0392b;';
+        row.appendChild(statusSpan);
+
+        // Insert immediately after the textarea, before the Cancel/Confirm button bar
+        var textarea = document.getElementById('detail-exception-reason-input');
+        if (textarea) {
+          textarea.insertAdjacentElement('afterend', row);
+        } else {
+          detailExceptionDialog.appendChild(row);
+        }
+
+        btn.addEventListener('click', function() {
+          var ta = document.getElementById('detail-exception-reason-input');
+          if (!ta) return;
+          var text = ta.value.trim();
+          statusSpan.textContent = '';
+          if (!text) { statusSpan.textContent = 'אין טקסט לשיפור.'; return; }
+          var modelSelect = document.getElementById('ai-model');
+          var model = (modelSelect && modelSelect.value) || '';
+
+          btn.disabled = true;
+          btn.textContent = '⏳ משפר...';
+
+          fetch('/api/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, field: 'exception_reason', model: model })
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            ta.value = data.suggestion || '';
+            ta.dispatchEvent(new Event('input'));
+          })
+          .catch(function(err) {
+            showToast('שגיאה בשיפור הניסוח: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '✨ שפר ניסוח';
+          });
+        });
+      }
 

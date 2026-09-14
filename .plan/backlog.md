@@ -25,6 +25,7 @@ Low-effort, high-impact. All should land in the same milestone before any Tier 2
 | 9 | BL-25 | PDF Export Animated Spinner | Low | Button disabled + text status exists; animated progress/spinner component is net-new |
 | 10 | BL-26 | Skeleton Rows During Wiz Bulk Import | Low | Step counter already implemented; blank results area during fetch has no skeleton rows |
 | 11 | BL-28 | Report Version on PDF Cover Page | Low | Cover page has no version field; one template line change |
+| 12 | BL-30 | Unsaved-Data Warning on Version Load / PDF | Low | Confirm before switching version (LOAD/PDF) when findings have unsaved edits |
 
 ### Tier 2 — High Value, Moderate Work _(after Tier 1 is merged)_
 Core product improvements. BL-11 is partially done so start there.
@@ -273,6 +274,18 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** Recipients of a published PDF have no way to identify which version of the report they are reading without opening the file properties or asking the sender.
 **Effort:** Low
 **Notes:** NET-NEW. `report_template.html:31–48` (the cover section) renders teamName, client, cloud, env, range, consultant, reportDate, and coverNote — but not `meta.reportVersion`. `features.md` section 21 confirms the omission. The `meta.reportVersion` value is available at render time (passed in the `meta` dict to `POST /api/render-pdf`). Net-new work: add one `<p>` line to the cover section in `report_template.html` rendering `meta.reportVersion` conditionally — e.g. `{% if meta.reportVersion %}<p><strong>גרסת דו"ח:</strong> {{ meta.reportVersion }}</p>{% endif %}`.
+
+### BL-30 · Unsaved-Data Warning on Version Load / PDF
+**Why:** In the product history / timeline view, clicking "LOAD" (load a version for editing) or "PDF" (render that version's PDF) silently replaces the current in-memory findings with the findings stored in the selected snapshot. Any unsaved edits — new findings typed since the last save, field edits, exception toggles — are permanently discarded with no warning.
+**Effort:** Low
+**Design:**
+- Intercept both "LOAD" and "PDF" button clicks in the product timeline / version history panel (in `products.js`).
+- Before executing the action, check whether there are unsaved edits: compare `state.findings` (current in-memory) against the last-saved state, or use an existing `isDirty` flag if one exists.
+- If unsaved edits are detected: show a `styledConfirm` dialog (Hebrew): **"קיימים שינויים שלא נשמרו. אם תמשיך, הנתונים הנוכחיים יאבדו. להמשיך?"** with "כן, המשך" / "ביטול" actions.
+- If the user confirms: proceed with the original LOAD or PDF action.
+- If the user cancels: abort — do nothing.
+- If no unsaved edits are detected: proceed without showing a dialog.
+**Notes:** NET-NEW. No dirty-state guard exists before version switches. The check does not need to be exhaustive — comparing `state.findings.length` and a hash/timestamp of the last save is sufficient; a false-positive (showing the dialog when nothing actually changed) is acceptable and far safer than a silent data loss.
 
 ### BL-29 · AI-Generated Diff Summary
 **Why:** The diff view shows color-coded rows and a numeric risk delta but produces no natural-language interpretation, leaving product owners and non-technical stakeholders unable to understand what the comparison means without consultant assistance.

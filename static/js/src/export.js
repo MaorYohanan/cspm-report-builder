@@ -4,7 +4,8 @@ import {
   renderFindingsTable, prefillId, resetEditState, generateNextId,
   splitLines, switchToTab, buildFilename, buildReportHtml,
   buildSnapshot, applySnapshot, categoryMap, escapeHtml,
-  resetCoverImage, getTodayDDMMYYYY
+  resetCoverImage, getTodayDDMMYYYY,
+  attachExceptionReasonButton_AddForm, attachExceptionReasonButton_DetailPane
 } from './findings.js';
 import { updateStepper } from './ui.js';
 
@@ -630,13 +631,15 @@ const dateInput       = document.getElementById('report-date');
 
       const renderPdfBtn = document.getElementById('btn-render-pdf');
       const exportHtmlBtn = document.getElementById('btn-export-html');
+      const exportZipBtn = document.getElementById('btn-export-zip');
       const saveStateCloudBtn = document.getElementById('btn-save-state-cloud');
       const cloudUploadStateInput = document.getElementById('cloud-upload-state');
 
-      // Enable PDF and HTML export buttons when state.findings exist
+      // Enable PDF, HTML and ZIP export buttons when state.findings exist
       function updateCloudButtons() {
         if (renderPdfBtn) renderPdfBtn.disabled = !state.findings.length;
         if (exportHtmlBtn) exportHtmlBtn.disabled = !state.findings.length;
+        if (exportZipBtn) exportZipBtn.disabled = !state.findings.length;
       }
 
       // Override the renderFindingsTable to also update cloud buttons
@@ -678,7 +681,10 @@ const dateInput       = document.getElementById('report-date');
 
         var cards = top5.map(function(f, i) {
           var sev = (f.severity || 'low').toLowerCase();
-          var rec = Array.isArray(f.recs) ? (f.recs[0] || '') : String(f.recs || '');
+          var preamblePatterns = [/^to remediate/i, /^perform the (?:following|steps)/i, /^via the cloud/i];
+          var cleanRecs = (Array.isArray(f.recs) ? f.recs : [])
+            .filter(function(r) { return !preamblePatterns.some(function(p) { return p.test(r.trim()); }) && !r.trim().endsWith(':'); });
+          var rec = cleanRecs[0] || f.impact || '';
           return '<div class="golden5-card sev-border-' + esc(sev) + '">\n' +
             '  <div class="golden5-header">\n' +
             '    <span class="golden5-rank">#' + (i + 1) + '</span>\n' +
@@ -699,9 +705,10 @@ const dateInput       = document.getElementById('report-date');
       // --- Render PDF via server ---
       if (renderPdfBtn) {
         renderPdfBtn.addEventListener('click', async function() {
-          if (!state.findings.length) { alert('אין ממצאים לייצוא.'); return; }
+          if (!state.findings.length) { showToast('אין ממצאים לייצוא', 'warning'); return; }
           statusMsg.textContent = 'מייצר PDF בשרת...';
           renderPdfBtn.disabled = true;
+          renderPdfBtn.classList.add('btn-loading');
           try {
             let html = buildReportHtml();
 
@@ -758,6 +765,7 @@ const dateInput       = document.getElementById('report-date');
             showToast('שגיאה ביצירת PDF', 'error');
           } finally {
             renderPdfBtn.disabled = !state.findings.length;
+            renderPdfBtn.classList.remove('btn-loading');
           }
         });
       }
@@ -795,6 +803,64 @@ const dateInput       = document.getElementById('report-date');
             showToast('שגיאה בייצוא HTML אינטראקטיבי', 'error');
           } finally {
             exportHtmlBtn.disabled = !state.findings.length;
+          }
+        });
+      }
+
+      // --- Export ZIP bundle (PDF + findings JSON) via server ---
+      if (exportZipBtn) {
+        exportZipBtn.addEventListener('click', async function() {
+          if (!state.findings.length) { showToast('אין ממצאים לייצוא', 'warning'); return; }
+          statusMsg.textContent = 'מייצר חבילת ZIP...';
+          exportZipBtn.disabled = true;
+          exportZipBtn.classList.add('btn-loading');
+          try {
+            let html = buildReportHtml();
+
+            // Apply Golden 5 injection — same logic as renderPdfBtn handler
+            if (golden5Chk && golden5Chk.checked) {
+              const g5html = buildGolden5Html();
+              if (g5html) {
+                html = html.replace(
+                  /(<\/section>)(\s*)(<section\s[^>]*>\s*<h1\s+id="findings-summary")/,
+                  function(_, p1, p2, p3) { return p1 + p2 + g5html + '\n\n' + p3; }
+                );
+                html = html.replace(
+                  /(<a href="#exec-summary">[^<]*<\/a><\/span>\s*<\/li>)(\s*<li[^>]*>\s*<span>\s*<a href="#scope-method">)/,
+                  function(_, p1, p2) { return p1 + '\n<li class="toc-item"><span><a href="#golden5">5 הממצאים המשמעותיים ביותר</a></span></li>' + p2; }
+                );
+              }
+            }
+
+            const snapshot = buildSnapshot();
+            const resp = await fetch('/api/export-zip', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ html: html, meta: snapshot.meta, findings: snapshot.findings })
+            });
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({}));
+              throw new Error(err.error || 'שגיאת שרת');
+            }
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = buildFilename('zip');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            statusMsg.textContent = 'חבילת ZIP הורדה בהצלחה.';
+            showToast('חבילת ZIP הורדה בהצלחה', 'success');
+            try { localStorage.setItem('cspm_has_exported', '1'); } catch(e) {}
+            updateStepper();
+          } catch (e) {
+            statusMsg.textContent = 'שגיאה בייצוא ZIP: ' + e.message;
+            showToast('שגיאה בייצוא ZIP', 'error');
+          } finally {
+            exportZipBtn.disabled = !state.findings.length;
+            exportZipBtn.classList.remove('btn-loading');
           }
         });
       }
@@ -1016,8 +1082,12 @@ const dateInput       = document.getElementById('report-date');
 
               aiModelRow.style.display = '';
             }
+            state.aiEnabled = true;
             aiFields.forEach(attachAiButton);
             attachGenerateExecSummaryButton();
+            attachGenerateKeyTopicsButton();
+            attachExceptionReasonButton_AddForm();
+            attachExceptionReasonButton_DetailPane();
           }
         }).catch(function() {});
       }
@@ -1087,6 +1157,68 @@ const dateInput       = document.getElementById('report-date');
           .finally(function() {
             btn.disabled = false;
             btn.textContent = '✨ הפק תקציר מנהלים מבוסס ממצאים';
+          });
+        });
+      }
+
+      function attachGenerateKeyTopicsButton() {
+        var keyTopicsField = document.getElementById('report-key-topics');
+        if (!keyTopicsField) return;
+        // Guard against double-attachment
+        if (keyTopicsField.parentNode.querySelector('.ai-generate-topics-row')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-ai btn-sm';
+        btn.textContent = '✨ הצע נושאים';
+        btn.style.marginTop = '6px';
+
+        var row = document.createElement('div');
+        row.className = 'ai-generate-topics-row';
+        row.appendChild(btn);
+
+        keyTopicsField.parentNode.appendChild(row);
+
+        btn.addEventListener('click', function() {
+          var findings = state.findings || [];
+          if (!findings.length) {
+            showToast('אין ממצאים להצעת נושאים', 'warning');
+            return;
+          }
+          var model = (aiModelSelect && aiModelSelect.value) || '';
+          var clientEl = document.getElementById('report-client');
+          var client = clientEl ? clientEl.value.trim() : '';
+
+          btn.disabled = true;
+          btn.textContent = 'מייצר נושאים...';
+
+          fetch('/api/generate-key-topics', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              client: client,
+              model: model,
+              findings: findings.map(function(f) {
+                return { title: f.title || '', severity: f.severity || '' };
+              })
+            })
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            keyTopicsField.value = data.topics || '';
+            keyTopicsField.dispatchEvent(new Event('input'));
+            showToast('נושאי מפתח נוצרו בהצלחה ✓');
+          })
+          .catch(function(err) {
+            showToast('שגיאה בהצעת נושאים: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '✨ הצע נושאים';
           });
         });
       }

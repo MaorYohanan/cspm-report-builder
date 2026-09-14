@@ -284,6 +284,59 @@ class GeminiService:
             enable_fallback=True
         )
 
+    KEY_TOPICS_SYSTEM_PROMPT = (
+        "You are a cybersecurity consultant. Based on the provided security findings, "
+        "generate 3-5 concise key topic strings in Hebrew that summarize the main security themes. "
+        "Output one topic per line, no numbering, no markdown, no bullet points. "
+        "Keep technical terms (IAM, S3, VPC, API, CSPM, KSPM, etc.) in English. "
+        "Each topic should be 3-8 words maximum."
+    )
+
+    def generate_key_topics(
+        self,
+        findings: list,
+        client: str = "",
+        model: "Optional[str]" = None,
+        temperature: float = 0.4,
+        max_tokens: int = 512
+    ) -> "tuple[str, str]":
+        """
+        Generate 3-5 concise Hebrew key topic strings from a findings list.
+
+        Args:
+            findings: List of finding dicts with title and severity fields
+            client: Client/product name for context (currently unused in prompt)
+            model: Preferred model. Falls back on 429.
+            temperature: Sampling temperature
+            max_tokens: Maximum output tokens
+
+        Returns:
+            Tuple of (topics_text, model_used)
+
+        Raises:
+            ValueError: If findings list is empty
+            RuntimeError: If all models fail or content is blocked
+        """
+        if not findings:
+            raise ValueError("findings list is empty")
+
+        lines = []
+        for f in findings[:500]:
+            sev = str(f.get("severity", "unknown"))
+            title = str(f.get("title", ""))
+            lines.append(f"{sev}: {title}")
+
+        user_prompt = "\n".join(lines)
+
+        return self._call_gemini(
+            prompt=user_prompt,
+            system_prompt=self.KEY_TOPICS_SYSTEM_PROMPT,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            enable_fallback=True,
+        )
+
     REGRESSION_TREND_SYSTEM_PROMPT = (
         "You are a senior cloud security consultant writing a CSPM assessment report. "
         "You are given data comparing two consecutive security assessment snapshots for the same product. "

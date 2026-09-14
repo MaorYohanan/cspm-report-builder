@@ -168,6 +168,39 @@ def api_generate_exec_summary():
         return jsonify({"error": "Internal error"}), 502
 
 
+@ai_bp.route("/api/generate-key-topics", methods=["POST"])
+@require_role("editor")
+def api_generate_key_topics():
+    """Generate 3-5 concise Hebrew key topics from a findings list using Gemini."""
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI assist not configured — set GEMINI_API_KEY"}), 501
+    body = request.get_json(silent=True) or {}
+    findings = body.get("findings", [])
+    if not isinstance(findings, list) or not findings:
+        return jsonify({"error": "findings must be a non-empty list"}), 400
+    findings = findings[:500]
+    # Sanitize to {title, severity} only
+    safe_findings = [
+        {"title": str(f.get("title", ""))[:200], "severity": str(f.get("severity", ""))}
+        for f in findings
+        if isinstance(f, dict)
+    ]
+    client = str(body.get("client", ""))[:100]
+    model = (body.get("model") or "").strip()
+    if not model or model not in GEMINI_MODELS:
+        model = GEMINI_DEFAULT_MODEL
+    try:
+        topics, model = get_gemini_service().generate_key_topics(safe_findings, client=client, model=model)
+        return jsonify({"topics": topics, "model": model})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("generate_key_topics failed")
+        return jsonify({"error": "Internal error"}), 502
+
+
 @ai_bp.route("/api/generate-regression-trend", methods=["POST"])
 @require_role("editor")
 def api_generate_regression_trend():

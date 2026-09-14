@@ -4,14 +4,17 @@ Reports Blueprint - PDF rendering and HTML upload routes.
 Routes:
   POST /api/render-pdf       → accepts JSON state, returns PDF
   POST /api/upload-html      → upload an HTML report file
+  POST /api/export-zip       → renders PDF + findings JSON, returns ZIP bundle
 """
 
 from __future__ import annotations
 
+import io
 import logging
 import re
 import unicodedata
 import uuid
+import zipfile
 from pathlib import Path
 
 import datetime
@@ -39,19 +42,20 @@ def _safe_filename(name: str) -> str:
     return Path(name).name
 
 
-def _build_pdf_filename(meta: dict) -> str:
-    """Build a descriptive PDF download filename from report metadata."""
+def _slug(s: str) -> str:
+    """Normalise a string to an ASCII-safe URL slug component."""
+    s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()
+    s = re.sub(r'[^\w\s.\-]', '', s)
+    s = re.sub(r'[\s_]+', '-', s).strip('-')
+    return s
 
-    def slug(s: str) -> str:
-        s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode()
-        s = re.sub(r'[^\w\s.\-]', '', s)
-        s = re.sub(r'[\s_]+', '-', s).strip('-')
-        return s
 
-    client = slug(meta.get("client", "") or "")
-    cloud = slug(meta.get("cloud", "") or "")
+def _build_report_name(meta: dict) -> str:
+    """Shared slug-building logic for filename helpers."""
+    client = _slug(meta.get("client", "") or "")
+    cloud = _slug(meta.get("cloud", "") or "")
     env_raw = meta.get("env", "") or ""
-    env_slug = "-".join(slug(v.strip()) for v in env_raw.split(",") if v.strip()) if env_raw else ""
+    env_slug = "-".join(_slug(v.strip()) for v in env_raw.split(",") if v.strip()) if env_raw else ""
 
     # report date: expected DD/MM/YYYY → convert to YYYY-MM-DD
     raw_date = meta.get("reportDate", "") or ""
@@ -65,8 +69,17 @@ def _build_pdf_filename(meta: dict) -> str:
 
     parts_list = [p for p in [client, cloud, env_slug, date_slug] if p]
     name = "-".join(parts_list) or "cspm_report"
-    name = name[:60].rstrip('-')  # max 60 chars; strip any trailing hyphen from truncation
-    return f"{name}.pdf"
+    return name[:60].rstrip('-')  # max 60 chars; strip any trailing hyphen from truncation
+
+
+def _build_pdf_filename(meta: dict) -> str:
+    """Build a descriptive PDF download filename from report metadata."""
+    return f"{_build_report_name(meta)}.pdf"
+
+
+def _build_zip_filename(meta: dict) -> str:
+    """Build a descriptive ZIP download filename from report metadata."""
+    return f"{_build_report_name(meta)}.zip"
 
 
 @reports_bp.route("/api/render-pdf", methods=["POST"])
@@ -107,7 +120,7 @@ def api_render_pdf():
         pdf_bytes = pdf_service.render_pdf(html_content, meta)
     except Exception as e:
         _log.error("PDF rendering failed: %s", e, exc_info=True)
-        return jsonify({"error": f"PDF rendering failed: {e}"}), 500
+        return jsonify({"error": "PDF rendering failed"}), 500
 
     # Also save to output/
     out_name = f"cspm_report_{uuid.uuid4().hex[:8]}.pdf"
@@ -196,3 +209,66 @@ def api_export_html():
     except Exception:
         _log.exception("HTML export failed")
         return jsonify({"error": "Export failed"}), 500
+
+
+@reports_bp.route("/api/export-zip", methods=["POST"])
+@require_role("editor")
+def api_export_zip():
+    """
+    Accept a JSON body with { html, meta, findings }, render a PDF from the
+    HTML, then bundle the PDF and a findings JSON snapshot into a ZIP archive
+    returned as a downloadable attachment.
+
+    Body size cap: 20 MB (matching /api/export/html).
+    Nothing is written to the server — the ZIP is built entirely in memory.
+    """
+    raw = request.get_data()
+    if len(raw) > 20 * 1024 * 1024:
+        return jsonify({"error": "Request body too large (max 20 MB)"}), 413
+
+    try:
+        data = _json.loads(raw)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
+    html_content = data.get("html", "")
+    if not html_content:
+        return jsonify({"error": "Missing or empty 'html' field"}), 400
+
+    meta = data.get("meta") or {}
+    findings = data.get("findings")
+    if not isinstance(findings, list):
+        findings = []
+
+    # Render PDF
+    try:
+        pdf_bytes = pdf_service.render_pdf(html_content, meta)
+    except Exception as e:
+        _log.error("ZIP export: PDF rendering failed: %s", e, exc_info=True)
+        return jsonify({"error": "PDF rendering failed"}), 500
+
+    # Build findings JSON snapshot
+    snapshot_json = _json.dumps(
+        {"version": 1, "meta": meta, "findings": findings},
+        ensure_ascii=False,
+        indent=2,
+    ).encode("utf-8")
+
+    # Bundle into ZIP (in memory)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("report.pdf", pdf_bytes)
+        zf.writestr("findings.json", snapshot_json)
+    buf.seek(0)
+
+    zip_filename = _build_zip_filename(meta)
+    return Response(
+        buf.read(),
+        mimetype="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_filename}"',
+        },
+    )

@@ -234,3 +234,61 @@ Bug fix — exclude-rules pattern field RTL mirroring: ✅ merged to main — 20
 - Problem: typing "[" in the תבנית input rendered "]" due to Unicode Bidi Algorithm reversing bracket chars in RTL context
 - Fix: added dir="ltr" to #exclude-rule-pattern input in index.html; added dir="ltr" to <code> tag in exclude_rules.js table renderer
 - JS cache-buster: main.js?v=140
+
+## Wave 8 — Tier 1 Backlog Quick Wins
+
+BL-28 (Report Version on PDF Cover Page): ✅ merged to main — 2026-09-10
+- i18n label `גרסת דו"ח` added; `|| '1.0'` default removed; version line suppressed when field is empty; inert report_template.html edit reverted
+- JS cache-buster: main.js?v=141
+- Root cause note: initial dev edited wrong file (report_template.html); PDF cover is built in findings.js via JS template literals. docs/architecture.md updated to document the real rendering path.
+
+BL-03 (Draft Watermark on Unpublished PDF): ✅ merged to main — 2026-09-10
+- `buildReportHtml({ isDraft })` — watermark CSS injected when isDraft=true; empty string when false
+- products.js passes `{ isDraft: versionData.status === 'draft' }`; "open in new tab" and "download HTML" paths in findings.js also detect draft status and pass isDraft accordingly
+- JS cache-buster: main.js?v=142
+
+BL-09 (Bulk Finding Field Edit): ✅ merged to main — 2026-09-10
+- Batch toolbar un-hidden (removed `display:none !important` from wizi.css); severity, priority, owner, category controls all wired
+- Category uses short-code labels (CSPM, KSPM, etc.)
+- Bonus fixes: batch category change calls `reorderFindingIds()` after loop; single-edit form auto-updates ID prefix on category change via `generateNextId()`
+- JS cache-buster: main.js?v=145
+
+BL-21 (Treatment Priority Auto-Default from Severity): ✅ merged to main — 2026-09-10
+- `change` listener on `#f-severity` auto-fills `#f-priority` using severity→priority map; manual override locks auto-fill for that session
+
+BL-10 (Pre-Publish Checklist): ✅ merged to main — 2026-09-10
+- `styledConfirm` gate before publish; lists missing required fields; user must confirm before publish proceeds
+
+BL-22 (System Version Indicator in Report Details Panel): ✅ merged to main — 2026-09-10
+- Read-only badge showing system version in report detail panel; type guard for integer schema flag
+
+BL-05 (AI Key Topics Suggestion): ✅ merged to main — 2026-09-10
+- New `GeminiService.generate_key_topics()` method; new POST `/api/generate-key-topics` route; `model` field forwarded (matching all other AI routes); service prompt cap raised from 200 to 500 findings
+- Frontend button in export panel; JS cache-buster bumped
+
+BL-06 (AI Exception Reason Improver): ✅ merged to main — 2026-09-10
+- "Improve" button on both exception-reason textareas (add form + detail pane); reuses `/api/suggest`; empty-text guard + trim added to both attach functions
+
+BL-20 (ZIP Bundle Export): ✅ merged to main — 2026-09-10
+- New POST `/api/export-zip` route; ZIP contains PDF + findings JSON; `slug()` lifted to module level; Golden 5 injection applied; raw bytes body cap; stepper updated; client-side filename via `buildFilename('zip')`
+- Bonus fixes: generic error message replacing `str(e)` in render-pdf and export-zip routes; `showToast()` replaces `alert()` for PDF "no findings" guard
+- JS cache-buster: main.js?v=153
+
+BL-25 (PDF Export Animated Spinner): ✅ merged to main — 2026-09-10
+- Animated `.btn-loading` spinner on PDF and ZIP export buttons during async operations
+
+BL-26 (Skeleton Rows During Wiz Bulk Import): ✅ merged to main — 2026-09-10
+- `showWiziSkeletonRows()` injects 5 shimmer rows before fetch; cleared on success, error, and network failure; "load more" path unaffected
+- CSS: `@keyframes shimmer`, `.wizi-skeleton-cell`, `.wizi-skeleton-row td` in wizi.css; builder.css rebuilt
+- JS cache-buster: main.js?v=155
+
+## PDF Layout Fragmentation Fix
+
+PDF layout fragmentation fix (7 issues from pdf-layout-remaining-issues.md): 🔄 in progress
+- Branch: fix/pdf-layout-fragmentation (not yet created)
+- Planned commits:
+  1. CSS fragmentation fixes for orphaned headings (break-inside / break-after rules)
+  2. Splitter height-budget correction (MAX_CARD_HEIGHT_PX and MAX_PACK_HEIGHT_PX rederived from empirical measurement)
+  3. Recursive ul/li splitter (block-level children that are list items)
+- Current step: empirical box-model measurement — all constants must be derived from measured values, NOT estimates; measurement precedes any code change
+- Note: empirical measurement step completed 2026-09-14; implementation not yet started

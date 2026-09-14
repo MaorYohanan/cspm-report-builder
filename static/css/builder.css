@@ -1557,6 +1557,45 @@ select:not([multiple]):not([size]) {
   transform: none !important;
 }
 
+/* ── Button loading state (BL-25) ── */
+/*
+ * DEVELOPER NOTE — Part 2 (export.js):
+ * Adding `.btn-loading` to a button IS SUFFICIENT. No child <span> or other DOM
+ * mutation is needed. The spinner is rendered entirely via the ::after pseudo-element.
+ *
+ * Usage:
+ *   button.classList.add('btn-loading');    // start spinner
+ *   button.classList.remove('btn-loading'); // stop spinner
+ *
+ * The ::after pseudo-element participates in the button's existing inline-flex layout
+ * (gap: 6px), so it appears inline to the left of the label text in RTL, correctly
+ * spaced, with no layout side-effects on the surrounding DOM.
+ */
+
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+.btn.btn-loading {
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+/* Spinner: 14px border-circle, accent top colour, 0.75s — matches wizi-progress-spinner
+   pattern. transform: rotate() is RTL-safe: it is not a directional/logical property
+   and will not flip or mirror under dir="rtl". (W3C CSS Transforms Module Level 1) */
+.btn.btn-loading::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: btnSpin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
 /* ── Priority toggle ── */
 .priority-custom-wrapper {
   transition: max-height 0.25s ease, opacity 0.25s ease;
@@ -1906,6 +1945,17 @@ table caption {
   grid-column: 1 / -1;
 }
 
+/* Read-only system version indicator — label-like, no border, no input background.
+   text-align: right is intentional: RTL start side for Hebrew content. */
+.system-version-badge {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  padding: 9px 0;
+  text-align: right;
+}
+
 .form-divider {
   height: 1px;
   background: var(--border);
@@ -2209,8 +2259,14 @@ select[multiple] option {
 }
 
 /* ── Batch actions bar ── */
+/* Visibility is controlled by JS (findings.js showBatchBar / hideBatchBar).
+   No display override here — the bar is hidden by default via JS on page load. */
 #batch-actions {
-  display: none !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 0;
 }
 
 /* ── Inline edit ── */
@@ -3183,6 +3239,35 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
 
 .exclude-rules-summary strong {
   color: var(--accent);
+}
+
+/* ── Skeleton rows — BL-26 ── */
+/* Shimmer sweep: background-position only — no direction:ltr or transform:scaleX(-1).
+   Safe in RTL contexts per W3C CSS Backgrounds and Borders Module Level 3. */
+@keyframes shimmer {
+  from { background-position: 200% center; }
+  to   { background-position: -200% center; }
+}
+
+/* Shimmer cell: a 12px pill that fills the td and animates the gradient sweep. */
+.wizi-skeleton-cell {
+  height: 12px;
+  border-radius: 4px;
+  width: 80%;
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 25%,
+    rgba(255, 255, 255, 0.07) 50%,
+    var(--bg-card) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+}
+
+/* Skeleton row td: matches global td padding (components.css th,td { padding: 8px 10px })
+   so skeleton rows are the same height as real data rows. */
+.wizi-skeleton-row td {
+  padding: 8px 10px;
 }
 
 

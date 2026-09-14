@@ -910,6 +910,21 @@ function _resolveItemCategory(item, qt) {
         fetchWiziIssues(true);
       });
 
+      function showWiziSkeletonRows() {
+        var rows = '';
+        for (var _s = 0; _s < 5; _s++) {
+          rows += '<tr class="wizi-skeleton-row">' +
+            '<td><div class="wizi-skeleton-cell"></div></td>' +
+            '<td><div class="wizi-skeleton-cell"></div></td>' +
+            '<td><div class="wizi-skeleton-cell"></div></td>' +
+            '<td><div class="wizi-skeleton-cell"></div></td>' +
+            '<td><div class="wizi-skeleton-cell"></div></td>' +
+            '<td><div class="wizi-skeleton-cell"></div></td>' +
+            '</tr>';
+        }
+        wiziResults.innerHTML = '<table><tbody>' + rows + '</tbody></table>';
+      }
+
       function fetchWiziIssues(append) {
         var qt = wiziQueryTypeSelect.value;
         wiziQueryType = qt;
@@ -938,6 +953,8 @@ function _resolveItemCategory(item, qt) {
         if (selectedSubName) body.subscriptionName = selectedSubName;
         if (append && wiziEndCursor) body.after = wiziEndCursor;
 
+        if (!append) { showWiziSkeletonRows(); }
+
         fetch('/api/wizi/issues', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -946,6 +963,7 @@ function _resolveItemCategory(item, qt) {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.error) {
+            if (!append) { wiziResults.innerHTML = ''; }
             wiziStatusMsg.textContent = 'שגיאה: ' + data.error;
             return;
           }
@@ -1021,6 +1039,7 @@ function _resolveItemCategory(item, qt) {
           }
         })
         .catch(function(e) {
+          if (!append) { wiziResults.innerHTML = ''; }
           wiziStatusMsg.textContent = 'שגיאת רשת: ' + e.message;
         })
         .finally(function() {
@@ -1502,9 +1521,17 @@ function _resolveItemCategory(item, qt) {
 
               if (entityLineIndex >= 0) {
                 var prefix = lastFinding.technical[entityLineIndex].split(':')[0];
-                lastFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+                // Cap at 10 resources to prevent multi-page <li> blobs in the PDF (Issue 2)
+                var cappedResources = allResources.length > 10
+                  ? allResources.slice(0, 10).join(', ') + ' (+ ' + (allResources.length - 10) + ' more — see Wiz report)'
+                  : allResources.join(', ');
+                lastFinding.technical[entityLineIndex] = prefix + ': ' + cappedResources;
               } else {
-                lastFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+                // Cap at 10 resources to prevent multi-page <li> blobs in the PDF (Issue 2)
+                var cappedResourcesFallback = allResources.length > 10
+                  ? allResources.slice(0, 10).join(', ') + ' (+ ' + (allResources.length - 10) + ' more — see Wiz report)'
+                  : allResources.join(', ');
+                lastFinding.technical.unshift('Affected Resources: ' + cappedResourcesFallback);
               }
             }
             
@@ -2267,9 +2294,16 @@ function _resolveItemCategory(item, qt) {
             .replace(/\s*\n\s*/g, '\n');     // normalize whitespace
           var lines = cleaned.split('\n').map(function(s) { return s.trim(); }).filter(Boolean);
           lines.forEach(function(line) {
+            // Strip leading Markdown heading markers (## Section) and bold step
+            // prefixes (**Step 1:** rest) before applying length/skip filters so
+            // that lines like "**Step 1:** do X" keep their payload text.
+            line = line.replace(/^#{1,6}\s+/, '').replace(/^\*\*([^*]+)\*\*\s*/, '$1 ').trim();
             // Skip very short lines, pure formatting, or "Note:" disclaimers
             if (line.length < 15) return;
             if (/^note:/i.test(line)) return;
+            // Skip preamble/header lines that are not actionable recommendations
+            if (/^to remediate/i.test(line)) return;
+            if (line.endsWith(':')) return;
             recs.push(line);
           });
         }
@@ -2436,6 +2470,14 @@ function _resolveItemCategory(item, qt) {
         return processNext();
       }
 
+      // NOTE — policies: [] in all non-config importers below (importIssueFinding,
+      // importHostConfigFinding, importMalwareFinding, importDataFinding,
+      // importSecretFinding, importExcessiveAccessFinding, importNetworkExposureFinding,
+      // importInventoryFinding, importEndOfLifeFinding, importSscFinding, importVulnFinding):
+      // The Wiz API only exposes securitySubCategories on configurationFindings responses.
+      // All other finding types do not carry this field, so policies cannot be populated
+      // at import time. To fix, the Wiz query for each type would need to be extended and
+      // securitySubCategories mapped via FRAMEWORK_MAP — same pattern as importConfigFinding.
       function importIssueFinding(issue) {
         var rules = issue.sourceRules || [];
         var rule = rules.length ? rules[0] : {};
@@ -2463,7 +2505,7 @@ function _resolveItemCategory(item, qt) {
         if (entity.name) technical.push('Entity: ' + entity.name);
         if (entity.nativeType) technical.push('Type: ' + entity.nativeType);
         if (rule.description) {
-          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          var ruleLines = rule.description.split(/\.\s+|\n/).map(function(s){return s.trim();}).filter(Boolean);
           if (ruleLines.length) technical.push('Rule: ' + ruleLines[0]);
         }
 
@@ -2525,7 +2567,7 @@ function _resolveItemCategory(item, qt) {
         if (resource.nativeType || resource.type) technical.push('Type: ' + (resource.nativeType || resource.type));
         if (item.result) technical.push('Result: ' + item.result);
         if (rule.description) {
-          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          var ruleLines = rule.description.split(/\.\s+|\n/).map(function(s){return s.trim();}).filter(Boolean);
           if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
         }
 
@@ -2667,7 +2709,7 @@ function _resolveItemCategory(item, qt) {
         if (item.result) technical.push('Result: ' + item.result);
         if (item.filePath) technical.push('File Path: ' + item.filePath);
         if (rule.description) {
-          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          var ruleLines = rule.description.split(/\.\s+|\n/).map(function(s){return s.trim();}).filter(Boolean);
           if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
         }
 
@@ -2959,7 +3001,7 @@ function _resolveItemCategory(item, qt) {
         if (res.name) technical.push('Resource: ' + res.name);
         if (res.nativeType) technical.push('Type: ' + res.nativeType);
         if (rule.description) {
-          var ruleLines = rule.description.split(/[.\n]/).map(function(s){return s.trim();}).filter(Boolean);
+          var ruleLines = rule.description.split(/\.\s+|\n/).map(function(s){return s.trim();}).filter(Boolean);
           if (ruleLines.length) technical.push('Rule Detail: ' + ruleLines[0]);
         }
 

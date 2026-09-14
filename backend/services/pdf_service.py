@@ -9,7 +9,7 @@ including header/footer templates and page splitting for long findings.
   - page.pdf margin.top=30mm   → matches header HTML height (~14mm) plus gap
   - page.pdf margin.bottom=20mm → matches footer height plus gap
   - page.pdf margin.left/right=10mm → max content width
-  - MAX_CARD_HEIGHT_PX=900      → printable area at A4 = ~933px, 900 = safety
+  - MAX_CARD_HEIGHT_PX=918      → printable area at A4 = ~933px, minus 15px section padding = 918px max
   - page.emulate_media("print") → REQUIRED, without it @media print is ignored
   - .page-section / .finding-page padding-top: 4mm in CLEAN_PRINT_CSS
 
@@ -64,17 +64,24 @@ class PDFService:
   /* Findings intro: don't force page break after, so first finding shares the page */
   .findings-intro { break-after: auto !important; page-break-after: auto !important; }
   .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
+  .section-intro { break-after: auto !important; page-break-after: auto !important; }
   .finding-page { padding-top: 4mm !important; }
+  /* Category heading: keep heading with the first card on the same page */
+  .finding-category-header { break-after: avoid !important; page-break-after: avoid !important; }
+  .finding-continuation { break-after: auto !important; page-break-after: auto !important; }
   /* Cards now pre-split, each chunk fits on one page */
-  .finding-card { break-inside: avoid !important; page-break-inside: avoid !important; overflow: visible !important; }
+  /* break-inside without !important lets Chromium override for genuinely tiny chunks */
+  .finding-card { break-inside: avoid; page-break-inside: avoid; overflow: visible !important; overflow-wrap: break-word !important; word-break: break-word !important; }
   .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
-  .finding-section-title { break-after: avoid !important; page-break-after: avoid !important; }
+  .finding-section-title { break-before: avoid !important; page-break-before: avoid !important; break-after: avoid !important; page-break-after: avoid !important; }
   .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
-  .findings-table tr,
-  .treatment-table tr {
+  .report-table tr {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
+  .report-table { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .report-table thead { break-after: avoid !important; page-break-after: avoid !important; }
+  .detail-box { overflow: visible !important; max-height: none !important; }
 }
 """
 
@@ -230,102 +237,82 @@ class PDFService:
                                 // Available content height per page in pixels.
                                 // A4 = 297mm. Playwright top margin 30mm + bottom 20mm = 50mm.
                                 // Printable: 297 - 50 = 247mm. At 96 DPI: ~933px.
-                                // Use 900px to give safety margin.
-                                const MAX_CARD_HEIGHT_PX = 900;
+                                // 918 = 933px printable − 15px section padding-top.
+                                const MAX_CARD_HEIGHT_PX = 918;
 
                                 const cards = document.querySelectorAll('.finding-card');
                                 cards.forEach((card) => {
                                     if (card.offsetHeight <= MAX_CARD_HEIGHT_PX) return;
 
-                                    // Card is too tall — split at section boundaries
+                                    // Card is too tall — split into per-page sections.
                                     const parentSection = card.closest('.finding-page');
                                     if (!parentSection) return;
 
-                                    // Identify split boundaries: each finding-section-title
-                                    // starts a logical block. Group siblings between section titles.
                                     const children = Array.from(card.children);
                                     const headerEl = children.find(
                                         c => c.classList.contains('finding-header')
                                     );
                                     if (!headerEl) return;
 
-                                    // Build chunks: header + sections, where each chunk
-                                    // fits on a page
-                                    const chunks = [];
-                                    let currentChunk = [headerEl];
-                                    let currentHeight = headerEl.offsetHeight + 30; // approx padding
-
-                                    // Iterate through children after the header
+                                    // Greedy element-level packing: fill page 1 as much as
+                                    // possible, even if a section doesn't fit entirely.
                                     const headerIdx = children.indexOf(headerEl);
                                     const afterHeader = children.slice(headerIdx + 1);
 
-                                    // Group by section: each "finding-section-title" + content
-                                    // until next title
-                                    const sections = [];
-                                    let currentSection = [];
-                                    afterHeader.forEach((el) => {
-                                        if (el.classList.contains('finding-section-title')
-                                            && currentSection.length) {
-                                            sections.push(currentSection);
-                                            currentSection = [];
-                                        }
-                                        currentSection.push(el);
-                                    });
-                                    if (currentSection.length) sections.push(currentSection);
+                                    const chunks = [];
+                                    let currentChunk = [headerEl];
+                                    let currentHeight = headerEl.offsetHeight;
 
-                                    // Pack sections into chunks
-                                    sections.forEach((section) => {
-                                        const sectionHeight = section.reduce(
-                                            (h, el) => h + el.offsetHeight, 0
-                                        );
-                                        if (currentHeight + sectionHeight > MAX_CARD_HEIGHT_PX
-                                            && currentChunk.length > 1) {
-                                            chunks.push(currentChunk);
-                                            currentChunk = [];
-                                            currentHeight = 30; // reset, no header on continuation
+                                    afterHeader.forEach((el) => {
+                                        const elH = el.offsetHeight;
+                                        if (currentHeight + elH > MAX_CARD_HEIGHT_PX
+                                                && currentChunk.length > 0) {
+                                            // Avoid orphaned section title at page bottom:
+                                            // carry it forward to the next page.
+                                            const last = currentChunk[currentChunk.length - 1];
+                                            if (last && last.classList.contains('finding-section-title')) {
+                                                currentChunk.pop();
+                                                chunks.push(currentChunk);
+                                                currentChunk = [last, el];
+                                                currentHeight = last.offsetHeight + elH;
+                                            } else {
+                                                chunks.push(currentChunk);
+                                                currentChunk = [el];
+                                                currentHeight = elH;
+                                            }
+                                        } else {
+                                            currentChunk.push(el);
+                                            currentHeight += elH;
                                         }
-                                        currentChunk = currentChunk.concat(section);
-                                        currentHeight += sectionHeight;
                                     });
                                     if (currentChunk.length) chunks.push(currentChunk);
 
-                                    // If only one chunk, no split needed (just safety)
+                                    // Merge tiny tail chunks back into the previous chunk to avoid near-empty continuation pages.
+                                    const MIN_CONTINUATION_HEIGHT_PX = 200;
+                                    while (chunks.length > 1) {
+                                        const lastChunk = chunks[chunks.length - 1];
+                                        const lastHeight = lastChunk.reduce((h, el) => h + el.offsetHeight, 0);
+                                        if (lastHeight < MIN_CONTINUATION_HEIGHT_PX) {
+                                            chunks[chunks.length - 2] = chunks[chunks.length - 2].concat(lastChunk);
+                                            chunks.pop();
+                                        } else {
+                                            break;
+                                        }
+                                    }
+
                                     if (chunks.length <= 1) return;
 
-                                    // Get original finding info for continuation header
-                                    const titleEl = card.querySelector('.finding-title');
-                                    const idEl = card.querySelector('.finding-id');
-                                    const sevEl = card.querySelector('.severity-badge');
-                                    const titleText = titleEl ? titleEl.textContent : '';
-                                    const idText = idEl ? idEl.textContent : '';
-                                    const sevHTML = sevEl ? sevEl.outerHTML : '';
-
-                                    // Replace the card with multiple chunked cards
-                                    // in their own page-sections
+                                    // Build page sections. Continuation pages carry no header —
+                                    // content flows directly from where the previous page ended.
                                     const newCards = chunks.map((chunk, i) => {
                                         const newSection = document.createElement('section');
-                                        newSection.className = 'page-section finding-page';
+                                        newSection.className = i === 0
+                                            ? 'page-section finding-page'
+                                            : 'page-section finding-continuation';
 
                                         const newCard = document.createElement('div');
                                         newCard.className = 'finding-card';
-
-                                        if (i === 0) {
-                                            // First chunk: keep original header + content
-                                            chunk.forEach(el => newCard.appendChild(el));
-                                        } else {
-                                            // Continuation chunks: add a "continued" header
-                                            const contHeader = document.createElement('div');
-                                            contHeader.className = 'finding-header';
-                                            contHeader.innerHTML =
-                                                '<div><div class="finding-title">' + titleText +
-                                                ' <span style="font-size:11px;color:#6b7280;' +
-                                                'font-weight:normal;">(המשך)</span></div>' +
-                                                '<div class="finding-id">' + idText +
-                                                '</div></div>' + sevHTML;
-                                            newCard.appendChild(contHeader);
-                                            chunk.forEach(el => newCard.appendChild(el));
-                                        }
-
+                                        chunk.forEach(el => newCard.appendChild(el));
                                         newSection.appendChild(newCard);
                                         return newSection;
                                     });

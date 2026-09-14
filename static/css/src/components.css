@@ -288,6 +288,45 @@ select:not([multiple]):not([size]) {
   transform: none !important;
 }
 
+/* ── Button loading state (BL-25) ── */
+/*
+ * DEVELOPER NOTE — Part 2 (export.js):
+ * Adding `.btn-loading` to a button IS SUFFICIENT. No child <span> or other DOM
+ * mutation is needed. The spinner is rendered entirely via the ::after pseudo-element.
+ *
+ * Usage:
+ *   button.classList.add('btn-loading');    // start spinner
+ *   button.classList.remove('btn-loading'); // stop spinner
+ *
+ * The ::after pseudo-element participates in the button's existing inline-flex layout
+ * (gap: 6px), so it appears inline to the left of the label text in RTL, correctly
+ * spaced, with no layout side-effects on the surrounding DOM.
+ */
+
+@keyframes btnSpin {
+  to { transform: rotate(360deg); }
+}
+
+.btn.btn-loading {
+  pointer-events: none;
+  opacity: 0.75;
+}
+
+/* Spinner: 14px border-circle, accent top colour, 0.75s — matches wizi-progress-spinner
+   pattern. transform: rotate() is RTL-safe: it is not a directional/logical property
+   and will not flip or mirror under dir="rtl". (W3C CSS Transforms Module Level 1) */
+.btn.btn-loading::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: btnSpin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
 /* ── Priority toggle ── */
 .priority-custom-wrapper {
   transition: max-height 0.25s ease, opacity 0.25s ease;
@@ -635,6 +674,17 @@ table caption {
 
 .form-field-wide {
   grid-column: 1 / -1;
+}
+
+/* Read-only system version indicator — label-like, no border, no input background.
+   text-align: right is intentional: RTL start side for Hebrew content. */
+.system-version-badge {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  padding: 9px 0;
+  text-align: right;
 }
 
 .form-divider {

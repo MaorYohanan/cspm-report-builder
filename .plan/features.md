@@ -21,6 +21,9 @@ The CSV export (in `export.js`) writes all findings sorted by severity (Critical
 ### Report Lifecycle: Draft → Published
 Every product version starts as a `draft` snapshot. Drafts can be updated in-place. Publishing a draft via `POST /api/products/<id>/versions/<ver>/publish` sets `status = "published"` and stamps `published_at`. Once published, a snapshot is immutable — no route modifies a published snapshot's findings or metadata. Deletion of published snapshots is also blocked (returns HTTP 409).
 
+### Pre-Publish Checklist
+When an editor clicks "פרסם" on a draft version, `checkReportDetailsFilled()` in `products.js` checks all 14 required report detail fields (client name, subscription IDs, cloud, at least one env-stage checkbox, consultant, team, org, date, date range, risk select, version, exec summary, key topics). If any field is empty, a `styledConfirm` warning dialog appears before the normal publish confirm, allowing the editor to abort or proceed anyway. When all fields are filled the warning is skipped and the normal publish confirm fires directly.
+
 ---
 
 ## 2. PDF Export
@@ -49,6 +52,15 @@ Every product version starts as a `draft` snapshot. Drafts can be updated in-pla
 ### HTML Report Upload
 `POST /api/upload-html` (in `reports.py`, `require_role("editor")`) accepts an `.html` file via multipart or raw body, validates the extension, and saves it with a UUID suffix to the `output/` directory.
 
+### Affected Resources Cap in Technical Details
+When the Wiz vulnerability importer aggregates multiple affected resources into a single `f.technical` entry, the list is capped at 10 items. If more than 10 resources exist, the string is truncated with a `(+ N more — see Wiz report)` suffix, preventing a single `<li>` element from spanning multiple PDF pages. A safety-net `capTechnicalItem()` function in `findings.js` applies the same 300-character truncation to any legacy state already in memory before the cap was introduced.
+
+### Executive Summary Risk Label (Always Computed)
+The risk label displayed in the executive summary section of the PDF is always taken from `calcRiskScore().label` (computed from current findings) rather than the free-text `reportRisk` field. The label is followed by `(מחושב אוטומטית)` to indicate it is computed, eliminating the possibility of a user-entered risk label contradicting the computed risk score shown on the same page.
+
+### Appendix A Framework Tags
+The Appendix A compliance table now renders all policies for each finding via `f.policies.join(', ')` rather than only `f.policies[0]`, and derives the framework label from the same joined string rather than the hardcoded string `'ISO / NIST'`. For CSPM findings (where `importConfigFinding` maps Wiz `securitySubCategories` to framework names), the correct framework names now appear in both the Organisation/Policy and Framework columns. Findings with no policies still show `—`.
+
 ---
 
 ## 3. AI Integration (Gemini)
@@ -59,11 +71,17 @@ Every product version starts as a `draft` snapshot. Drafts can be updated in-pla
 ### AI Text Improvement (Suggest)
 `POST /api/suggest` (`require_role("editor")`) sends a text string and optional field hint to `GeminiService.improve_text()`. Returns improved Hebrew phrasing suitable for security reports. The model can be specified by the caller but is validated against a whitelist; invalid or missing model defaults to `gemini-2.5-flash`.
 
+### AI Exception Reason Improver
+A "✨ שפר ניסוח" button appears beneath the exception-reason textarea in two places: the Add Finding form and the detail-pane exception dialog. Both buttons call `POST /api/suggest` with `field: "exception_reason"` and replace the textarea value with the returned suggestion, dispatching an `input` event. Buttons are only attached when `ai_enabled` is true, guarded against double-attachment with sentinel classes, and show a loading state during the fetch. Errors surface via `showToast` rather than `window.alert`.
+
 ### AI Remediation Summarizer
 `POST /api/summarize-remediation` (`require_role("editor")`) sends finding title, description, and remediation text to `GeminiService.summarize_remediation()`. Returns a 2–3 sentence explanation of the reasoning behind the remediation steps (why it works, not what to do). Output is in Hebrew with English technical terms preserved.
 
 ### AI Executive Summary Generator
 `POST /api/generate-exec-summary` (`require_role("editor")`) accepts up to 500 findings (sanitised to safe scalar fields only, preventing prompt injection) and a client name. `GeminiService.generate_exec_summary()` produces a 3-paragraph formal Hebrew executive summary covering posture, key risk areas, and priorities.
+
+### AI Key Topics Suggestion
+`POST /api/generate-key-topics` (`require_role("editor")`) accepts up to 500 findings (sanitised to `{title, severity}` only) and a client name. `GeminiService.generate_key_topics()` sends up to 200 findings as `severity: title` lines to Gemini and returns 3–5 concise Hebrew topic strings (one per line), keeping technical terms like IAM, S3, VPC, and API in English. The `export.js` "✨ הצע נושאים" button in the Report Details tab populates the "נושאי מפתח" textarea, dispatches an `input` event, and is only attached when `ai_enabled` is true. A zero-findings guard prevents a network request when no findings are loaded.
 
 ### AI Regression Trend Generator
 `POST /api/generate-regression-trend` (`require_role("editor")`) receives the previous snapshot data, current findings list, and zombie finding list. Inputs are sanitised (title truncated to 200 chars, severity to 20 chars). `GeminiService.generate_regression_trend()` returns a Hebrew trend paragraph comparing the two snapshots. Used by `export.js` to populate the regression chapter in minor-version PDF exports.
@@ -329,7 +347,10 @@ Footer text, cover note, PDF language selector (Hebrew/English, persisted in `ex
 ## 14. Export / Files Panel UI
 
 ### Export Card
-Export PDF (disabled when no findings), Preview HTML, Download HTML, Export Interactive HTML, Export CSV (always enabled), "Include Golden 5 Chapter" checkbox (default checked, localStorage-persisted).
+Export PDF (disabled when no findings), Export ZIP Bundle (disabled when no findings), Preview HTML, Download HTML, Export Interactive HTML, Export CSV (always enabled), "Include Golden 5 Chapter" checkbox (default checked, localStorage-persisted).
+
+### ZIP Bundle Export
+A single button labelled "ייצא ZIP" posts the rendered HTML, metadata, and findings list to `POST /api/export-zip`. The server renders the HTML to a PDF via Playwright, bundles `report.pdf` and `findings.json` (a versioned snapshot) into an in-memory ZIP archive, and returns it as an `application/zip` attachment. Nothing is saved server-side. The Golden 5 chapter is injected before the PDF render if the "Include Golden 5 Chapter" checkbox is checked. The download triggers `updateStepper()` and sets the `cspm_has_exported` localStorage flag, consistent with the PDF export flow.
 
 ### Import and Configuration Card
 Download Config (JSON snapshot), Load Config (JSON snapshot), Import CSV, Compare to Previous (baseline JSON for regression comparison).
@@ -540,6 +561,9 @@ Hebrew/English in Report Details; persisted in `export-pdf-lang` localStorage.
 
 ### Dark / Light Theme Toggle
 `data-theme="light"` attribute on `<html>`; persisted in `cspm_theme` localStorage; mesh background adapts to theme.
+
+### Draft Watermark on Unpublished PDF
+When exporting a product version PDF whose status is `'draft'`, every page shows a large diagonal faint grey watermark ("טיוטה" in Hebrew reports, "DRAFT" in English reports) centered behind content. The watermark is injected as a separate `<style>` block via `buildReportHtml({ isDraft: true })` and uses `position: absolute` on `.page-section::before` so it is Playwright-safe. Published versions and the standalone Report Builder PDF export never receive the watermark.
 
 ### Sidebar Section Group Color Coding
 Workspace = blue, Files and Reports = orange, Products = yellow-green; active items inherit group accent color via CSS custom properties.
