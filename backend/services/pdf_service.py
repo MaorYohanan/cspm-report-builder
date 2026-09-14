@@ -301,6 +301,119 @@ class PDFService:
 
                                 const MIN_CONTINUATION_HEIGHT_PX = 200;
 
+                                // ── Eligible element types for descent splitting ──────────────────
+                                // Register element tag names eligible for splitting at direct-child
+                                // boundaries when they alone exceed MAX_PACK_HEIGHT_PX. Adding a new
+                                // type (e.g. 'DIV' for .detail-box in a future commit) requires only
+                                // adding to this constant — the splitting routine has no type-specific
+                                // assumptions.
+                                const ELIGIBLE_SPLIT_TYPES = new Set(['UL', 'OL']);
+
+                                /**
+                                 * Split an oversized block element at direct-child boundaries.
+                                 *
+                                 * All child BCRs are read before any DOM mutation, consistent with
+                                 * the packer's measurement discipline (BCR-delta, no offsetHeight
+                                 * path). The wrapper is cloned with cloneNode(false) to preserve the
+                                 * original's class list and all attributes (dir, style, data-*, etc.).
+                                 *
+                                 * Degenerate case: a single direct child whose BCR height alone
+                                 * exceeds the budget cannot be split further. It is placed in its own
+                                 * wrapper as-is. The wrapper will exceed the budget and Chromium will
+                                 * handle the fragment. This is accepted — dropping or duplicating
+                                 * content is worse.
+                                 *
+                                 * OL continuations: the `start` attribute is set so item ordinals
+                                 * continue from where the previous piece ended. This is required for
+                                 * RTL correctness — markers must not restart at 1 on a continuation
+                                 * wrapper. An existing `start` attribute on the original OL is
+                                 * honoured (e.g. if the OL itself begins at 3, piece 2 continues
+                                 * from the correct ordinal, not from 1).
+                                 *
+                                 * @param {Element} el     - Element in ELIGIBLE_SPLIT_TYPES, live DOM
+                                 * @param {number}  budget - Max height per piece in px (BCR-delta)
+                                 * @returns {Element[]}    - Replacement elements in DOM order; >= 1
+                                 */
+                                function splitElement(el, budget) {
+                                    const children = Array.from(el.children);
+                                    if (children.length === 0) return [el];
+
+                                    // Read all child BCRs before any DOM mutation.
+                                    const childBcrs = new Map(
+                                        children.map(c => [c, c.getBoundingClientRect()])
+                                    );
+
+                                    const isOl = el.tagName === 'OL';
+                                    // Honour an existing start= attribute on the original OL.
+                                    const olStart = isOl
+                                        ? parseInt(el.getAttribute('start') || '1', 10)
+                                        : 0;
+
+                                    // Greedy grouping by BCR-delta: bottom of last child in group
+                                    // minus top of first child in group. Captures inter-child
+                                    // margin collapse exactly, same method as the outer packer.
+                                    const pieces = []; // { children: Element[], startIndex: number }
+                                    let pieceChildren = [];
+                                    let pieceFirstBcr = null;
+                                    let pieceStartIndex = 0;
+
+                                    children.forEach((child, i) => {
+                                        const bcr = childBcrs.get(child);
+                                        if (pieceChildren.length === 0) {
+                                            pieceChildren = [child];
+                                            pieceFirstBcr = bcr;
+                                        } else {
+                                            const delta = bcr.bottom - pieceFirstBcr.top;
+                                            if (delta > budget) {
+                                                pieces.push({
+                                                    children: pieceChildren,
+                                                    startIndex: pieceStartIndex,
+                                                });
+                                                pieceStartIndex = i;
+                                                pieceChildren = [child];
+                                                pieceFirstBcr = bcr;
+                                            } else {
+                                                pieceChildren.push(child);
+                                            }
+                                        }
+                                    });
+                                    if (pieceChildren.length > 0) {
+                                        pieces.push({
+                                            children: pieceChildren,
+                                            startIndex: pieceStartIndex,
+                                        });
+                                    }
+
+                                    // No actual split needed — return original untouched.
+                                    if (pieces.length <= 1) return [el];
+
+                                    // Build a wrapper for each piece. cloneNode(false) copies all
+                                    // attributes (class, dir, style, start…) without copying
+                                    // children — children are moved below.
+                                    const result = pieces.map((piece, pi) => {
+                                        const wrapper = el.cloneNode(false);
+                                        if (isOl && pi > 0) {
+                                            // olStart = ordinal of children[0].
+                                            // children[startIndex] → ordinal olStart + startIndex.
+                                            wrapper.setAttribute(
+                                                'start',
+                                                String(olStart + piece.startIndex)
+                                            );
+                                        }
+                                        piece.children.forEach(
+                                            child => wrapper.appendChild(child)
+                                        );
+                                        return wrapper;
+                                    });
+
+                                    // Replace original element with split pieces in DOM.
+                                    const parent = el.parentNode;
+                                    result.forEach(piece => parent.insertBefore(piece, el));
+                                    parent.removeChild(el);
+
+                                    return result;
+                                }
+
                                 const cards = document.querySelectorAll('.finding-card');
                                 cards.forEach((card) => {
                                     // Early-return guard: card.offsetHeight (border-box) vs MAX_PAGE_CARD_HEIGHT_PX.
@@ -309,6 +422,20 @@ class PDFService:
                                     // Card is too tall — split into per-page sections.
                                     const parentSection = card.closest('.finding-page');
                                     if (!parentSection) return;
+
+                                    // ── Pre-split pass ────────────────────────────────────────────
+                                    // Before the packer collects BCRs, descend into any direct child
+                                    // that is in ELIGIBLE_SPLIT_TYPES and exceeds MAX_PACK_HEIGHT_PX
+                                    // on its own. splitElement replaces the element in the DOM with
+                                    // multiple smaller wrappers. The subsequent Array.from reads the
+                                    // expanded set; packer BCRs are collected after this pass and are
+                                    // therefore consistent with the post-split layout.
+                                    Array.from(card.children).forEach(child => {
+                                        if (!ELIGIBLE_SPLIT_TYPES.has(child.tagName)) return;
+                                        if (child.getBoundingClientRect().height
+                                                <= MAX_PACK_HEIGHT_PX) return;
+                                        splitElement(child, MAX_PACK_HEIGHT_PX);
+                                    });
 
                                     const children = Array.from(card.children);
                                     const headerEl = children.find(
