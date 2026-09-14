@@ -112,9 +112,14 @@ class PDFService:
      on any preceding element per CSS Fragmentation Level 3 §3.2.
      Adjacent forced breaks (e.g. the preceding .page-section break-after:page plus this
      break-before:page) collapse into a single break — no blank page is created.
-     Sweep: #recommendations gets the rule defensively (no-findings edge case where
-     findings-intro break-after:auto is the last forced break before it); #appendix-a
-     gets it to fix the confirmed mid-page start. */
+     #appendix-a: confirmed load-bearing — fixes mid-page start in the normal fixture.
+     #recommendations: load-bearing ONLY for the zero-findings case. In a normal document
+       (≥1 finding), the immediately preceding element is a .page-section.finding-page
+       whose break-after:page !important already forces a fresh page, making this rule a
+       no-op. In a zero-findings document the last element before recommendations is
+       .findings-intro (break-after:auto), so without this rule recommendations starts
+       mid-page and the document loses a page. Verified by render: with selector = 7 pages,
+       without selector = 6 pages, on a zero-findings copy of gcp-devops v1.0 (2026-09-14). */
   section.section-intro:has(#recommendations),
   section.section-intro:has(#appendix-a) {
     break-before: page;
