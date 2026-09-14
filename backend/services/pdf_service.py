@@ -138,6 +138,23 @@ class PDFService:
   .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
   .finding-section-title { break-before: avoid !important; page-break-before: avoid !important; break-after: avoid !important; page-break-after: avoid !important; }
   .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
+  /* RTL bullet-marker fix: list-style-position:inside keeps markers in the content
+     box so Chromium places them on the start side (right) for RTL <li> elements.
+     Hebrew <li> (no dir attr, inherits rtl from <html dir=rtl>) → marker on right ✓
+     English <li dir=ltr> items keep marker on their own start side (left) ✓
+     VULN findings mix both in one <ul> — per-item dir handles each independently.
+     W3C CSS Writing Modes Level 3 §6.3: list markers are on the block-start side
+     of the principal block box, which equals the inline-start side in normal flow.
+     padding-right replaces browser default padding-left (wrong side in RTL context).
+     .tag-list excluded: it uses list-style:none + inline-block — no marker to fix.
+     Root cause note: gcp-devops fixture technical items are English (LTR), so
+     left-side markers looked correct and masked this RTL bug for all prior runs.
+     govil-subset Hebrew recs (p06, p07, p22, p27, p29) reproduce the defect. */
+  .finding-card ul:not(.tag-list) {
+    list-style-position: inside;
+    padding-right: 16px;
+    padding-left: 0;
+  }
   .report-table tr {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
