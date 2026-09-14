@@ -10,11 +10,27 @@ including header/footer templates and page splitting for long findings.
   - page.pdf margin.bottom=20mm → matches footer height plus gap
   - page.pdf margin.left/right=10mm → max content width (10mm, not 15mm)
   - MAX_PAGE_CARD_HEIGHT_PX=908 → early-return guard (card.offsetHeight, border-box)
-                                   = 933.54px printable − 5px border-top − 15.12px padding-top
-                                   − 5px safety, floor → 908
+                                   The 5px border-top on .page-section is set by the inline
+                                   <style> emitted by buildReportHtml() at findings.js:2744.
+                                   CLEAN_PRINT_CSS does not set border-top on .page-section.
+                                   assets/report.css is NOT in the render path — the backend
+                                   never passes report_template.html to render_template(), so
+                                   that file (and assets/report.css it links) are dead code.
+                                   Derivation: 933.54px printable (A4 297mm − 50mm margins × 96/25.4)
+                                               − 5.00px border-top  (findings.js:2744 inline <style>)
+                                               − 15.12px padding-top (4mm × 96/25.4)
+                                               − 5.00px safety margin
+                                               = 908.42px → floor → 908
+                                   The constant equals the exact floor — 0 px over-conservative.
   - MAX_PACK_HEIGHT_PX=886      → per-chunk packer budget (getBoundingClientRect delta)
-                                   = 933.54px − 20.12px section overhead − 22px card border+padding
-                                   − 5px safety, floor → 886
+                                   Section overhead = 5px border-top + 15.12px padding-top = 20.12px
+                                   (border source: findings.js:2744 inline <style>, same as above).
+                                   Derivation: 933.54px printable
+                                               − 20.12px section overhead (5px border + 15.12px padding)
+                                               − 22.00px card border+padding
+                                               − 5.00px safety margin
+                                               = 886.42px → floor → 886
+                                   The constant equals the exact floor — 0 px over-conservative.
   - page.emulate_media("print") → REQUIRED, without it @media print is ignored
   - .page-section padding-top: 4mm, padding-bottom: 0 in CLEAN_PRINT_CSS
 
@@ -68,9 +84,10 @@ class PDFService:
   /* Reclaim the 45.35px (12mm) padding-bottom that the screen rule sets but the
      previous print reset did not clear. Reclaiming it restores ~45px of page budget
      per section and allows the card's margin-bottom to collapse out instead of
-     consuming space. Section overhead is now: 5px border-top + 15.12px padding-top
-     = 20.12px total — matching the derivation of MAX_PAGE_CARD_HEIGHT_PX and
-     MAX_PACK_HEIGHT_PX in pdf_service.py. */
+     consuming space. Section overhead: 5px border-top (from the inline <style> emitted
+     by buildReportHtml() at findings.js:2744 — not this CSS, not assets/report.css which
+     is not in the render path) + 15.12px padding-top = 20.12px total.
+     See full arithmetic derivation in the module docstring and the JS evaluate block. */
   .page-section { padding-bottom: 0 !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
@@ -287,8 +304,15 @@ class PDFService:
                                 //   (297 - 50) mm x (96 / 25.4) px/mm = 933.54 px
                                 //
                                 // .page-section overhead (after reclaiming padding-bottom):
-                                //   border-top:     5.00 px
-                                //   padding-top:   15.12 px  (4mm)
+                                //   border-top:     5.00 px  ← source: inline <style> block emitted
+                                //                               by buildReportHtml() at findings.js:2744.
+                                //                               CLEAN_PRINT_CSS does not set border-top
+                                //                               on .page-section. assets/report.css is
+                                //                               NOT in the render path — the backend
+                                //                               never passes report_template.html to
+                                //                               render_template(), so that file and its
+                                //                               linked assets/report.css are dead code.
+                                //   padding-top:   15.12 px  (4mm × 96/25.4)
                                 //   padding-bottom: 0.00 px  (reclaimed via CLEAN_PRINT_CSS)
                                 //   Total overhead = 20.12 px
                                 //
@@ -296,13 +320,21 @@ class PDFService:
                                 //
                                 // MAX_PAGE_CARD_HEIGHT_PX = 908
                                 //   Measurement method: card.offsetHeight (border-box, excludes margins)
-                                //   Derivation: 933.54 - 5 (border-top) - 15.12 (padding-top) = 913.42
-                                //              minus 5 px safety, floor = 908
+                                //   Derivation: 933.54 (printable)
+                                //              − 5.00 (border-top, findings.js:2744 inline <style>)
+                                //              − 15.12 (padding-top, 4mm)
+                                //              − 5.00 (safety margin)
+                                //              = 908.42 → floor 908
+                                //   The constant equals the exact floor — 0 px over-conservative.
                                 //
                                 // MAX_PACK_HEIGHT_PX = 886
                                 //   Measurement method: getBoundingClientRect delta (captures collapsed margins)
-                                //   Derivation: 933.54 - 20.12 (section overhead) - 22 (card border+padding)
-                                //              = 891.42, minus 5 px safety, floor = 886
+                                //   Derivation: 933.54 (printable)
+                                //              − 20.12 (section overhead: 5px border + 15.12px padding-top)
+                                //              − 22.00 (card border + padding)
+                                //              − 5.00 (safety margin)
+                                //              = 886.42 → floor 886
+                                //   The constant equals the exact floor — 0 px over-conservative.
                                 //
                                 // These two constants measure DIFFERENT things with DIFFERENT methods.
                                 // Do not conflate them: swapping the methods was the original bug.
