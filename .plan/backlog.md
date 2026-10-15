@@ -25,6 +25,7 @@ Low-effort, high-impact. All should land in the same milestone before any Tier 2
 | 9 | BL-25 | PDF Export Animated Spinner | Low | Button disabled + text status exists; animated progress/spinner component is net-new |
 | 10 | BL-26 | Skeleton Rows During Wiz Bulk Import | Low | Step counter already implemented; blank results area during fetch has no skeleton rows |
 | 11 | BL-28 | Report Version on PDF Cover Page | Low | Cover page has no version field; one template line change |
+| 12 | BL-30 | Unsaved-Data Warning on Version Load / PDF | Low | Confirm before switching version (LOAD/PDF) when findings have unsaved edits |
 
 ### Tier 2 — High Value, Moderate Work _(after Tier 1 is merged)_
 Core product improvements. BL-11 is partially done so start there.
@@ -274,7 +275,66 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Effort:** Low
 **Notes:** NET-NEW. `report_template.html:31–48` (the cover section) renders teamName, client, cloud, env, range, consultant, reportDate, and coverNote — but not `meta.reportVersion`. `features.md` section 21 confirms the omission. The `meta.reportVersion` value is available at render time (passed in the `meta` dict to `POST /api/render-pdf`). Net-new work: add one `<p>` line to the cover section in `report_template.html` rendering `meta.reportVersion` conditionally — e.g. `{% if meta.reportVersion %}<p><strong>גרסת דו"ח:</strong> {{ meta.reportVersion }}</p>{% endif %}`.
 
+### BL-30 · Unsaved-Data Warning on Version Load / PDF
+**Why:** In the product history / timeline view, clicking "LOAD" (load a version for editing) or "PDF" (render that version's PDF) silently replaces the current in-memory findings with the findings stored in the selected snapshot. Any unsaved edits — new findings typed since the last save, field edits, exception toggles — are permanently discarded with no warning.
+**Effort:** Low
+**Design:**
+- Intercept both "LOAD" and "PDF" button clicks in the product timeline / version history panel (in `products.js`).
+- Before executing the action, check whether there are unsaved edits: compare `state.findings` (current in-memory) against the last-saved state, or use an existing `isDirty` flag if one exists.
+- If unsaved edits are detected: show a `styledConfirm` dialog (Hebrew): **"קיימים שינויים שלא נשמרו. אם תמשיך, הנתונים הנוכחיים יאבדו. להמשיך?"** with "כן, המשך" / "ביטול" actions.
+- If the user confirms: proceed with the original LOAD or PDF action.
+- If the user cancels: abort — do nothing.
+- If no unsaved edits are detected: proceed without showing a dialog.
+**Notes:** NET-NEW. No dirty-state guard exists before version switches. The check does not need to be exhaustive — comparing `state.findings.length` and a hash/timestamp of the last save is sufficient; a false-positive (showing the dialog when nothing actually changed) is acceptable and far safer than a silent data loss.
+
 ### BL-29 · AI-Generated Diff Summary
 **Why:** The diff view shows color-coded rows and a numeric risk delta but produces no natural-language interpretation, leaving product owners and non-technical stakeholders unable to understand what the comparison means without consultant assistance.
 **Effort:** Low-Medium
 **Notes:** NET-NEW. `renderDiff` in `static/js/src/products.js` (line 855) generates a color-coded diff table (added/resolved/changed rows) and a numeric risk delta display but contains no AI call and no narrative paragraph. No `GeminiService` method, no backend route, and no `features.md` entry for a diff narrative exist anywhere in the codebase. Net-new work: (1) a new `GeminiService.generate_diff_summary()` method that receives added/resolved/changed counts, the risk delta value, version strings, and a representative sample of affected finding titles; (2) a new backend route `POST /api/generate-diff-summary` (`require_role("viewer")`) that validates inputs and delegates to the new Gemini method; (3) in `renderDiff`, after computing the diff data and before closing the `diff-panel` div, fire an async fetch to the route with the counts and sample titles, show a "מייצר סיכום..." loading placeholder while the call is in flight, then inject the returned Hebrew narrative paragraph above the diff row list; (4) degrade gracefully — if the Gemini call fails or returns empty, hide the narrative section entirely without surfacing an error to the user.
+
+---
+
+## Ad-Hoc Features (not in original backlog)
+
+Features implemented outside the prioritized backlog, added by direct user request.
+
+### Severity-Sorted PDF Export ✅ IMPLEMENTED
+**Implemented:** 2026-09-17
+**Branch:** fix/pdf-layout-fragmentation
+**Status:** Uncommitted, awaiting user testing
+**Why:** Users want to triage findings by severity (Critical → Medium) across all categories, not grouped by category. Current PDF groups by category (CSPM, KSPM, VULN), making it hard to find high-severity items when scattered across sections.
+**What was built:**
+- Checkbox in export tab: `מיין לפי חומרה` (Sort by severity)
+- When enabled: PDF groups findings by severity tier with section headings (Critical Findings, High Findings, Medium Findings, Low Findings, Info Findings, Excepted Findings)
+- Within each tier: alphabetical sort by category (CSPM → KSPM → VULN)
+- Excepted findings: separate section at end regardless of severity
+- Table of Contents: respects severity-sort checkbox — TOC order matches body order
+- Persistence: localStorage (like Golden 5 checkbox)
+- Applies to: PDF export, ZIP export, HTML export
+**Files modified:**
+- `static/js/src/export.js` — checkbox, localStorage persistence
+- `static/js/src/findings.js` — `buildReportHtml({ severitySort })` fork logic, TOC sync
+- `static/js/src/products.js` — pass severity-sort flag
+- `backend/services/pdf_service.py` — CSS for `.finding-severity-header`
+- `index.html` — checkbox UI + JS cache-buster v=172
+**Edge cases handled:**
+- Excepted findings → separate section at end
+- Info severity → included after Low tier
+- Zero findings in a tier → section heading skipped
+- Category-severity matrix table → kept (still useful as dashboard)
+
+### Wiz Truncation Message Update ✅ IMPLEMENTED
+**Implemented:** 2026-09-17
+**Branch:** fix/pdf-layout-fragmentation
+**Status:** Uncommitted, awaiting user testing
+**Why:** Original truncation message `ראה דוח Wiz` was unclear; user requested more explicit instruction.
+**What was changed:**
+- Old message: `ראה דוח Wiz`
+- New message: `לפירוט המלא יש להתחבר ל WIZ`
+- Applied in 2 locations:
+  1. Single-item truncation (technical detail item >300 chars)
+  2. Item-count truncation (>12 technical detail items)
+**Files modified:**
+- `static/js/src/findings.js` — updated both truncation messages (lines 2527, 2531)
+- `index.html` — JS cache-buster v=171 → v=172
+

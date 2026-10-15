@@ -107,6 +107,34 @@ function _buildRegressionChapterHtml(trendText, zombies) {
 }
 
 // ---------------------------------------------------------------------------
+// Pre-publish checklist
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true when all required report detail fields (outside the
+ * "הגדרות ועיצוב" block) in #panel-report-details are filled in.
+ * Used by the publish action to decide whether to show a warning dialog.
+ */
+function checkReportDetailsFilled() {
+  var textIds = [
+    'report-client', 'report-subscription-ids', 'report-cloud',
+    'report-consultant', 'report-team-name', 'report-org-name',
+    'report-date', 'report-range-from', 'report-range-to',
+    'report-version', 'report-exec-summary', 'report-key-topics'
+  ];
+  for (var i = 0; i < textIds.length; i++) {
+    var el = document.getElementById(textIds[i]);
+    if (!el || el.value.trim() === '') return false;
+  }
+  var riskEl = document.getElementById('report-risk');
+  if (!riskEl || riskEl.value === '') return false;
+  var envCheckboxes = document.querySelectorAll('input[name="report-env-stage"]');
+  var anyChecked = Array.from(envCheckboxes).some(function(cb) { return cb.checked; });
+  if (!anyChecked) return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Pure helpers (also used by tests)
 // ---------------------------------------------------------------------------
 
@@ -593,13 +621,23 @@ export var ProductsPanel = {
         } else if (action === 'export-pdf') {
           self._exportVersionAsPdf(product.id, ver);
         } else if (action === 'publish') {
-          styledConfirm('לפרסם את גרסה v' + ver + '? לא ניתן לבטל.', { title: 'פרסום גרסה', confirmText: 'פרסם' }).then(function(confirmed) {
-            if (!confirmed) return;
-            fetch('/api/products/' + encodeURIComponent(product.id) + '/versions/' + encodeURIComponent(ver) + '/publish', { method: 'POST' })
-              .then(function(r){ if (!r.ok) return r.json().then(function(b){ throw new Error(b.error||'שגיאה'); }); return r.json(); })
-              .then(function(){ self.showTimeline(product); })
-              .catch(function(err){ showToast(err.message, 'error'); });
-          });
+          var doPublishConfirm = function(product, ver, self) {
+            styledConfirm('לפרסם את גרסה v' + ver + '? לא ניתן לבטל.', { title: 'פרסום גרסה', confirmText: 'פרסם' }).then(function(confirmed) {
+              if (!confirmed) return;
+              fetch('/api/products/' + encodeURIComponent(product.id) + '/versions/' + encodeURIComponent(ver) + '/publish', { method: 'POST' })
+                .then(function(r){ if (!r.ok) return r.json().then(function(b){ throw new Error(b.error||'שגיאה'); }); return r.json(); })
+                .then(function(){ self.showTimeline(product); })
+                .catch(function(err){ showToast(err.message, 'error'); });
+            });
+          };
+          if (!checkReportDetailsFilled()) {
+            styledConfirm('חלק מפרטי הדוח חסרים. האם להמשיך ולפרסם?', { title: 'פרטי דוח חסרים', confirmText: 'המשך ופרסם' }).then(function(confirmed) {
+              if (!confirmed) return;
+              doPublishConfirm(product, ver, self);
+            });
+          } else {
+            doPublishConfirm(product, ver, self);
+          }
         } else if (action === 'delver') {
           styledConfirm('למחוק גרסה v' + ver + '?', { title: 'מחיקת גרסה', danger: true, confirmText: 'מחק' }).then(function(confirmed) {
             if (!confirmed) return;
@@ -644,7 +682,9 @@ export var ProductsPanel = {
 
       var html;
       try {
-        html = buildReportHtml();
+        const severitySortChk = document.getElementById('chk-severity-sort');
+        const severitySort = severitySortChk && severitySortChk.checked;
+        html = buildReportHtml({ isDraft: versionData.status === 'draft', severitySort });
       } finally {
         // Restore the form field to the value set by applySnapshot (meta.reportVersion).
         // Note: applySnapshot already replaced the full editor state with the snapshot,

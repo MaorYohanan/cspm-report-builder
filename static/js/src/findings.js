@@ -17,6 +17,8 @@ const priorityCustom = document.getElementById('f-priority-custom');
 const evidenceInput  = document.getElementById('f-evidence');
 const exportJsonBtn  = document.getElementById('btn-export-json');
 
+let priorityTouched = false;
+
       // ── Finding Detail Pane ──
       export function showFindingDetail(idx) {
         state.selectedFindingIndex = idx;
@@ -722,6 +724,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       document.getElementById('f-category').addEventListener('change', function() {
         if (state.editingIndex === null) {
           prefillId();
+        } else {
+          // Edit mode — auto-update the ID field to the next available slot
+          // in the newly selected category.
+          var newId = generateNextId(this.value);
+          var idField = document.getElementById('f-id');
+          if (idField) idField.value = newId;
         }
       });
 
@@ -893,8 +901,25 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         }
       }
 
-      prioritySelect.addEventListener('change', updatePriorityCustomVisibility);
+      prioritySelect.addEventListener('change', function() {
+        priorityTouched = true;
+        updatePriorityCustomVisibility();
+      });
       updatePriorityCustomVisibility();
+
+      // --- Severity → priority auto-default ---
+      const severityMap = {
+        critical: 'מיידי (0–7 ימים)',
+        high: 'גבוהה (עד 30 ימים)',
+        medium: 'בינונית (30–60 ימים)',
+        low: 'נמוכה (60–120 ימים)'
+      };
+      document.getElementById('f-severity').addEventListener('change', function() {
+        if (!priorityTouched && prioritySelect.value === '') {
+          const mapped = severityMap[this.value];
+          if (mapped) prioritySelect.value = mapped;
+        }
+      });
 
       // Exception checkbox toggle
       (function() {
@@ -1059,6 +1084,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         document.getElementById('report-version').value    = m.reportVersion || '1.0';
         document.getElementById('report-lang').value       = m.reportLang || 'he';
 
+        const sysVerBadge = document.getElementById('system-version-badge');
+        if (sysVerBadge) {
+          const ver = snapshot.version;
+          sysVerBadge.textContent = (typeof ver === 'string' && ver) ? 'v' + ver : '—';
+        }
+
         // Restore custom cover image if present
         if (m.coverImage) {
           showCoverPreview(m.coverImage);
@@ -1133,6 +1164,12 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             }
           }
         }
+
+        // Track whether the loaded version is a draft so preview/export callers can
+        // show the watermark when appropriate.  snapshot.status is set by products.js
+        // when loading from the timeline; it is undefined for local-file imports, so we
+        // fall back to null (no watermark).
+        state.loadedVersionStatus = snapshot.status || null;
 
         statusMsg.textContent =
           'נטען דו"ח קיים' +
@@ -1414,6 +1451,11 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             batchCountInline.textContent = '';
             batchCountInline.style.display = 'none';
           }
+          // Reset all batch controls so stale values don't appear on next selection
+          document.getElementById('batch-severity').value = '';
+          var _bp = document.getElementById('batch-priority'); if (_bp) _bp.value = '';
+          var _bc = document.getElementById('batch-category'); if (_bc) _bc.value = '';
+          var _bo = document.getElementById('batch-owner');    if (_bo) _bo.value = '';
         }
       }
 
@@ -1462,6 +1504,29 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           }
         });
       })();
+
+      // Batch category change
+      var batchCategoryEl = document.getElementById('batch-category');
+      if (batchCategoryEl) {
+        batchCategoryEl.addEventListener('change', function() {
+          var newCat = this.value;
+          if (!newCat) return;
+          var indices = getSelectedFindingIndices();
+          indices.forEach(function(idx) {
+            if (state.findings[idx]) {
+              state.findings[idx].category = newCat;
+              // Rewrite ID prefix so reorderFindingIds() groups by new category
+              var m = (state.findings[idx].id || '').match(/^[A-Z]+(-\d+)$/);
+              if (m) state.findings[idx].id = newCat + m[1];
+            }
+          });
+          reorderFindingIds();
+          this.value = '';
+          renderFindingsTable();
+          autoSave();
+          showToast('קטגוריה עודכנה ל-' + indices.length + ' ממצאים', 'success');
+        });
+      }
 
       // Batch delete
       document.getElementById('btn-batch-delete').addEventListener('click', function() {
@@ -1647,6 +1712,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         document.getElementById('f-owner').value = '';
         prioritySelect.value = '';
         priorityCustom.value = '';
+        priorityTouched = false;
         evidenceInput.value = '';
         clearEvidencePreview();
         updatePriorityCustomVisibility();
@@ -1699,6 +1765,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           prioritySelect.value = '';
           priorityCustom.value = '';
         }
+        // Lock auto-fill when editing a finding that already has a saved priority
+        priorityTouched = !!f.priority;
 
         updatePriorityCustomVisibility();
         evidenceInput.value = '';
@@ -2213,7 +2281,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           toolsText: 'הבדיקה התבססה על כלי CSPM / CNAPP של הארגון, בשילוב בדיקות ידניות והצלבת מידע עם מסמכי מדיניות ותצורה קיימים.',
           methodTitle: '2.3 מתודולוגיית עבודה',
           methodItems: ['איסוף ממצאים מהמערכת (Alerts / Issues / Misconfigurations).','קיבוץ ממצאים לפי חומרה, שירות וסביבה.','וולידציה של ממצאים קריטיים ואיתור False Positive.','גיבוש המלצות לתיקון, הגדרת עדיפויות ותכנית טיפול.'],
-          findingsSummary: '3. סיכום ממצאים לפי רמת חומרה',
+          findingsSummary: '4. סיכום ממצאים לפי רמת חומרה',
           findingsSummaryText: 'הטבלה להלן מסכמת את כמות הממצאים שנמצאו לפי רמת חומרה.',
           sevHeader: 'רמת חומרה', countHeader: 'מספר ממצאים', notesHeader: 'הערות',
           critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', info: 'מידע',
@@ -2222,10 +2290,10 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           medNote: 'Best Practices לא מיושמים במלואם, פוטנציאל להחמרת סיכון.',
           lowNote: 'שיפורי הקשחה ותפעול שאינם דחופים.',
           infoNote: 'מידע לתכנון עתידי (End of Support, המלצות לשדרוג וכד\').',
-          keyTopics: '3.1 נושאי מפתח',
-          catBreakdown: '3.2 פילוח לפי קטגוריה',
+          keyTopics: '4.1 נושאי מפתח',
+          catBreakdown: '4.2 פילוח לפי קטגוריה',
           catHeader: 'קטגוריה', totalHeader: 'סה"כ',
-          detailedFindings: '4. ממצאים עיקריים',
+          detailedFindings: '5. ממצאים עיקריים',
           detailedFindingsText: 'להלן כרטיסי הממצאים שנכללים בדו"ח זה, כפי שנאספו במערכת ואושרו לאחר בדיקה ידנית.',
           noFindings: 'לא נוספו ממצאים.',
           findingDesc: 'תיאור הממצא', findingImpact: 'השפעה עסקית / סיכון',
@@ -2235,7 +2303,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           evidenceText: 'צילומי מסך / הוכחות טכניות כפי שצורפו בבדיקה. לחץ על תמונה להגדלה.',
           noTech: 'לא סופקו פרטים טכניים.', noPolicies: 'לא סומנו מדיניות / תקנים.',
           noRecs: 'לא סופקו המלצות.', noPriority: 'לא הוגדרה עדיפות טיפול.',
-          recommendations: '5. המלצות ותכנית טיפול',
+          recommendations: '6. המלצות ותכנית טיפול',
           recsText: 'סעיף זה מרכז את הממצאים בטבלת עבודה, לצורך מעקב אחר סטטוס סגירה ובעלות.',
           colId: 'מזהה ממצא', colDesc: 'תיאור קצר', colSev: 'חומרה', colOwner: 'בעלים', colDue: 'יעד סגירה', colStatus: 'סטטוס',
           ownerPlaceholder: 'Owner / Team', statusOpen: 'פתוח',
@@ -2245,7 +2313,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           findingIdLabel: 'מזהה ממצא',
           coverSubtitle: 'בדיקת מצב אבטחה, תצורה ועמידה במדיניות בסביבת הענן הארגונית',
           clientLabel: 'שם הלקוח', cloudLabel: 'ענן', envLabel: 'סביבת בדיקה', rangeLabel: 'טווח הבדיקה',
-          consultantLabel: 'יועץ / גורם מבצע', dateLabel: 'תאריך דו"ח', versionLabel: 'גרסה',
+          consultantLabel: 'יועץ / גורם מבצע', dateLabel: 'תאריך דו"ח', versionLabel: 'גרסת דו"ח',
           reportDateFooter: 'תאריך הדו"ח',
           defaultExecSummary: 'הדו"ח מסכם את מצב ה-POSTURE בסביבת הענן שנבדקה, לרבות ממצאים קריטיים, תרחישי סיכון מרכזיים והערכת סיכון כללית.',
           defaultKeyTopics: 'ניתן להרחיב נושאי מפתח כגון IAM, חשיפה לאינטרנט, הצפנה, רשתות, Kubernetes ועוד.',
@@ -2265,7 +2333,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           toolsText: 'The assessment leveraged the organization\'s CSPM / CNAPP tools, combined with manual checks and cross-referencing with existing policy and configuration documents.',
           methodTitle: '2.3 Methodology',
           methodItems: ['Collect state.findings from the platform (Alerts / Issues / Misconfigurations).','Group state.findings by severity, service, and environment.','Validate critical state.findings and identify False Positives.','Formulate remediation recommendations, set priorities, and build a treatment plan.'],
-          findingsSummary: '3. Findings Summary by Severity',
+          findingsSummary: '4. Findings Summary by Severity',
           findingsSummaryText: 'The table below summarizes the number of state.findings by severity level.',
           sevHeader: 'Severity', countHeader: 'Count', notesHeader: 'Notes',
           critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info',
@@ -2274,10 +2342,10 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           medNote: 'Best practices not fully implemented, potential for risk escalation.',
           lowNote: 'Hardening and operational improvements, not urgent.',
           infoNote: 'Informational for future planning (End of Support, upgrade recommendations, etc.).',
-          keyTopics: '3.1 Key Topics',
-          catBreakdown: '3.2 Category Breakdown',
+          keyTopics: '4.1 Key Topics',
+          catBreakdown: '4.2 Category Breakdown',
           catHeader: 'Category', totalHeader: 'Total',
-          detailedFindings: '4. Detailed Findings',
+          detailedFindings: '5. Detailed Findings',
           detailedFindingsText: 'Below are the finding cards included in this report, as collected and validated.',
           noFindings: 'No state.findings added.',
           findingDesc: 'Description', findingImpact: 'Business Impact / Risk',
@@ -2287,7 +2355,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           evidenceText: 'Screenshots / technical evidence as attached during the assessment. Click to enlarge.',
           noTech: 'No technical details provided.', noPolicies: 'No policies / standards tagged.',
           noRecs: 'No recommendations provided.', noPriority: 'No remediation priority set.',
-          recommendations: '5. Recommendations & Treatment Plan',
+          recommendations: '6. Recommendations & Treatment Plan',
           recsText: 'This section consolidates state.findings into a work table for tracking closure status and ownership.',
           colId: 'Finding ID', colDesc: 'Description', colSev: 'Severity', colOwner: 'Owner', colDue: 'Target Date', colStatus: 'Status',
           ownerPlaceholder: 'Owner / Team', statusOpen: 'Open',
@@ -2305,7 +2373,23 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         }
       };
 
-      export function buildReportHtml() {
+      // Strips common Markdown syntax from a string, producing plain text safe
+      // for escapeHtml() and PDF rendering.  No HTML tags are emitted — only
+      // plain characters — so this must run BEFORE escapeHtml().
+      function stripMarkdown(text) {
+        if (typeof text !== 'string') return text;
+        return text
+          // [link text](url) → link text (url)
+          .replace(/\[([^\]]*)\]\(([^)]*)\)/g, function(_, linkText, url) { return linkText + ' (' + url + ')'; })
+          // **bold** → bold (process before single * to avoid partial match)
+          .replace(/\*\*([^*]+)\*\*/g, '$1')
+          // *italic* → italic
+          .replace(/\*([^*]+)\*/g, '$1')
+          // `code` → code (strip backticks)
+          .replace(/`([^`]+)`/g, '$1');
+      }
+
+      export function buildReportHtml({ isDraft = false, severitySort = false } = {}) {
         const lang = document.getElementById('report-lang').value || 'he';
         const t = i18n[lang] || i18n.he;
         const client          = document.getElementById('report-client').value.trim();
@@ -2322,7 +2406,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         const orgName     = document.getElementById('report-org-name').value.trim();
         const footerText  = document.getElementById('report-footer-text').value.trim();
         const coverNote   = document.getElementById('report-cover-note').value.trim() || 'מסמך זה מסכם את ממצאי בדיקת האבטחה כפי שאותרו, כולל ניתוח סיכונים והמלצות לטיפול.';
-        const reportVersion = document.getElementById('report-version').value.trim() || '1.0';
+        const reportVersion = document.getElementById('report-version').value.trim();
 
         const critCount  = countSeverity('critical');
         const highCount  = countSeverity('high');
@@ -2340,38 +2424,75 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         const medExc  = countExcBySeverity('medium');
         const lowExc  = countExcBySeverity('low');
 
-        // Apply current UI sort order before grouping (mirrors the state.findings table display)
+        // ── Sorting and grouping logic ──
         var sortedFindings = state.findings.slice();
-        if (state.findingsSortState.col) {
+        var findingsByCategory = {};
+        var findingsBySeverity = {};
+        var exceptedFindings = [];
+
+        if (severitySort) {
+          // Severity-sort mode: separate excepted findings, group non-excepted by severity
+          var nonExcepted = [];
+          sortedFindings.forEach(function(f) {
+            if (f.exception && f.exception.active) {
+              exceptedFindings.push(f);
+            } else {
+              nonExcepted.push(f);
+            }
+          });
+
+          // Group non-excepted findings by severity
           var _sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
-          sortedFindings.sort(function(a, b) {
-            var va, vb;
-            var col = state.findingsSortState.col;
-            if (col === 'id') { va = a.id || ''; vb = b.id || ''; }
-            else if (col === 'category') { va = a.category || ''; vb = b.category || ''; }
-            else if (col === 'title') { va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); }
-            else if (col === 'severity') { va = _sevOrder[a.severity] || 9; vb = _sevOrder[b.severity] || 9; }
-            else if (col === 'owner') { va = (a.owner || '').toLowerCase(); vb = (b.owner || '').toLowerCase(); }
-            else { va = ''; vb = ''; }
-            if (va < vb) return state.findingsSortState.dir === 'asc' ? -1 : 1;
-            if (va > vb) return state.findingsSortState.dir === 'asc' ? 1 : -1;
-            return 0;
+          ['critical', 'high', 'medium', 'low', 'info'].forEach(function(sev) {
+            findingsBySeverity[sev] = nonExcepted.filter(function(f) { return f.severity === sev; });
+            // Within each severity tier, sort alphabetically by category
+            findingsBySeverity[sev].sort(function(a, b) {
+              var catA = (a.category || 'CSPM').toLowerCase();
+              var catB = (b.category || 'CSPM').toLowerCase();
+              if (catA < catB) return -1;
+              if (catA > catB) return 1;
+              return 0;
+            });
+          });
+
+          // For the category-severity matrix, we still need findingsByCategory (all findings)
+          sortedFindings.forEach(function(f) {
+            var cat = f.category || 'CSPM';
+            if (!findingsByCategory[cat]) findingsByCategory[cat] = [];
+            findingsByCategory[cat].push(f);
+          });
+        } else {
+          // Category mode: apply current UI sort order before grouping
+          if (state.findingsSortState.col) {
+            var _sevOrder = { critical: 1, high: 2, medium: 3, low: 4, info: 5 };
+            sortedFindings.sort(function(a, b) {
+              var va, vb;
+              var col = state.findingsSortState.col;
+              if (col === 'id') { va = a.id || ''; vb = b.id || ''; }
+              else if (col === 'category') { va = a.category || ''; vb = b.category || ''; }
+              else if (col === 'title') { va = (a.title || '').toLowerCase(); vb = (b.title || '').toLowerCase(); }
+              else if (col === 'severity') { va = _sevOrder[a.severity] || 9; vb = _sevOrder[b.severity] || 9; }
+              else if (col === 'owner') { va = (a.owner || '').toLowerCase(); vb = (b.owner || '').toLowerCase(); }
+              else { va = ''; vb = ''; }
+              if (va < vb) return state.findingsSortState.dir === 'asc' ? -1 : 1;
+              if (va > vb) return state.findingsSortState.dir === 'asc' ? 1 : -1;
+              return 0;
+            });
+          }
+
+          // Group by category
+          sortedFindings.forEach(function(f) {
+            var cat = f.category || 'CSPM';
+            if (!findingsByCategory[cat]) findingsByCategory[cat] = [];
+            findingsByCategory[cat].push(f);
           });
         }
-
-        // Group state.findings by category
-        var findingsByCategory = {};
-        sortedFindings.forEach(function(f) {
-          var cat = f.category || 'CSPM';
-          if (!findingsByCategory[cat]) findingsByCategory[cat] = [];
-          findingsByCategory[cat].push(f);
-        });
 
         // Build category-severity matrix for dashboard
         var catKeys = Object.keys(findingsByCategory);
         var catMatrixHtml = '';
         if (catKeys.length > 0) {
-          catMatrixHtml = '<table><thead><tr><th>' + t.catHeader + '</th><th>' + t.critical + '</th><th>' + t.high + '</th><th>' + t.medium + '</th><th>' + t.low + '</th><th>' + t.info + '</th><th>' + t.totalHeader + '</th></tr></thead><tbody>';
+          catMatrixHtml = '<table class="report-table"><thead><tr><th>' + t.catHeader + '</th><th>' + t.critical + '</th><th>' + t.high + '</th><th>' + t.medium + '</th><th>' + t.low + '</th><th>' + t.info + '</th><th>' + t.totalHeader + '</th></tr></thead><tbody>';
           catKeys.forEach(function(cat) {
             var items = findingsByCategory[cat];
             var c = items.filter(function(f){return f.severity==='critical';}).length;
@@ -2389,24 +2510,25 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           return t[key] || (state.severityMap[key] || {}).text || key;
         }
 
-        // Each category gets its own page-section + finding-page so:
-        // 1. break-after:page on .page-section puts each category on a new page.
-        // 2. .finding-page ancestor is present for every .finding-card, making
-        //    the card-splitter in pdf_service.py active for tall cards.
-        var findingsCategorySections = '';
-        catKeys.forEach(function(cat) {
-          var catLabel = categoryMap[cat] || cat;
-          var catFindings = findingsByCategory[cat];
-
-          var cardsHtml = '';
-          catFindings.forEach(function(f) {
+        // ── Helper function to build a single finding card ──
+        function buildFindingCard(f) {
           const sev = state.severityMap[f.severity] || state.severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
 
           const liDir = text => /^[a-zA-Z]/.test((text || '').replace(/^[^a-zA-Z֐-׿]+/, '')) ? 'dir="ltr" style="text-align:left;"' : '';
 
+          // Safety net for legacy state: a single comma-separated resource blob longer than
+          // 300 chars (created before the wizi.js cap was applied) is truncated here so it
+          // does not span multiple PDF pages (Issue 2).
+          function capTechnicalItem(item) {
+            if (item.length <= 300 || item.indexOf(', ') === -1) return item;
+            var cutoff = item.lastIndexOf(', ', 299);
+            if (cutoff === -1) cutoff = 299;
+            return item.slice(0, cutoff) + ' ... (לפירוט המלא יש להתחבר ל WIZ)';
+          }
+          const technicalItems = f.technical.slice(0, 12);
           const technicalHtml = f.technical.length
-            ? `<ul>${f.technical.map(item => `<li ${liDir(item)}>${escapeHtml(item)}</li>`).join('')}</ul>`
+            ? `<ul>${technicalItems.map(item => { var safe = stripMarkdown(capTechnicalItem(item)); return `<li ${liDir(safe)}>${escapeHtml(safe)}</li>`; }).join('')}${f.technical.length > 12 ? `<li class="muted" dir="rtl">... ועוד ${f.technical.length - 12} פריטים נוספים (לפירוט המלא יש להתחבר ל WIZ)</li>` : ''}</ul>`
             : `<p class="muted">${t.noTech}</p>`;
 
           const policyHtml = f.policies.length
@@ -2414,7 +2536,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
             : `<p class="muted">${t.noPolicies}</p>`;
 
           const recHtml = f.recs.length
-            ? `<ul>${f.recs.map(r => `<li ${liDir(r)}>${escapeHtml(r)}</li>`).join('')}</ul>`
+            ? `<ul>${f.recs.map(r => `<li ${liDir(r)}>${escapeHtml(stripMarkdown(r))}</li>`).join('')}</ul>`
             : `<p class="muted">${t.noRecs}</p>`;
 
           const priorityHtml = f.priority
@@ -2432,64 +2554,111 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
               `
             : '';
 
-          cardsHtml += `
-          <div class="finding-wrap">
-          <div class="finding-card${(f.exception && f.exception.active) ? ' finding-card-exception' : ''}" id="${anchorId}">
-            <div class="finding-header">
-              <div>
-                <div class="finding-title">${escapeHtml(f.title)}</div>
-                <div class="finding-id">${t.findingIdLabel}: ${escapeHtml(f.id)}</div>
-              </div>
-              <div class="severity-badge ${sev.class}">${sevText(f.severity)}</div>
-            </div>
-
-            ${(f.exception && f.exception.active) ? `
-            <div class="exception-banner-pdf">
-              ⚠ ממצא מוחרג — אושר כחריגה מדיניות
-              ${f.exception.reason ? '<div class="exception-reason-pdf">' + escapeHtml(f.exception.reason) + '</div>' : ''}
-            </div>` : ''}
-
-            <div class="finding-section-title">${t.findingDesc}</div>
-            ${Array.isArray(f.description)
-              ? (f.description.length ? '<ul>' + f.description.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
-              : '<p>' + escapeHtml(f.description) + '</p>'}
-
-            <div class="finding-section-title">${t.findingImpact}</div>
-            ${Array.isArray(f.impact)
-              ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(d) + '</li>').join('') + '</ul>' : '<p></p>')
-              : '<p>' + escapeHtml(f.impact) + '</p>'}
-
-            <div class="detail-box">
-              <div class="finding-section-title">${t.findingTech}</div>
-              ${technicalHtml}
-            </div>
-
-            <div class="detail-box">
-              <div class="finding-section-title">${t.findingPolicies}</div>
-              ${policyHtml}
-            </div>
-
-            <div class="finding-section-title">${t.findingRecs}</div>
-            ${recHtml}
-
-            <div class="finding-section-title">${t.findingPriority}</div>
-            ${priorityHtml}
-            ${evidenceHtml}
+          // Each card gets its own .page-section.finding-page section so the
+          // card-splitter in pdf_service.py (card.closest('.finding-page') →
+          // parentSection.remove()) removes only THIS card, not all siblings.
+          return `
+    <section class="page-section finding-page">
+      <div class="finding-wrap">
+      <div class="finding-card${(f.exception && f.exception.active) ? ' finding-card-exception' : ''}" id="${anchorId}">
+        <div class="finding-header">
+          <div>
+            <div class="finding-title">${escapeHtml(f.title)}</div>
+            <div class="finding-id">${t.findingIdLabel}: ${escapeHtml(f.id)}</div>
           </div>
-          </div>`;
-          cardsHtml += '\n';
+          <div class="severity-badge ${sev.class}">${sevText(f.severity)}</div>
+        </div>
+
+        ${(f.exception && f.exception.active) ? `
+        <div class="exception-banner-pdf">
+          ⚠ ממצא מוחרג — אושר כחריגה מדיניות
+          ${f.exception.reason ? '<div class="exception-reason-pdf">' + escapeHtml(f.exception.reason) + '</div>' : ''}
+        </div>` : ''}
+
+        <div class="finding-section-title">${t.findingDesc}</div>
+        ${Array.isArray(f.description)
+          ? (f.description.length ? '<ul>' + f.description.map(d => '<li>' + escapeHtml(stripMarkdown(d)) + '</li>').join('') + '</ul>' : '<p></p>')
+          : '<p>' + escapeHtml(stripMarkdown(f.description)) + '</p>'}
+
+        <div class="finding-section-title">${t.findingImpact}</div>
+        ${Array.isArray(f.impact)
+          ? (f.impact.length ? '<ul>' + f.impact.map(d => '<li>' + escapeHtml(stripMarkdown(d)) + '</li>').join('') + '</ul>' : '<p></p>')
+          : '<p>' + escapeHtml(stripMarkdown(f.impact)) + '</p>'}
+
+        <div class="detail-box">
+          <div class="finding-section-title">${t.findingTech}</div>
+          ${technicalHtml}
+        </div>
+
+        <div class="detail-box">
+          <div class="finding-section-title">${t.findingPolicies}</div>
+          ${policyHtml}
+        </div>
+
+        <div class="finding-section-title">${t.findingRecs}</div>
+        ${recHtml}
+
+        <div class="finding-section-title">${t.findingPriority}</div>
+        ${priorityHtml}
+        ${evidenceHtml}
+      </div>
+      </div>
+    </section>
+`;
+        }
+
+        // ── Build findings sections (category-based or severity-based) ──
+        var findingsCategorySections = '';
+
+        if (severitySort) {
+          // Severity-based sections
+          var severityLabels = {
+            critical: 'ממצאים קריטיים',
+            high: 'ממצאים בחומרה גבוהה',
+            medium: 'ממצאים בחומרה בינונית',
+            low: 'ממצאים בחומרה נמוכה',
+            info: 'ממצאים מידעיים'
+          };
+
+          ['critical', 'high', 'medium', 'low', 'info'].forEach(function(sev) {
+            var sevFindings = findingsBySeverity[sev];
+            if (sevFindings && sevFindings.length > 0) {
+              var cardsHtml = sevFindings.map(buildFindingCard).join('');
+              findingsCategorySections += `
+    <div class="finding-severity-header">
+      <h2>${severityLabels[sev]} (${sevFindings.length})</h2>
+    </div>
+    ${cardsHtml}`;
+            }
           });
 
-          // One section per category — break-after:page (from .page-section in
-          // CLEAN_PRINT_CSS) puts each category on its own page. The .finding-page
-          // class is also present so the card-splitter in pdf_service.py can find
-          // .finding-card ancestors via card.closest('.finding-page').
-          findingsCategorySections += `
-    <section class="page-section finding-page">
+          // Add excepted findings section at end
+          if (exceptedFindings.length > 0) {
+            var exceptedCardsHtml = exceptedFindings.map(buildFindingCard).join('');
+            findingsCategorySections += `
+    <div class="finding-severity-header">
+      <h2>ממצאים מוחרגים (${exceptedFindings.length})</h2>
+    </div>
+    ${exceptedCardsHtml}`;
+          }
+        } else {
+          // Category-based sections (current behavior)
+          catKeys.forEach(function(cat) {
+            var catLabel = categoryMap[cat] || cat;
+            var catFindings = findingsByCategory[cat];
+            var cardsHtml = catFindings.map(buildFindingCard).join('');
+
+            // Category heading in a plain div (no .page-section class) so it does
+            // not trigger break-after:page by itself.  It flows onto the same page
+            // as the first card's section.  The per-card sections carry the
+            // break-after:page rule, producing one finding per page.
+            findingsCategorySections += `
+    <div class="finding-category-header">
       <h2>${escapeHtml(cat + ' – ' + catLabel)}</h2>
-      ${cardsHtml}
-    </section>`;
-        });
+    </div>
+    ${cardsHtml}`;
+          });
+        }
 
         const treatmentTableHtml = state.findings.map(f => {
           const sev = state.severityMap[f.severity] || state.severityMap.medium;
@@ -2518,12 +2687,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         }).join('\n');
 
         const appendixHtml = state.findings.map(f => {
-          const firstPolicy = f.policies[0] || '';
+          // Join all policies; empty array produces '' (falsy) → falls back to '—'
+          const allPolicies = f.policies.join(', ');
           return `
             <tr>
               <td>${escapeHtml(f.id)}</td>
-              <td>${firstPolicy ? escapeHtml(firstPolicy) : '—'}</td>
-              <td>${firstPolicy ? 'ISO / NIST' : '—'}</td>
+              <td>${allPolicies ? escapeHtml(allPolicies) : '—'}</td>
+              <td>${allPolicies ? escapeHtml(allPolicies) : '—'}</td>
               <td></td>
             </tr>`;
         }).join('\n');
@@ -2534,6 +2704,28 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
         const keyTopicsHtml = linesToListHtml(keyTopics) ||
           `<p class="muted">${t.defaultKeyTopics}</p>`;
+
+        const draftWatermarkStyle = isDraft ? `
+<style>
+.page-section {
+  position: relative;
+  isolation: isolate;
+}
+.page-section::before {
+  content: "${lang === 'he' ? 'טיוטה' : 'DRAFT'}";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  font-size: 120px;
+  font-weight: 900;
+  color: #888;
+  opacity: 0.15;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: -1;
+}
+</style>` : '';
 
         const html = `<!DOCTYPE html>
 <html lang="${t.lang}" dir="${t.dir}">
@@ -2614,7 +2806,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     padding: 14mm 10mm 12mm 10mm;
     box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
     border-radius: 6px;
-    border-top: 5px solid #0b3c5d;
+    border-top: 2px solid #0b3c5d;
   }
 
   .page-section:last-child {
@@ -2861,7 +3053,8 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     color: #6b7280;
   }
 
-  .severity-badge {
+  .severity-badge,
+  .sev-badge {
     display: inline-block;
     padding: 2px 8px;
     border-radius: 999px;
@@ -2869,6 +3062,14 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     color: #fff;
     font-weight: bold;
     box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+    /* Prevent mid-word wrap when badge is a flex item under compression.
+       white-space:nowrap: Hebrew text (e.g. "קריטי") must not split across lines.
+       flex-shrink:0: badge must not be compressed when .finding-header flex row
+       is tight due to a long title (reproduces on EAPM-006, 109-char title).
+       Both properties apply to .toc-item .severity-badge and the Top 5 proposal
+       too — write once here rather than duplicating in per-section rules. */
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .sev-critical { background: #b91c1c; }
@@ -2876,6 +3077,108 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
   .sev-medium   { background: #f97316; }
   .sev-low      { background: #22c55e; }
   .sev-info     { background: #6b7280; }
+
+  /* ── Top 5 — "3. חמשת הממצאים המשמעותיים ביותר" (#golden5) ─────────────────
+     Markup: static/js/src/export.js → buildGolden5Html()
+     RTL: logical properties only (inline-start = right, inline-end = left). */
+  .golden5-chapter h1 { margin-bottom: 12px; }
+
+  .golden5-card {
+    padding-inline-start: 10px;
+    padding-block-start: 0;
+    padding-block-end: 9px;
+    margin-block-end: 9px;
+    border-inline-start: 3px solid #9ca3af;
+    border-block-end: 1px solid #e5e7eb;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .golden5-card:last-child {
+    margin-block-end: 0;
+    padding-block-end: 0;
+    border-block-end: 0;
+  }
+  .sev-border-critical { border-inline-start-color: #b91c1c; }
+  .sev-border-high     { border-inline-start-color: #ef4444; }
+  .sev-border-medium   { border-inline-start-color: #f97316; }
+  .sev-border-low      { border-inline-start-color: #22c55e; }
+  .sev-border-info     { border-inline-start-color: #6b7280; }
+
+  .golden5-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-block-end: 3px;
+    margin-block-end: 5px;
+    border-block-end: 1px solid #e5e7eb;
+  }
+  .golden5-rank {
+    direction: ltr;
+    unicode-bidi: isolate;
+    flex-shrink: 0;
+    min-width: 26px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: #0b3c5d;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: bold;
+    line-height: 1.2;
+    text-align: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .golden5-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: bold;
+    line-height: 1.3;
+    color: #0b3c5d;
+    unicode-bidi: plaintext;
+    text-align: start;
+    overflow-wrap: break-word;
+  }
+  .golden5-chapter .sev-badge {
+    font-size: 10px;
+    padding: 1px 7px;
+    box-shadow: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .golden5-impact {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #374151;
+    margin-block-start: 0;
+    margin-block-end: 4px;
+    unicode-bidi: plaintext;
+    text-align: start;
+    overflow-wrap: break-word;
+  }
+  .golden5-rec {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #1f2937;
+    margin-block-start: 0;
+    margin-block-end: 0;
+    padding: 4px 8px;
+    background: #f5f8fb;
+    border-block-start: 1px solid #e5e7eb;
+    border-block-end: 1px solid #e5e7eb;
+    border-inline-end: 1px solid #e5e7eb;
+    border-inline-start: 2px solid #0b3c5d;
+    border-radius: 4px;
+    text-align: start;
+    overflow-wrap: break-word;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .golden5-rec::before {
+    content: "המלצה: ";
+    font-weight: bold;
+    color: #0b3c5d;
+  }
 
   .finding-section-title {
     font-weight: bold;
@@ -3017,13 +3320,18 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       page-break-after: avoid;
     }
 
+    .finding-severity-header {
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+
     .finding-card li {
       break-inside: avoid;
       page-break-inside: avoid;
     }
   }
 </style>
-
+${draftWatermarkStyle}
 </head>
 <body>
 
@@ -3053,7 +3361,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           <p><strong>${t.rangeLabel}:</strong> ${escapeHtml(range || '__________')}</p>
           <p><strong>${t.consultantLabel}:</strong> ${escapeHtml(consultant || '__________')}</p>
           <p><strong>${t.dateLabel}:</strong> ${escapeHtml(reportDate || '__________')}</p>
-          <p><strong>${t.versionLabel}:</strong> ${escapeHtml(reportVersion)}</p>
+          ${reportVersion ? `<p><strong>${t.versionLabel}:</strong> ${escapeHtml(reportVersion)}</p>` : ''}
         </div>
 
         <div class="cover-badge">
@@ -3078,10 +3386,26 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         <li class="toc-item">
             <span><a href="#detailed-state.findings">${t.detailedFindings}</a></span>
         </li>
-        ${state.findings.map(function(f) {
-          var sev = state.severityMap[f.severity] || state.severityMap.medium;
-          return '<li class="toc-item toc-finding"><span><a href="#' + makeFindingAnchorId(f.id) + '">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</a></span><span class="severity-badge ' + sev.class + '" style="font-size:9px;padding:1px 6px;">' + sevText(f.severity) + '</span></li>';
-        }).join('\n')}
+        ${(function() {
+          // Build TOC findings list in the same order as the body
+          var tocFindings = [];
+          if (severitySort) {
+            // Severity-sort mode: critical → high → medium → low → info → excepted
+            ['critical', 'high', 'medium', 'low', 'info'].forEach(function(sev) {
+              if (findingsBySeverity[sev]) {
+                tocFindings = tocFindings.concat(findingsBySeverity[sev]);
+              }
+            });
+            tocFindings = tocFindings.concat(exceptedFindings);
+          } else {
+            // Category mode: use state.findings as-is
+            tocFindings = state.findings;
+          }
+          return tocFindings.map(function(f) {
+            var sev = state.severityMap[f.severity] || state.severityMap.medium;
+            return '<li class="toc-item toc-finding"><span><a href="#' + makeFindingAnchorId(f.id) + '">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</a></span><span class="severity-badge ' + sev.class + '" style="font-size:9px;padding:1px 6px;">' + sevText(f.severity) + '</span></li>';
+          }).join('\n');
+        })()}
         <li class="toc-item">
             <span><a href="#recommendations">${t.recommendations}</a></span>
         </li>
@@ -3095,11 +3419,15 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     <section class="page-section">
       <h1 id="exec-summary">${t.execSummary}</h1>
       ${execSummaryHtml}
-      <p><strong>${t.riskLabel}:</strong> ${escapeHtml(reportRisk || (t[riskScore.level] || riskScore.label))}.</p>
+      <p><strong>${t.riskLabel}:</strong> ${escapeHtml(riskScore.label || (t[riskScore.level] || '—'))} (מחושב אוטומטית).</p>
+      <!-- BUG NOTE: calcRiskScore() weights (critical:10, high:7, medium:4, low:1) differ
+           from the domain model in CONTEXT.md (critical:4, high:3, medium:2, low:1).
+           The reportRisk free-text field is preserved in state but not rendered here to
+           avoid contradicting the computed label. Track as a separate weight-fix task. -->
       ${state.findings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
+    </section>
 
-      <div class="section-divider"></div>
-
+    <section class="section-intro" style="margin-top: 2rem;">
       <h2 id="scope-method">${t.scopeMethod}</h2>
       <h3>${t.scopeTitle}</h3>
       <p>${t.scopeText}</p>
@@ -3113,13 +3441,13 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       </ul>
     </section>
 
-    <section class="page-section">
+    <section class="section-intro">
       <h1 id="findings-summary">${t.findingsSummary}</h1>
       <p>${t.findingsSummaryText}</p>
 
       ${buildSeverityChartSvg({ critical: critCount, high: highCount, medium: medCount, low: lowCount, info: infoCount }, { critical: t.critical, high: t.high, medium: t.medium, low: t.low, info: t.info })}
 
-      <table>
+      <table class="report-table">
         <thead>
           <tr>
             <th>${t.sevHeader}</th>
@@ -3162,7 +3490,7 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       ${catKeys.length > 1 ? '<h2>' + t.catBreakdown + '</h2>' + catMatrixHtml : ''}
     </section>
 
-    <section class="page-section findings-intro">
+    <section class="section-intro findings-intro">
       <h1 id="detailed-state.findings">${t.detailedFindings}</h1>
       <p>
         ${t.detailedFindingsText}
@@ -3171,11 +3499,11 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
     </section>
     ${findingsCategorySections}
 
-    <section class="page-section">
+    <section class="section-intro">
       <h1 id="recommendations">${t.recommendations}</h1>
       <p>${t.recsText}</p>
 
-      <table>
+      <table class="report-table">
         <thead>
           <tr>
             <th>${t.colId}</th>
@@ -3192,11 +3520,11 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
       </table>
     </section>
 
-    <section class="page-section">
+    <section class="section-intro">
       <h1 id="appendix-a">${t.appendix}</h1>
       <p>${t.appendixText}</p>
 
-      <table>
+      <table class="report-table">
         <thead>
           <tr>
             <th>${t.colId}</th>
@@ -3228,7 +3556,9 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           alert('אין ממצאים לייצוא.');
           return;
         }
-        const html = buildReportHtml();
+        const severitySortChk = document.getElementById('chk-severity-sort');
+        const severitySort = severitySortChk && severitySortChk.checked;
+        const html = buildReportHtml({ isDraft: state.loadedVersionStatus === 'draft', severitySort });
         const win = window.open('', '_blank');
         if (!win) {
           alert('הדפדפן חסם פתיחת חלון. צריך לאפשר Popups לדף הזה.');
@@ -3245,7 +3575,9 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
           alert('אין ממצאים לייצוא.');
           return;
         }
-        const html = buildReportHtml();
+        const severitySortChk = document.getElementById('chk-severity-sort');
+        const severitySort = severitySortChk && severitySortChk.checked;
+        const html = buildReportHtml({ isDraft: state.loadedVersionStatus === 'draft', severitySort });
         const blob = new Blob([html], { type: 'text/html' });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
@@ -3276,4 +3608,130 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
         URL.revokeObjectURL(url);
         statusMsg.textContent = 'תצורת הדו"ח יוצאה כקובץ JSON (meta + ממצאים).';
       });
+
+      // ── AI Exception Reason Improver — Add Finding form ──────────────────────
+      export function attachExceptionReasonButton_AddForm() {
+        var excReasonWrap = document.getElementById('f-exception-reason-wrap');
+        if (!excReasonWrap) return;
+        // Double-attachment guard
+        if (excReasonWrap.querySelector('.ai-improve-exception-add-row')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-ai btn-sm';
+        btn.textContent = '✨ שפר ניסוח';
+        btn.style.marginTop = '6px';
+
+        var row = document.createElement('div');
+        row.className = 'ai-improve-exception-add-row';
+        row.appendChild(btn);
+
+        var statusSpan = document.createElement('span');
+        statusSpan.className = 'ai-status-msg';
+        statusSpan.style.cssText = 'font-size:0.85em; margin-right:8px; color:#c0392b;';
+        row.appendChild(statusSpan);
+
+        excReasonWrap.appendChild(row);
+
+        btn.addEventListener('click', function() {
+          var textarea = document.getElementById('f-exception-reason');
+          if (!textarea) return;
+          var text = textarea.value.trim();
+          statusSpan.textContent = '';
+          if (!text) { statusSpan.textContent = 'אין טקסט לשיפור.'; return; }
+          var modelSelect = document.getElementById('ai-model');
+          var model = (modelSelect && modelSelect.value) || '';
+
+          btn.disabled = true;
+          btn.textContent = '⏳ משפר...';
+
+          fetch('/api/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, field: 'exception_reason', model: model })
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            textarea.value = data.suggestion || '';
+            textarea.dispatchEvent(new Event('input'));
+          })
+          .catch(function(err) {
+            showToast('שגיאה בשיפור הניסוח: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '✨ שפר ניסוח';
+          });
+        });
+      }
+
+      // ── AI Exception Reason Improver — Detail Pane dialog ────────────────────
+      export function attachExceptionReasonButton_DetailPane() {
+        var detailExceptionDialog = document.getElementById('detail-exception-dialog');
+        if (!detailExceptionDialog) return;
+        // Double-attachment guard
+        if (detailExceptionDialog.querySelector('.ai-improve-exception-detail-row')) return;
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-ai btn-sm';
+        btn.textContent = '✨ שפר ניסוח';
+        btn.style.marginTop = '6px';
+
+        var row = document.createElement('div');
+        row.className = 'ai-improve-exception-detail-row';
+        row.appendChild(btn);
+
+        var statusSpan = document.createElement('span');
+        statusSpan.className = 'ai-status-msg';
+        statusSpan.style.cssText = 'font-size:0.85em; margin-right:8px; color:#c0392b;';
+        row.appendChild(statusSpan);
+
+        // Insert immediately after the textarea, before the Cancel/Confirm button bar
+        var textarea = document.getElementById('detail-exception-reason-input');
+        if (textarea) {
+          textarea.insertAdjacentElement('afterend', row);
+        } else {
+          detailExceptionDialog.appendChild(row);
+        }
+
+        btn.addEventListener('click', function() {
+          var ta = document.getElementById('detail-exception-reason-input');
+          if (!ta) return;
+          var text = ta.value.trim();
+          statusSpan.textContent = '';
+          if (!text) { statusSpan.textContent = 'אין טקסט לשיפור.'; return; }
+          var modelSelect = document.getElementById('ai-model');
+          var model = (modelSelect && modelSelect.value) || '';
+
+          btn.disabled = true;
+          btn.textContent = '⏳ משפר...';
+
+          fetch('/api/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, field: 'exception_reason', model: model })
+          })
+          .then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function(data) {
+            if (data.error) throw new Error(data.error);
+            ta.value = data.suggestion || '';
+            ta.dispatchEvent(new Event('input'));
+          })
+          .catch(function(err) {
+            showToast('שגיאה בשיפור הניסוח: ' + err.message, 'error');
+          })
+          .finally(function() {
+            btn.disabled = false;
+            btn.textContent = '✨ שפר ניסוח';
+          });
+        });
+      }
 

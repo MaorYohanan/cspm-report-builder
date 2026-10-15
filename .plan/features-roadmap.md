@@ -11,7 +11,7 @@ Before starting any task:
 After implementing the task:
 3. Run `python -m pytest tests/ -x -q` (backend tests).
 4. Run the **`cspm-reviewer`** agent on all modified files (code correctness, conventions, security).
-5. Run the **`pdf-qa`** agent if any changes touch `templates/report_template.html` or `backend/services/pdf_service.py`.
+5. Run the **`qa`** agent if any changes touch `templates/report_template.html` or `backend/services/pdf_service.py`.
 6. If either agent surfaces bugs or required fixes → plan the fixes inline and apply them before committing.
 7. Once all checks pass with no remaining issues: `git add <files>`, commit, `git push`, merge to `origin/main`.
 8. Update `memory/roadmap-status.md` status for the task to `✅ merged to main`.
@@ -53,7 +53,7 @@ Before starting any task:
 After implementing the task:
 3. `python -m pytest tests/ -x -q` — no regressions.
 4. Run the **`cspm-reviewer`** agent on all modified files.
-5. Run the **`pdf-qa`** agent if any change touches `templates/report_template.html` or `backend/services/pdf_service.py`.
+5. Run the **`qa`** agent if any change touches `templates/report_template.html` or `backend/services/pdf_service.py`.
 6. Fix any issues flagged by agents. Repeat steps 3–5 until clean.
 7. `git add <files>` → commit → `git push` → merge to `origin/main`.
 8. Update `memory/roadmap-status.md` to `✅ merged to main`.
@@ -422,7 +422,7 @@ After implementing the task:
 **Steps:**
 1. In `templates/report_template.html`, find the category subsection loop in chapter 4 (findings). Add `page-break-before: always` CSS class to each `<section class="category-section">` element (except the first one).
 2. Add `.category-section + .category-section { page-break-before: always; }` to the PDF stylesheet block.
-**Verification:** Read `.claude/agents/pdf-qa.md` before modifying template. Test with Playwright PDF render after change — confirm each category starts on a new page.
+**Verification:** Run the **`qa`** agent after modifying the template. Test with Playwright PDF render after change — confirm each category starts on a new page.
 
 ---
 
@@ -663,7 +663,7 @@ Each task: clean `git status` → new branch → implement → run tests → sho
 - **JS**: edit `static/js/src/*.js` — no build step, hard-refresh browser. Bump `?v=NNN` in `index.html`.
 - **CSS**: edit `static/css/src/*.css` → run `python3 build_css.py` before testing.
 - **RTL**: Hebrew UI — test layout after any CSS/HTML change.
-- **PDF**: read `.claude/agents/pdf-qa.md` before touching `templates/report_template.html` or `backend/services/pdf_service.py`.
+- **PDF**: run the **`qa`** agent after touching `templates/report_template.html` or `backend/services/pdf_service.py`; also run the PDF geometry check in TESTING.md.
 - **Auth**: `require_role()` decorator required on every new route. Never omit.
 - **Atomic writes**: always write state files to temp file then rename. Never write in-place.
 - **After each task**: update `memory/roadmap-status.md` status before moving to next task.

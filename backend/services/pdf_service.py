@@ -6,16 +6,42 @@ including header/footer templates and page splitting for long findings.
 
 ⚠️  CRITICAL — DO NOT CHANGE THESE VALUES WITHOUT UNDERSTANDING WHY:
 
-  - page.pdf margin.top=30mm   → matches header HTML height (~14mm) plus gap
+  - page.pdf margin.top=30mm    → matches header HTML height (~14mm) plus gap
   - page.pdf margin.bottom=20mm → matches footer height plus gap
-  - page.pdf margin.left/right=10mm → max content width
-  - MAX_CARD_HEIGHT_PX=900      → printable area at A4 = ~933px, 900 = safety
+  - page.pdf margin.left/right=10mm → max content width (10mm, not 15mm)
+  - MAX_PAGE_CARD_HEIGHT_PX=908 → early-return guard (card.offsetHeight, border-box)
+                                   The 2px border-top on .page-section is set by the inline
+                                   <style> emitted by buildReportHtml() at findings.js:2744.
+                                   CLEAN_PRINT_CSS does not set border-top on .page-section.
+                                   assets/report.css is NOT in the render path — the backend
+                                   never passes report_template.html to render_template(), so
+                                   that file (and assets/report.css it links) are dead code.
+                                   Derivation with 2px border: 933.54px printable (A4 297mm − 50mm margins × 96/25.4)
+                                               − 2.00px border-top  (findings.js:2744 inline <style>)
+                                               − 15.12px padding-top (4mm × 96/25.4)
+                                               − 5.00px safety margin
+                                               = 911.42px → floor → 911
+                                   ⚠️  Constant kept at 908 (was 0px over-conservative at 5px border).
+                                   Now 3px over-conservative (911 − 908 = 3). Safe: splits slightly
+                                   earlier than strictly needed. Do NOT raise without re-measuring.
+  - MAX_PACK_HEIGHT_PX=886      → per-chunk packer budget (getBoundingClientRect delta)
+                                   Section overhead = 2px border-top + 15.12px padding-top = 17.12px
+                                   (border source: findings.js:2744 inline <style>, same as above).
+                                   Derivation with 2px border: 933.54px printable
+                                               − 17.12px section overhead (2px border + 15.12px padding)
+                                               − 22.00px card border+padding
+                                               − 5.00px safety margin
+                                               = 889.42px → floor → 889
+                                   ⚠️  Constant kept at 886 (was 0px over-conservative at 5px border).
+                                   Now 3px over-conservative (889 − 886 = 3). Safe: packs chunks
+                                   slightly more conservatively. Do NOT raise without re-measuring.
   - page.emulate_media("print") → REQUIRED, without it @media print is ignored
-  - .page-section / .finding-page padding-top: 4mm in CLEAN_PRINT_CSS
+  - .page-section padding-top: 4mm, padding-bottom: 0 in CLEAN_PRINT_CSS
 
-  These values were tuned together. Changing any one will break the layout
-  (header overlap, content cut-off, or huge blank space). See AGENTS.md
-  "PDF Rendering" section for the full rationale.
+  These two constants measure DIFFERENT things with DIFFERENT methods.
+  Do not conflate them — swapping the methods produced the original bug.
+  Changing any margin/padding value requires re-deriving both constants.
+  Measured 2026-09-14 in print-emulated headless Chromium, viewport 720x900.
 """
 
 from __future__ import annotations
@@ -59,22 +85,98 @@ class PDFService:
   body { margin: 0 !important; padding: 0 !important; overflow: visible !important; }
   .report-content, .page-section, .finding-card { overflow: visible !important; }
   .page-section { box-shadow: none !important; border-radius: 0 !important; padding-top: 4mm !important; }
+  /* Reclaim the 45.35px (12mm) padding-bottom that the screen rule sets but the
+     previous print reset did not clear. Reclaiming it restores ~45px of page budget
+     per section and allows the card's margin-bottom to collapse out instead of
+     consuming space. Section overhead: 2px border-top (from the inline <style> emitted
+     by buildReportHtml() at findings.js:2744 — not this CSS, not assets/report.css which
+     is not in the render path) + 15.12px padding-top = 17.12px total.
+     See full arithmetic derivation in the module docstring and the JS evaluate block. */
+  .page-section { padding-bottom: 0 !important; }
   .page-section { break-after: page !important; page-break-after: always !important; }
   .page-section:last-child { break-after: auto !important; page-break-after: auto !important; }
-  /* Findings intro: don't force page break after, so first finding shares the page */
-  .findings-intro { break-after: auto !important; page-break-after: auto !important; }
-  .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
+  /* Continuation pages share a finding across pages — override the navy 2px accent
+     with a thin grey divider so readers do not mistake it for a new top-level section.
+     No !important needed: specificity (0,1,0) matches .page-section, and CLEAN_PRINT_CSS
+     is injected via add_style_tag() after the inline <style> block in the report HTML,
+     so later source order wins without a specificity escalation. */
+  .finding-continuation { border-top: 1px solid #e5e7eb; }
+  /* Chapter 5 (findings-intro) is now a section-intro (not a page-section), so it has no
+     card padding or break-after:page. Force it to start on a new page and zero the bottom
+     margin so the first .finding-category-header appears flush below it. */
+  .findings-intro {
+    break-before: page !important; page-break-before: always !important;
+    margin-bottom: 0 !important;
+  }
+  /* Remove the h2 top margin that would gap the category/severity header from the chapter heading. */
+  .finding-category-header { margin-top: 0 !important; }
+  .finding-category-header h2 { margin-top: 0 !important; }
+  .finding-severity-header { margin-top: 0 !important; }
+  .finding-severity-header h2 { margin-top: 0 !important; }
+  /* Keep section headings and their intro paragraph glued to the table that
+     follows. The break we need to suppress is INTERNAL to .section-intro,
+     between its child siblings — not after the section itself. */
+  .section-intro h1,
+  .section-intro h2,
+  .section-intro p { break-after: avoid !important; page-break-after: avoid !important; }
+  /* Back-matter sections must start on a fresh page.
+     :has() targets each section by its heading id without editing the locked findings.js.
+     No !important: break-before: page is a forced break and supersedes break-after: auto
+     on any preceding element per CSS Fragmentation Level 3 §3.2.
+     Adjacent forced breaks (e.g. the preceding .page-section break-after:page plus this
+     break-before:page) collapse into a single break — no blank page is created.
+     #appendix-a: confirmed load-bearing — fixes mid-page start in the normal fixture.
+     #recommendations: load-bearing ONLY for the zero-findings case. In a normal document
+       (≥1 finding), the immediately preceding element is a .page-section.finding-page
+       whose break-after:page !important already forces a fresh page, making this rule a
+       no-op. In a zero-findings document the last element before recommendations is
+       .findings-intro (break-after:auto), so without this rule recommendations starts
+       mid-page and the document loses a page. Verified by render: with selector = 7 pages,
+       without selector = 6 pages, on a zero-findings copy of gcp-devops v1.0 (2026-09-14). */
+  section.section-intro:has(#recommendations),
+  section.section-intro:has(#appendix-a) {
+    break-before: page;
+    page-break-before: always;
+  }
   .finding-page { padding-top: 4mm !important; }
+  /* Category heading: keep heading with the first card on the same page */
+  .finding-category-header { break-after: avoid !important; page-break-after: avoid !important; }
   /* Cards now pre-split, each chunk fits on one page */
-  .finding-card { break-inside: avoid !important; page-break-inside: avoid !important; overflow: visible !important; }
+  /* break-inside without !important lets Chromium override for genuinely tiny chunks */
+  .finding-card { break-inside: avoid; page-break-inside: avoid; overflow: visible !important; overflow-wrap: break-word !important; word-break: break-word !important; }
   .finding-header { break-inside: avoid !important; page-break-inside: avoid !important; break-after: avoid !important; }
-  .finding-section-title { break-after: avoid !important; page-break-after: avoid !important; }
+  .finding-section-title { break-before: avoid !important; page-break-before: avoid !important; break-after: avoid !important; page-break-after: avoid !important; }
   .finding-card li { break-inside: avoid !important; page-break-inside: avoid !important; }
-  .findings-table tr,
-  .treatment-table tr {
+  /* RTL bullet-marker fix: list-style-position:inside keeps markers in the content
+     box so Chromium places them on the start side (right) for RTL <li> elements.
+     Hebrew <li> (no dir attr, inherits rtl from <html dir=rtl>) → marker on right ✓
+     English <li dir=ltr> items keep marker on their own start side (left) ✓
+     VULN findings mix both in one <ul> — per-item dir handles each independently.
+     W3C CSS Writing Modes Level 3 §6.3: list markers are on the block-start side
+     of the principal block box, which equals the inline-start side in normal flow.
+     padding-right replaces browser default padding-left (wrong side in RTL context).
+     .tag-list excluded: it uses list-style:none + inline-block — no marker to fix.
+     Root cause note: gcp-devops fixture technical items are English (LTR), so
+     left-side markers looked correct and masked this RTL bug for all prior runs.
+     govil-subset Hebrew recs (p06, p07, p22, p27, p29) reproduce the defect. */
+  .finding-card ul:not(.tag-list) {
+    list-style-position: inside;
+    padding-right: 16px;
+    padding-left: 0;
+  }
+  .report-table tr {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
+  /* break-inside REMOVED: the treatment and appendix tables are taller than one
+     page, making `avoid` unsatisfiable. Chromium first honours it by pushing the
+     whole table to the next fragmentainer — stranding the heading and leaving a
+     ~92% blank page — then breaks the table anyway. Row atomicity is preserved by
+     the .report-table tr rule below; <thead> repeats automatically because
+     Chromium defaults thead to display: table-header-group (CSS 2.1 §17.5.1). */
+  .report-table { break-inside: auto; page-break-inside: auto; }
+  .report-table thead { break-after: avoid !important; page-break-after: avoid !important; }
+  .detail-box { overflow: visible !important; max-height: none !important; }
 }
 """
 
@@ -209,7 +311,7 @@ class PDFService:
                         try:
                             page = browser.new_page()
                             # A4 viewport at 96 DPI: 794 x 1123 px.
-                            # Set viewport to printable A4 width (after 15mm margins)
+                            # Set viewport to printable A4 width (after 10mm left/right margins)
                             # so measurements match PDF.
                             page.set_viewport_size({"width": 720, "height": 900})
                             page.goto(html_path.as_uri(), wait_until="load", timeout=30000)
@@ -227,111 +329,347 @@ class PDFService:
                             # multiple sections so each split chunk becomes a new section
                             # (with padding-top from CSS).
                             page.evaluate("""() => {
-                                // Available content height per page in pixels.
-                                // A4 = 297mm. Playwright top margin 30mm + bottom 20mm = 50mm.
-                                // Printable: 297 - 50 = 247mm. At 96 DPI: ~933px.
-                                // Use 900px to give safety margin.
-                                const MAX_CARD_HEIGHT_PX = 900;
+                                // ──────────────────────────────────────────────────────────────
+                                // HEIGHT CONSTANTS — empirically derived 2026-09-14
+                                // Measured in print-emulated headless Chromium with CLEAN_PRINT_CSS
+                                // injected, viewport 720x900, using getComputedStyle /
+                                // getBoundingClientRect.
+                                //
+                                // Printable height (A4 297mm, 30mm top + 20mm bottom margin):
+                                //   (297 - 50) mm x (96 / 25.4) px/mm = 933.54 px
+                                //
+                                // .page-section overhead (after reclaiming padding-bottom):
+                                //   border-top:     2.00 px  ← source: inline <style> block emitted
+                                //                               by buildReportHtml() at findings.js:2744.
+                                //                               CLEAN_PRINT_CSS does not set border-top
+                                //                               on .page-section. assets/report.css is
+                                //                               NOT in the render path — the backend
+                                //                               never passes report_template.html to
+                                //                               render_template(), so that file and its
+                                //                               linked assets/report.css are dead code.
+                                //   padding-top:   15.12 px  (4mm × 96/25.4)
+                                //   padding-bottom: 0.00 px  (reclaimed via CLEAN_PRINT_CSS)
+                                //   Total overhead = 17.12 px
+                                //
+                                // .finding-card border + padding: 22 px
+                                //
+                                // MAX_PAGE_CARD_HEIGHT_PX = 908
+                                //   Measurement method: card.offsetHeight (border-box, excludes margins)
+                                //   Derivation with 2px border: 933.54 (printable)
+                                //              − 2.00 (border-top, findings.js:2744 inline <style>)
+                                //              − 15.12 (padding-top, 4mm)
+                                //              − 5.00 (safety margin)
+                                //              = 911.42 → floor 911
+                                //   ⚠ Constant kept at 908; now 3px over-conservative. Safe.
+                                //
+                                // MAX_PACK_HEIGHT_PX = 886
+                                //   Measurement method: getBoundingClientRect delta (captures collapsed margins)
+                                //   Derivation with 2px border: 933.54 (printable)
+                                //              − 17.12 (section overhead: 2px border + 15.12px padding-top)
+                                //              − 22.00 (card border + padding)
+                                //              − 5.00 (safety margin)
+                                //              = 889.42 → floor 889
+                                //   ⚠ Constant kept at 886; now 3px over-conservative. Safe.
+                                //
+                                // These two constants measure DIFFERENT things with DIFFERENT methods.
+                                // Do not conflate them: swapping the methods was the original bug.
+                                // A sum-of-offsetHeight approach would require subtracting 48.72 px
+                                // (worst-case collapsed margin) as an extra pessimistic allowance;
+                                // BCR-delta avoids that entirely.
+                                // ──────────────────────────────────────────────────────────────
+
+                                // MAX_PAGE_CARD_HEIGHT_PX: early-return guard.
+                                // Measurement method: card.offsetHeight (border-box, excludes margins).
+                                const MAX_PAGE_CARD_HEIGHT_PX = 908;
+
+                                // MAX_PACK_HEIGHT_PX: per-chunk packer budget.
+                                // Measurement method: getBoundingClientRect delta (captures collapsed margins).
+                                const MAX_PACK_HEIGHT_PX = 886;
+
+                                // MIN_CONTINUATION_HEIGHT_PX: threshold below which a tail chunk
+                                // is considered a stranded near-blank page and subject to
+                                // merge-back. Empirically derived from
+                                // instrument_packer_govil_full.py over the full govil production
+                                // dataset (4770 findings, 457 multi-chunk cards):
+                                //   Mode 1 (stranded tails): tops out at 179px in four quantised
+                                //     clusters (~40px, ~88px, ~109px, ~179px); 343 of 457 tails.
+                                //   Mode 2 (legitimate large tails): begins at 311px; 114 tails.
+                                //   Gap: only 2 of 457 observations fall between 180px and 310px.
+                                // Any threshold from ~180 to ~310px classifies all 457
+                                // observations identically. 200px sits squarely in the gap.
+                                // A previously-proposed 120px threshold would have cut through
+                                // the ~109px cluster and misclassified 110 real stranded cases.
+                                const MIN_CONTINUATION_HEIGHT_PX = 200;
+
+                                // ── Eligible element types for descent splitting ──────────────────
+                                // Register element tag names eligible for splitting at direct-child
+                                // boundaries when they alone exceed MAX_PACK_HEIGHT_PX. Adding a new
+                                // type (e.g. 'DIV' for .detail-box in a future commit) requires only
+                                // adding to this constant — the splitting routine has no type-specific
+                                // assumptions.
+                                //
+                                // OL NOTE — path is unproven: no template currently emits <ol>
+                                // (grep across the repo confirms zero occurrences of <ol in any
+                                // template or JS builder as of 2026-09-14). The OL branch in
+                                // splitElement() — specifically the start= attribute continuation
+                                // logic — has therefore never executed in a real render. The generic
+                                // capability is deliberate and stays; verify the start= ordinal
+                                // arithmetic with a real <ol> document before shipping any template
+                                // that uses ordered lists inside finding cards.
+                                const ELIGIBLE_SPLIT_TYPES = new Set(['UL', 'OL']);
+
+                                /**
+                                 * Split an oversized block element at direct-child boundaries.
+                                 *
+                                 * All child BCRs are read before any DOM mutation, consistent with
+                                 * the packer's measurement discipline (BCR-delta, no offsetHeight
+                                 * path). The wrapper is cloned with cloneNode(false) to preserve the
+                                 * original's class list and all attributes (dir, style, data-*, etc.).
+                                 *
+                                 * Degenerate case: a single direct child whose BCR height alone
+                                 * exceeds the budget cannot be split further. It is placed in its own
+                                 * wrapper as-is. The wrapper will exceed the budget and Chromium will
+                                 * handle the fragment. This is accepted — dropping or duplicating
+                                 * content is worse.
+                                 *
+                                 * OL continuations: the `start` attribute is set so item ordinals
+                                 * continue from where the previous piece ended. This is required for
+                                 * RTL correctness — markers must not restart at 1 on a continuation
+                                 * wrapper. An existing `start` attribute on the original OL is
+                                 * honoured (e.g. if the OL itself begins at 3, piece 2 continues
+                                 * from the correct ordinal, not from 1).
+                                 *
+                                 * @param {Element} el     - Element in ELIGIBLE_SPLIT_TYPES, live DOM
+                                 * @param {number}  budget - Max height per piece in px (BCR-delta)
+                                 * @returns {Element[]}    - Replacement elements in DOM order; >= 1
+                                 */
+                                function splitElement(el, budget) {
+                                    const children = Array.from(el.children);
+                                    if (children.length === 0) return [el];
+
+                                    // Read all child BCRs before any DOM mutation.
+                                    const childBcrs = new Map(
+                                        children.map(c => [c, c.getBoundingClientRect()])
+                                    );
+
+                                    const isOl = el.tagName === 'OL';
+                                    // Honour an existing start= attribute on the original OL.
+                                    const olStart = isOl
+                                        ? parseInt(el.getAttribute('start') || '1', 10)
+                                        : 0;
+
+                                    // Greedy grouping by BCR-delta: bottom of last child in group
+                                    // minus top of first child in group. Captures inter-child
+                                    // margin collapse exactly, same method as the outer packer.
+                                    const pieces = []; // { children: Element[], startIndex: number }
+                                    let pieceChildren = [];
+                                    let pieceFirstBcr = null;
+                                    let pieceStartIndex = 0;
+
+                                    children.forEach((child, i) => {
+                                        const bcr = childBcrs.get(child);
+                                        if (pieceChildren.length === 0) {
+                                            pieceChildren = [child];
+                                            pieceFirstBcr = bcr;
+                                        } else {
+                                            const delta = bcr.bottom - pieceFirstBcr.top;
+                                            if (delta > budget) {
+                                                pieces.push({
+                                                    children: pieceChildren,
+                                                    startIndex: pieceStartIndex,
+                                                });
+                                                pieceStartIndex = i;
+                                                pieceChildren = [child];
+                                                pieceFirstBcr = bcr;
+                                            } else {
+                                                pieceChildren.push(child);
+                                            }
+                                        }
+                                    });
+                                    if (pieceChildren.length > 0) {
+                                        pieces.push({
+                                            children: pieceChildren,
+                                            startIndex: pieceStartIndex,
+                                        });
+                                    }
+
+                                    // No actual split needed — return original untouched.
+                                    if (pieces.length <= 1) return [el];
+
+                                    // Build a wrapper for each piece. cloneNode(false) copies all
+                                    // attributes (class, dir, style, start…) without copying
+                                    // children — children are moved below.
+                                    const result = pieces.map((piece, pi) => {
+                                        const wrapper = el.cloneNode(false);
+                                        if (isOl && pi > 0) {
+                                            // olStart = ordinal of children[0].
+                                            // children[startIndex] → ordinal olStart + startIndex.
+                                            wrapper.setAttribute(
+                                                'start',
+                                                String(olStart + piece.startIndex)
+                                            );
+                                        }
+                                        piece.children.forEach(
+                                            child => wrapper.appendChild(child)
+                                        );
+                                        return wrapper;
+                                    });
+
+                                    // Replace original element with split pieces in DOM.
+                                    const parent = el.parentNode;
+                                    result.forEach(piece => parent.insertBefore(piece, el));
+                                    parent.removeChild(el);
+
+                                    return result;
+                                }
 
                                 const cards = document.querySelectorAll('.finding-card');
                                 cards.forEach((card) => {
-                                    if (card.offsetHeight <= MAX_CARD_HEIGHT_PX) return;
+                                    // Early-return guard: card.offsetHeight (border-box) vs MAX_PAGE_CARD_HEIGHT_PX.
+                                    if (card.offsetHeight <= MAX_PAGE_CARD_HEIGHT_PX) return;
 
-                                    // Card is too tall — split at section boundaries
+                                    // Card is too tall — split into per-page sections.
                                     const parentSection = card.closest('.finding-page');
                                     if (!parentSection) return;
 
-                                    // Identify split boundaries: each finding-section-title
-                                    // starts a logical block. Group siblings between section titles.
+                                    // ── Pre-split pass ────────────────────────────────────────────
+                                    // Before the packer collects BCRs, descend into any direct child
+                                    // that is in ELIGIBLE_SPLIT_TYPES and exceeds MAX_PACK_HEIGHT_PX
+                                    // on its own. splitElement replaces the element in the DOM with
+                                    // multiple smaller wrappers. The subsequent Array.from reads the
+                                    // expanded set; packer BCRs are collected after this pass and are
+                                    // therefore consistent with the post-split layout.
+                                    Array.from(card.children).forEach(child => {
+                                        if (!ELIGIBLE_SPLIT_TYPES.has(child.tagName)) return;
+                                        if (child.getBoundingClientRect().height
+                                                <= MAX_PACK_HEIGHT_PX) return;
+                                        splitElement(child, MAX_PACK_HEIGHT_PX);
+                                    });
+
                                     const children = Array.from(card.children);
                                     const headerEl = children.find(
                                         c => c.classList.contains('finding-header')
                                     );
                                     if (!headerEl) return;
 
-                                    // Build chunks: header + sections, where each chunk
-                                    // fits on a page
-                                    const chunks = [];
-                                    let currentChunk = [headerEl];
-                                    let currentHeight = headerEl.offsetHeight + 30; // approx padding
-
-                                    // Iterate through children after the header
                                     const headerIdx = children.indexOf(headerEl);
                                     const afterHeader = children.slice(headerIdx + 1);
 
-                                    // Group by section: each "finding-section-title" + content
-                                    // until next title
-                                    const sections = [];
-                                    let currentSection = [];
-                                    afterHeader.forEach((el) => {
-                                        if (el.classList.contains('finding-section-title')
-                                            && currentSection.length) {
-                                            sections.push(currentSection);
-                                            currentSection = [];
-                                        }
-                                        currentSection.push(el);
-                                    });
-                                    if (currentSection.length) sections.push(currentSection);
+                                    // ── Collect all BCRs before any DOM mutation ──────────────
+                                    // Layout is frozen: print emulation is active and
+                                    // CLEAN_PRINT_CSS is applied. Reading BCRs now ensures
+                                    // measurements match the layout being split. Any DOM
+                                    // mutation after this point would invalidate rects — read
+                                    // everything needed before touching the DOM.
+                                    const bcrOf = new Map();
+                                    children.forEach(el => bcrOf.set(el, el.getBoundingClientRect()));
 
-                                    // Pack sections into chunks
-                                    sections.forEach((section) => {
-                                        const sectionHeight = section.reduce(
-                                            (h, el) => h + el.offsetHeight, 0
-                                        );
-                                        if (currentHeight + sectionHeight > MAX_CARD_HEIGHT_PX
-                                            && currentChunk.length > 1) {
-                                            chunks.push(currentChunk);
-                                            currentChunk = [];
-                                            currentHeight = 30; // reset, no header on continuation
+                                    // ── Greedy BCR-delta packer with section-boundary orphan guard ─
+                                    // Fills each chunk to the hard cap (MAX_PACK_HEIGHT_PX = 886px),
+                                    // then breaks. The orphan guard carries a .finding-section-title
+                                    // that ends up last in a full chunk forward to the next page, so
+                                    // no section heading is ever stranded without content below it.
+                                    //
+                                    // relDelta = BCR bottom of current element minus BCR top of the
+                                    // first element in the current chunk (captures collapsed margins,
+                                    // consistent with how MAX_PACK_HEIGHT_PX was derived).
+                                    const chunks = [];
+                                    let currentChunk = [headerEl];
+                                    let chunkFirstBcr = bcrOf.get(headerEl);
+
+                                    afterHeader.forEach((el) => {
+                                        const elBcr = bcrOf.get(el);
+                                        const relDelta = elBcr.bottom - chunkFirstBcr.top;
+                                        const crossesCap = relDelta > MAX_PACK_HEIGHT_PX;
+
+                                        if (crossesCap) {
+                                            // Avoid orphaned section title at page bottom:
+                                            // carry it forward to the next page.
+                                            const last = currentChunk[currentChunk.length - 1];
+                                            if (last && last.classList.contains('finding-section-title')) {
+                                                currentChunk.pop();
+                                                chunks.push(currentChunk);
+                                                currentChunk = [last, el];
+                                                chunkFirstBcr = bcrOf.get(last);
+                                            } else {
+                                                chunks.push(currentChunk);
+                                                currentChunk = [el];
+                                                chunkFirstBcr = elBcr;
+                                            }
+                                        } else {
+                                            currentChunk.push(el);
                                         }
-                                        currentChunk = currentChunk.concat(section);
-                                        currentHeight += sectionHeight;
                                     });
                                     if (currentChunk.length) chunks.push(currentChunk);
 
-                                    // If only one chunk, no split needed (just safety)
-                                    if (chunks.length <= 1) return;
+                                    // ── Min-tail merge with capacity check ────────────────────
+                                    // Only merge the short tail into the previous chunk if the
+                                    // combined height stays within MAX_PACK_HEIGHT_PX (BCR-delta
+                                    // method). Without this check, merging could push the
+                                    // receiving chunk back over budget — recreating the overflow
+                                    // the packer was meant to prevent.
+                                    while (chunks.length > 1) {
+                                        const lastChunk = chunks[chunks.length - 1];
+                                        const prevChunk = chunks[chunks.length - 2];
 
-                                    // Get original finding info for continuation header
-                                    const titleEl = card.querySelector('.finding-title');
-                                    const idEl = card.querySelector('.finding-id');
-                                    const sevEl = card.querySelector('.severity-badge');
-                                    const titleText = titleEl ? titleEl.textContent : '';
-                                    const idText = idEl ? idEl.textContent : '';
-                                    const sevHTML = sevEl ? sevEl.outerHTML : '';
+                                        // Tail height via BCR-delta (consistent with packer method).
+                                        const tailFirst  = lastChunk[0];
+                                        const tailLast   = lastChunk[lastChunk.length - 1];
+                                        const tailHeight = lastChunk.length === 1
+                                            ? bcrOf.get(tailFirst).height
+                                            : bcrOf.get(tailLast).bottom - bcrOf.get(tailFirst).top;
 
-                                    // Replace the card with multiple chunked cards
-                                    // in their own page-sections
+                                        if (tailHeight < MIN_CONTINUATION_HEIGHT_PX) {
+                                            // Capacity check: only merge if the receiving chunk
+                                            // has room. Uses BCR-delta from prev chunk's first
+                                            // element to tail's last element.
+                                            const prevFirst    = prevChunk[0];
+                                            const mergedLast   = lastChunk[lastChunk.length - 1];
+                                            const mergedHeight =
+                                                bcrOf.get(mergedLast).bottom - bcrOf.get(prevFirst).top;
+
+                                            if (mergedHeight <= MAX_PACK_HEIGHT_PX) {
+                                                chunks[chunks.length - 2] = prevChunk.concat(lastChunk);
+                                                chunks.pop();
+                                            } else {
+                                                // Merging would overflow the receiving chunk — leave tail.
+                                                break;
+                                            }
+                                        } else {
+                                            break;
+                                        }
+                                    }
+
+                                    // ── No single-chunk bail-out ──────────────────────────────
+                                    // The old code returned early here when chunks.length <= 1,
+                                    // leaving oversized cards for Chromium to break naturally.
+                                    // Those natural breaks produced sub-200 px spill pages
+                                    // (e.g. p38/p42) because Chromium, not the splitter, chose
+                                    // the break point.
+                                    //
+                                    // We now always proceed to section creation. A single-chunk
+                                    // card gets one page-section finding-page (structurally
+                                    // identical to the original), ensuring all cards that passed
+                                    // MAX_PAGE_CARD_HEIGHT_PX are rebuilt consistently rather
+                                    // than silently left for the browser's fragmenter.
+
+                                    // Build page sections. Continuation pages carry no header —
+                                    // content flows directly from where the previous page ended.
                                     const newCards = chunks.map((chunk, i) => {
                                         const newSection = document.createElement('section');
-                                        newSection.className = 'page-section finding-page';
+                                        newSection.className = i === 0
+                                            ? 'page-section finding-page'
+                                            : 'page-section finding-continuation';
 
                                         const newCard = document.createElement('div');
                                         newCard.className = 'finding-card';
-
-                                        if (i === 0) {
-                                            // First chunk: keep original header + content
-                                            chunk.forEach(el => newCard.appendChild(el));
-                                        } else {
-                                            // Continuation chunks: add a "continued" header
-                                            const contHeader = document.createElement('div');
-                                            contHeader.className = 'finding-header';
-                                            contHeader.innerHTML =
-                                                '<div><div class="finding-title">' + titleText +
-                                                ' <span style="font-size:11px;color:#6b7280;' +
-                                                'font-weight:normal;">(המשך)</span></div>' +
-                                                '<div class="finding-id">' + idText +
-                                                '</div></div>' + sevHTML;
-                                            newCard.appendChild(contHeader);
-                                            chunk.forEach(el => newCard.appendChild(el));
-                                        }
-
+                                        chunk.forEach(el => newCard.appendChild(el));
                                         newSection.appendChild(newCard);
                                         return newSection;
                                     });
 
                                     // Insert new sections before the original and remove
-                                    // the original
+                                    // the original.
                                     newCards.forEach(
                                         s => parentSection.parentNode.insertBefore(
                                             s, parentSection

@@ -252,7 +252,7 @@ env_s = html.escape(meta.get("env", ""))
 1. Download Inter font files (woff2, weights 400/500/600/700/800) and place under `assets/fonts/inter/`.
 2. Replace the Google Fonts `@import` with `@font-face` declarations pointing to `assets/fonts/inter/`.
 3. Run `python3 build_css.py` to rebuild `builder.css`.
-4. Run pdf-qa agent after to verify card heights are unaffected.
+4. Run the **`qa`** agent after to verify card heights are unaffected.
 **Verification:** Render a PDF in an offline environment and confirm Inter font renders correctly with no fallback substitution.
 
 ---
@@ -289,7 +289,7 @@ if (kbdOverlay && btnKbdHelp && kbdClose) {
 .findings-table tr,
 .treatment-table tr { break-inside: avoid; }
 ```
-2. Run pdf-qa agent to confirm no row is split across pages in a real render.
+2. Run the **`qa`** agent to confirm no row is split across pages in a real render.
 **Verification:** Render a PDF with a long findings table and confirm no row is visually split across a page boundary.
 
 ---
@@ -1090,7 +1090,7 @@ With:
 **What:** The executive summary and scope/methodology content share one HTML block, preventing clean page-break separation in the PDF output.
 **Steps:**
 1. Split executive summary and scope/methodology into separate `<section class="page-break">` elements.
-2. Run pdf-qa agent to confirm page breaks appear at the correct locations.
+2. Run the **`qa`** agent to confirm page breaks appear at the correct locations.
 **Verification:** Render a PDF and confirm executive summary and scope/methodology start on separate pages.
 
 ---
@@ -1238,6 +1238,103 @@ Mock `google.generativeai` client:
 
 #### `tests/test_health.py`
 - `test_health_includes_ai_fields` — GET `/api/health`, assert `"ai_enabled"` and `"ai_models"` present in JSON
+
+---
+
+## Phase 9 — PDF Layout Deferred (do not implement — logged for future work)
+
+These items were identified during the fix/pdf-layout-fragmentation workstream (2026-09-14)
+and deferred deliberately.  None of them are to be implemented on that branch.
+
+---
+
+### PDF-D-01 — p10 oversized `.detail-box` — count cap in `capTechnicalItem`
+**Type:** Bug Fix
+**Effort:** Low
+**Phase:** 9 — PDF Layout Deferred
+**Files:** `static/js/src/findings.js` (`capTechnicalItem` function)
+**What:** The 877px `.detail-box` on page 10 exists because `capTechnicalItem` in `findings.js`
+caps item *length* (300 chars) but not item *count*.  A finding with many short technical items
+can produce a box that exceeds the page budget.
+**Recommended fix:** Add a count cap of roughly 10–12 items with a "ראה דוח Wiz" continuation
+note — matching the existing truncation idiom already used for long item text.
+**Alternative considered and rejected:** Two-level descent into `.detail-box` in the PDF
+splitter (`pdf_service.py`).  This was considered and rejected because: (a) `cloneNode(false)`
+yields two complete-looking bordered boxes with no continuation signal — the reader sees two
+visually separate boxes with no indication the second is a continuation of the first;
+(b) the cap approach prevents the problem rather than fragmenting its symptom; (c) lower
+implementation risk — the splitter is already complex, adding a third eligible split type
+requires careful BCR accounting and a new round of geometry verification.
+**Steps:**
+1. In `capTechnicalItem`, after the existing length-cap loop, also cap the item count at ~10–12.
+2. Append a `"ראה דוח Wiz לפרטים נוספים"` note item when items are dropped by count.
+3. Re-run geometry baseline and confirm page 10 box no longer exceeds budget.
+**Verification:** Render the reference report and confirm page 10 `.detail-box` height
+is within MAX_PACK_HEIGHT_PX (886px).
+
+---
+
+### PDF-D-02 — p04 / p08 `.finding-category-header` orphans
+**Type:** Bug Fix
+**Effort:** Medium
+**Phase:** 9 — PDF Layout Deferred
+**Files:** `backend/services/pdf_service.py` (`CLEAN_PRINT_CSS` and/or `page.evaluate()` block)
+**What:** Pages 04 and 08 are 85.5% and 78.9% blank respectively (101.7pt and 147.8pt content).
+These are `.finding-category-header` elements orphaned from the first card of their category.
+Line ~88 of `CLEAN_PRINT_CSS` already carries `break-after: avoid !important` for this selector,
+so the rule is not working — but the reason has not been diagnosed.
+**Root cause unknown:** Do not assume this shares a cause with the Issues 1/2/3 `.section-intro`
+fix (those were internal siblings; `.finding-category-header` is a direct sibling of the
+`.page-section.finding-page` it should stay with, and a different mechanism may be at play).
+Needs its own root-cause analysis before implementation:
+- Is `break-after: avoid` being overridden by a higher-specificity rule?
+- Is the header inside or outside a `.page-section`, and does that affect fragmentation?
+- Does Chromium honour `break-after: avoid` when the next sibling is a `<section>` with
+  `break-before: page` (or `break-after: page` on the previous section)?
+**Steps:**
+1. Isolate the orphan case with a minimal two-page test document.
+2. Inspect computed styles with Playwright `page.evaluate(getComputedStyle(...))` to confirm
+   which rule controls `break-after` on `.finding-category-header` at render time.
+3. Implement the appropriate fix and re-run geometry baseline.
+**Verification:** Geometry baseline shows p04 and p08 content height above 150pt with no
+near-blank classification.
+
+---
+
+### PDF-D-03 — `.tag-list` physical `margin-left: 5px` under RTL
+**Type:** Bug Fix
+**Effort:** Low
+**Phase:** 9 — PDF Layout Deferred
+**Files:** `static/js/src/findings.js` (inline CSS in `buildReportHtml()`)
+**What:** In the generated PDF HTML, `.tag-list` pill spacing uses a physical `margin-left: 5px`
+rule.  Per W3C CSS Writing Modes Level 3 §6.3, in RTL `left` is the end side (the trailing
+margin of each pill) — so inter-pill spacing lands on the wrong side, pushing space to the
+trailing edge instead of the gap between pills.  Visible where policy rows are dense (many pills).
+**Fix:** Replace `margin-left: 5px` with `margin-inline-start: 5px` in the `.tag-list`
+pill rule inside `buildReportHtml()`.
+**Verification:** Render a finding card with 5+ policy pills and confirm inter-pill spacing
+appears between pills (logical start) rather than after the last pill.
+
+---
+
+### PDF-D-04 — `.two-column > div` missing print `overflow: visible` override
+**Type:** Tech Debt
+**Effort:** Low
+**Phase:** 9 — PDF Layout Deferred
+**Files:** `backend/services/pdf_service.py` (`CLEAN_PRINT_CSS` — `@media print` block)
+**What:** `.two-column > div` has `overflow: hidden` on screen (to clip overflowing content
+in the live UI) with no `overflow: visible !important` override in `CLEAN_PRINT_CSS`.
+Compare: `.detail-box` receives `overflow: visible !important` in CLEAN_PRINT_CSS (line ~107)
+precisely to prevent Chromium from silently clipping Hebrew text in print mode.
+`.two-column > div` is currently latent — it is not used inside finding cards and therefore
+never reaches the PDF renderer — but if a future commit places it inside a `.finding-card`,
+it would silently clip content with no visible error.
+**Fix:** Add to the `@media print` block in `CLEAN_PRINT_CSS`:
+```css
+.two-column > div { overflow: visible !important; }
+```
+**Verification:** Place `.two-column` inside a finding card, render a PDF, and confirm
+content is not clipped.
 
 ---
 

@@ -202,7 +202,7 @@ Wave 7 — Phase 3 (Critical/High Frontend Bugs — DES-CRIT-1/2, DES-H-1 throug
 - Branch: fix/wave7-phase3-status (status update only — all items confirmed already fixed as side effects of earlier waves)
 - DES-CRIT-1: ✅ already fixed — base.css uses local @font-face from /assets/fonts/inter/; Google Fonts @import already gone
 - DES-CRIT-2: ✅ already fixed — ui.js null guard already wraps kbdOverlay, btnKbdHelp, kbdClose
-- DES-H-1: ✅ already fixed — pdf_service.py lines 73-77 inject break-inside: avoid !important on .findings-table tr and .treatment-table tr
+- DES-H-1: ❌ NOT FIXED — the step as written targets .findings-table tr and .treatment-table tr, but neither class is ever emitted by findings.js into the PDF HTML (the only match in findings.js is the getElementById lookup for findings-table-wrapper, a live-UI element). Row-splitting behaviour attributed to this fix comes from elsewhere; the rule is inert against the rendered PDF DOM. The separately-present .report-table tr rule in CLEAN_PRINT_CSS does provide row atomicity for actual PDF tables, but that is a different selector added for different reasons and does not constitute a fix for DES-H-1 as specified.
 - DES-H-2: ✅ confirmed correct — .filter-select background-position: left 8px center is the correct RTL position (matches native select arrow placement at physical inline-end); original code was already right
 - DES-H-3: ✅ already fixed — findings.css note delete button already at right: 4px
 - DES-H-4: ✅ already fixed — wizi.css preview panel already uses right: 0, border-left, translateX(100%)
@@ -234,3 +234,87 @@ Bug fix — exclude-rules pattern field RTL mirroring: ✅ merged to main — 20
 - Problem: typing "[" in the תבנית input rendered "]" due to Unicode Bidi Algorithm reversing bracket chars in RTL context
 - Fix: added dir="ltr" to #exclude-rule-pattern input in index.html; added dir="ltr" to <code> tag in exclude_rules.js table renderer
 - JS cache-buster: main.js?v=140
+
+## Wave 8 — Tier 1 Backlog Quick Wins
+
+BL-28 (Report Version on PDF Cover Page): ✅ merged to main — 2026-09-10
+- i18n label `גרסת דו"ח` added; `|| '1.0'` default removed; version line suppressed when field is empty; inert report_template.html edit reverted
+- JS cache-buster: main.js?v=141
+- Root cause note: initial dev edited wrong file (report_template.html); PDF cover is built in findings.js via JS template literals. docs/architecture.md updated to document the real rendering path.
+
+BL-03 (Draft Watermark on Unpublished PDF): ✅ merged to main — 2026-09-10
+- `buildReportHtml({ isDraft })` — watermark CSS injected when isDraft=true; empty string when false
+- products.js passes `{ isDraft: versionData.status === 'draft' }`; "open in new tab" and "download HTML" paths in findings.js also detect draft status and pass isDraft accordingly
+- JS cache-buster: main.js?v=142
+
+BL-09 (Bulk Finding Field Edit): ✅ merged to main — 2026-09-10
+- Batch toolbar un-hidden (removed `display:none !important` from wizi.css); severity, priority, owner, category controls all wired
+- Category uses short-code labels (CSPM, KSPM, etc.)
+- Bonus fixes: batch category change calls `reorderFindingIds()` after loop; single-edit form auto-updates ID prefix on category change via `generateNextId()`
+- JS cache-buster: main.js?v=145
+
+BL-21 (Treatment Priority Auto-Default from Severity): ✅ merged to main — 2026-09-10
+- `change` listener on `#f-severity` auto-fills `#f-priority` using severity→priority map; manual override locks auto-fill for that session
+
+BL-10 (Pre-Publish Checklist): ✅ merged to main — 2026-09-10
+- `styledConfirm` gate before publish; lists missing required fields; user must confirm before publish proceeds
+
+BL-22 (System Version Indicator in Report Details Panel): ✅ merged to main — 2026-09-10
+- Read-only badge showing system version in report detail panel; type guard for integer schema flag
+
+BL-05 (AI Key Topics Suggestion): ✅ merged to main — 2026-09-10
+- New `GeminiService.generate_key_topics()` method; new POST `/api/generate-key-topics` route; `model` field forwarded (matching all other AI routes); service prompt cap raised from 200 to 500 findings
+- Frontend button in export panel; JS cache-buster bumped
+
+BL-06 (AI Exception Reason Improver): ✅ merged to main — 2026-09-10
+- "Improve" button on both exception-reason textareas (add form + detail pane); reuses `/api/suggest`; empty-text guard + trim added to both attach functions
+
+BL-20 (ZIP Bundle Export): ✅ merged to main — 2026-09-10
+- New POST `/api/export-zip` route; ZIP contains PDF + findings JSON; `slug()` lifted to module level; Golden 5 injection applied; raw bytes body cap; stepper updated; client-side filename via `buildFilename('zip')`
+- Bonus fixes: generic error message replacing `str(e)` in render-pdf and export-zip routes; `showToast()` replaces `alert()` for PDF "no findings" guard
+- JS cache-buster: main.js?v=153
+
+BL-25 (PDF Export Animated Spinner): ✅ merged to main — 2026-09-10
+- Animated `.btn-loading` spinner on PDF and ZIP export buttons during async operations
+
+BL-26 (Skeleton Rows During Wiz Bulk Import): ✅ merged to main — 2026-09-10
+- `showWiziSkeletonRows()` injects 5 shimmer rows before fetch; cleared on success, error, and network failure; "load more" path unaffected
+- CSS: `@keyframes shimmer`, `.wizi-skeleton-cell`, `.wizi-skeleton-row td` in wizi.css; builder.css rebuilt
+- JS cache-buster: main.js?v=155
+
+## PDF Layout Fragmentation Fix
+
+PDF layout fragmentation fix + packer improvements: 🔄 in progress
+- Branch: fix/pdf-layout-fragmentation
+- Started: 2026-09-14
+- Commits (chronological):
+  - f6a600b: WIP snapshot before PDF layout fixes (Wave 8 work in flight, not reviewed)
+  - a4d0dd0: keep section headings with their tables; allow large tables to paginate
+  - a7de68c: correct card-splitter height budget and reclaim leaked page padding
+  - 0ffcf85: remove dead .finding-continuation break-after rule
+  - ad7f99d: generic descent splitter for oversized UL/OL children (Commit 3)
+  - 615b1d4: housekeeping for pdf-layout-fragmentation branch
+  - fb29fd9: thin grey border on continuation pages instead of navy section accent
+  - 3985cc4: untrack root pdf-layout-remaining-issues.md; move to .plan/
+  - 51a5d2f: correct DES-H-1 status and update awaiting-merge entry
+  - 56e5ca9: log four deferred PDF layout items as Phase 9
+  - 8b3089b: comment ELIGIBLE_SPLIT_TYPES — OL path has never executed
+  - 02fd203: reduce .page-section border-top from 5px to 3px navy
+  - 2bad763: force page break before appendix-a and recommendations sections
+  - 1c081ac: Revert "reduce .page-section border-top from 5px to 3px navy"
+  - d4a39a1: correct 908/886 derivation comments — source 5px border to findings.js:2744
+  - d84c23c: confirm #recommendations selector is load-bearing for zero-findings case
+  - e46a0fc: reduce .page-section border-top from 5px to 2px navy
+  - 5639a8b: RTL bullet markers — list-style-position:inside for Hebrew recs
+  - d4d28eb: severity badge mid-word wrap — white-space:nowrap + flex-shrink:0
+  - a040c5b: mark assets/report.css and report_template.html as not in PDF render path
+  - d2f9aa3: replace greedy packer with balanced-fill BCR-delta packer
+- Summary: scoped heading break-after rules to children (not wrapper), replaced untraceable 918px budget with empirically-measured MAX_PAGE_CARD_HEIGHT_PX=908 / MAX_PACK_HEIGHT_PX=886, reclaimed 45.35px padding-bottom leak, registered UL/OL descent in generic splitElement, thin grey border on continuation pages replacing navy section accent, RTL bullet marker fix (list-style-position:inside), severity badge nowrap fix, balanced-fill BCR-delta packer replacing greedy algorithm, deferred items logged to Phase 9
+- QA: geometry verified after border change — 66 pages / 2 spills / 0 near-blank / 915.3px max unchanged
+- **New features added on this branch (2026-09-17):**
+  - **Severity-sorted PDF export**: checkbox in export tab (`מיין לפי חומרה`) allows user to export PDF sorted by severity tier (Critical → High → Medium → Low → Info → Excepted) instead of by category; within each tier: alphabetical by category; TOC updated to match body order; localStorage persisted; applies to PDF, ZIP, HTML exports
+  - **Wiz truncation message update**: changed truncation text from `ראה דוח Wiz` to `לפירוט המלא יש להתחבר ל WIZ` (2 locations: single-item 300-char cap + 12-item count cap)
+  - **TOC severity-sort sync**: Table of Contents now respects severity-sort checkbox — TOC order matches body order when enabled
+- Files modified (uncommitted): backend/services/pdf_service.py, index.html, static/js/src/export.js, static/js/src/findings.js, static/js/src/products.js
+- JS cache-buster: v=172
+- Status: awaiting user testing before merge to main

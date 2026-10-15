@@ -305,6 +305,10 @@
               <label for="report-version" data-i18n="גרסה">גרסה</label>
               <input type="text" id="report-version" value="1.0" placeholder="1.0">
             </div>
+            <div class="form-field">
+              <label data-i18n="גרסת מערכת">גרסת מערכת</label>
+              <span id="system-version-badge" class="system-version-badge">—</span>
+            </div>
           </div>
         </details>
 
@@ -510,25 +514,37 @@
             </div>
           </div>
           <div id="category-badges" class="category-badges"></div>
-          <!-- Batch actions (hidden, elements kept for JS) -->
-          <div id="batch-actions" style="display:none;">
+          <!-- Batch actions — visibility controlled by JS (findings.js showBatchBar / hideBatchBar) -->
+          <div id="batch-actions">
             <span id="batch-count"></span>
-            <select id="batch-severity" style="display:none;">
-              <option value="" data-i18n="חומרה">חומרה</option>
-              <option value="critical" data-i18n="קריטי">קריטי</option>
-              <option value="high" data-i18n="גבוה">גבוה</option>
-              <option value="medium" data-i18n="בינוני">בינוני</option>
-              <option value="low" data-i18n="נמוך">נמוך</option>
-              <option value="info" data-i18n="מידע">מידע</option>
+            <select id="batch-severity" class="filter-select">
+              <option value="">חומרה</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+              <option value="info">Info</option>
             </select>
-            <select id="batch-priority" style="display:none;">
-              <option value="" data-i18n="עדיפות">עדיפות</option>
-              <option value="מיידי (0–7 ימים)" data-i18n="מיידי">מיידי</option>
-              <option value="גבוהה (עד 30 ימים)" data-i18n="גבוהה">גבוהה</option>
-              <option value="בינונית (30–60 ימים)" data-i18n="בינונית">בינונית</option>
-              <option value="נמוכה (60–120 ימים)" data-i18n="נמוכה">נמוכה</option>
+            <select id="batch-priority" class="filter-select">
+              <option value="">עדיפות</option>
+              <option value="מיידי (0–7 ימים)">מיידי</option>
+              <option value="גבוהה (עד 30 ימים)">גבוהה</option>
+              <option value="בינונית (30–60 ימים)">בינונית</option>
+              <option value="נמוכה (60–120 ימים)">נמוכה</option>
             </select>
-            <input type="hidden" id="batch-owner">
+            <select id="batch-category" class="filter-select">
+              <option value="">קטגוריה</option>
+              <option value="CSPM">CSPM</option>
+              <option value="KSPM">KSPM</option>
+              <option value="DSPM">DSPM</option>
+              <option value="VULN">VULN</option>
+              <option value="NEXP">NEXP</option>
+              <option value="EAPM">EAPM</option>
+              <option value="HSPM">HSPM</option>
+              <option value="SECR">SECR</option>
+              <option value="EOLM">EOLM</option>
+            </select>
+            <input type="text" id="batch-owner" placeholder="בעלים" class="filter-input" style="max-width:140px;">
             <button id="btn-batch-ai-enrich" style="display:none;"></button>
             <button id="btn-batch-delete" style="display:none;"></button>
           </div>
@@ -622,6 +638,7 @@
             <div class="export-card-header" data-i18n="📤 ייצוא דו&quot;ח">📤 ייצוא דו"ח</div>
             <div class="export-card-body">
               <button class="btn btn-primary" id="btn-render-pdf" disabled data-i18n="📄 ייצא PDF">📄 ייצא PDF</button>
+              <button class="btn btn-secondary" id="btn-export-zip" disabled data-i18n="📦 ייצא ZIP">📦 ייצא ZIP</button>
               <button class="btn btn-secondary" id="btn-generate" disabled data-i18n="👁 תצוגה מקדימה">👁 תצוגה מקדימה</button>
               <button class="btn btn-secondary" id="btn-download" disabled data-i18n="🌐 הורד HTML">🌐 הורד HTML</button>
               <button class="btn btn-secondary" id="btn-export-html" disabled data-i18n="ייצוא HTML אינטראקטיבי">ייצוא HTML אינטראקטיבי</button>
@@ -629,6 +646,10 @@
               <div class="export-option-row">
                 <input type="checkbox" id="chk-golden5" checked>
                 <label for="chk-golden5" data-i18n="כלול פרק &quot;Golden 5&quot;">כלול פרק "Golden 5"</label>
+              </div>
+              <div class="export-option-row">
+                <input type="checkbox" id="chk-severity-sort">
+                <label for="chk-severity-sort" data-i18n="מיין לפי חומרה">מיין לפי חומרה</label>
               </div>
             </div>
           </div>
@@ -938,6 +959,6 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=140"></script>
+  <script type="module" src="/static/js/src/main.js?v=172"></script>
 </body>
 </html>

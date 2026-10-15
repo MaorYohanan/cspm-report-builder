@@ -15,5 +15,10 @@ export const state = {
     info:     { text: 'מידע',  class: 'sev-info' }
   },
   bulkImportResults: {},
-  bulkImportRunning: false
+  bulkImportRunning: false,
+  // Set to 'draft' or 'published' when a version is loaded via the products timeline;
+  // null when no version is loaded (standalone report-builder session).
+  loadedVersionStatus: null,
+  // Set to true by export.js once /api/health confirms ai_enabled.
+  aiEnabled: false
 };

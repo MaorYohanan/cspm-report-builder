@@ -1,0 +1,8 @@
+# Development-only dependencies — NOT for production.
+# Do NOT add this file to the Docker build (Dockerfile copies only requirements.txt).
+# Install locally when running PDF geometry verification checks.
+
+# PDF geometry verification: render a report PDF and extract per-page block
+# positions to detect spill pages, near-blank pages, and content overflow.
+# Used in manual and CI-adjacent testing; not a runtime dependency.
+pymupdf==1.28.2
