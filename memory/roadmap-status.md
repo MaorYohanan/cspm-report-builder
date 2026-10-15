@@ -284,9 +284,10 @@ BL-26 (Skeleton Rows During Wiz Bulk Import): ✅ merged to main — 2026-09-10
 
 ## PDF Layout Fragmentation Fix
 
-PDF layout fragmentation fix + packer improvements: 🔄 in progress
+PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-10-15
 - Branch: fix/pdf-layout-fragmentation
 - Started: 2026-09-14
+- Merged: 2026-10-15
 - Commits (chronological):
   - f6a600b: WIP snapshot before PDF layout fixes (Wave 8 work in flight, not reviewed)
   - a4d0dd0: keep section headings with their tables; allow large tables to paginate
@@ -309,12 +310,13 @@ PDF layout fragmentation fix + packer improvements: 🔄 in progress
   - d4d28eb: severity badge mid-word wrap — white-space:nowrap + flex-shrink:0
   - a040c5b: mark assets/report.css and report_template.html as not in PDF render path
   - d2f9aa3: replace greedy packer with balanced-fill BCR-delta packer
+  - 0ea55b9: feat(pdf): severity-sorted export + layout fragmentation fixes (final commit)
 - Summary: scoped heading break-after rules to children (not wrapper), replaced untraceable 918px budget with empirically-measured MAX_PAGE_CARD_HEIGHT_PX=908 / MAX_PACK_HEIGHT_PX=886, reclaimed 45.35px padding-bottom leak, registered UL/OL descent in generic splitElement, thin grey border on continuation pages replacing navy section accent, RTL bullet marker fix (list-style-position:inside), severity badge nowrap fix, balanced-fill BCR-delta packer replacing greedy algorithm, deferred items logged to Phase 9
 - QA: geometry verified after border change — 66 pages / 2 spills / 0 near-blank / 915.3px max unchanged
-- **New features added on this branch (2026-09-17):**
+- **New features added on this branch:**
   - **Severity-sorted PDF export**: checkbox in export tab (`מיין לפי חומרה`) allows user to export PDF sorted by severity tier (Critical → High → Medium → Low → Info → Excepted) instead of by category; within each tier: alphabetical by category; TOC updated to match body order; localStorage persisted; applies to PDF, ZIP, HTML exports
   - **Wiz truncation message update**: changed truncation text from `ראה דוח Wiz` to `לפירוט המלא יש להתחבר ל WIZ` (2 locations: single-item 300-char cap + 12-item count cap)
   - **TOC severity-sort sync**: Table of Contents now respects severity-sort checkbox — TOC order matches body order when enabled
-- Files modified (uncommitted): backend/services/pdf_service.py, index.html, static/js/src/export.js, static/js/src/findings.js, static/js/src/products.js
+- Files modified: backend/services/pdf_service.py, index.html, static/js/src/export.js, static/js/src/findings.js, static/js/src/products.js, .plan/backlog.md, memory/roadmap-status.md
 - JS cache-buster: v=172
-- Status: awaiting user testing before merge to main
+- Tests: 214 passed, 0 failed
