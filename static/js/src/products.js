@@ -682,7 +682,9 @@ export var ProductsPanel = {
 
       var html;
       try {
-        html = buildReportHtml({ isDraft: versionData.status === 'draft' });
+        const severitySortChk = document.getElementById('chk-severity-sort');
+        const severitySort = severitySortChk && severitySortChk.checked;
+        html = buildReportHtml({ isDraft: versionData.status === 'draft', severitySort });
       } finally {
         // Restore the form field to the value set by applySnapshot (meta.reportVersion).
         // Note: applySnapshot already replaced the full editor state with the snapshot,

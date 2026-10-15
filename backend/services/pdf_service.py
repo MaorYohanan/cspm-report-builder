@@ -101,9 +101,18 @@ class PDFService:
      is injected via add_style_tag() after the inline <style> block in the report HTML,
      so later source order wins without a specificity escalation. */
   .finding-continuation { border-top: 1px solid #e5e7eb; }
-  /* Findings intro: don't force page break after, so first finding shares the page */
-  .findings-intro { break-after: auto !important; page-break-after: auto !important; }
-  .findings-intro + .finding-page { break-before: auto !important; page-break-before: auto !important; }
+  /* Chapter 5 (findings-intro) is now a section-intro (not a page-section), so it has no
+     card padding or break-after:page. Force it to start on a new page and zero the bottom
+     margin so the first .finding-category-header appears flush below it. */
+  .findings-intro {
+    break-before: page !important; page-break-before: always !important;
+    margin-bottom: 0 !important;
+  }
+  /* Remove the h2 top margin that would gap the category/severity header from the chapter heading. */
+  .finding-category-header { margin-top: 0 !important; }
+  .finding-category-header h2 { margin-top: 0 !important; }
+  .finding-severity-header { margin-top: 0 !important; }
+  .finding-severity-header h2 { margin-top: 0 !important; }
   /* Keep section headings and their intro paragraph glued to the table that
      follows. The break we need to suppress is INTERNAL to .section-intro,
      between its child siblings — not after the section itself. */
@@ -555,79 +564,25 @@ class PDFService:
                                     const bcrOf = new Map();
                                     children.forEach(el => bcrOf.set(el, el.getBoundingClientRect()));
 
-                                    // ── Balanced-fill BCR-delta packer ───────────────────────
-                                    // Uses absolute breakpoints from headerEl.top — not the
-                                    // getBoundingClientRect delta relative to each chunk's own
-                                    // first element. The relative-from-chunk-start approach
-                                    // re-applies the budget independently to each continuation
-                                    // chunk; if one chunk fills slightly short of target, the
-                                    // next chunk sees more content than target and overflows,
-                                    // which recreates the stranded tail the algorithm was
-                                    // designed to eliminate.
+                                    // ── Greedy BCR-delta packer with section-boundary orphan guard ─
+                                    // Fills each chunk to the hard cap (MAX_PACK_HEIGHT_PX = 886px),
+                                    // then breaks. The orphan guard carries a .finding-section-title
+                                    // that ends up last in a full chunk forward to the next page, so
+                                    // no section heading is ever stranded without content below it.
                                     //
-                                    // Absolute-breakpoint strategy:
-                                    //   H   = BCR span of the full card content
-                                    //         (headerEl.top → last afterHeader element.bottom)
-                                    //   N   = ceil(H / MAX_PACK_HEIGHT_PX)
-                                    //   target = H / N
-                                    //   Break at headerEl.top + k×target for k = 1…N−1.
-                                    //
-                                    // Safety property: H / ceil(H / 886) <= 886 holds
-                                    // unconditionally (since ceil(H/886) >= H/886 > 0), so
-                                    // target can never exceed the hard cap. Chunk count N is
-                                    // identical to the old greedy approach for the same H, so
-                                    // the worst-case page count is unchanged; the common case
-                                    // is strictly better because equal-sized absolute intervals
-                                    // prevent the accumulation of slack that made greedy always
-                                    // strand a small tail.
-                                    //
-                                    // Single-element guard: if an element's bottom crosses the
-                                    // next breakpoint, the current chunk is pushed and that
-                                    // element starts the next chunk. Even if the element alone
-                                    // exceeds target (impossible once bpIdx reaches N), it
-                                    // cannot exceed MAX_PACK_HEIGHT_PX because target <= 886.
-                                    const totalH = afterHeader.length > 0
-                                        ? bcrOf.get(afterHeader[afterHeader.length - 1]).bottom
-                                          - bcrOf.get(headerEl).top
-                                        : 0;
-                                    const N = Math.max(
-                                        1, Math.ceil(totalH / MAX_PACK_HEIGHT_PX)
-                                    );
-                                    const target = totalH / N;
-                                    const headerTop = bcrOf.get(headerEl).top;
-                                    // bpIdx is the index of the NEXT breakpoint to enforce
-                                    // (1-based). When bpIdx >= N there are no more breaks.
-                                    let bpIdx = 1;
-
+                                    // relDelta = BCR bottom of current element minus BCR top of the
+                                    // first element in the current chunk (captures collapsed margins,
+                                    // consistent with how MAX_PACK_HEIGHT_PX was derived).
                                     const chunks = [];
                                     let currentChunk = [headerEl];
                                     let chunkFirstBcr = bcrOf.get(headerEl);
 
                                     afterHeader.forEach((el) => {
                                         const elBcr = bcrOf.get(el);
-
-                                        // Two break conditions — EITHER triggers a split:
-                                        //
-                                        // 1. Balanced breakpoint (primary): element's bottom
-                                        //    crosses the next absolute position
-                                        //    headerTop + bpIdx × target. Advances bpIdx so
-                                        //    subsequent elements aim at the next interval.
-                                        //    Only fires while bpIdx < N.
-                                        //
-                                        // 2. Hard-cap backstop (secondary): relative BCR-delta
-                                        //    from the current chunk's first element exceeds
-                                        //    MAX_PACK_HEIGHT_PX (886). Fires regardless of
-                                        //    bpIdx — handles unsplittable elements (e.g. a bare
-                                        //    <P> whose height exceeds 886px) that would overflow
-                                        //    any single page even after balanced splitting.
-                                        //    Does NOT advance bpIdx so the balance accounting
-                                        //    is unaffected.
                                         const relDelta = elBcr.bottom - chunkFirstBcr.top;
-                                        const crossesBalance = bpIdx < N &&
-                                            elBcr.bottom > headerTop + bpIdx * target;
                                         const crossesCap = relDelta > MAX_PACK_HEIGHT_PX;
 
-                                        if (crossesBalance || crossesCap) {
+                                        if (crossesCap) {
                                             // Avoid orphaned section title at page bottom:
                                             // carry it forward to the next page.
                                             const last = currentChunk[currentChunk.length - 1];
@@ -641,7 +596,6 @@ class PDFService:
                                                 currentChunk = [el];
                                                 chunkFirstBcr = elBcr;
                                             }
-                                            if (crossesBalance) bpIdx++;
                                         } else {
                                             currentChunk.push(el);
                                         }

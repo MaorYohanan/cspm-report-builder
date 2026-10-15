@@ -291,3 +291,50 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** The diff view shows color-coded rows and a numeric risk delta but produces no natural-language interpretation, leaving product owners and non-technical stakeholders unable to understand what the comparison means without consultant assistance.
 **Effort:** Low-Medium
 **Notes:** NET-NEW. `renderDiff` in `static/js/src/products.js` (line 855) generates a color-coded diff table (added/resolved/changed rows) and a numeric risk delta display but contains no AI call and no narrative paragraph. No `GeminiService` method, no backend route, and no `features.md` entry for a diff narrative exist anywhere in the codebase. Net-new work: (1) a new `GeminiService.generate_diff_summary()` method that receives added/resolved/changed counts, the risk delta value, version strings, and a representative sample of affected finding titles; (2) a new backend route `POST /api/generate-diff-summary` (`require_role("viewer")`) that validates inputs and delegates to the new Gemini method; (3) in `renderDiff`, after computing the diff data and before closing the `diff-panel` div, fire an async fetch to the route with the counts and sample titles, show a "מייצר סיכום..." loading placeholder while the call is in flight, then inject the returned Hebrew narrative paragraph above the diff row list; (4) degrade gracefully — if the Gemini call fails or returns empty, hide the narrative section entirely without surfacing an error to the user.
+
+---
+
+## Ad-Hoc Features (not in original backlog)
+
+Features implemented outside the prioritized backlog, added by direct user request.
+
+### Severity-Sorted PDF Export ✅ IMPLEMENTED
+**Implemented:** 2026-09-17
+**Branch:** fix/pdf-layout-fragmentation
+**Status:** Uncommitted, awaiting user testing
+**Why:** Users want to triage findings by severity (Critical → Medium) across all categories, not grouped by category. Current PDF groups by category (CSPM, KSPM, VULN), making it hard to find high-severity items when scattered across sections.
+**What was built:**
+- Checkbox in export tab: `מיין לפי חומרה` (Sort by severity)
+- When enabled: PDF groups findings by severity tier with section headings (Critical Findings, High Findings, Medium Findings, Low Findings, Info Findings, Excepted Findings)
+- Within each tier: alphabetical sort by category (CSPM → KSPM → VULN)
+- Excepted findings: separate section at end regardless of severity
+- Table of Contents: respects severity-sort checkbox — TOC order matches body order
+- Persistence: localStorage (like Golden 5 checkbox)
+- Applies to: PDF export, ZIP export, HTML export
+**Files modified:**
+- `static/js/src/export.js` — checkbox, localStorage persistence
+- `static/js/src/findings.js` — `buildReportHtml({ severitySort })` fork logic, TOC sync
+- `static/js/src/products.js` — pass severity-sort flag
+- `backend/services/pdf_service.py` — CSS for `.finding-severity-header`
+- `index.html` — checkbox UI + JS cache-buster v=172
+**Edge cases handled:**
+- Excepted findings → separate section at end
+- Info severity → included after Low tier
+- Zero findings in a tier → section heading skipped
+- Category-severity matrix table → kept (still useful as dashboard)
+
+### Wiz Truncation Message Update ✅ IMPLEMENTED
+**Implemented:** 2026-09-17
+**Branch:** fix/pdf-layout-fragmentation
+**Status:** Uncommitted, awaiting user testing
+**Why:** Original truncation message `ראה דוח Wiz` was unclear; user requested more explicit instruction.
+**What was changed:**
+- Old message: `ראה דוח Wiz`
+- New message: `לפירוט המלא יש להתחבר ל WIZ`
+- Applied in 2 locations:
+  1. Single-item truncation (technical detail item >300 chars)
+  2. Item-count truncation (>12 technical detail items)
+**Files modified:**
+- `static/js/src/findings.js` — updated both truncation messages (lines 2527, 2531)
+- `index.html` — JS cache-buster v=171 → v=172
+

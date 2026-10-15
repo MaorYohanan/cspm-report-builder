@@ -696,8 +696,8 @@ const dateInput       = document.getElementById('report-date');
             '</div>';
         }).join('\n');
 
-        return '<section class="page-section golden5-chapter" id="golden5">\n' +
-          '  <h1>5 הממצאים המשמעותיים ביותר</h1>\n' +
+        return '<section class="section-intro golden5-chapter" id="golden5">\n' +
+          '  <h1>3. חמשת הממצאים המשמעותיים ביותר</h1>\n' +
           cards + '\n' +
           '</section>';
       }
@@ -710,7 +710,8 @@ const dateInput       = document.getElementById('report-date');
           renderPdfBtn.disabled = true;
           renderPdfBtn.classList.add('btn-loading');
           try {
-            let html = buildReportHtml();
+            const severitySort = severitySortChk && severitySortChk.checked;
+            let html = buildReportHtml({ severitySort });
 
             // exec-summary and scope-method are in the same <section> in buildReportHtml().
             // The only available insertion point is after that combined section closes
@@ -731,7 +732,7 @@ const dateInput       = document.getElementById('report-date');
                 // we add it between the exec-summary and scope-method entries.
                 html = html.replace(
                   /(<a href="#exec-summary">[^<]*<\/a><\/span>\s*<\/li>)(\s*<li[^>]*>\s*<span>\s*<a href="#scope-method">)/,
-                  function(_, p1, p2) { return p1 + '\n<li class="toc-item"><span><a href="#golden5">5 הממצאים המשמעותיים ביותר</a></span></li>' + p2; }
+                  function(_, p1, p2) { return p1 + '\n<li class="toc-item"><span><a href="#golden5">3. חמשת הממצאים המשמעותיים ביותר</a></span></li>' + p2; }
                 );
               }
             }
@@ -815,7 +816,8 @@ const dateInput       = document.getElementById('report-date');
           exportZipBtn.disabled = true;
           exportZipBtn.classList.add('btn-loading');
           try {
-            let html = buildReportHtml();
+            const severitySort = severitySortChk && severitySortChk.checked;
+            let html = buildReportHtml({ severitySort });
 
             // Apply Golden 5 injection — same logic as renderPdfBtn handler
             if (golden5Chk && golden5Chk.checked) {
@@ -827,7 +829,7 @@ const dateInput       = document.getElementById('report-date');
                 );
                 html = html.replace(
                   /(<a href="#exec-summary">[^<]*<\/a><\/span>\s*<\/li>)(\s*<li[^>]*>\s*<span>\s*<a href="#scope-method">)/,
-                  function(_, p1, p2) { return p1 + '\n<li class="toc-item"><span><a href="#golden5">5 הממצאים המשמעותיים ביותר</a></span></li>' + p2; }
+                  function(_, p1, p2) { return p1 + '\n<li class="toc-item"><span><a href="#golden5">3. חמשת הממצאים המשמעותיים ביותר</a></span></li>' + p2; }
                 );
               }
             }
@@ -1333,6 +1335,16 @@ const dateInput       = document.getElementById('report-date');
         golden5Chk.checked = saved === null ? true : saved === 'true';
         golden5Chk.addEventListener('change', function() {
           localStorage.setItem('export-golden5-enabled', String(golden5Chk.checked));
+        });
+      }
+
+      // ── Severity Sort — localStorage persistence ──
+      const severitySortChk = document.getElementById('chk-severity-sort');
+      if (severitySortChk) {
+        const saved = localStorage.getItem('export-severity-sort-enabled');
+        severitySortChk.checked = saved === null ? false : saved === 'true';
+        severitySortChk.addEventListener('change', function() {
+          localStorage.setItem('export-severity-sort-enabled', String(severitySortChk.checked));
         });
       }
 
