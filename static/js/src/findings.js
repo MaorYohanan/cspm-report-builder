@@ -1042,6 +1042,25 @@ let priorityTouched = false;
         return snapshot;
       }
 
+      // Create a lightweight hash of the snapshot for dirty-state comparison
+      function _snapshotHash(snapshot) {
+        // Simple hash: findings count + JSON.stringify length
+        // Not cryptographically secure, but sufficient for dirty-state detection
+        const findingsStr = JSON.stringify(snapshot.findings || []);
+        return `${(snapshot.findings || []).length}-${findingsStr.length}`;
+      }
+
+      // Check if there are unsaved changes
+      export function hasUnsavedChanges() {
+        if (state.lastSavedSnapshotHash === null) {
+          // No baseline — assume clean (fresh session or just loaded)
+          return false;
+        }
+        const currentSnapshot = buildSnapshot();
+        const currentHash = _snapshotHash(currentSnapshot);
+        return currentHash !== state.lastSavedSnapshotHash;
+      }
+
       // טעינת Snapshot לדו"ח
       export function applySnapshot(snapshot) {
         if (!snapshot || typeof snapshot !== 'object') {
@@ -1174,6 +1193,9 @@ let priorityTouched = false;
         statusMsg.textContent =
           'נטען דו"ח קיים' +
           (m.reportDate ? ' (תאריך דו"ח: ' + m.reportDate + ').' : '.');
+
+        // Update saved snapshot hash baseline (BL-30: dirty-state tracking)
+        state.lastSavedSnapshotHash = _snapshotHash(snapshot);
       }
 
       export function renderFindingsTable() {

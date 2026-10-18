@@ -20,5 +20,8 @@ export const state = {
   // null when no version is loaded (standalone report-builder session).
   loadedVersionStatus: null,
   // Set to true by export.js once /api/health confirms ai_enabled.
-  aiEnabled: false
+  aiEnabled: false,
+  // Snapshot hash of last saved state (for unsaved-changes detection).
+  // Updated on successful save and on applySnapshot load.
+  lastSavedSnapshotHash: null
 };

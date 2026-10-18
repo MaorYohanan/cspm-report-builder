@@ -1,5 +1,5 @@
 import { showToast, styledConfirm } from './core.js';
-import { buildSnapshot, applySnapshot, switchToTab, buildReportHtml, buildFilename } from './findings.js';
+import { buildSnapshot, applySnapshot, switchToTab, buildReportHtml, buildFilename, hasUnsavedChanges } from './findings.js';
 
 // ═══════════════════════════════════════════
 // Product Registry — products.js
@@ -610,16 +610,42 @@ export var ProductsPanel = {
         var action = btn.getAttribute('data-action');
         var ver = btn.getAttribute('data-ver');
         if (action === 'load') {
-          self.fetchVersion(product.id, ver).then(function(data){
-            try { applySnapshot(data); showToast('גרסה v' + ver + ' נטענה לעורך', 'success'); }
-            catch(e){ showToast('שגיאה בטעינת הגרסה', 'error'); }
-          }).catch(function(err){ showToast(err.message, 'error'); });
+          // BL-30: Check for unsaved changes before loading
+          var doLoad = function() {
+            self.fetchVersion(product.id, ver).then(function(data){
+              try { applySnapshot(data); showToast('גרסה v' + ver + ' נטענה לעורך', 'success'); }
+              catch(e){ showToast('שגיאה בטעינת הגרסה', 'error'); }
+            }).catch(function(err){ showToast(err.message, 'error'); });
+          };
+          if (hasUnsavedChanges()) {
+            styledConfirm('קיימים שינויים שלא נשמרו. אם תמשיך, הנתונים הנוכחיים יאבדו. להמשיך?', {
+              title: 'שינויים לא נשמרו',
+              confirmText: 'כן, המשך'
+            }).then(function(confirmed) {
+              if (confirmed) doLoad();
+            });
+          } else {
+            doLoad();
+          }
         } else if (action === 'compare') {
           self._compareFlow(versions, ver);
         } else if (action === 'download') {
           self._downloadVersion(product.id, ver);
         } else if (action === 'export-pdf') {
-          self._exportVersionAsPdf(product.id, ver);
+          // BL-30: Check for unsaved changes before exporting PDF
+          var doExportPdf = function() {
+            self._exportVersionAsPdf(product.id, ver);
+          };
+          if (hasUnsavedChanges()) {
+            styledConfirm('קיימים שינויים שלא נשמרו. אם תמשיך, הנתונים הנוכחיים יאבדו. להמשיך?', {
+              title: 'שינויים לא נשמרו',
+              confirmText: 'כן, המשך'
+            }).then(function(confirmed) {
+              if (confirmed) doExportPdf();
+            });
+          } else {
+            doExportPdf();
+          }
         } else if (action === 'publish') {
           var doPublishConfirm = function(product, ver, self) {
             styledConfirm('לפרסם את גרסה v' + ver + '? לא ניתן לבטל.', { title: 'פרסום גרסה', confirmText: 'פרסם' }).then(function(confirmed) {
