@@ -282,6 +282,20 @@ BL-26 (Skeleton Rows During Wiz Bulk Import): ✅ merged to main — 2026-09-10
 - CSS: `@keyframes shimmer`, `.wizi-skeleton-cell`, `.wizi-skeleton-row td` in wizi.css; builder.css rebuilt
 - JS cache-buster: main.js?v=155
 
+BL-30 (Unsaved-Data Warning on Version Load / PDF): ✅ merged to main — 2026-10-19
+- Branch: main (direct commit)
+- Prevents silent data loss when loading different version or exporting version's PDF while current draft has unsaved edits
+- Added `lastSavedSnapshotHash` to state.js for dirty-state tracking
+- Added `_snapshotHash()` helper for lightweight snapshot comparison (findings count + JSON length)
+- Added `hasUnsavedChanges()` export to check dirty state
+- Updated `applySnapshot()` to set baseline hash when loading version
+- Intercepted 'load' and 'export-pdf' actions in products.js with `styledConfirm` dialog
+- Dialog: "קיימים שינויים שלא נשמרו. אם תמשיך, הנתונים הנוכחיים יאבדו. להמשיך?"
+- User can confirm (proceed) or cancel (abort); no dialog if no unsaved changes
+- JS cache-buster: main.js?v=173
+- Tests: 214 passed, 0 failed
+- **Tier 1 COMPLETE** — all 12 quick wins merged to main
+
 ## PDF Layout Fragmentation Fix
 
 PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-10-15

@@ -9,16 +9,21 @@ _Prioritized by user on 2026-08-30. Tiers are sequential — complete each tier 
 
 Items are organized into 4 tiers in execution order. Within each tier, the order listed is the recommended sequence but items can be parallelized if two agents are available.
 
-### Tier 1 — Quick Wins _(11 of 12 complete — Wave 8, merged 2026-09-10)_
+### Tier 1 — Quick Wins ✅ **COMPLETE** _(12/12 merged to main)_
 
-**✅ Completed items (merged to main):**
-- BL-03 (Draft Watermark), BL-05 (AI Key Topics), BL-06 (AI Exception Improver), BL-09 (Bulk Field Edit), BL-10 (Pre-Publish Checklist), BL-20 (ZIP Export), BL-21 (Priority Auto-Default), BL-22 (System Version Indicator), BL-25 (PDF Spinner), BL-26 (Skeleton Rows), BL-28 (Report Version on Cover)
-
-**⏳ Remaining:**
-
-| Order | ID | Feature | Effort | Note |
-|-------|----|---------|--------|------|
-| 1 | BL-30 | Unsaved-Data Warning on Version Load / PDF | Low | Confirm before switching version (LOAD/PDF) when findings have unsaved edits |
+**All items completed:**
+- BL-03 (Draft Watermark) — 2026-09-10
+- BL-05 (AI Key Topics) — 2026-09-10
+- BL-06 (AI Exception Improver) — 2026-09-10
+- BL-09 (Bulk Field Edit) — 2026-09-10
+- BL-10 (Pre-Publish Checklist) — 2026-09-10
+- BL-20 (ZIP Export) — 2026-09-10
+- BL-21 (Priority Auto-Default) — 2026-09-10
+- BL-22 (System Version Indicator) — 2026-09-10
+- BL-25 (PDF Spinner) — 2026-09-10
+- BL-26 (Skeleton Rows) — 2026-09-10
+- BL-28 (Report Version on Cover) — 2026-09-10
+- BL-30 (Unsaved-Data Warning) — 2026-10-19
 
 ### Tier 2 — High Value, Moderate Work _(after Tier 1 is merged)_
 Core product improvements. BL-11 is partially done so start there.
