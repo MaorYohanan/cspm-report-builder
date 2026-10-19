@@ -296,6 +296,21 @@ BL-30 (Unsaved-Data Warning on Version Load / PDF): ✅ merged to main — 2026-
 - Tests: 214 passed, 0 failed
 - **Tier 1 COMPLETE** — all 12 quick wins merged to main
 
+## Wave 9 — Tier 2 High-Value Features
+
+BL-11 (Custom Org-Level Finding Templates): ✅ merged to main — 2026-10-19
+- Branch: main (direct commit)
+- Admin panel to save reusable finding templates to database
+- FindingTemplate ORM model with all finding fields (name, category, severity, title, description, impact, technical, policies, recs, priority, owner, active)
+- 5 admin CRUD routes: GET/POST/PUT/DELETE /api/admin/templates + POST toggle
+- Admin panel reorganized with tab-based layout: "ניהול משתמשים" | "ניהול תבניות"
+- Custom templates auto-populated in findings dropdown with "★" prefix
+- CSP-compliant: all JavaScript extracted to static/js/src/admin.js (no inline scripts)
+- Files: backend/models.py, backend/routes/auth.py, templates/admin.html, static/js/src/admin.js (NEW), static/js/src/findings.js, index.html
+- Cache-busters: findings.js v=174, admin.js v=175
+- Tests: 214 passed, 0 failed
+- **Tier 2: 1/7 complete**
+
 ## PDF Layout Fragmentation Fix
 
 PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-10-15
