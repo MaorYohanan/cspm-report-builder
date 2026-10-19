@@ -311,6 +311,19 @@ BL-11 (Custom Org-Level Finding Templates): ✅ merged to main — 2026-10-19
 - Tests: 214 passed, 0 failed
 - **Tier 2: 1/7 complete**
 
+BL-19 (Risk Score Color Tiers): ✅ merged to main — 2026-10-19
+- Branch: main (direct commit)
+- Color-codes products/pipeline by risk score for instant visual triage
+- 4-tier system: Green (0-15), Orange (16-35), Red (36-60), Deep Crimson (60+)
+- Backend: added latestRiskScore to GET /api/pipeline response
+- Products page: colored accent bars in grid/list/timeline views
+- Pipeline dashboard: new "ציון סיכון" column with colored badges
+- Null-safe: products without published versions show no tier badge
+- Files: backend/routes/pipeline.py, static/js/src/products.js, static/js/src/pipeline.js, static/css/src/products.css, static/css/src/pipeline.css, static/css/builder.css, index.html, .plan/risk-tier-css-reference.md
+- Cache-busters: builder.css v=175, main.js v=175
+- Tests: 214 passed, 0 failed
+- **Tier 2: 2/7 complete**
+
 ## PDF Layout Fragmentation Fix
 
 PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-10-15

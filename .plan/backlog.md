@@ -25,18 +25,18 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 - BL-28 (Report Version on Cover) — 2026-09-10
 - BL-30 (Unsaved-Data Warning) — 2026-10-19
 
-### Tier 2 — High Value, Moderate Work _(1 of 7 complete)_
+### Tier 2 — High Value, Moderate Work _(2 of 7 complete)_
 
 **✅ Completed:**
 - BL-11 (Custom Org-Level Finding Templates) — 2026-10-19
+- BL-19 (Risk Score Color Tiers) — 2026-10-19
 
 **⏳ Remaining:**
 
 | Order | ID | Feature | Effort | Note |
 |-------|----|---------|--------|------|
 | 1 | BL-02 | Executive vs Technical PDF Mode | Medium | **SPEC INCOMPLETE** — needs design before implementation |
-| 2 | BL-19 | Risk Score Color Tiers | Medium | Fixed tiers: Green/Orange/Red/Crimson by risk score |
-| 3 | BL-07 | AI Finding Deduplication Detector | Medium | Gemini semantic similarity post-import |
+| 2 | BL-07 | AI Finding Deduplication Detector | Medium | Gemini semantic similarity post-import |
 | 4 | BL-17 | Backup and Restore | Medium | Admin ZIP backup/restore for all DB tables |
 | 5 | BL-27 | Scan-Due Push Notifications | Medium | SSE or polling + badge/toast for new overdue items |
 | 6 | BL-29 | AI-Generated Diff Summary | Low-Medium | Gemini narrative paragraph above diff table |
