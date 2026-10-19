@@ -631,12 +631,59 @@ let priorityTouched = false;
 
       // Populate template dropdown
       var templateSelect = document.getElementById('f-template');
-      findingTemplates.forEach(function(t, idx) {
-        var opt = document.createElement('option');
-        opt.value = idx;
-        opt.textContent = '[' + t.category + '] ' + t.title;
-        templateSelect.appendChild(opt);
-      });
+
+      function populateTemplateDropdown() {
+        // Clear existing options (except the first empty option)
+        while (templateSelect.options.length > 1) {
+          templateSelect.remove(1);
+        }
+
+        // Add all templates (hardcoded + custom)
+        findingTemplates.forEach(function(t, idx) {
+          var opt = document.createElement('option');
+          opt.value = idx;
+          // Show star prefix for custom templates
+          var prefix = t.isCustom ? '★ ' : '';
+          opt.textContent = prefix + '[' + t.category + '] ' + (t.isCustom ? t.name : t.title);
+          templateSelect.appendChild(opt);
+        });
+      }
+
+      // Initial population with hardcoded templates
+      populateTemplateDropdown();
+
+      // Fetch and merge custom templates
+      fetch('/api/admin/templates?active=true')
+        .then(function(res) {
+          if (!res.ok) {
+            // If request fails (e.g., user not admin), silently continue with hardcoded templates only
+            return [];
+          }
+          return res.json();
+        })
+        .then(function(customTemplates) {
+          if (customTemplates && customTemplates.length > 0) {
+            // Convert API format to internal format and mark as custom
+            customTemplates.forEach(function(ct) {
+              findingTemplates.push({
+                isCustom: true,
+                name: ct.name,
+                category: ct.category,
+                severity: ct.severity,
+                title: ct.title,
+                description: ct.description || '',
+                impact: ct.impact || '',
+                recs: ct.recommendations || '',
+              });
+            });
+            // Repopulate dropdown with merged templates
+            populateTemplateDropdown();
+          }
+        })
+        .catch(function(err) {
+          // Silently fail - user may not have admin access or network issue
+          console.warn('Failed to load custom templates:', err);
+        });
 
       templateSelect.addEventListener('change', function() {
         if (this.value === '') return;
@@ -644,14 +691,14 @@ let priorityTouched = false;
         if (isNaN(idx) || idx < 0 || idx >= findingTemplates.length) return;
         var t = findingTemplates[idx];
         if (!t) return;
-        
+
         var categoryEl = document.getElementById('f-category');
         var titleEl = document.getElementById('f-title');
         var severityEl = document.getElementById('f-severity');
         var descEl = document.getElementById('f-description');
         var impactEl = document.getElementById('f-impact');
         var recsEl = document.getElementById('f-recs');
-        
+
         if (categoryEl) categoryEl.value = t.category || 'CSPM';
         prefillId();
         if (titleEl) titleEl.value = t.title || '';

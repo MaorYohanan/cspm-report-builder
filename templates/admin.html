@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wizi — ניהול משתמשים</title>
+  <title>Wizi — ניהול מערכת</title>
   <link rel="stylesheet" href="/static/css/builder.css?v=49">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
   <style>
@@ -151,129 +151,265 @@
     .msg-error   { font-size: 13px; color: var(--danger);  margin-top: 10px; min-height: 18px; }
 
     .empty-state { text-align: center; padding: 40px; color: var(--text-muted); font-size: 14px; }
+
+    /* ── Template Management ── */
+    textarea {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      width: 100%;
+      resize: vertical;
+      min-height: 80px;
+      transition: border-color var(--transition);
+    }
+    textarea:focus { border-color: var(--accent); }
+
+    .template-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .template-form-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Category badges ── */
+    .category-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .cat-CSPM { background: oklch(0.28 0.12 280 / 0.45); color: oklch(0.75 0.16 280); }
+    .cat-KSPM { background: oklch(0.28 0.12 240 / 0.45); color: oklch(0.73 0.15 240); }
+    .cat-DSPM { background: oklch(0.28 0.12 200 / 0.45); color: oklch(0.71 0.15 200); }
+    .cat-VULN { background: oklch(0.28 0.12 20 / 0.45); color: oklch(0.72 0.15 20); }
+    .cat-NEXP { background: oklch(0.28 0.12 60 / 0.45); color: oklch(0.70 0.14 60); }
+    .cat-EAPM { background: oklch(0.28 0.12 155 / 0.45); color: oklch(0.70 0.15 155); }
+    .cat-HSPM { background: oklch(0.28 0.12 180 / 0.45); color: oklch(0.68 0.14 180); }
+    .cat-SECR { background: oklch(0.28 0.12 340 / 0.45); color: oklch(0.74 0.16 340); }
+    .cat-EOLM { background: oklch(0.28 0.12 120 / 0.45); color: oklch(0.69 0.14 120); }
+
+    /* ── Status badges ── */
+    .status-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status-active   { background: oklch(0.28 0.12 155 / 0.45); color: oklch(0.70 0.15 155); }
+    .status-inactive { background: oklch(0.28 0.05 0 / 0.35); color: var(--text-muted); }
+
+    /* ── Edit mode buttons ── */
+    .btn-secondary {
+      background: var(--bg-card-hover);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      padding: 5px 12px;
+    }
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+      font-size: 12px;
+      padding: 5px 12px;
+    }
+
+    /* ── Edit mode styling ── */
+    .edit-mode input[type="text"],
+    .edit-mode select,
+    .edit-mode textarea {
+      font-size: 13px;
+      padding: 6px 10px;
+    }
+    .edit-mode textarea { min-height: 60px; }
+
+    /* ── Admin tabs ── */
+    .admin-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
+    }
+
+    .admin-tab-btn {
+      background: transparent;
+      border: none;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-family: inherit;
+      position: relative;
+      transition: color var(--transition);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .admin-tab-btn:hover {
+      color: var(--text-heading);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .admin-tab-btn.active {
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.08);
+    }
+
+    /* Active indicator bar at bottom of tab - right side in RTL */
+    .admin-tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      right: 0;
+      left: 0;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    .admin-tab-panel {
+      display: none;
+      animation: panelFadeIn 0.2s ease;
+    }
+
+    .admin-tab-panel.active {
+      display: block;
+    }
+
+    @keyframes panelFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
   </style>
 </head>
 <body>
 
   <div class="admin-topbar">
     <div class="admin-logo">W</div>
-    <span class="admin-topbar-title">ניהול משתמשים</span>
+    <span class="admin-topbar-title">ניהול מערכת</span>
     <div style="flex:1"></div>
     <a href="/" class="back-btn">→ חזרה לאפליקציה</a>
   </div>
 
   <div class="admin-body">
 
-    <div class="card">
-      <div class="card-title">הוספת משתמש חדש</div>
-      <div class="add-form">
-        <div class="form-group">
-          <label for="new-email">כתובת אימייל</label>
-          <input type="email" id="new-email" placeholder="user@company.com" autocomplete="off">
-        </div>
-        <div class="form-group" style="flex:0; min-width:130px;">
-          <label for="new-role">תפקיד</label>
-          <select id="new-role">
-            <option value="viewer">Viewer</option>
-            <option value="editor" selected>Editor</option>
-            <option value="admin">Admin</option>
-          </select>
-        </div>
-        <button class="btn btn-primary" onclick="addUser()">הוסף</button>
-      </div>
-      <div id="status-msg" class="msg-success"></div>
-      <div id="error-msg"  class="msg-error"></div>
+    <!-- Category Tabs -->
+    <div class="admin-tabs">
+      <button class="admin-tab-btn active" data-tab="users">ניהול משתמשים</button>
+      <button class="admin-tab-btn" data-tab="templates">ניהול תבניות</button>
     </div>
 
-    <div class="card">
-      <div class="card-title">משתמשים קיימים</div>
-      <div id="users-container">
-        <div class="empty-state">טוען...</div>
+    <!-- User Management Tab Panel -->
+    <div class="admin-tab-panel active" id="tab-users">
+      <div class="card">
+        <div class="card-title">הוספת משתמש חדש</div>
+        <div class="add-form">
+          <div class="form-group">
+            <label for="new-email">כתובת אימייל</label>
+            <input type="email" id="new-email" placeholder="user@company.com" autocomplete="off">
+          </div>
+          <div class="form-group" style="flex:0; min-width:130px;">
+            <label for="new-role">תפקיד</label>
+            <select id="new-role">
+              <option value="viewer">Viewer</option>
+              <option value="editor" selected>Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="btn-add-user">הוסף</button>
+        </div>
+        <div id="status-msg" class="msg-success"></div>
+        <div id="error-msg"  class="msg-error"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">משתמשים קיימים</div>
+        <div id="users-container">
+          <div class="empty-state">טוען...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template Management Tab Panel -->
+    <div class="admin-tab-panel" id="tab-templates">
+      <div class="card">
+        <div class="card-title">הוספת תבנית חדשה</div>
+        <div class="template-form">
+          <div class="template-form-row">
+            <div class="form-group" style="flex: 2; min-width: 200px;">
+              <label for="tpl-name">שם תבנית</label>
+              <input type="text" id="tpl-name" placeholder="שם ייחודי לתבנית" autocomplete="off">
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 140px;">
+              <label for="tpl-category">קטגוריה</label>
+              <select id="tpl-category">
+                <option value="CSPM">CSPM</option>
+                <option value="KSPM">KSPM</option>
+                <option value="DSPM">DSPM</option>
+                <option value="VULN">VULN</option>
+                <option value="NEXP">NEXP</option>
+                <option value="EAPM">EAPM</option>
+                <option value="HSPM">HSPM</option>
+                <option value="SECR">SECR</option>
+                <option value="EOLM">EOLM</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 130px;">
+              <label for="tpl-severity">חומרה</label>
+              <select id="tpl-severity">
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium" selected>Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="tpl-title">כותרת</label>
+            <input type="text" id="tpl-title" placeholder="כותרת הממצא" autocomplete="off">
+          </div>
+          <div class="form-group">
+            <label for="tpl-description">תיאור</label>
+            <textarea id="tpl-description" placeholder="תיאור מפורט של הממצא"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="tpl-impact">השפעה</label>
+            <textarea id="tpl-impact" placeholder="מהי ההשפעה האפשרית"></textarea>
+          </div>
+          <div class="form-group">
+            <label for="tpl-recs">המלצות</label>
+            <textarea id="tpl-recs" placeholder="המלצות לטיפול"></textarea>
+          </div>
+          <div>
+            <button class="btn btn-primary" id="btn-add-template">הוסף תבנית</button>
+          </div>
+        </div>
+        <div id="tpl-status-msg" class="msg-success"></div>
+        <div id="tpl-error-msg"  class="msg-error"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">תבניות קיימות</div>
+        <div id="templates-container">
+          <div class="empty-state">טוען...</div>
+        </div>
       </div>
     </div>
 
   </div>
 
-  <script>
-    const ROLE_LABELS = { admin: 'Admin', editor: 'Editor', viewer: 'Viewer' };
-
-    async function loadUsers() {
-      const res = await fetch('/api/users');
-      if (!res.ok) { document.getElementById('users-container').innerHTML = '<div class="empty-state">שגיאה בטעינת משתמשים</div>'; return; }
-      const users = await res.json();
-      renderUsers(users);
-    }
-
-    function renderUsers(users) {
-      const el = document.getElementById('users-container');
-      if (!users.length) { el.innerHTML = '<div class="empty-state">אין משתמשים עדיין</div>'; return; }
-      const rows = users.map(u => `
-        <tr>
-          <td>${escHtml(u.email)}</td>
-          <td><span class="role-badge role-${u.role}">${ROLE_LABELS[u.role] || u.role}</span></td>
-          <td>
-            <select data-uid="${u.id}" onchange="changeRole(this)">
-              ${['viewer','editor','admin'].map(r => `<option value="${r}"${r===u.role?' selected':''}>${ROLE_LABELS[r]}</option>`).join('')}
-            </select>
-          </td>
-          <td><button class="btn btn-danger" onclick="deleteUser(${u.id})">הסר</button></td>
-        </tr>
-      `).join('');
-      el.innerHTML = `<table><thead><tr><th>אימייל</th><th>תפקיד</th><th>שינוי תפקיד</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>`;
-    }
-
-    function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
-    function setMsg(msg, isError) {
-      document.getElementById('status-msg').textContent = isError ? '' : msg;
-      document.getElementById('error-msg').textContent  = isError ? msg : '';
-    }
-
-    async function addUser() {
-      const email = document.getElementById('new-email').value.trim();
-      const role  = document.getElementById('new-role').value;
-      if (!email) { setMsg('נא להזין כתובת אימייל', true); return; }
-      const res = await fetch('/api/users', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({email, role})
-      });
-      const data = await res.json();
-      if (!res.ok) { setMsg(data.error || 'שגיאה', true); return; }
-      setMsg('המשתמש נוסף בהצלחה', false);
-      document.getElementById('new-email').value = '';
-      loadUsers();
-    }
-
-    async function changeRole(select) {
-      const uid  = select.dataset.uid;
-      const role = select.value;
-      const res = await fetch(`/api/users/${uid}`, {
-        method: 'PATCH',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({role})
-      });
-      const data = await res.json();
-      if (!res.ok) { setMsg(data.error || 'שגיאה', true); loadUsers(); return; }
-      setMsg('התפקיד עודכן', false);
-    }
-
-    // DES-I-08: deleteUser is exposed on window so the inline onclick="deleteUser(...)"
-    // attribute in renderUsers can reach it. styledConfirm is loaded via dynamic import
-    // so no <script type="module"> conversion is needed for this script block.
-    window.deleteUser = async function(uid) {
-      const { styledConfirm } = await import('/static/js/src/core.js');
-      const yes = await styledConfirm('האם למחוק משתמש זה?', { title: 'מחיקת משתמש', danger: true, confirmText: 'מחק' });
-      if (!yes) return;
-      const res  = await fetch(`/api/users/${uid}`, {method: 'DELETE'});
-      const data = await res.json();
-      if (!res.ok) { setMsg(data.error || 'שגיאה', true); return; }
-      setMsg('המשתמש הוסר', false);
-      loadUsers();
-    };
-
-    loadUsers();
-  </script>
+  <script type="module" src="/static/js/src/admin.js?v=175"></script>
 
 </body>
 </html>

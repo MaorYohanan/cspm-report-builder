@@ -114,3 +114,28 @@ class ExcludeRule(db.Model):
     pattern    = db.Column(db.String(500), nullable=False)
     active     = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class FindingTemplate(db.Model):
+    __tablename__ = "finding_templates"
+    __table_args__ = (
+        db.CheckConstraint(
+            "category IN ('CSPM','KSPM','DSPM','VULN','NEXP','EAPM','HSPM','SECR','EOLM')",
+            name="ck_templates_category"
+        ),
+        db.CheckConstraint(
+            "severity IN ('critical','high','medium','low','info')",
+            name="ck_templates_severity"
+        ),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), unique=True, nullable=False)
+    category = db.Column(db.String(20), nullable=False)
+    severity = db.Column(db.String(20), nullable=False)
+    title = db.Column(db.String(500), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    impact = db.Column(db.Text, nullable=True)
+    recommendations = db.Column(db.Text, nullable=True)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

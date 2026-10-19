@@ -16,7 +16,7 @@ from flask import (
 )
 
 from backend.database import db
-from backend.models import User
+from backend.models import FindingTemplate, User
 from backend.oauth import oauth
 from backend.services.auth_service import get_or_create_user, require_role
 
@@ -24,6 +24,8 @@ _log = logging.getLogger(__name__)
 auth_bp = Blueprint("auth", __name__)
 
 _VALID_ROLES = {"viewer", "editor", "admin"}
+_VALID_CATEGORIES = {"CSPM", "KSPM", "DSPM", "VULN", "NEXP", "EAPM", "HSPM", "SECR", "EOLM"}
+_VALID_SEVERITIES = {"critical", "high", "medium", "low", "info"}
 
 
 # ---------------------------------------------------------------------------
@@ -191,3 +193,205 @@ def delete_user(user_id: int):
     db.session.delete(user)
     db.session.commit()
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Finding Template management API (admin only)
+# ---------------------------------------------------------------------------
+
+
+@auth_bp.route("/api/admin/templates", methods=["GET"])
+@require_role("admin")
+def list_templates():
+    """List finding templates. Supports ?active=true to filter only active templates."""
+    query = db.select(FindingTemplate).order_by(FindingTemplate.created_at)
+
+    # Support filtering by active status
+    active_filter = request.args.get("active", "").lower()
+    if active_filter == "true":
+        query = query.where(FindingTemplate.active.is_(True))
+    elif active_filter == "false":
+        query = query.where(FindingTemplate.active.is_(False))
+
+    templates = db.session.execute(query).scalars().all()
+    return jsonify([
+        {
+            "id": t.id,
+            "name": t.name,
+            "category": t.category,
+            "severity": t.severity,
+            "title": t.title,
+            "description": t.description or "",
+            "impact": t.impact or "",
+            "recommendations": t.recommendations or "",
+            "active": t.active,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in templates
+    ])
+
+
+@auth_bp.route("/api/admin/templates/<int:template_id>", methods=["GET"])
+@require_role("admin")
+def get_template(template_id: int):
+    """Get a single finding template by ID."""
+    template = db.session.get(FindingTemplate, template_id)
+    if not template:
+        return jsonify({"error": "Not found"}), 404
+
+    return jsonify({
+        "id": template.id,
+        "name": template.name,
+        "category": template.category,
+        "severity": template.severity,
+        "title": template.title,
+        "description": template.description or "",
+        "impact": template.impact or "",
+        "recommendations": template.recommendations or "",
+        "active": template.active,
+        "created_at": template.created_at.isoformat() if template.created_at else None,
+    })
+
+
+@auth_bp.route("/api/admin/templates", methods=["POST"])
+@require_role("admin")
+def create_template():
+    """Create a new finding template."""
+    data = request.get_json(silent=True) or {}
+
+    name = (data.get("name") or "").strip()
+    category = (data.get("category") or "").upper().strip()
+    severity = (data.get("severity") or "").lower().strip()
+    title = (data.get("title") or "").strip()
+    description = (data.get("description") or "").strip()
+    impact = (data.get("impact") or "").strip()
+    recommendations = (data.get("recommendations") or "").strip()
+
+    # Validation
+    if not name:
+        return jsonify({"error": "Name is required"}), 400
+    if not category or category not in _VALID_CATEGORIES:
+        return jsonify({"error": f"Category must be one of: {', '.join(sorted(_VALID_CATEGORIES))}"}), 400
+    if not severity or severity not in _VALID_SEVERITIES:
+        return jsonify({"error": f"Severity must be one of: {', '.join(sorted(_VALID_SEVERITIES))}"}), 400
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+
+    # Check for duplicate name
+    existing = db.session.execute(
+        db.select(FindingTemplate).where(FindingTemplate.name == name)
+    ).scalar_one_or_none()
+    if existing:
+        return jsonify({"error": "Template with this name already exists"}), 409
+
+    template = FindingTemplate(
+        name=name,
+        category=category,
+        severity=severity,
+        title=title,
+        description=description or None,
+        impact=impact or None,
+        recommendations=recommendations or None,
+        active=True,
+        created_at=datetime.now(UTC),
+    )
+    db.session.add(template)
+    db.session.commit()
+
+    return jsonify({
+        "id": template.id,
+        "name": template.name,
+        "category": template.category,
+        "severity": template.severity,
+        "title": template.title,
+        "description": template.description or "",
+        "impact": template.impact or "",
+        "recommendations": template.recommendations or "",
+        "active": template.active,
+        "created_at": template.created_at.isoformat(),
+    }), 201
+
+
+@auth_bp.route("/api/admin/templates/<int:template_id>", methods=["PATCH"])
+@require_role("admin")
+def update_template(template_id: int):
+    """Update an existing finding template."""
+    template = db.session.get(FindingTemplate, template_id)
+    if not template:
+        return jsonify({"error": "Not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    # Update fields if provided
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            return jsonify({"error": "Name cannot be empty"}), 400
+        # Check for duplicate name (excluding current template)
+        existing = db.session.execute(
+            db.select(FindingTemplate).where(
+                FindingTemplate.name == name,
+                FindingTemplate.id != template_id
+            )
+        ).scalar_one_or_none()
+        if existing:
+            return jsonify({"error": "Template with this name already exists"}), 409
+        template.name = name
+
+    if "category" in data:
+        category = (data["category"] or "").upper().strip()
+        if category not in _VALID_CATEGORIES:
+            return jsonify({"error": f"Category must be one of: {', '.join(sorted(_VALID_CATEGORIES))}"}), 400
+        template.category = category
+
+    if "severity" in data:
+        severity = (data["severity"] or "").lower().strip()
+        if severity not in _VALID_SEVERITIES:
+            return jsonify({"error": f"Severity must be one of: {', '.join(sorted(_VALID_SEVERITIES))}"}), 400
+        template.severity = severity
+
+    if "title" in data:
+        title = (data["title"] or "").strip()
+        if not title:
+            return jsonify({"error": "Title cannot be empty"}), 400
+        template.title = title
+
+    if "description" in data:
+        template.description = (data["description"] or "").strip() or None
+
+    if "impact" in data:
+        template.impact = (data["impact"] or "").strip() or None
+
+    if "recommendations" in data:
+        template.recommendations = (data["recommendations"] or "").strip() or None
+
+    if "active" in data:
+        template.active = bool(data["active"])
+
+    db.session.commit()
+
+    return jsonify({
+        "id": template.id,
+        "name": template.name,
+        "category": template.category,
+        "severity": template.severity,
+        "title": template.title,
+        "description": template.description or "",
+        "impact": template.impact or "",
+        "recommendations": template.recommendations or "",
+        "active": template.active,
+        "created_at": template.created_at.isoformat(),
+    })
+
+
+@auth_bp.route("/api/admin/templates/<int:template_id>", methods=["DELETE"])
+@require_role("admin")
+def delete_template(template_id: int):
+    """Delete a finding template."""
+    template = db.session.get(FindingTemplate, template_id)
+    if not template:
+        return jsonify({"error": "Not found"}), 404
+
+    db.session.delete(template)
+    db.session.commit()
+    return jsonify({"success": True})
