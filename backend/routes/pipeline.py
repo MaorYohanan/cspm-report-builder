@@ -1125,6 +1125,7 @@ def get_pipeline():
             "subscriptionIds": p.subscription_ids or [],
             "lastPublishedAt": published_iso,
             "lastPublishedVersion": snap.version if snap else None,
+            "latestRiskScore": snap.risk_score if snap else None,
             "nextDueAt": next_due,
             "status": status,
         })

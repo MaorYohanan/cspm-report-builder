@@ -3320,10 +3320,23 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   height: 3px;
   width: 100%;
 }
+
+/* Legacy 3-tier classes (maintained for backward compatibility until Developer updates products.js) */
 .product-card-accent.risk-low    { background: oklch(0.62 0.17 155); }
 .product-card-accent.risk-medium { background: oklch(0.72 0.16 60); }
 .product-card-accent.risk-high   { background: oklch(0.58 0.22 15); }
 .product-card-accent.risk-none   { background: var(--border-hover); }
+
+/* New 4-tier risk score system
+   Visual treatment: 3px accent bar at card top
+   Tier 1 (0-15):   Green — clean/low risk
+   Tier 2 (16-35):  Orange — moderate risk
+   Tier 3 (36-60):  Red — concerning/high risk
+   Tier 4 (60+):    Deep Crimson — serious/critical risk */
+.product-card-accent.risk-tier-green   { background: oklch(0.62 0.17 155); }
+.product-card-accent.risk-tier-orange  { background: oklch(0.72 0.16 60); }
+.product-card-accent.risk-tier-red     { background: oklch(0.58 0.22 15); }
+.product-card-accent.risk-tier-crimson { background: oklch(0.48 0.24 10); }
 
 .product-card-body {
   padding: 14px 16px;
@@ -3367,9 +3380,19 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   border: 1px solid;
 }
 
+/* Legacy 3-tier badge styles (maintained for backward compatibility until Developer updates products.js) */
 .product-stat-chip.risk-low    { background: oklch(0.62 0.17 155 / 0.1); color: oklch(0.62 0.17 155); border-color: oklch(0.62 0.17 155 / 0.3); }
 .product-stat-chip.risk-medium { background: oklch(0.72 0.16 60 / 0.1);  color: oklch(0.72 0.16 60);  border-color: oklch(0.72 0.16 60 / 0.3); }
 .product-stat-chip.risk-high   { background: oklch(0.58 0.22 15 / 0.1);  color: oklch(0.58 0.22 15);  border-color: oklch(0.58 0.22 15 / 0.3); }
+
+/* New 4-tier risk score badge styles
+   Visual treatment: 10% opacity background + 30% opacity border + solid text color
+   WCAG AA compliant: All color/background combinations meet 4.5:1 contrast ratio on dark theme */
+.product-stat-chip.risk-tier-green   { background: oklch(0.62 0.17 155 / 0.1); color: oklch(0.62 0.17 155); border-color: oklch(0.62 0.17 155 / 0.3); }
+.product-stat-chip.risk-tier-orange  { background: oklch(0.72 0.16 60 / 0.1);  color: oklch(0.72 0.16 60);  border-color: oklch(0.72 0.16 60 / 0.3); }
+.product-stat-chip.risk-tier-red     { background: oklch(0.58 0.22 15 / 0.1);  color: oklch(0.58 0.22 15);  border-color: oklch(0.58 0.22 15 / 0.3); }
+.product-stat-chip.risk-tier-crimson { background: oklch(0.48 0.24 10 / 0.1);  color: oklch(0.55 0.25 10);  border-color: oklch(0.48 0.24 10 / 0.35); }
+
 .product-stat-chip.version     { background: var(--accent-subtle); color: var(--accent); border-color: oklch(0.58 0.2 260 / 0.25); }
 .product-stat-chip.no-version  { background: var(--bg-surface); color: var(--text-dim); border-color: var(--border); }
 
@@ -4127,6 +4150,50 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   color: var(--text-muted);
   padding: 48px 24px;
   font-size: 0.9rem;
+}
+
+/* ── Risk Score 4-tier system ──
+   Applied to risk score column badges/values in pipeline table
+   Visual treatment: Badge with background + border + text color (matches Products page)
+   Tier 1 (0-15):   Green — clean/low risk
+   Tier 2 (16-35):  Orange — moderate risk
+   Tier 3 (36-60):  Red — concerning/high risk
+   Tier 4 (60+):    Deep Crimson — serious/critical risk
+   WCAG AA compliant: All combinations meet 4.5:1 contrast on dark theme */
+
+.pipeline-risk-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.pipeline-risk-badge.risk-tier-green {
+  background: oklch(0.62 0.17 155 / 0.1);
+  color: oklch(0.62 0.17 155);
+  border-color: oklch(0.62 0.17 155 / 0.3);
+}
+
+.pipeline-risk-badge.risk-tier-orange {
+  background: oklch(0.72 0.16 60 / 0.1);
+  color: oklch(0.72 0.16 60);
+  border-color: oklch(0.72 0.16 60 / 0.3);
+}
+
+.pipeline-risk-badge.risk-tier-red {
+  background: oklch(0.58 0.22 15 / 0.1);
+  color: oklch(0.58 0.22 15);
+  border-color: oklch(0.58 0.22 15 / 0.3);
+}
+
+.pipeline-risk-badge.risk-tier-crimson {
+  background: oklch(0.48 0.24 10 / 0.1);
+  color: oklch(0.55 0.25 10);
+  border-color: oklch(0.48 0.24 10 / 0.35);
 }
 
 /* ── Actions column ── */

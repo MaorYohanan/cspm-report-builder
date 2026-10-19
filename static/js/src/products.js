@@ -280,7 +280,13 @@ export var ProductsPanel = {
       html += '<div class="products-grid">';
       products.slice().sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); }).forEach(function(p) {
         var rs = p.latestRiskScore || 0;
-        var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : p.latestVersion ? 'risk-low' : 'risk-none';
+        var riskClass = '';
+        if (p.latestVersion) {
+          if (rs <= 15) riskClass = 'risk-tier-green';
+          else if (rs <= 35) riskClass = 'risk-tier-orange';
+          else if (rs <= 60) riskClass = 'risk-tier-red';
+          else riskClass = 'risk-tier-crimson';
+        }
         html += '<div class="product-card">';
         html += '<div class="product-card-accent ' + riskClass + '"></div>';
         html += '<div class="product-card-body">';
@@ -404,7 +410,13 @@ export var ProductsPanel = {
 
     products.slice().sort(function(a, b) { return (a.name || '').localeCompare(b.name || '', 'he'); }).forEach(function(p) {
       var rs = p.latestRiskScore || 0;
-      var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : p.latestVersion ? 'risk-low' : 'risk-none';
+      var riskClass = '';
+      if (p.latestVersion) {
+        if (rs <= 15) riskClass = 'risk-tier-green';
+        else if (rs <= 35) riskClass = 'risk-tier-orange';
+        else if (rs <= 60) riskClass = 'risk-tier-red';
+        else riskClass = 'risk-tier-crimson';
+      }
 
       html += '<tr>';
       html += '<td>' + _esc(p.name || '') + '</td>';
@@ -540,7 +552,13 @@ export var ProductsPanel = {
         var statusClass = isDraft ? 'draft' : 'published';
         var statusLabel = isDraft ? 'DRAFT' : 'PUBLISHED';
         var rs = v.riskScore || 0;
-        var riskClass = rs > 30 ? 'risk-high' : rs > 10 ? 'risk-medium' : 'risk-low';
+        var riskClass = '';
+        if (v.riskScore != null && v.riskScore !== undefined) {
+          if (rs <= 15) riskClass = 'risk-tier-green';
+          else if (rs <= 35) riskClass = 'risk-tier-orange';
+          else if (rs <= 60) riskClass = 'risk-tier-red';
+          else riskClass = 'risk-tier-crimson';
+        }
 
         html += '<div class="version-row">';
         html += '<div class="version-row-strip ' + statusClass + '"></div>';

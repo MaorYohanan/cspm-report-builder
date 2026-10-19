@@ -27,6 +27,14 @@ function _fmtDate(iso) {
     } catch (e) { return iso; }
 }
 
+function _getRiskTierClass(score) {
+    if (score === null || score === undefined) return '';
+    if (score <= 15) return 'risk-tier-green';
+    if (score <= 35) return 'risk-tier-orange';
+    if (score <= 60) return 'risk-tier-red';
+    return 'risk-tier-crimson';
+}
+
 export var PipelinePanel = {
     _data: [],
     _filter: 'all',
@@ -96,7 +104,7 @@ export var PipelinePanel = {
         } else {
             html += '<div class="pipeline-table-wrap"><table class="pipeline-table">';
             html += '<thead><tr>'
-                + '<th>לקוח</th><th>סביבה</th><th>תדירות</th>'
+                + '<th>לקוח</th><th>סביבה</th><th>תדירות</th><th>ציון סיכון</th>'
                 + '<th>פרסום אחרון</th><th>מועד הבא</th><th>סטטוס</th><th>פעולות</th>'
                 + '</tr></thead>';
             html += '<tbody>';
@@ -111,10 +119,21 @@ export var PipelinePanel = {
                 var actionBtn = actionable
                     ? '<button class="btn btn-sm btn-primary pipeline-new-scan-btn" data-product-id="' + _esc(p.id) + '">סריקה חדשה</button>'
                     : '';
+
+                var riskScore = p.latestRiskScore;
+                var riskDisplay = '';
+                if (riskScore !== null && riskScore !== undefined) {
+                    var riskTier = _getRiskTierClass(riskScore);
+                    riskDisplay = '<span class="pipeline-risk-badge ' + riskTier + '">' + riskScore + '</span>';
+                } else {
+                    riskDisplay = '—';
+                }
+
                 html += '<tr>'
                     + '<td><strong>' + _esc(p.name) + '</strong>' + ver + '</td>'
                     + '<td>' + _esc(p.env) + '</td>'
                     + '<td>' + _esc(freq) + '</td>'
+                    + '<td>' + riskDisplay + '</td>'
                     + '<td class="pipeline-date">' + lastPub + '</td>'
                     + '<td class="pipeline-date">' + nextDue + '</td>'
                     + '<td><span class="pipeline-status-badge ' + cls + '">' + statusLabel + '</span></td>'
