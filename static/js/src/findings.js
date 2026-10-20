@@ -4,6 +4,7 @@ import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
+import { detectDuplicates } from './duplicates.js';
 
 const addBtn        = document.getElementById('btn-add-finding');
 const cancelEditBtn = document.getElementById('btn-cancel-edit');
@@ -2182,6 +2183,22 @@ let priorityTouched = false;
             return;
           }
           enrichFindingsWithAiSummaries(toEnrich);
+        });
+      }
+
+      // Detect duplicates
+      var _btnDetectDuplicates = document.getElementById('btn-detect-duplicates');
+      if (_btnDetectDuplicates) {
+        _btnDetectDuplicates.addEventListener('click', function() {
+          if (!ProductsPanel.selectedProduct || !ProductsPanel.selectedProduct.id) {
+            showToast('לא נבחר מוצר פעיל. שמור גרסה תחילה.', 'warning');
+            return;
+          }
+          if (!state.findings.length) {
+            showToast('אין ממצאים לבדיקה', 'warning');
+            return;
+          }
+          detectDuplicates(ProductsPanel.selectedProduct.id);
         });
       }
 

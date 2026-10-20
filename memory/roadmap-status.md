@@ -324,6 +324,11 @@ BL-19 (Risk Score Color Tiers): ✅ merged to main — 2026-10-19
 - Tests: 214 passed, 0 failed
 - **Tier 2: 2/7 complete**
 
+BL-07 (AI Finding Deduplication Detector): 🔄 in progress — started 2026-10-20
+- Branch: feature/bl-07-duplicate-detector
+- AI-powered duplicate detection within active product; 85% similarity threshold; user chooses which finding to keep
+- Designer Part 1 (UI) + Developer Part 2 (backend/Gemini) workflow
+
 ## PDF Layout Fragmentation Fix
 
 PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-10-15

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=175">
+  <link rel="stylesheet" href="/static/css/builder.css?v=176">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -564,6 +564,7 @@
               <div class="actions-dropdown" id="findings-more-menu" style="display:none;">
                 <button class="actions-dropdown-item" id="btn-ai-enrich-selected" data-i18n="🤖 שיפור המלצות לנבחרים">🤖 שיפור המלצות לנבחרים</button>
                 <button class="actions-dropdown-item" id="btn-ai-enrich-all" data-i18n="🤖 שיפור המלצות להכל">🤖 שיפור המלצות להכל</button>
+                <button class="actions-dropdown-item" id="btn-detect-duplicates" data-i18n="🔍 זהה כפילויות">🔍 זהה כפילויות</button>
                 <button class="actions-dropdown-item" id="menu-batch-delete" data-i18n="🗑️ מחק נבחרים">🗑️ מחק נבחרים</button>
                 <button class="actions-dropdown-item actions-dropdown-danger" id="btn-clear-all-findings" data-i18n="✕ מחק הכל">✕ מחק הכל</button>
               </div>
@@ -959,6 +960,20 @@
     </main>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=175"></script>
+  <!-- Duplicates Detection Modal -->
+  <div id="duplicates-modal" class="duplicates-modal" style="display:none;">
+    <div class="duplicates-modal-overlay"></div>
+    <div class="duplicates-modal-dialog">
+      <div class="duplicates-modal-header">
+        <h2 class="duplicates-modal-title" data-i18n="ממצאים כפולים">ממצאים כפולים</h2>
+        <button class="duplicates-modal-close" aria-label="סגור" data-i18n-aria-label="סגור">×</button>
+      </div>
+      <div class="duplicates-modal-body" id="duplicates-modal-body">
+        <!-- Content will be injected by duplicates.js -->
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/src/main.js?v=176"></script>
 </body>
 </html>
