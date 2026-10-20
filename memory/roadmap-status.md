@@ -327,7 +327,13 @@ BL-19 (Risk Score Color Tiers): ✅ merged to main — 2026-10-19
 BL-07 (AI Finding Deduplication Detector): 🔄 in progress — started 2026-10-20
 - Branch: feature/bl-07-duplicate-detector
 - AI-powered duplicate detection within active product; 85% similarity threshold; user chooses which finding to keep
-- Designer Part 1 (UI) + Developer Part 2 (backend/Gemini) workflow
+- Designer Part 1 (UI): ✅ complete — commit afc50f5
+- Developer Part 2 (backend/Gemini): 🔄 in progress
+  - ✅ Updated Gemini model names from invalid gemini-2.5-flash/pro to stable production models gemini-1.5-flash/pro
+  - ✅ Implemented GeminiService.detect_duplicate_findings() method with batch processing (20 pairs per API call)
+  - ✅ Implemented GET /api/products/<id>/findings/detect-duplicates route with confirmation flow for large products
+  - ⏳ Awaiting coordination with Designer for button-disable logic and confirmation modal integration
+  - Files: backend/routes/ai.py, backend/services/ai_service.py, backend/routes/products.py
 
 ## PDF Layout Fragmentation Fix
 

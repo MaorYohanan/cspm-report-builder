@@ -884,3 +884,124 @@ def delete_memory_entry(product_id: str):
         db.session.commit()
 
     return jsonify({"ok": True}), 200
+
+
+# ---------------------------------------------------------------------------
+# Duplicate Detection Endpoint
+# ---------------------------------------------------------------------------
+
+@products_bp.route("/api/products/<product_id>/findings/detect-duplicates", methods=["GET"])
+@require_role("viewer")
+def detect_duplicate_findings(product_id: str):
+    """Detect duplicate findings using AI-powered similarity analysis."""
+    safe_id = _safe_param(product_id)
+    if not safe_id:
+        return jsonify({"error": "Invalid parameter"}), 400
+
+    product = db.session.get(Product, safe_id)
+    if product is None:
+        return jsonify({"error": "Product not found"}), 404
+
+    # Check if user confirmed large product analysis
+    confirmed = request.args.get("confirmed", "").lower() == "true"
+
+    # Get snapshot: prefer draft, fall back to latest published
+    draft_snapshot = (
+        ReportSnapshot.query
+        .filter_by(product_id=safe_id, status="draft")
+        .order_by(ReportSnapshot.id.desc())
+        .first()
+    )
+
+    snapshot = draft_snapshot
+    if snapshot is None:
+        # Fall back to latest published
+        snapshot = (
+            ReportSnapshot.query
+            .filter_by(product_id=safe_id, status="published")
+            .order_by(ReportSnapshot.id.desc())
+            .first()
+        )
+
+    if snapshot is None:
+        return jsonify({
+            "pairs": [],
+            "warnings": ["No snapshot found"]
+        }), 200
+
+    # Get findings from snapshot
+    findings = [f.finding_data for f in snapshot.findings]
+
+    if len(findings) < 2:
+        return jsonify({
+            "pairs": [],
+            "warnings": ["Product has insufficient findings for duplicate detection"]
+        }), 200
+
+    # Group by category and check for confirmation requirement
+    by_category: dict[str, int] = {}
+    for f in findings:
+        if not isinstance(f, dict):
+            continue
+        cat = str(f.get("category", "")).strip() or "Uncategorized"
+        by_category[cat] = by_category.get(cat, 0) + 1
+
+    # Check if any category exceeds 150 findings
+    categories_over_limit: list[dict] = []
+    for cat, count in by_category.items():
+        if count > 150:
+            categories_over_limit.append({"category": cat, "count": count})
+
+    # If there are categories over limit and user hasn't confirmed, request confirmation
+    if categories_over_limit and not confirmed:
+        # Build confirmation message
+        if len(categories_over_limit) == 1:
+            cat_info = categories_over_limit[0]
+            message = (
+                f"This product has {cat_info['count']} findings in {cat_info['category']}. "
+                "Analysis will be limited to first 150 findings per category to prevent "
+                "excessive API costs and processing time."
+            )
+        else:
+            cat_list = ", ".join(f"{c['category']} ({c['count']})" for c in categories_over_limit)
+            message = (
+                f"This product has multiple categories with >150 findings: {cat_list}. "
+                "Analysis will be limited to first 150 findings per category to prevent "
+                "excessive API costs and processing time."
+            )
+
+        return jsonify({
+            "requiresConfirmation": True,
+            "categoriesOverLimit": categories_over_limit,
+            "message": message
+        }), 200
+
+    # Import and get Gemini service
+    from backend.routes.ai import get_gemini_service
+
+    try:
+        gemini = get_gemini_service()
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 501
+
+    # Call duplicate detection service
+    try:
+        limit = 150 if confirmed and categories_over_limit else None
+        pairs, warnings = gemini.detect_duplicate_findings(
+            findings=findings,
+            limit_per_category=limit,
+            temperature=0.2
+        )
+
+        return jsonify({
+            "pairs": pairs,
+            "warnings": warnings
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in detect_duplicate_findings")
+        return jsonify({"error": "Internal error"}), 502

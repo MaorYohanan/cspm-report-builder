@@ -93,9 +93,8 @@ class GeminiService:
 
         self.api_key = api_key
         self.models = models or [
-            "gemini-2.0-flash",
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
+            "gemini-1.5-flash",  # Stable production - fast and cost-effective
+            "gemini-1.5-pro",    # Stable production - higher quality
         ]
         self.default_model = default_model or self.models[0]
         self.timeout = timeout
@@ -588,6 +587,179 @@ class GeminiService:
                 raise RuntimeError(f"All models failed (last error code: {code}): {details}")
 
         raise RuntimeError("No response from any model")
+
+    DUPLICATE_DETECTION_SYSTEM_PROMPT = (
+        "You are a cybersecurity expert analyzing cloud security findings for duplicates. "
+        "Given pairs of security findings, determine how similar each pair is. "
+        "Two findings are similar if they describe the same underlying security issue, "
+        "even if they use different wording or have slightly different technical details.\n\n"
+        "Rules:\n"
+        "- Focus on the core security issue, not the exact wording\n"
+        "- Consider findings as duplicates if they:\n"
+        "  * Address the same security control or misconfiguration\n"
+        "  * Have the same root cause\n"
+        "  * Require the same remediation approach\n"
+        "- Return a similarity score from 0.0 to 1.0 for each pair:\n"
+        "  * 1.0 = exact duplicates (same issue)\n"
+        "  * 0.7-0.9 = very similar (minor wording differences)\n"
+        "  * 0.4-0.6 = related but distinct issues\n"
+        "  * 0.0-0.3 = completely different issues\n"
+        "- Respond with ONLY a JSON array of objects, each with 'pairIndex' (integer) and 'similarity' (float).\n"
+        "- Example response: [{\"pairIndex\": 0, \"similarity\": 0.92}, {\"pairIndex\": 1, \"similarity\": 0.15}]"
+    )
+
+    def detect_duplicate_findings(
+        self,
+        findings: list[dict],
+        limit_per_category: int | None = None,
+        model: str | None = None,
+        temperature: float = 0.2,
+        batch_size: int = 20
+    ) -> tuple[list[dict], list[str]]:
+        """
+        Detect duplicate findings using AI-powered similarity analysis.
+
+        Findings are grouped by category and only compared within the same category.
+        Pairs are sent to Gemini in batches for efficiency.
+
+        Args:
+            findings: List of finding dicts with id, title, description, category fields
+            limit_per_category: Optional limit of findings per category (for large products)
+            model: Preferred model. Falls back on 429.
+            temperature: Sampling temperature (lower = more deterministic)
+            batch_size: Number of pairs to send per API call (default 20)
+
+        Returns:
+            Tuple of (pairs, warnings) where:
+            - pairs: List of dicts with findingId1, findingId2, similarity (sorted by similarity DESC)
+            - warnings: List of warning strings for partial failures or limits applied
+
+        Raises:
+            ValueError: If findings list is empty or invalid
+        """
+        if not findings or not isinstance(findings, list):
+            raise ValueError("Findings must be a non-empty list")
+
+        warnings: list[str] = []
+
+        # Group findings by category
+        by_category: dict[str, list[dict]] = {}
+        for f in findings:
+            if not isinstance(f, dict):
+                continue
+            cat = str(f.get("category", "")).strip() or "Uncategorized"
+            if cat not in by_category:
+                by_category[cat] = []
+            by_category[cat].append(f)
+
+        # Apply per-category limit if specified
+        if limit_per_category:
+            for cat, cat_findings in by_category.items():
+                if len(cat_findings) > limit_per_category:
+                    original_count = len(cat_findings)
+                    by_category[cat] = cat_findings[:limit_per_category]
+                    warnings.append(
+                        f"Analysis limited to first {limit_per_category} findings in {cat} ({original_count} total)"
+                    )
+
+        # Generate pairs within each category
+        all_pairs: list[tuple[dict, dict]] = []
+        for cat, cat_findings in by_category.items():
+            if len(cat_findings) < 2:
+                # Skip categories with <2 findings
+                continue
+            # Generate all combinations (not permutations)
+            for i in range(len(cat_findings)):
+                for j in range(i + 1, len(cat_findings)):
+                    all_pairs.append((cat_findings[i], cat_findings[j]))
+
+        if not all_pairs:
+            # No pairs to analyze
+            return [], warnings
+
+        # Process pairs in batches
+        result_pairs: list[dict] = []
+        failed_batches = 0
+
+        for batch_start in range(0, len(all_pairs), batch_size):
+            batch_pairs = all_pairs[batch_start : batch_start + batch_size]
+
+            # Build structured prompt for this batch
+            batch_data = []
+            for idx, (f1, f2) in enumerate(batch_pairs):
+                batch_data.append({
+                    "pairIndex": idx,
+                    "finding1": {
+                        "title": str(f1.get("title", ""))[:200],
+                        "description": str(f1.get("description", ""))[:500],
+                    },
+                    "finding2": {
+                        "title": str(f2.get("title", ""))[:200],
+                        "description": str(f2.get("description", ""))[:500],
+                    }
+                })
+
+            user_prompt = json.dumps(batch_data, ensure_ascii=False)
+
+            try:
+                response_text, _ = self._call_gemini(
+                    prompt=user_prompt,
+                    system_prompt=self.DUPLICATE_DETECTION_SYSTEM_PROMPT,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=4096,
+                    enable_fallback=True  # Enable fallback for critical duplicate detection
+                )
+
+                # Parse response
+                try:
+                    scores = json.loads(response_text)
+                    if not isinstance(scores, list):
+                        _log.warning("Gemini returned non-list for duplicate detection batch")
+                        failed_batches += 1
+                        continue
+
+                    # Map scores back to finding IDs
+                    for score_obj in scores:
+                        if not isinstance(score_obj, dict):
+                            continue
+                        pair_idx = score_obj.get("pairIndex")
+                        similarity = score_obj.get("similarity")
+
+                        if not isinstance(pair_idx, int) or not isinstance(similarity, (int, float)):
+                            continue
+                        if pair_idx < 0 or pair_idx >= len(batch_pairs):
+                            continue
+
+                        f1, f2 = batch_pairs[pair_idx]
+                        result_pairs.append({
+                            "findingId1": f1.get("id"),
+                            "findingId2": f2.get("id"),
+                            "similarity": float(similarity)
+                        })
+
+                except json.JSONDecodeError:
+                    _log.warning("Failed to parse Gemini response as JSON for duplicate detection")
+                    failed_batches += 1
+                    continue
+
+            except RuntimeError as e:
+                _log.warning("Gemini API call failed for duplicate detection batch: %s", str(e))
+                failed_batches += 1
+                continue
+
+        # Add warning if some batches failed
+        if failed_batches > 0:
+            total_failed_pairs = min(failed_batches * batch_size, len(all_pairs))
+            warnings.append(f"{total_failed_pairs} pairs failed Gemini API call after 3 retries")
+
+        # Filter to only pairs with similarity >= 0.85
+        filtered_pairs = [p for p in result_pairs if p["similarity"] >= 0.85]
+
+        # Sort by similarity DESC
+        filtered_pairs.sort(key=lambda p: p["similarity"], reverse=True)
+
+        return filtered_pairs, warnings
 
     def _single_api_call(self, model: str, payload_dict: dict) -> str:
         """

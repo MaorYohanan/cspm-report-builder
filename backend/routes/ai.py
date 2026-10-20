@@ -17,11 +17,10 @@ ai_bp = Blueprint('ai', __name__)
 # Initialize Gemini service (lazy initialization when credentials are available)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODELS = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash-exp",
-    "gemini-2.5-pro",
+    "gemini-1.5-flash",  # Stable production - fast and cost-effective
+    "gemini-1.5-pro",    # Stable production - higher quality
 ]
-GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0]  # gemini-2.5-flash
+GEMINI_DEFAULT_MODEL = GEMINI_MODELS[0]  # gemini-1.5-flash
 
 _gemini_service: GeminiService | None = None
 _gemini_lock = threading.Lock()
