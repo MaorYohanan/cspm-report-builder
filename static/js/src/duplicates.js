@@ -1,8 +1,9 @@
 // ── Duplicate Detection Module ──
 import { escapeHtml } from './core.js';
-import { showToast } from './core.js';
+import { showToast, styledConfirm } from './core.js';
 import { state, removeFinding } from './state.js';
-import { renderFindingsList } from './findings.js';
+import { renderFindingsTable } from './findings.js';
+import { ProductsPanel } from './products.js';
 
 var modal = null;
 var modalBody = null;
@@ -37,6 +38,25 @@ export function initDuplicates() {
       closeModal();
     }
   });
+
+  // Initial button state check
+  updateDuplicatesButtonState();
+}
+
+// ── Update button enabled/disabled state ──
+export function updateDuplicatesButtonState() {
+  var btn = document.getElementById('btn-detect-duplicates');
+  if (!btn) return;
+
+  // Enable button only when:
+  // 1. Product is selected
+  // 2. Snapshot is loaded (draft or published)
+  // 3. At least 2 findings exist
+  var hasProduct = ProductsPanel.selectedProduct && ProductsPanel.selectedProduct.id;
+  var hasSnapshot = state.loadedVersionStatus; // 'draft' or 'published'
+  var hasEnoughFindings = state.findings.length >= 2;
+
+  btn.disabled = !(hasProduct && hasSnapshot && hasEnoughFindings);
 }
 
 // ── Open modal and start detection ──
@@ -53,6 +73,7 @@ export async function detectDuplicates(productId) {
   showLoadingState();
 
   try {
+    // Step 1: Initial API call
     var response = await fetch('/api/products/' + productId + '/findings/detect-duplicates', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
@@ -63,13 +84,42 @@ export async function detectDuplicates(productId) {
     }
 
     var data = await response.json();
+
+    // Step 2: Check if confirmation is required for large products
+    if (data.requiresConfirmation) {
+      // Close loading modal temporarily
+      closeModal();
+
+      // Show confirmation modal
+      var userConfirmed = await showLargeProductConfirmation(data);
+      if (!userConfirmed) {
+        return; // User cancelled
+      }
+
+      // User confirmed - call API again with confirmed=true
+      openModal();
+      showLoadingState();
+
+      response = await fetch('/api/products/' + productId + '/findings/detect-duplicates?confirmed=true', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to detect duplicates: ' + response.statusText);
+      }
+
+      data = await response.json();
+    }
+
+    // Step 3: Process results
     currentPairs = data.pairs || [];
     currentPairIndex = 0;
 
     if (currentPairs.length === 0) {
-      showNoDuplicatesState();
+      showNoDuplicatesState(data.warnings);
     } else {
-      renderPair(currentPairIndex);
+      renderPair(currentPairIndex, data.warnings);
     }
   } catch (error) {
     console.error('Error detecting duplicates:', error);
@@ -86,9 +136,33 @@ function showLoadingState() {
     '</div>';
 }
 
+// ── Show confirmation modal for large products ──
+async function showLargeProductConfirmation(data) {
+  // Build message with category counts
+  var message = data.message || 'המוצר מכיל מספר רב של ממצאים. האם להמשיך?';
+
+  if (data.categoriesOverLimit && data.categoriesOverLimit.length > 0) {
+    message += '\n\nקטגוריות שחורגות מהמגבלה:';
+    data.categoriesOverLimit.forEach(function(cat) {
+      message += '\n• ' + cat.category + ': ' + cat.count + ' ממצאים';
+    });
+  }
+
+  return await styledConfirm(message, {
+    icon: '⚠️',
+    title: 'אישור ניתוח מוצר גדול',
+    confirmText: 'כן, המשך',
+    cancelText: 'ביטול',
+    danger: false
+  });
+}
+
 // ── Show "no duplicates found" state ──
-function showNoDuplicatesState() {
-  modalBody.innerHTML = '<div class="duplicates-empty-state">' +
+function showNoDuplicatesState(warnings) {
+  var warningsHtml = renderWarnings(warnings);
+
+  modalBody.innerHTML = warningsHtml +
+    '<div class="duplicates-empty-state">' +
     '<div class="duplicates-empty-icon">✓</div>' +
     '<h3>לא נמצאו כפילויות</h3>' +
     '<p>כל הממצאים במוצר זה ייחודיים (סף דמיון: 85%).</p>' +
@@ -102,12 +176,12 @@ function showNoDuplicatesState() {
 }
 
 // ── Render a single pair ──
-function renderPair(index) {
+function renderPair(index, warnings) {
   if (index >= currentPairs.length) {
     // All pairs processed
     showToast('כל הכפילויות עובדו בהצלחה', 'success');
     closeModal();
-    renderFindingsList(); // Refresh the findings list
+    renderFindingsTable(); // Refresh the findings list
     return;
   }
 
@@ -116,7 +190,10 @@ function renderPair(index) {
   var findingB = pair.finding_b;
   var similarity = pair.similarity;
 
-  var html = '<div class="duplicates-pair-container">' +
+  var warningsHtml = renderWarnings(warnings);
+
+  var html = warningsHtml +
+    '<div class="duplicates-pair-container">' +
     '<div class="duplicates-pair-header">' +
     '<h3>זוג #' + (index + 1) + ' מתוך ' + currentPairs.length + '</h3>' +
     '<div class="duplicates-similarity-badge">' +
@@ -142,6 +219,24 @@ function renderPair(index) {
   actionButtons.forEach(function(btn) {
     btn.addEventListener('click', handleAction);
   });
+}
+
+// ── Render warnings box ──
+function renderWarnings(warnings) {
+  if (!warnings || !Array.isArray(warnings) || warnings.length === 0) {
+    return '';
+  }
+
+  var html = '<div class="duplicates-warnings" style="background:#fff3cd;color:#856404;padding:12px;border-radius:6px;margin-bottom:16px;text-align:right;">';
+  html += '<strong>⚠️ אזהרות:</strong>';
+  html += '<ul style="margin:8px 0 0;padding-right:20px;">';
+  warnings.forEach(function(warning) {
+    html += '<li>' + escapeHtml(warning) + '</li>';
+  });
+  html += '</ul>';
+  html += '</div>';
+
+  return html;
 }
 
 // ── Render a finding card for comparison ──

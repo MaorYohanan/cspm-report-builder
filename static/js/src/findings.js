@@ -4,7 +4,7 @@ import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
-import { detectDuplicates } from './duplicates.js';
+import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
 
 const addBtn        = document.getElementById('btn-add-finding');
 const cancelEditBtn = document.getElementById('btn-cancel-edit');
@@ -1244,6 +1244,9 @@ let priorityTouched = false;
 
         // Update saved snapshot hash baseline (BL-30: dirty-state tracking)
         state.lastSavedSnapshotHash = _snapshotHash(snapshot);
+
+        // Update duplicates button state (BL-07)
+        updateDuplicatesButtonState();
       }
 
       export function renderFindingsTable() {
@@ -1492,6 +1495,9 @@ let priorityTouched = false;
               var fpNext = document.getElementById('findings-page-next');
               if (fpPrev) fpPrev.addEventListener('click', function() { state.findingsPageState.page--; renderFindingsTable(); });
               if (fpNext) fpNext.addEventListener('click', function() { state.findingsPageState.page++; renderFindingsTable(); });
+
+              // Update duplicates button state (BL-07)
+              updateDuplicatesButtonState();
             }
 
       // ── Batch actions ──
