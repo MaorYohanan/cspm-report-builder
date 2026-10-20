@@ -958,16 +958,16 @@ def detect_duplicate_findings(product_id: str):
         if len(categories_over_limit) == 1:
             cat_info = categories_over_limit[0]
             message = (
-                f"This product has {cat_info['count']} findings in {cat_info['category']}. "
-                "Analysis will be limited to first 150 findings per category to prevent "
-                "excessive API costs and processing time."
+                f"מוצר זה כולל {cat_info['count']} ממצאים בקטגוריה {cat_info['category']}. "
+                "הניתוח יוגבל ל-150 הממצאים הראשונים בכל קטגוריה כדי למנוע "
+                "עלויות API מוגזמות וזמן עיבוד ארוך."
             )
         else:
             cat_list = ", ".join(f"{c['category']} ({c['count']})" for c in categories_over_limit)
             message = (
-                f"This product has multiple categories with >150 findings: {cat_list}. "
-                "Analysis will be limited to first 150 findings per category to prevent "
-                "excessive API costs and processing time."
+                f"מוצר זה כולל קטגוריות מרובות עם יותר מ-150 ממצאים: {cat_list}. "
+                "הניתוח יוגבל ל-150 הממצאים הראשונים בכל קטגוריה כדי למנוע "
+                "עלויות API מוגזמות וזמן עיבוד ארוך."
             )
 
         return jsonify({
@@ -993,8 +993,28 @@ def detect_duplicate_findings(product_id: str):
             temperature=0.2
         )
 
+        # Enrich pairs with full finding objects
+        # Build finding lookup map by ID
+        findings_by_id = {f.get("id"): f for f in findings if isinstance(f, dict) and f.get("id")}
+
+        enriched_pairs = []
+        for pair in pairs:
+            finding_id_1 = pair.get("findingId1")
+            finding_id_2 = pair.get("findingId2")
+
+            finding_a = findings_by_id.get(finding_id_1)
+            finding_b = findings_by_id.get(finding_id_2)
+
+            # Only include pair if both findings are found
+            if finding_a and finding_b:
+                enriched_pairs.append({
+                    "findingA": finding_a,
+                    "findingB": finding_b,
+                    "similarity": pair.get("similarity")
+                })
+
         return jsonify({
-            "pairs": pairs,
+            "pairs": enriched_pairs,
             "warnings": warnings
         }), 200
 

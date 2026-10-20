@@ -1,8 +1,8 @@
 // ── Duplicate Detection Module ──
 import { escapeHtml } from './core.js';
 import { showToast, styledConfirm } from './core.js';
-import { state, removeFinding } from './state.js';
-import { renderFindingsTable } from './findings.js';
+import { state } from './state.js';
+import { renderFindingsTable, saveToProductMemory } from './findings.js';
 import { ProductsPanel } from './products.js';
 
 var modal = null;
@@ -186,8 +186,8 @@ function renderPair(index, warnings) {
   }
 
   var pair = currentPairs[index];
-  var findingA = pair.finding_a;
-  var findingB = pair.finding_b;
+  var findingA = pair.findingA;
+  var findingB = pair.findingB;
   var similarity = pair.similarity;
 
   var warningsHtml = renderWarnings(warnings);
@@ -283,11 +283,23 @@ async function handleAction(e) {
   if (action === 'keep') {
     // Determine which finding to keep and which to delete
     var pair = currentPairs[currentPairIndex];
-    var keepFinding = side === 'A' ? pair.finding_a : pair.finding_b;
-    var deleteFinding = side === 'A' ? pair.finding_b : pair.finding_a;
+    var keepFinding = side === 'A' ? pair.findingA : pair.findingB;
+    var deleteFinding = side === 'A' ? pair.findingB : pair.findingA;
 
-    // Delete the non-kept finding from state
-    removeFinding(deleteFinding.id);
+    // Save to product memory before deletion
+    if (activeProductId) {
+      saveToProductMemory(
+        deleteFinding,
+        'deleted',
+        'מוזג עם ' + keepFinding.id
+      );
+    }
+
+    // Find and remove the deleted finding from state
+    var deleteIdx = state.findings.findIndex(f => f.id === deleteFinding.id);
+    if (deleteIdx !== -1) {
+      state.findings.splice(deleteIdx, 1);
+    }
 
     // Show toast
     showToast('ממצא ' + escapeHtml(deleteFinding.id) + ' נמחק, ממצא ' + escapeHtml(keepFinding.id) + ' נשמר', 'success');
