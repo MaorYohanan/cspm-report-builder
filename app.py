@@ -25,6 +25,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Dict
 
+from dotenv import load_dotenv
 from flask import (
     Flask,
     Response,
@@ -38,6 +39,9 @@ from flask import (
 
 from backend.database import db
 from backend.logging_config import configure_logging
+
+# Load environment variables from .env file
+load_dotenv()
 
 _debug = os.environ.get("FLASK_DEBUG", "0") == "1"
 configure_logging(debug=_debug)

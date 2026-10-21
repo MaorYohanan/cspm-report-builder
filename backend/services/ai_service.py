@@ -93,8 +93,8 @@ class GeminiService:
 
         self.api_key = api_key
         self.models = models or [
-            "gemini-1.5-flash",  # Stable production - fast and cost-effective
-            "gemini-1.5-pro",    # Stable production - higher quality
+            "gemini-2.5-flash",  # Stable production - fast and cost-effective
+            "gemini-2.5-pro",    # Stable production - higher quality
         ]
         self.default_model = default_model or self.models[0]
         self.timeout = timeout
