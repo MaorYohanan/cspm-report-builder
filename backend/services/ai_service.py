@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.request
@@ -713,7 +714,9 @@ class GeminiService:
 
                 # Parse response
                 try:
-                    scores = json.loads(response_text)
+                    # Strip markdown code fences that Gemini 2.5 models add
+                    cleaned_text = re.sub(r'^```json?\s*|\s*```$', '', response_text.strip(), flags=re.MULTILINE)
+                    scores = json.loads(cleaned_text)
                     if not isinstance(scores, list):
                         _log.warning("Gemini returned non-list for duplicate detection batch")
                         failed_batches += 1
