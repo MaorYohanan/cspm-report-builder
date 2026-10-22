@@ -360,13 +360,24 @@ BL-07 (AI Finding Deduplication Detector): ✅ merged to main — 2026-10-22
 - Performance: <3 seconds for small products (target: <5s)
 - Files: backend/routes/products.py, backend/services/ai_service.py, static/js/src/duplicates.js, static/js/src/findings.js, static/css/src/findings.css, app.py, requirements.txt
 
-BL-27 (Scan-Due Push Notifications): 🔄 in progress — 2026-10-22
+BL-27 (Scan-Due Push Notifications): ✅ merged to main — 2026-10-22
 - Branch: feature/scan-due-notifications
 - Client-side polling for scan-due notifications with badge and toast notifications
 - 10-minute polling interval for pipeline overdue status changes
 - Badge shows current overdue count on Pipeline sidebar tab
 - Toast notification when new products become overdue
-- **Tier 2: 5/7 in progress**
+- **Tier 2: 5/7 complete**
+
+BL-29 (AI-Generated Diff Summary): ✅ merged to main — 2026-10-22
+- Branch: main (direct commit)
+- AI-generated Hebrew narrative summary for version diff view
+- New GeminiService.generate_diff_summary() method with Hebrew diff narrative prompt
+- New POST /api/generate-diff-summary route (@require_role("viewer"))
+- Frontend: renderDiff() fires async fetch, shows loading placeholder, replaces with narrative on success
+- Silent degradation: narrative section hidden on Gemini failure (no error shown to user)
+- Sample finding titles capped at 5 to keep prompt concise
+- JS cache-buster: main.js?v=180
+- **Tier 2: COMPLETE (7/7) ✅**
 
 ## PDF Layout Fragmentation Fix
 

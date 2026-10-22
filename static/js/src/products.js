@@ -951,6 +951,11 @@ export var ProductsPanel = {
     html += _riskInfoTooltip() + '<div class="diff-risk-delta" style="' + deltaColor + '">סיכון: ' + bScore + ' → ' + tScore + ' (' + deltaStr + ')</div>';
     html += '</div>';
 
+    // AI-generated narrative placeholder
+    html += '<div id="diff-ai-narrative" style="padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:12px;">';
+    html += '<div style="color:var(--text-muted);font-size:13px;">מייצר סיכום...</div>';
+    html += '</div>';
+
     if (diff.added.length === 0 && diff.resolved.length === 0 && diff.changed.length === 0) {
       html += '<div class="muted" style="text-align:center;padding:12px 0;">לא נמצאו שינויים בממצאים</div>';
     } else {
@@ -968,6 +973,34 @@ export var ProductsPanel = {
 
     var diffPanel = document.getElementById('products-diff-panel');
     if (diffPanel) { diffPanel.innerHTML = html; }
+
+    // Fetch AI-generated diff summary
+    var sampleTitles = diff.added.slice(0, 5).map(function(f){ return f.title || ''; }).filter(function(t){ return t.length > 0; });
+    fetch('/api/generate-diff-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        added_count: diff.added.length,
+        resolved_count: diff.resolved.length,
+        changed_count: diff.changed.length,
+        risk_delta: delta,
+        baseline_version: baseline.version || '',
+        target_version: target.version || '',
+        sample_titles: sampleTitles
+      })
+    })
+    .then(function(res){ return res.ok ? res.json() : Promise.reject(new Error('AI summary failed')); })
+    .then(function(data){
+      var narrativeEl = document.getElementById('diff-ai-narrative');
+      if (narrativeEl && data.summary) {
+        narrativeEl.innerHTML = '<div style="line-height:1.6;color:var(--text);">' + _esc(data.summary) + '</div>';
+      }
+    })
+    .catch(function(){
+      // Silent degradation — hide the narrative section on failure
+      var narrativeEl = document.getElementById('diff-ai-narrative');
+      if (narrativeEl) { narrativeEl.style.display = 'none'; }
+    });
   },
 
   // ── Create / Edit Form ───────────────────────────────────────────────────

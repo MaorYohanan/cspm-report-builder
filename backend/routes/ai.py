@@ -288,3 +288,70 @@ def api_generate_regression_trend():
     except Exception:
         _log.exception("Unexpected error in api_generate_regression_trend")
         return jsonify({"error": "Internal error"}), 502
+
+
+@ai_bp.route("/api/generate-diff-summary", methods=["POST"])
+@require_role("viewer")
+def api_generate_diff_summary():
+    """Generate a Hebrew narrative summary for a version diff comparison."""
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI assist not configured (GEMINI_API_KEY not set)"}), 501
+
+    data = request.get_json(silent=True) or {}
+    added_count = data.get("added_count")
+    resolved_count = data.get("resolved_count")
+    changed_count = data.get("changed_count")
+    risk_delta = data.get("risk_delta")
+    baseline_version = (data.get("baseline_version") or "").strip()
+    target_version = (data.get("target_version") or "").strip()
+    sample_titles = data.get("sample_titles")
+    model = (data.get("model") or "").strip()
+
+    # Validate inputs
+    if not isinstance(added_count, int) or added_count < 0:
+        return jsonify({"error": "added_count must be a non-negative integer"}), 400
+    if not isinstance(resolved_count, int) or resolved_count < 0:
+        return jsonify({"error": "resolved_count must be a non-negative integer"}), 400
+    if not isinstance(changed_count, int) or changed_count < 0:
+        return jsonify({"error": "changed_count must be a non-negative integer"}), 400
+    if risk_delta is not None and not isinstance(risk_delta, (int, float)):
+        return jsonify({"error": "risk_delta must be a number or null"}), 400
+    if not baseline_version or not target_version:
+        return jsonify({"error": "baseline_version and target_version are required"}), 400
+    if len(baseline_version) > 50 or len(target_version) > 50:
+        return jsonify({"error": "version strings too long (max 50 chars)"}), 400
+
+    # Sanitize sample_titles
+    safe_titles: list[str] = []
+    if sample_titles:
+        if not isinstance(sample_titles, list):
+            return jsonify({"error": "sample_titles must be a list"}), 400
+        # Cap at 5 and truncate each title
+        for title in sample_titles[:5]:
+            if isinstance(title, str):
+                safe_titles.append(title[:200])
+
+    # Validate model
+    if not model or model not in GEMINI_MODELS:
+        model = GEMINI_DEFAULT_MODEL
+
+    try:
+        gemini = get_gemini_service()
+        summary_text, used_model = gemini.generate_diff_summary(
+            added_count=added_count,
+            resolved_count=resolved_count,
+            changed_count=changed_count,
+            risk_delta=int(risk_delta) if risk_delta is not None else None,
+            baseline_version=baseline_version,
+            target_version=target_version,
+            sample_titles=safe_titles if safe_titles else None,
+            model=model,
+        )
+        return jsonify({"summary": summary_text, "model": used_model})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 502
+    except Exception:
+        _log.exception("Unexpected error in api_generate_diff_summary")
+        return jsonify({"error": "Internal error"}), 502
