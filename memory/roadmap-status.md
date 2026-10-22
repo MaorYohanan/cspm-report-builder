@@ -376,7 +376,14 @@ BL-29 (AI-Generated Diff Summary): ✅ merged to main — 2026-10-22
 - Frontend: renderDiff() fires async fetch, shows loading placeholder, replaces with narrative on success
 - Silent degradation: narrative section hidden on Gemini failure (no error shown to user)
 - Sample finding titles capped at 5 to keep prompt concise
-- JS cache-buster: main.js?v=180
+- **QA Fixes (2026-10-22):**
+  - Added 18 integration tests in tests/test_ai_endpoints.py covering happy path, validation, errors, edge cases
+  - Fixed redundant truncation (standardized to 150 chars)
+  - **Delta direction bug fix (commit 161904a):** Fixed inverted interpretation where improvements were reported as deteriorations
+    - Now sends both baseline_risk_score and target_risk_score instead of just delta
+    - Added explicit Hebrew interpretation in prompt: "מ-X ל-Y (ירידה/עלייה של N נקודות - שיפור/החמרה באבטחה)"
+    - Tests: 253 passed (20 diff summary + 233 existing)
+- Cache-busters: main.js?v=180 → v=181
 - **Tier 2: COMPLETE (7/7) ✅**
 
 ## PDF Layout Fragmentation Fix
