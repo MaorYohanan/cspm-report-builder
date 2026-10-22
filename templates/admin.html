@@ -308,6 +308,7 @@
     <div class="admin-tabs">
       <button class="admin-tab-btn active" data-tab="users">ניהול משתמשים</button>
       <button class="admin-tab-btn" data-tab="templates">ניהול תבניות</button>
+      <button class="admin-tab-btn" data-tab="backup">גיבוי ושחזור</button>
     </div>
 
     <!-- User Management Tab Panel -->
@@ -407,9 +408,33 @@
       </div>
     </div>
 
+    <!-- Backup & Restore Tab Panel -->
+    <div class="admin-tab-panel" id="tab-backup">
+      <div class="card">
+        <div class="card-title">גיבוי ושחזור מערכת</div>
+        <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 20px;">
+          גיבוי כולל את כל המשתמשים, המוצרים, הממצאים, התבניות וההגדרות של המערכת.
+        </p>
+
+        <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+          <button class="btn btn-primary" id="btn-download-backup">
+            הורד גיבוי
+          </button>
+          <button class="btn btn-secondary" id="btn-restore-backup">
+            שחזר מגיבוי
+          </button>
+        </div>
+
+        <input type="file" id="backup-file-input" accept=".zip" style="display: none;">
+
+        <div id="backup-status-msg" class="msg-success"></div>
+        <div id="backup-error-msg"  class="msg-error"></div>
+      </div>
+    </div>
+
   </div>
 
-  <script type="module" src="/static/js/src/admin.js?v=175"></script>
+  <script type="module" src="/static/js/src/admin.js?v=176"></script>
 
 </body>
 </html>

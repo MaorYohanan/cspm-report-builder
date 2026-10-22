@@ -55,6 +55,7 @@ from backend.routes.files import files_bp
 from backend.routes.products import products_bp
 from backend.routes.auth import auth_bp
 from backend.routes.pipeline import pipeline_bp
+from backend.routes.admin import admin_bp
 
 app = Flask(
     __name__,
@@ -238,6 +239,7 @@ app.register_blueprint(files_bp)
 app.register_blueprint(products_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(pipeline_bp)
+app.register_blueprint(admin_bp)
 
 MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50 MB
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH

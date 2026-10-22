@@ -32,6 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tpl-error-msg').textContent  = isError ? msg : '';
   }
 
+  function setBackupMsg(msg, isError) {
+    document.getElementById('backup-status-msg').textContent = isError ? '' : msg;
+    document.getElementById('backup-error-msg').textContent  = isError ? msg : '';
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // User Management
   // ──────────────────────────────────────────────────────────────────────────
@@ -331,6 +336,122 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Backup & Restore
+  // ──────────────────────────────────────────────────────────────────────────
+
+  async function downloadBackup() {
+    setBackupMsg('', false);
+    const btn = document.getElementById('btn-download-backup');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'מוריד...';
+
+    try {
+      const res = await fetch('/api/admin/backup');
+      if (!res.ok) {
+        const data = await res.json();
+        setBackupMsg(data.error || 'שגיאה בהורדת גיבוי', true);
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      // Extract filename from Content-Disposition header or use default
+      const contentDisposition = res.headers.get('Content-Disposition');
+      let filename = 'cspm-backup.zip';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+          filename = match[1].replace(/['"]/g, '');
+        }
+      }
+
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setBackupMsg('הגיבוי הורד בהצלחה', false);
+    } catch (err) {
+      setBackupMsg('שגיאת רשת - לא ניתן להוריד גיבוי', true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  async function restoreFromBackup() {
+    const fileInput = document.getElementById('backup-file-input');
+    const file = fileInput.files[0];
+
+    if (!file) {
+      setBackupMsg('נא לבחור קובץ גיבוי', true);
+      return;
+    }
+
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setBackupMsg('יש להעלות קובץ ZIP בלבד', true);
+      return;
+    }
+
+    // Show danger confirmation dialog
+    const { styledConfirm } = await import('/static/js/src/core.js');
+    const confirmed = await styledConfirm('⚠️ פעולה זו תמחק את כל הנתונים הקיימים במערכת. האם אתה בטוח?', {
+      title: 'שחזור מגיבוי',
+      danger: true,
+      confirmText: 'שחזר'
+    });
+
+    if (!confirmed) {
+      fileInput.value = '';
+      return;
+    }
+
+    setBackupMsg('', false);
+    const btn = document.getElementById('btn-restore-backup');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'משחזר...';
+
+    try {
+      const formData = new FormData();
+      formData.append('backup', file);
+
+      const res = await fetch('/api/admin/restore', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setBackupMsg(data.error || 'שגיאה בשחזור גיבוי', true);
+        return;
+      }
+
+      setBackupMsg('הגיבוי שוחזר בהצלחה', false);
+      fileInput.value = '';
+
+      // Reload users and templates after successful restore
+      setTimeout(() => {
+        loadUsers();
+        loadTemplates();
+      }, 1000);
+
+    } catch (err) {
+      setBackupMsg('שגיאת רשת - לא ניתן לשחזר גיבוי', true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Event Delegation
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -401,6 +522,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('btn-add-user').addEventListener('click', addUser);
   document.getElementById('btn-add-template').addEventListener('click', addTemplate);
+  document.getElementById('btn-download-backup').addEventListener('click', downloadBackup);
+  document.getElementById('btn-restore-backup').addEventListener('click', () => {
+    document.getElementById('backup-file-input').click();
+  });
+  document.getElementById('backup-file-input').addEventListener('change', restoreFromBackup);
 
   // ──────────────────────────────────────────────────────────────────────────
   // Initial Load

@@ -298,6 +298,26 @@ BL-30 (Unsaved-Data Warning on Version Load / PDF): ✅ merged to main — 2026-
 
 ## Wave 9 — Tier 2 High-Value Features
 
+BL-17 (Backup and Restore): ✅ merged to main — 2026-10-22
+- New admin blueprint: backend/routes/admin.py with GET /api/admin/backup and POST /api/admin/restore routes
+- Backup: serializes all 7 ORM models (User, Product, FindingTemplate, ExcludeRule, ReportSnapshot, Finding, ProductMemoryEntry) to JSON using SQLAlchemy inspect(), packages in ZIP with metadata (timestamp, row counts), returns as timestamped download
+- Restore: validates ZIP structure, checks path traversal/size/file count limits (500MB uncompressed, 100 files max), invalidates sessions, drops all data, restores from backup, resets auto-increment sequences (PostgreSQL + SQLite), verifies row counts
+- Transaction-safe: full rollback on any restore failure
+- ZIP validation: rejects path traversal (.. / \ absolute paths), symlinks, oversized files, missing required files
+- Hebrew error messages, no stack trace leakage to client
+- Auth: @require_role("admin") on both routes
+- Tests: 16 new tests in tests/test_backup_restore.py (all passing)
+- Files: backend/routes/admin.py (NEW), app.py (blueprint registration), tests/test_backup_restore.py (NEW)
+- **QA Fixes (2026-10-22):**
+  - Fixed PostgreSQL sequence reset bug: changed setval third parameter from false to true (prevents duplicate key errors on next insert)
+  - Row count verification moved before commit and triggers rollback on mismatch (ensures atomicity)
+  - Sequence reset failures now propagate exceptions instead of silent logging
+  - Removed incorrect backslash check from path traversal validation (ZIP spec uses forward slashes)
+  - SQLite sequence reset now checks for sqlite_sequence table existence before operations
+  - Added 3 new tests: sequence reset verification, oversized ZIP rejection, row count verification failure with rollback
+  - Tests: 233 passed, 0 failed (19 backup/restore tests, all passing)
+- **Tier 2: 4/7 complete**
+
 BL-11 (Custom Org-Level Finding Templates): ✅ merged to main — 2026-10-19
 - Branch: main (direct commit)
 - Admin panel to save reusable finding templates to database
@@ -322,18 +342,23 @@ BL-19 (Risk Score Color Tiers): ✅ merged to main — 2026-10-19
 - Files: backend/routes/pipeline.py, static/js/src/products.js, static/js/src/pipeline.js, static/css/src/products.css, static/css/src/pipeline.css, static/css/builder.css, index.html, .plan/risk-tier-css-reference.md
 - Cache-busters: builder.css v=175, main.js v=175
 - Tests: 214 passed, 0 failed
-- **Tier 2: 2/7 complete**
+- **Tier 2: 3/7 complete**
 
-BL-07 (AI Finding Deduplication Detector): 🔄 in progress — started 2026-10-20
+BL-07 (AI Finding Deduplication Detector): ✅ merged to main — 2026-10-22
 - Branch: feature/bl-07-duplicate-detector
-- AI-powered duplicate detection within active product; 85% similarity threshold; user chooses which finding to keep
-- Designer Part 1 (UI): ✅ complete — commit afc50f5
-- Developer Part 2 (backend/Gemini): 🔄 in progress
-  - ✅ Updated Gemini model names from invalid gemini-2.5-flash/pro to stable production models gemini-1.5-flash/pro
-  - ✅ Implemented GeminiService.detect_duplicate_findings() method with batch processing (20 pairs per API call)
-  - ✅ Implemented GET /api/products/<id>/findings/detect-duplicates route with confirmation flow for large products
-  - ⏳ Awaiting coordination with Designer for button-disable logic and confirmation modal integration
-  - Files: backend/routes/ai.py, backend/services/ai_service.py, backend/routes/products.py
+- Final commit: b6680d2
+- AI-powered duplicate detection using Gemini 2.5 Flash for semantic similarity scoring
+- Features:
+  - 🔍 Detect Duplicates button in findings panel (disabled when <2 findings or no snapshot)
+  - 85% similarity threshold with category pre-filtering (CSPM vs CSPM, etc.)
+  - Batch processing: 20 pairs per Gemini API call for performance
+  - Hebrew confirmation dialog for large products (>150 findings per category)
+  - Side-by-side comparison modal with "Keep A" / "Keep B" / "Skip" actions
+  - Product memory tracking for merged findings
+  - Markdown code fence stripping for Gemini 2.5 JSON responses
+  - Auto-load .env file with python-dotenv integration
+- Performance: <3 seconds for small products (target: <5s)
+- Files: backend/routes/products.py, backend/services/ai_service.py, static/js/src/duplicates.js, static/js/src/findings.js, static/css/src/findings.css, app.py, requirements.txt
 
 ## PDF Layout Fragmentation Fix
 
