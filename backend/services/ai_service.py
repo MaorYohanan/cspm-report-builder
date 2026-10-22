@@ -453,12 +453,13 @@ class GeminiService:
     DIFF_SUMMARY_SYSTEM_PROMPT = (
         "You are a senior cloud security consultant writing a CSPM report comparison summary. "
         "You are given statistics comparing two product versions: counts of added/resolved/changed findings, "
-        "and the change in risk score. Write a concise professional summary in 2-4 sentences explaining what changed. "
+        "and the change in risk score (with explicit direction and interpretation). "
+        "Write a concise professional summary in 2-4 sentences explaining what changed. "
         "Rules:\n"
         "- Write in formal, professional Hebrew.\n"
         "- Keep technical terms in English (CSPM, IAM, S3, VPC, etc.).\n"
         "- Use natural language — don't just repeat the numbers verbatim.\n"
-        "- If risk increased: note concern. If decreased: note improvement. If stable: note stability.\n"
+        "- The risk score change already indicates if it's an improvement or worsening — incorporate this naturally.\n"
         "- Mention key affected findings if sample titles are provided.\n"
         "- Return ONLY the summary paragraph. No headers, no markdown, no extra text."
     )
@@ -471,6 +472,8 @@ class GeminiService:
         risk_delta: int | None,
         baseline_version: str,
         target_version: str,
+        baseline_risk_score: int | None = None,
+        target_risk_score: int | None = None,
         sample_titles: list[str] | None = None,
         model: str | None = None,
         temperature: float = 0.4,
@@ -486,6 +489,8 @@ class GeminiService:
             risk_delta: Risk score change (positive = increased, negative = decreased, None = unknown)
             baseline_version: Baseline version string (e.g., "1.0")
             target_version: Target version string (e.g., "1.1")
+            baseline_risk_score: Baseline version's risk score (optional, for clearer prompts)
+            target_risk_score: Target version's risk score (optional, for clearer prompts)
             sample_titles: Optional list of finding titles to mention (max 5)
             model: Preferred Gemini model. Falls back on 429.
             temperature: Sampling temperature.
@@ -497,13 +502,24 @@ class GeminiService:
         Raises:
             RuntimeError: If all models fail or content is blocked.
         """
-        # Build structured prompt
-        risk_change_str = (
-            f"ירד ב-{abs(risk_delta)} נקודות" if risk_delta and risk_delta < 0
-            else f"עלה ב-{risk_delta} נקודות" if risk_delta and risk_delta > 0
-            else "נשאר יציב" if risk_delta == 0
-            else "לא ידוע"
-        )
+        # Build structured prompt with explicit risk score context
+        # If we have actual scores, use them for maximum clarity
+        if baseline_risk_score is not None and target_risk_score is not None:
+            # Show actual scores + direction + interpretation
+            if target_risk_score < baseline_risk_score:
+                risk_change_str = f"מ-{baseline_risk_score} ל-{target_risk_score} (ירידה של {abs(risk_delta or 0)} נקודות - שיפור באבטחה)"
+            elif target_risk_score > baseline_risk_score:
+                risk_change_str = f"מ-{baseline_risk_score} ל-{target_risk_score} (עלייה של {risk_delta or 0} נקודות - החמרה באבטחה)"
+            else:
+                risk_change_str = f"{baseline_risk_score} (ללא שינוי - יציב)"
+        else:
+            # Fallback to delta-only (old behavior)
+            risk_change_str = (
+                f"ירד ב-{abs(risk_delta)} נקודות (שיפור באבטחה)" if risk_delta and risk_delta < 0
+                else f"עלה ב-{risk_delta} נקודות (החמרה באבטחה)" if risk_delta and risk_delta > 0
+                else "נשאר יציב" if risk_delta == 0
+                else "לא ידוע"
+            )
 
         prompt_lines = [
             f"גרסת בסיס: {baseline_version}",

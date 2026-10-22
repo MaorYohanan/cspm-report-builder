@@ -412,3 +412,74 @@ class TestGenerateDiffSummary:
         # Only string items should be passed
         call_kwargs = mock_gemini_service.generate_diff_summary.call_args.kwargs
         assert call_kwargs["sample_titles"] == ["valid", "another valid"]
+
+    def test_negative_delta_with_actual_scores_shows_improvement(self, client, mock_gemini_service):
+        """
+        Regression test for BL-29 bug fix: negative delta (improvement) should be interpreted correctly.
+
+        User scenario: v1.2 has lower score than v1.1 (72 vs 100).
+        Delta = -28 (negative = improvement).
+        The AI should understand this as a security improvement, not a worsening.
+        """
+        mock_gemini_service.generate_diff_summary.return_value = (
+            "הציון ירד מ-100 ל-72, שיפור של 28 נקודות",
+            "gemini-2.5-flash"
+        )
+
+        payload = {
+            "added_count": 0,
+            "resolved_count": 5,
+            "changed_count": 0,
+            "risk_delta": -28,  # Negative = improvement
+            "baseline_risk_score": 100,  # Higher score (older version)
+            "target_risk_score": 72,     # Lower score (newer version) = improvement
+            "baseline_version": "1.1",
+            "target_version": "1.2",
+        }
+
+        rv = client.post("/api/generate-diff-summary", json=payload)
+
+        assert rv.status_code == 200
+        body = rv.get_json()
+        assert "summary" in body
+
+        # Verify the service was called with the actual scores
+        call_kwargs = mock_gemini_service.generate_diff_summary.call_args.kwargs
+        assert call_kwargs["risk_delta"] == -28
+        assert call_kwargs["baseline_risk_score"] == 100
+        assert call_kwargs["target_risk_score"] == 72
+        assert call_kwargs["baseline_version"] == "1.1"
+        assert call_kwargs["target_version"] == "1.2"
+
+    def test_positive_delta_with_actual_scores_shows_worsening(self, client, mock_gemini_service):
+        """
+        Test positive delta (worsening) - score increased from 50 to 80.
+        Delta = +30 (positive = worsening).
+        """
+        mock_gemini_service.generate_diff_summary.return_value = (
+            "הציון עלה מ-50 ל-80, החמרה של 30 נקודות",
+            "gemini-2.5-flash"
+        )
+
+        payload = {
+            "added_count": 3,
+            "resolved_count": 0,
+            "changed_count": 1,
+            "risk_delta": 30,  # Positive = worsening
+            "baseline_risk_score": 50,  # Lower score (older version)
+            "target_risk_score": 80,    # Higher score (newer version) = worsening
+            "baseline_version": "2.0",
+            "target_version": "2.1",
+        }
+
+        rv = client.post("/api/generate-diff-summary", json=payload)
+
+        assert rv.status_code == 200
+        body = rv.get_json()
+        assert "summary" in body
+
+        # Verify the service was called with the actual scores
+        call_kwargs = mock_gemini_service.generate_diff_summary.call_args.kwargs
+        assert call_kwargs["risk_delta"] == 30
+        assert call_kwargs["baseline_risk_score"] == 50
+        assert call_kwargs["target_risk_score"] == 80

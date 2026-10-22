@@ -302,6 +302,8 @@ def api_generate_diff_summary():
     resolved_count = data.get("resolved_count")
     changed_count = data.get("changed_count")
     risk_delta = data.get("risk_delta")
+    baseline_risk_score = data.get("baseline_risk_score")
+    target_risk_score = data.get("target_risk_score")
     baseline_version = (data.get("baseline_version") or "").strip()
     target_version = (data.get("target_version") or "").strip()
     sample_titles = data.get("sample_titles")
@@ -316,6 +318,10 @@ def api_generate_diff_summary():
         return jsonify({"error": "changed_count must be a non-negative integer"}), 400
     if risk_delta is not None and not isinstance(risk_delta, (int, float)):
         return jsonify({"error": "risk_delta must be a number or null"}), 400
+    if baseline_risk_score is not None and not isinstance(baseline_risk_score, (int, float)):
+        return jsonify({"error": "baseline_risk_score must be a number or null"}), 400
+    if target_risk_score is not None and not isinstance(target_risk_score, (int, float)):
+        return jsonify({"error": "target_risk_score must be a number or null"}), 400
     if not baseline_version or not target_version:
         return jsonify({"error": "baseline_version and target_version are required"}), 400
     if len(baseline_version) > 50 or len(target_version) > 50:
@@ -342,6 +348,8 @@ def api_generate_diff_summary():
             resolved_count=resolved_count,
             changed_count=changed_count,
             risk_delta=int(risk_delta) if risk_delta is not None else None,
+            baseline_risk_score=int(baseline_risk_score) if baseline_risk_score is not None else None,
+            target_risk_score=int(target_risk_score) if target_risk_score is not None else None,
             baseline_version=baseline_version,
             target_version=target_version,
             sample_titles=safe_titles if safe_titles else None,

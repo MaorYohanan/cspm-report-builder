@@ -984,6 +984,8 @@ export var ProductsPanel = {
         resolved_count: diff.resolved.length,
         changed_count: diff.changed.length,
         risk_delta: delta,
+        baseline_risk_score: bScore !== 'N/A' ? bScore : null,
+        target_risk_score: tScore !== 'N/A' ? tScore : null,
         baseline_version: baseline.version || '',
         target_version: target.version || '',
         sample_titles: sampleTitles
