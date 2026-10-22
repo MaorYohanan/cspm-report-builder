@@ -326,10 +326,10 @@ def api_generate_diff_summary():
     if sample_titles:
         if not isinstance(sample_titles, list):
             return jsonify({"error": "sample_titles must be a list"}), 400
-        # Cap at 5 and truncate each title
+        # Cap at 5 and truncate each title to 150 chars
         for title in sample_titles[:5]:
             if isinstance(title, str):
-                safe_titles.append(title[:200])
+                safe_titles.append(title[:150])
 
     # Validate model
     if not model or model not in GEMINI_MODELS:

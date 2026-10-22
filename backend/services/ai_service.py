@@ -514,12 +514,11 @@ class GeminiService:
             f"שינוי בציון סיכון: {risk_change_str}",
         ]
 
-        # Add sample titles if provided (cap at 5)
+        # Add sample titles if provided (already capped and truncated by route)
         if sample_titles:
-            capped = sample_titles[:5]
             prompt_lines.append("\nדוגמאות לממצאים שנוספו:")
-            for i, title in enumerate(capped, 1):
-                prompt_lines.append(f"{i}. {title[:150]}")  # Cap title length
+            for i, title in enumerate(sample_titles, 1):
+                prompt_lines.append(f"{i}. {title}")
 
         user_prompt = "\n".join(prompt_lines)
 
