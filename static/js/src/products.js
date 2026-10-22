@@ -164,6 +164,28 @@ function computeDiff(baseline, target) {
   return { added: added, resolved: resolved, changed: changed, unchanged: unchanged };
 }
 
+/**
+ * Compare two semantic version strings (e.g., "1.2", "2.1").
+ * Returns:
+ *   -1 if verA < verB (verA is older)
+ *    0 if verA === verB
+ *   +1 if verA > verB (verA is newer)
+ */
+function compareVersionNumbers(verA, verB) {
+  var partsA = String(verA || '').split('.');
+  var partsB = String(verB || '').split('.');
+  var majorA = parseInt(partsA[0], 10) || 0;
+  var minorA = parseInt(partsA[1], 10) || 0;
+  var majorB = parseInt(partsB[0], 10) || 0;
+  var minorB = parseInt(partsB[1], 10) || 0;
+
+  if (majorA < majorB) return -1;
+  if (majorA > majorB) return 1;
+  if (minorA < minorB) return -1;
+  if (minorA > minorB) return 1;
+  return 0;
+}
+
 function computeRiskDelta(baselineVer, targetVer) {
   var b = (baselineVer && typeof baselineVer.riskScore === 'number') ? baselineVer.riskScore : null;
   var t = (targetVer && typeof targetVer.riskScore === 'number') ? targetVer.riskScore : null;
@@ -931,7 +953,19 @@ export var ProductsPanel = {
       Promise.all([
         self.fetchVersion(self.selectedProduct.id, baseVer),
         self.fetchVersion(self.selectedProduct.id, targetVer)
-      ]).then(function(results){ self.renderDiff(results[0], results[1]); })
+      ]).then(function(results){
+        // Always pass older version as baseline, newer as target
+        var clickedVer = results[0];
+        var selectedVer = results[1];
+        var cmp = compareVersionNumbers(baseVer, targetVer);
+        if (cmp < 0) {
+          // baseVer < targetVer: baseVer is older
+          self.renderDiff(clickedVer, selectedVer);
+        } else {
+          // baseVer >= targetVer: targetVer is older (or equal, already handled above)
+          self.renderDiff(selectedVer, clickedVer);
+        }
+      })
         .catch(function(err){ showToast(err.message || 'שגיאה בטעינת גרסאות', 'error'); });
     });
   },
