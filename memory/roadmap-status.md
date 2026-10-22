@@ -360,6 +360,14 @@ BL-07 (AI Finding Deduplication Detector): ✅ merged to main — 2026-10-22
 - Performance: <3 seconds for small products (target: <5s)
 - Files: backend/routes/products.py, backend/services/ai_service.py, static/js/src/duplicates.js, static/js/src/findings.js, static/css/src/findings.css, app.py, requirements.txt
 
+BL-27 (Scan-Due Push Notifications): 🔄 in progress — 2026-10-22
+- Branch: feature/scan-due-notifications
+- Client-side polling for scan-due notifications with badge and toast notifications
+- 10-minute polling interval for pipeline overdue status changes
+- Badge shows current overdue count on Pipeline sidebar tab
+- Toast notification when new products become overdue
+- **Tier 2: 5/7 in progress**
+
 ## PDF Layout Fragmentation Fix
 
 PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-10-15

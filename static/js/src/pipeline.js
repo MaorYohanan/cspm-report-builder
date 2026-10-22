@@ -17,6 +17,10 @@ var _STATUS_CLS = {
     no_scans: 'pipeline-status-none',
 };
 
+// ── Overdue monitoring state ──
+let _overdueCheckInterval = null;
+let _lastKnownOverdueCount = 0;
+
 function _esc(s) {
     return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -47,7 +51,87 @@ export var PipelinePanel = {
                 self.load();
             });
         }
+
+        // Start overdue monitoring
+        self._initOverdueMonitoring();
     },
+
+    // ── Overdue Monitoring Functions ──────────────────────────────────────────
+
+    _initOverdueMonitoring: function() {
+        var self = this;
+
+        // Clear any existing interval
+        if (_overdueCheckInterval) {
+            clearInterval(_overdueCheckInterval);
+        }
+
+        // Get initial baseline count (current overdue products)
+        self._updateOverdueCount();
+
+        // Poll every 10 minutes (600,000ms)
+        _overdueCheckInterval = setInterval(function() {
+            self._checkForNewOverdue();
+        }, 600000);
+    },
+
+    _updateOverdueCount: function() {
+        var self = this;
+        fetch('/api/pipeline')
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                var overdueCount = data.filter(function(p) {
+                    return p.status === 'overdue';
+                }).length;
+
+                _lastKnownOverdueCount = overdueCount;
+                self._updateBadge(overdueCount);
+            })
+            .catch(function(err) {
+                console.error('Failed to fetch pipeline status for overdue monitoring:', err);
+            });
+    },
+
+    _checkForNewOverdue: function() {
+        var self = this;
+        fetch('/api/pipeline')
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                var currentOverdueCount = data.filter(function(p) {
+                    return p.status === 'overdue';
+                }).length;
+
+                // Only show toast if count INCREASED
+                if (currentOverdueCount > _lastKnownOverdueCount) {
+                    var newCount = currentOverdueCount - _lastKnownOverdueCount;
+                    var message = newCount === 1
+                        ? 'מוצר אחד נכנס לסטטוס איחור בסריקה'
+                        : newCount + ' מוצרים נכנסו לסטטוס איחור בסריקה';
+                    showToast(message, 'warning');
+                }
+
+                // Always update badge and baseline
+                _lastKnownOverdueCount = currentOverdueCount;
+                self._updateBadge(currentOverdueCount);
+            })
+            .catch(function(err) {
+                console.error('Failed to check for new overdue products:', err);
+            });
+    },
+
+    _updateBadge: function(count) {
+        var badge = document.getElementById('pipeline-overdue-badge');
+        if (!badge) return;
+
+        if (count > 0) {
+            badge.textContent = count;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    },
+
+    // ── End Overdue Monitoring ──────────────────────────────────────────────
 
     load: async function() {
         try {

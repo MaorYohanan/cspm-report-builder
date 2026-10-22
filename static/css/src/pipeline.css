@@ -157,6 +157,20 @@
   border: 1px solid var(--border-hover);
 }
 
+/* ── Overdue scan notification badge ── */
+.pipeline-overdue-badge {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  background-color: var(--danger-color, #e74c3c);
+  border-radius: 10px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 /* ── Empty state ── */
 .pipeline-empty {
   text-align: center;
