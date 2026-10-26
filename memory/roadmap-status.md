@@ -424,3 +424,23 @@ PDF layout fragmentation fix + packer improvements: ✅ merged to main — 2026-
 - Files modified: backend/services/pdf_service.py, index.html, static/js/src/export.js, static/js/src/findings.js, static/js/src/products.js, .plan/backlog.md, memory/roadmap-status.md
 - JS cache-buster: v=172
 - Tests: 214 passed, 0 failed
+
+## Wave 10 — Tier 3 Backlog Features
+
+BL-01 (Risk Score Trend Chart - Product Timeline): ✅ merged to main — 2026-10-26
+- Branch: main (direct commit)
+- Final commit: 604f4f7
+- SVG line chart showing security posture trends across last 5 published versions
+- Lives on product timeline UI page (not in PDF)
+- X-axis: version numbers in chronological order (RTL: oldest right, newest left)
+- Y-axis: risk score values with dynamic scaling
+- Color-coded data points by risk tier (Green 0-15, Orange 16-35, Red 36-60, Crimson 60+)
+- Requires minimum 2 published versions to display
+- Data source: ReportSnapshot.risk_score (no new backend fields needed)
+- RTL-aware: Y-axis on right, chart flows right-to-left
+- Security: XSS protection on all SVG text insertions
+- Files: static/js/src/products.js, static/css/src/products.css, static/css/builder.css, index.html
+- Cache-buster: index.html v=185
+- QA fixes: XSS escaping added (lines 1237, 1263), RTL layout corrected
+- User confirmation: "grate"
+- **Tier 3: 1/5 complete**
