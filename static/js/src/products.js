@@ -542,6 +542,9 @@ export var ProductsPanel = {
     html += '<h2>📦 ' + _esc(product.name || '') + '</h2>';
     html += '</div>';
 
+    // Risk score trend chart — rendered if 2+ published versions exist
+    html += '<div id="risk-trend-chart-container"></div>';
+
     // Action bar
     html += '<div class="timeline-actions">';
     html += '<button class="btn btn-primary btn-sm" id="btn-products-save-major" style="margin-top:0;">⬆ Major</button>';
@@ -610,6 +613,9 @@ export var ProductsPanel = {
     }
     html += '</div>';
     container.innerHTML = html;
+
+    // Render risk trend chart (only for published versions with riskScore)
+    self._renderRiskTrendChart(versions);
 
     // Back button
     document.getElementById('btn-products-back').addEventListener('click', function(){ self.showGrid(); });
@@ -1155,6 +1161,122 @@ export var ProductsPanel = {
       })
       .catch(function(){ showToast('שגיאה בטעינת המוצרים', 'error'); });
   },
+
+  // ── Risk Trend Chart ─────────────────────────────────────────────────────
+
+  /**
+   * Render a line chart showing risk score trend across the last 5 published versions.
+   * @param {Array} versions - All version objects for the product
+   */
+  _renderRiskTrendChart: function(versions) {
+    var chartContainer = document.getElementById('risk-trend-chart-container');
+    if (!chartContainer) return;
+
+    // Filter to published versions with a valid riskScore, sorted by version number (ascending)
+    var publishedVersions = (versions || [])
+      .filter(function(v) {
+        return v.status === 'published' && typeof v.riskScore === 'number' && v.version;
+      })
+      .sort(function(a, b) {
+        return compareVersionNumbers(a.version, b.version);
+      });
+
+    // Show chart only if 2+ published versions exist
+    if (publishedVersions.length < 2) {
+      chartContainer.style.display = 'none';
+      return;
+    }
+
+    // Take last 5 published versions
+    var chartData = publishedVersions.slice(-5);
+
+    // Chart dimensions (RTL: right = start, left = end)
+    var width = 600;
+    var height = 200;
+    var padding = { top: 20, right: 60, bottom: 40, left: 60 };
+    var chartWidth = width - padding.right - padding.left;
+    var chartHeight = height - padding.top - padding.bottom;
+
+    // Calculate scale
+    var riskScores = chartData.map(function(v) { return v.riskScore; });
+    var minScore = Math.min.apply(null, riskScores);
+    var maxScore = Math.max.apply(null, riskScores);
+    var yRange = maxScore - minScore;
+    // Add 10% padding to Y-axis range for better visualization
+    var yMin = Math.max(0, minScore - yRange * 0.1);
+    var yMax = maxScore + yRange * 0.1;
+    if (yMin === yMax) { yMin = 0; yMax = maxScore + 10; } // Handle flat line
+
+    var xStep = chartWidth / (chartData.length - 1 || 1);
+
+    // Scale functions
+    function scaleX(index) {
+      // RTL: index 0 (oldest) at right edge, last index (newest) at left edge
+      // Right edge is at (width - padding.right), move left by (index * xStep)
+      return (width - padding.right) - (index * xStep);
+    }
+    function scaleY(score) {
+      return padding.top + chartHeight - ((score - yMin) / (yMax - yMin)) * chartHeight;
+    }
+
+    // Build SVG path for the line
+    var pathData = chartData.map(function(v, i) {
+      var x = scaleX(i);
+      var y = scaleY(v.riskScore);
+      return (i === 0 ? 'M' : 'L') + x + ',' + y;
+    }).join(' ');
+
+    // Build SVG
+    var svg = '<svg class="risk-trend-chart" width="' + width + '" height="' + height + '" xmlns="http://www.w3.org/2000/svg">';
+
+    // Y-axis grid lines (horizontal) — RTL: Y-axis on right side
+    var gridSteps = 4;
+    for (var i = 0; i <= gridSteps; i++) {
+      var yVal = yMin + (yMax - yMin) * (i / gridSteps);
+      var yPos = scaleY(yVal);
+      // Grid lines span from left edge to right edge
+      svg += '<line x1="' + padding.left + '" y1="' + yPos + '" x2="' + (width - padding.right) + '" y2="' + yPos + '" class="risk-trend-grid-line" />';
+      // Y-axis labels on right side, ending at right edge
+      svg += '<text x="' + (width - 8) + '" y="' + yPos + '" class="risk-trend-axis-label" dy="0.3em" text-anchor="end">' + _esc(Math.round(yVal)) + '</text>';
+    }
+
+    // X-axis baseline — RTL: spans from left to right edge of chart area
+    svg += '<line x1="' + padding.left + '" y1="' + (height - padding.bottom) + '" x2="' + (width - padding.right) + '" y2="' + (height - padding.bottom) + '" class="risk-trend-axis-line" />';
+
+    // Line path
+    svg += '<path d="' + pathData + '" class="risk-trend-line" />';
+
+    // Data points + version labels
+    chartData.forEach(function(v, i) {
+      var x = scaleX(i);
+      var y = scaleY(v.riskScore);
+      var riskClass = '';
+      if (v.riskScore <= 15) riskClass = 'risk-tier-green';
+      else if (v.riskScore <= 35) riskClass = 'risk-tier-orange';
+      else if (v.riskScore <= 60) riskClass = 'risk-tier-red';
+      else riskClass = 'risk-tier-crimson';
+
+      // Point circle
+      svg += '<circle cx="' + x + '" cy="' + y + '" r="5" class="risk-trend-point ' + riskClass + '" />';
+
+      // Version label (X-axis)
+      svg += '<text x="' + x + '" y="' + (height - padding.bottom + 20) + '" class="risk-trend-version-label" text-anchor="middle">v' + _esc(v.version) + '</text>';
+
+      // Risk score label (above point)
+      svg += '<text x="' + x + '" y="' + (y - 10) + '" class="risk-trend-score-label" text-anchor="middle">' + _esc(v.riskScore) + '</text>';
+    });
+
+    svg += '</svg>';
+
+    // Render chart with title
+    chartContainer.innerHTML = '<div class="risk-trend-chart-wrapper">'
+      + '<div class="risk-trend-chart-title">📊 מגמת ציון סיכון (5 גרסאות אחרונות)</div>'
+      + svg
+      + '</div>';
+    chartContainer.style.display = 'block';
+  },
+
+  // ── Export panel shortcut ────────────────────────────────────────────────
 
   _showProductPicker: function(products) {
     var self = this;

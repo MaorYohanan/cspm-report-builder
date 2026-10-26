@@ -3726,6 +3726,89 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   margin: 0;
 }
 
+/* ── Risk Trend Chart ── */
+.risk-trend-chart-wrapper {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.risk-trend-chart-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin-bottom: 14px;
+  text-align: right; /* RTL: align to start */
+}
+
+.risk-trend-chart {
+  display: block;
+  margin: 0 auto;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Chart SVG elements */
+.risk-trend-grid-line {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.5;
+}
+
+.risk-trend-axis-line {
+  stroke: var(--border-hover);
+  stroke-width: 2;
+}
+
+.risk-trend-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Data point circles — color matches risk tier */
+.risk-trend-point {
+  stroke: var(--bg-card);
+  stroke-width: 2;
+  cursor: pointer;
+  transition: r 0.2s ease;
+}
+
+.risk-trend-point:hover {
+  r: 7;
+}
+
+.risk-trend-point.risk-tier-green   { fill: oklch(0.62 0.17 155); }
+.risk-trend-point.risk-tier-orange  { fill: oklch(0.72 0.16 60); }
+.risk-trend-point.risk-tier-red     { fill: oklch(0.58 0.22 15); }
+.risk-trend-point.risk-tier-crimson { fill: oklch(0.48 0.24 10); }
+
+/* Axis labels — RTL text alignment handled by text-anchor in SVG */
+.risk-trend-axis-label {
+  font-size: 11px;
+  fill: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+}
+
+.risk-trend-version-label {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--text);
+  font-family: 'Inter', monospace;
+}
+
+.risk-trend-score-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text-heading);
+  font-family: 'Inter', sans-serif;
+}
+
 .timeline-actions {
   display: flex;
   gap: 8px;
