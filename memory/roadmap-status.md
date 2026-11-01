@@ -444,3 +444,12 @@ BL-01 (Risk Score Trend Chart - Product Timeline): ✅ merged to main — 2026-1
 - QA fixes: XSS escaping added (lines 1237, 1263), RTL layout corrected
 - User confirmation: "grate"
 - **Tier 3: 1/5 complete**
+
+BL-12 (Temporary Action — "פעולה זמנית"): 🔍 awaiting merge approval — 2026-11-01
+- Branch: feature/bl-12-temporary-action (committed locally, not pushed)
+- ProductMemoryEntry.source accepts temp_excepted / temp_deleted; new consumed_at column; pipeline applies temp action on first scan, sets `_wasTempActioned` reminder on the next and consumes the entry; UI-only reminder banner + purple temp badge (hidden in PDF)
+- UI entry points: footer button next to ⚠ החרג, plus item in the detail-pane ⋮ menu (⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc)
+- Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations
+- BLOCKER before merge: instance/app.db and production lack consumed_at + the widened CHECK constraint; nothing runs the migrations at deploy. Back up DB, apply migrations, document in PRODUCTION_DEPLOY.md
+- Tests: 261 passed, 0 failed
+- Cache-busters: builder.css v=180, main.js v=189

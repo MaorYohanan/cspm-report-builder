@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=177">
+  <link rel="stylesheet" href="/static/css/builder.css?v=180">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -47,6 +47,32 @@
     <span id="wizi-autofill-text"></span>
     <button class="btn btn-primary btn-sm" id="btn-wizi-autofill-accept" data-i18n="מלא אוטומטית">מלא אוטומטית</button>
     <button class="btn btn-secondary btn-sm" id="btn-wizi-autofill-dismiss">✕</button>
+  </div>
+
+  <!-- Temporary Action Modal (BL-12) -->
+  <div id="temp-action-modal" class="temp-action-modal" style="display:none;" role="dialog" aria-labelledby="temp-action-modal-title" aria-modal="true">
+    <div class="temp-action-modal-overlay" id="temp-action-modal-overlay"></div>
+    <div class="temp-action-modal-dialog">
+      <div class="temp-action-modal-header">
+        <h2 id="temp-action-modal-title" class="temp-action-modal-title">פעולה זמנית</h2>
+        <button class="temp-action-modal-close" id="temp-action-modal-close" aria-label="סגור" title="סגור">✕</button>
+      </div>
+      <div class="temp-action-modal-body">
+        <p class="temp-action-modal-description">בחר פעולה זמנית עבור ממצא זה. הפעולה תישאר בתוקף עבור דו"ח זה בלבד.</p>
+        <div class="temp-action-options">
+          <button class="temp-action-option" id="temp-action-delete" data-action="temp_deleted">
+            <span class="temp-action-icon">🗑️</span>
+            <span class="temp-action-label">מחק לפעם הזו</span>
+            <span class="temp-action-desc">הממצא יוסר מהדו"ח הנוכחי בלבד</span>
+          </button>
+          <button class="temp-action-option" id="temp-action-exception" data-action="temp_excepted">
+            <span class="temp-action-icon">⚠</span>
+            <span class="temp-action-label">החרג לפעם הזו</span>
+            <span class="temp-action-desc">הממצא יסומן כמוחרג בדו"ח הנוכחי בלבד</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="app-layout">
@@ -622,6 +648,7 @@
               <button class="btn btn-secondary btn-sm" id="btn-detail-copy" data-i18n-title="העתק לקליפבורד" title="העתק לקליפבורד"><span data-i18n="📋 העתק">📋 העתק</span></button>
               <button class="btn btn-secondary btn-sm" id="btn-detail-expand" data-i18n-title="הרחב" title="הרחב">⛶</button>
               <button class="btn btn-sm btn-exception" id="btn-detail-exception" data-i18n-title="סמן כמוחרג" title="סמן כמוחרג" data-i18n="⚠ החרג">⚠ החרג</button>
+              <button class="btn btn-sm btn-temp-action" id="btn-detail-temp" data-i18n-title="פעולה זמנית — לדו&quot;ח זה בלבד" title="פעולה זמנית — לדו&quot;ח זה בלבד" data-i18n="⏱ פעולה זמנית">⏱ פעולה זמנית</button>
               <button class="btn btn-primary btn-sm" id="btn-detail-edit" data-i18n="ערוך">ערוך</button>
               <button class="btn btn-danger btn-sm" id="btn-detail-delete" data-i18n="מחק">מחק</button>
             </div>
@@ -974,6 +1001,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=185"></script>
+  <script type="module" src="/static/js/src/main.js?v=189"></script>
 </body>
 </html>

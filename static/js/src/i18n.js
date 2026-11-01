@@ -144,6 +144,8 @@ const TRANSLATIONS = {
     'הבא ←': 'Next ←',
     '📋 העתק': '📋 Copy',
     '⚠ החרג': '⚠ Exclude',
+    '⏱ פעולה זמנית': '⏱ Temporary action',
+    'פעולה זמנית — לדו"ח זה בלבד': 'Temporary action — this report only',
     'ערוך': 'Edit',
     'מחק': 'Delete',
     // ── Export panel ──

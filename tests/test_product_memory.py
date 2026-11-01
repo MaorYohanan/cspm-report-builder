@@ -174,9 +174,10 @@ class TestUpsertMemoryEntry:
         )
         assert response.status_code == 404
 
-    def test_invalid_source_defaults_to_excepted(self, client):
+    def test_invalid_source_returns_400(self, client):
+        """BL-12: Invalid source values should now return 400 instead of defaulting."""
         _create_product(client, "mem-post-bad-source")
-        client.post(
+        response = client.post(
             "/api/products/mem-post-bad-source/memory/entry",
             json={
                 "subscription": "sub-d",
@@ -185,14 +186,9 @@ class TestUpsertMemoryEntry:
                 "source": "unknown_value",
             },
         )
-        with client.application.app_context():
-            entry = ProductMemoryEntry.query.filter_by(
-                product_id="mem-post-bad-source",
-                subscription="sub-d",
-                title="finding d",
-            ).first()
-            assert entry is not None
-            assert entry.source == "excepted"
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "source" in data["error"]
 
     def test_deleted_source_accepted(self, client):
         _create_product(client, "mem-post-deleted")
@@ -214,6 +210,50 @@ class TestUpsertMemoryEntry:
             ).first()
             assert entry is not None
             assert entry.source == "deleted"
+
+    def test_temp_excepted_source_accepted(self, client):
+        """BL-12: temp_excepted source value should be accepted."""
+        _create_product(client, "mem-post-temp-exc")
+        response = client.post(
+            "/api/products/mem-post-temp-exc/memory/entry",
+            json={
+                "subscription": "sub-temp-1",
+                "title": "Temp Finding 1",
+                "reason": "",
+                "source": "temp_excepted",
+            },
+        )
+        assert response.status_code == 200
+        with client.application.app_context():
+            entry = ProductMemoryEntry.query.filter_by(
+                product_id="mem-post-temp-exc",
+                subscription="sub-temp-1",
+                title="temp finding 1",
+            ).first()
+            assert entry is not None
+            assert entry.source == "temp_excepted"
+
+    def test_temp_deleted_source_accepted(self, client):
+        """BL-12: temp_deleted source value should be accepted."""
+        _create_product(client, "mem-post-temp-del")
+        response = client.post(
+            "/api/products/mem-post-temp-del/memory/entry",
+            json={
+                "subscription": "sub-temp-2",
+                "title": "Temp Finding 2",
+                "reason": "",
+                "source": "temp_deleted",
+            },
+        )
+        assert response.status_code == 200
+        with client.application.app_context():
+            entry = ProductMemoryEntry.query.filter_by(
+                product_id="mem-post-temp-del",
+                subscription="sub-temp-2",
+                title="temp finding 2",
+            ).first()
+            assert entry is not None
+            assert entry.source == "temp_deleted"
 
 
 # ---------------------------------------------------------------------------

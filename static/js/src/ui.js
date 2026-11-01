@@ -427,3 +427,71 @@ export function renderDashboard() {
     }
   }
 }
+
+// ── Temporary Action Modal (BL-12) ──
+(function() {
+  var modal = document.getElementById('temp-action-modal');
+  var overlay = document.getElementById('temp-action-modal-overlay');
+  var closeBtn = document.getElementById('temp-action-modal-close');
+  var deleteBtn = document.getElementById('temp-action-delete');
+  var exceptionBtn = document.getElementById('temp-action-exception');
+
+  if (!modal || !overlay || !closeBtn || !deleteBtn || !exceptionBtn) return;
+
+  var currentFindingIndex = null;
+
+  // Open modal — listen for custom event from findings.js
+  document.addEventListener('openTempActionModal', function(e) {
+    currentFindingIndex = e.detail.findingIndex;
+    modal.style.display = 'flex';
+    // Focus first option for keyboard accessibility
+    deleteBtn.focus();
+  });
+
+  // Close modal function
+  function closeTempActionModal() {
+    modal.style.display = 'none';
+    currentFindingIndex = null;
+  }
+
+  // Close on overlay click
+  overlay.addEventListener('click', closeTempActionModal);
+
+  // Close on close button click
+  closeBtn.addEventListener('click', closeTempActionModal);
+
+  // Close on Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && modal.style.display === 'flex') {
+      closeTempActionModal();
+    }
+  });
+
+  // Handle temp-delete action
+  deleteBtn.addEventListener('click', function() {
+    if (currentFindingIndex === null) return;
+    closeTempActionModal();
+    // Dispatch custom event — Developer will handle backend call in Part 2
+    var evt = new CustomEvent('tempActionSelected', {
+      detail: {
+        findingIndex: currentFindingIndex,
+        action: 'temp_deleted'
+      }
+    });
+    document.dispatchEvent(evt);
+  });
+
+  // Handle temp-exception action
+  exceptionBtn.addEventListener('click', function() {
+    if (currentFindingIndex === null) return;
+    closeTempActionModal();
+    // Dispatch custom event — Developer will handle backend call in Part 2
+    var evt = new CustomEvent('tempActionSelected', {
+      detail: {
+        findingIndex: currentFindingIndex,
+        action: 'temp_excepted'
+      }
+    });
+    document.dispatchEvent(evt);
+  });
+})();

@@ -957,6 +957,46 @@ button.dashboard-link {
   border-bottom: none;
 }
 
+/* Detail-pane actions (⋮) button — explicit colors so it stays readable in dark and light themes */
+.detail-actions-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.detail-actions-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-heading);
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.detail-actions-btn:hover,
+.detail-actions-btn:focus-visible {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* Menu is positioned from JS against the viewport so the pane's overflow:hidden cannot clip it */
+.actions-dropdown.actions-dropdown-fixed {
+  position: fixed;
+  right: auto;
+  top: auto;
+  margin-top: 0;
+}
+
 .findings-detail-tabs {
   display: flex;
   gap: 0;
@@ -1537,6 +1577,209 @@ button.dashboard-link {
 
 .duplicates-actions .btn-secondary:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Temporary Action Modal (BL-12) ── */
+.temp-action-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.temp-action-modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.temp-action-modal-dialog {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border-hover);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 520px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  animation: tempActionSlideIn 0.25s ease;
+}
+
+@keyframes tempActionSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.temp-action-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.temp-action-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.temp-action-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.temp-action-modal-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.temp-action-modal-body {
+  padding: 24px;
+}
+
+.temp-action-modal-description {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin: 0 0 20px 0;
+  text-align: right;
+  line-height: 1.6;
+}
+
+.temp-action-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.temp-action-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px 18px;
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: right;
+  font-family: inherit;
+}
+
+.temp-action-option:hover {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  transform: translateX(-2px);
+}
+
+.temp-action-option:active {
+  transform: scale(0.98);
+}
+
+.temp-action-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.temp-action-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin-bottom: 2px;
+}
+
+.temp-action-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ── Temp Exception Badge (BL-12) ── */
+/* Visually distinct from regular exception badge — uses purple/violet theme */
+.badge-temp-exception {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  background: oklch(0.28 0.12 280 / 0.18);
+  color: oklch(0.75 0.16 280);
+  border: 1px solid oklch(0.28 0.12 280 / 0.3);
+}
+
+/* Footer "temporary action" button — same purple family as the temp badge, mid-tone so it reads on dark and light themes */
+.btn-temp-action {
+  background: oklch(0.60 0.18 290 / 0.10);
+  color: oklch(0.60 0.18 290);
+  border: 1px solid oklch(0.60 0.18 290 / 0.40);
+}
+.btn-temp-action:hover:not(:disabled) {
+  background: oklch(0.60 0.18 290 / 0.20);
+}
+
+/* Print mode: hide temp-exception badge (UI-only, never in PDF) */
+@media print {
+  .badge-temp-exception {
+    display: none;
+  }
+}
+
+/* ── Temp Actioned Reminder Banner (BL-12) ── */
+/* Banner appears for findings that were temp-actioned in the previous cycle */
+.temp-actioned-reminder {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: oklch(0.28 0.12 280 / 0.1);
+  border: 1px solid oklch(0.28 0.12 280 / 0.25);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: oklch(0.75 0.16 280);
+  text-align: right;
+}
+
+.temp-actioned-reminder-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.temp-actioned-reminder-text {
+  flex: 1;
+  line-height: 1.5;
+}
+
+/* Print mode: hide reminder banner (UI-only, never in PDF) */
+@media print {
+  .temp-actioned-reminder {
+    display: none;
+  }
 }
 
 /* ── RTL Adjustments ── */

@@ -985,6 +985,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                     snap.snapshot_data = _d
                     db.session.commit()
                 return
+            # Query permanent exception/deletion entries for auto-apply
             excepted_entries = ProductMemoryEntry.query.filter_by(
                 product_id=snap.product_id, source="excepted"
             ).all()
@@ -995,6 +996,16 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             ).all()
             deleted_keys = {(e.subscription, e.title) for e in deleted_entries}
 
+            # Query temporary entries separately (not auto-applied, single-use)
+            temp_excepted_entries = ProductMemoryEntry.query.filter_by(
+                product_id=snap.product_id, source="temp_excepted"
+            ).all()
+            temp_excepted_keys = {(e.subscription, e.title): e for e in temp_excepted_entries}
+            temp_deleted_entries = ProductMemoryEntry.query.filter_by(
+                product_id=snap.product_id, source="temp_deleted"
+            ).all()
+            temp_deleted_keys = {(e.subscription, e.title): e for e in temp_deleted_entries}
+
             weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
             risk = 0
             cat_counters: dict = {}
@@ -1004,6 +1015,9 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             # distort the flush interval or the final reported count.
             _BATCH = 200
             written_count = 0
+            # Collect temp entries to delete after processing (single-use)
+            temp_entries_to_delete = []
+
             for raw in findings_to_store:
                 # Aggregated VULN finding is already in enriched format;
                 # all other raw nodes need transformation.
@@ -1014,6 +1028,45 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 sev = enriched.get("severity") or ""
                 title = enriched.get("title", "").lower().strip()
                 sub = (raw.get("_sourceSubscription") or "").lower().strip()
+
+                # BL-12: Temp action lifecycle (multi-worker safe via consumed_at timestamp)
+                temp_key = (sub, title)
+                temp_entry = temp_deleted_keys.get(temp_key) or temp_excepted_keys.get(temp_key)
+
+                if temp_entry:
+                    # Check if this temp entry has already been consumed (applied once)
+                    if temp_entry.consumed_at is None:
+                        # FIRST SCAN: Apply the temp action and mark as consumed
+                        temp_entry.consumed_at = datetime.now(UTC)
+
+                        if temp_entry.source == "temp_deleted":
+                            # Skip this finding entirely (do not add to DB)
+                            continue
+                        elif temp_entry.source == "temp_excepted":
+                            # Apply exception with temp source marker for badge display
+                            enriched["exception"] = {
+                                "active": True,
+                                "reason": temp_entry.reason or "",
+                                "source": "temp_excepted"  # Fix #3: enables purple badge display
+                            }
+                            # Add finding with exception active
+                            db.session.add(Finding(
+                                snapshot_id=snapshot_id,
+                                severity=sev,
+                                finding_data=enriched,
+                                exception_active=True,
+                            ))
+                            # Exceptions don't contribute to risk score
+                            written_count += 1
+                            if written_count % _BATCH == 0:
+                                db.session.flush()
+                            continue  # Skip normal processing below
+                    else:
+                        # SECOND SCAN: Entry was already consumed, set reminder and delete
+                        enriched["_wasTempActioned"] = True
+                        enriched["_tempActionReason"] = "excepted" if temp_entry.source == "temp_excepted" else "deleted"
+                        temp_entries_to_delete.append(temp_entry)
+
                 # DEV-CRIT-2: skip findings that the user has permanently deleted
                 if (sub, title) in deleted_keys:
                     continue
@@ -1032,6 +1085,10 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 written_count += 1
                 if written_count % _BATCH == 0:
                     db.session.flush()
+
+            # BL-12: Delete consumed temp entries after second scan
+            for temp_entry in temp_entries_to_delete:
+                db.session.delete(temp_entry)
 
             # Final commit + update snapshot metadata
             snap = db.session.get(ReportSnapshot, snapshot_id)

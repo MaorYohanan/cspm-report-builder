@@ -20,6 +20,45 @@ const exportJsonBtn  = document.getElementById('btn-export-json');
 
 let priorityTouched = false;
 
+      // ── Detail actions menu: viewport-aware placement + auto-close ──
+      function positionDetailActionsMenu(btn, menu) {
+        var gap = 4, pad = 8;
+        menu.style.visibility = 'hidden';
+        menu.style.display = 'block';
+        var b = btn.getBoundingClientRect();
+        var mw = menu.offsetWidth, mh = menu.offsetHeight;
+        var vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+
+        // Prefer opening toward the left (menu's right edge on the button's right edge); flip right if cut off.
+        var left = b.right - mw;
+        if (left < pad) left = b.left;
+        if (left + mw > vw - pad) left = vw - pad - mw;
+        if (left < pad) left = pad;
+
+        // Prefer opening downward; flip upward if cut off by the bottom of the window.
+        var top = b.bottom + gap;
+        if (top + mh > vh - pad && b.top - gap - mh >= pad) top = b.top - gap - mh;
+        if (top + mh > vh - pad) top = Math.max(pad, vh - pad - mh);
+
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+        menu.style.visibility = '';
+      }
+
+      var _detailMenuAutoCloseBound = false;
+      function bindDetailMenuAutoClose() {
+        if (_detailMenuAutoCloseBound) return;
+        _detailMenuAutoCloseBound = true;
+        var close = function() {
+          var m = document.getElementById('detail-actions-menu');
+          if (m) m.style.display = 'none';
+        };
+        document.addEventListener('click', close);
+        window.addEventListener('resize', close);
+        window.addEventListener('scroll', close, true);
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') close(); });
+      }
+
       // ── Finding Detail Pane ──
       export function showFindingDetail(idx) {
         state.selectedFindingIndex = idx;
@@ -40,22 +79,33 @@ let priorityTouched = false;
         var f = state.findings[idx];
         var sev = state.severityMap[f.severity] || state.severityMap.medium;
 
+        // BL-12: Check for temp-exception status and was-temp-actioned flag
+        var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
+        var wasTempActioned = !!(f._wasTempActioned);
+        var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">⏱ מוחרג זמנית</span>' : '';
+        var reminderBanner = wasTempActioned
+          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">הממצא הזה הוחרג או נמחק זמנית בדו"ח הקודם</span></div>'
+          : '';
+
         // Header
         var headerEl = document.getElementById('findings-detail-header');
         headerEl.innerHTML =
+          reminderBanner +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
             '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
-            '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
-            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + escapeHtml(f.id || '') + '</span>' +
-            '<span style="margin-right:auto;position:relative;">' +
-              '<button class="btn-icon-sm" id="btn-detail-actions" title="פעולות">⋮</button>' +
-              '<div class="actions-dropdown" id="detail-actions-menu" style="display:none;">' +
+            '<span class="detail-actions-wrap">' +
+              '<button type="button" class="detail-actions-btn" id="btn-detail-actions" title="פעולות" aria-label="פעולות" aria-haspopup="menu">⋮</button>' +
+              '<div class="actions-dropdown actions-dropdown-fixed" id="detail-actions-menu" role="menu" style="display:none;">' +
                 '<button class="actions-dropdown-item" id="detail-action-edit">✏️ ערוך</button>' +
                 '<button class="actions-dropdown-item" id="detail-action-dup">📋 שכפל</button>' +
                 '<button class="actions-dropdown-item" id="detail-action-ai">🤖 שיפור AI</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-temp">⏱ פעולה זמנית</button>' +
                 '<button class="actions-dropdown-item actions-dropdown-danger" id="detail-action-delete">🗑️ מחק</button>' +
               '</div>' +
             '</span>' +
+            '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
+            tempBadge +
+            '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + escapeHtml(f.id || '') + '</span>' +
           '</div>' +
           '<div style="font-size:17px;font-weight:700;color:var(--text-heading);margin-bottom:4px;">' + escapeHtml(f.title || '') + '</div>' +
           '<div style="font-size:12px;color:var(--text-muted);">' +
@@ -67,9 +117,14 @@ let priorityTouched = false;
         var detailActionsBtn = document.getElementById('btn-detail-actions');
         var detailActionsMenu = document.getElementById('detail-actions-menu');
         if (detailActionsBtn && detailActionsMenu) {
+          bindDetailMenuAutoClose();
           detailActionsBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            detailActionsMenu.style.display = detailActionsMenu.style.display === 'none' ? 'block' : 'none';
+            if (detailActionsMenu.style.display === 'none') {
+              positionDetailActionsMenu(detailActionsBtn, detailActionsMenu);
+            } else {
+              detailActionsMenu.style.display = 'none';
+            }
           });
           document.getElementById('detail-action-edit').addEventListener('click', function() {
             detailActionsMenu.style.display = 'none';
@@ -95,6 +150,12 @@ let priorityTouched = false;
           document.getElementById('detail-action-delete').addEventListener('click', function() {
             detailActionsMenu.style.display = 'none';
             document.getElementById('btn-detail-delete').click();
+          });
+          document.getElementById('detail-action-temp').addEventListener('click', function() {
+            detailActionsMenu.style.display = 'none';
+            // Dispatch custom event to open temp action modal — ui.js will handle it
+            var evt = new CustomEvent('openTempActionModal', { detail: { findingIndex: state.selectedFindingIndex } });
+            document.dispatchEvent(evt);
           });
         }
 
@@ -400,6 +461,15 @@ let priorityTouched = false;
             .catch(function() {
               showToast('שגיאה בהעתקה', 'error');
             });
+        });
+      }
+
+      // ── Temporary action (footer button — same modal as the ⋮ menu item) ──
+      var btnDetailTemp = document.getElementById('btn-detail-temp');
+      if (btnDetailTemp) {
+        btnDetailTemp.addEventListener('click', function() {
+          if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
+          document.dispatchEvent(new CustomEvent('openTempActionModal', { detail: { findingIndex: state.selectedFindingIndex } }));
         });
       }
 
@@ -1343,7 +1413,11 @@ let priorityTouched = false;
                 var idx = item.idx;
                 const sev = state.severityMap[f.severity] || state.severityMap.medium;
                 var isExc = !!(f.exception && f.exception.active);
-                var excBadge = isExc ? ' <span class="badge-exception">מוחרג</span>' : '';
+                // BL-12: Check for temp-exception vs regular exception
+                var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
+                var excBadge = isTempExcepted
+                  ? ' <span class="badge-temp-exception">⏱ מוחרג זמנית</span>'
+                  : (isExc ? ' <span class="badge-exception">מוחרג</span>' : '');
                 var rowStyle = isExc ? ' style="opacity:0.65;"' : '';
 
                 html += '<tr data-idx="' + idx + '"' + rowStyle + '>' +
@@ -3827,3 +3901,64 @@ ${draftWatermarkStyle}
         });
       }
 
+      // ── BL-12: Temp Action Handler ──
+      document.addEventListener('tempActionSelected', function(evt) {
+        var detail = evt.detail || {};
+        var findingIndex = detail.findingIndex;
+        var action = detail.action; // 'temp_deleted' or 'temp_excepted'
+
+        if (findingIndex === null || findingIndex === undefined) return;
+        var finding = state.findings[findingIndex];
+        if (!finding) return;
+
+        // Fix #2: Pipeline-scanned findings use _sourceSubscription (pipeline.py:306)
+        var subscription = finding._sourceSubscription || finding.subscription || '';
+        var title = finding.title || '';
+
+        if (!subscription || !title) {
+          showToast('לא ניתן לבצע פעולה זמנית — חסר מנוי או כותרת', 'error');
+          return;
+        }
+
+        // Call API to create temp ProductMemoryEntry
+        fetch('/api/products/' + encodeURIComponent(state.product.id) + '/memory/entry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subscription: subscription,
+            title: title,
+            reason: '',
+            source: action
+          })
+        })
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(data) {
+          if (data.error) throw new Error(data.error);
+
+          // Update local state based on action type
+          if (action === 'temp_deleted') {
+            // Remove from findings array
+            state.findings.splice(findingIndex, 1);
+            showToast('הממצא נמחק זמנית', 'success');
+            renderFindingsTable();
+            showFindingDetail(null); // Close detail pane
+          } else if (action === 'temp_excepted') {
+            // Mark as temp-excepted
+            finding.exception = {
+              active: true,
+              reason: '',
+              source: 'temp_excepted'
+            };
+            showToast('הממצא הוחרג זמנית', 'success');
+            renderFindingsTable();
+            showFindingDetail(findingIndex); // Refresh detail pane
+          }
+          autoSave();
+        })
+        .catch(function(err) {
+          showToast('שגיאה בפעולה זמנית: ' + err.message, 'error');
+        });
+      });
