@@ -450,6 +450,7 @@ BL-12 (Temporary Action — "פעולה זמנית"): 🔍 awaiting merge approv
 - ProductMemoryEntry.source accepts temp_excepted / temp_deleted; new consumed_at column; pipeline applies temp action on first scan, sets `_wasTempActioned` reminder on the next and consumes the entry; UI-only reminder banner + purple temp badge (hidden in PDF)
 - UI entry points: footer button next to ⚠ החרג, plus item in the detail-pane ⋮ menu (⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc)
 - Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations
-- BLOCKER before merge: instance/app.db and production lack consumed_at + the widened CHECK constraint; nothing runs the migrations at deploy. Back up DB, apply migrations, document in PRODUCTION_DEPLOY.md
+- Local DB: migrations applied to instance/app.db on 2026-11-01 (alembic_version 48749912a976; backup in instance/backups/pre-bl12-*; rows verified identical, integrity ok). Documented in PRODUCTION_DEPLOY.md
+- BLOCKER before deploy: the production Cloud SQL (PostgreSQL) database still needs the BL-12 SQL from PRODUCTION_DEPLOY.md applied BEFORE the new image is deployed — not done
 - Tests: 261 passed, 0 failed
 - Cache-busters: builder.css v=180, main.js v=189

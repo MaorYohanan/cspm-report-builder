@@ -193,7 +193,34 @@ The app **never** auto-migrates in production. After any model change:
 2. Apply it to Cloud SQL before deploying the new image
 3. Deploy the new image
 
-*(Alembic integration is planned for a later milestone.)*
+Alembic is set up (`alembic.ini`, `migrations/`); it reads the database from the app's `DATABASE_URL`
+(or `instance/app.db` when unset). Existing databases that pre-date Alembic have no `alembic_version`
+table — see BL-12 below for how to bring one in line.
+
+### BL-12 — Temporary Action
+
+Adds `product_memory_entries.consumed_at` and allows the new `source` values `temp_excepted` / `temp_deleted`.
+**Without the new column the app fails on every Product Memory query** (`no such column: consumed_at`), so apply
+this to Cloud SQL **before** deploying the new image. Take a backup first.
+
+```sql
+ALTER TABLE product_memory_entries DROP CONSTRAINT IF EXISTS ck_memory_source;
+ALTER TABLE product_memory_entries
+  ADD CONSTRAINT ck_memory_source CHECK (source IN ('excepted','deleted','temp_excepted','temp_deleted'));
+ALTER TABLE product_memory_entries ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP NULL;
+```
+
+Then record that the Alembic revisions are applied, so a later `alembic upgrade head` does not re-run them:
+
+```bash
+DATABASE_URL="postgresql+psycopg2://cspm_user:password@127.0.0.1:5432/cspm" python -m alembic stamp head
+```
+
+(Alternatively run `python -m alembic upgrade head` against the database instead of the raw SQL. Its first revision
+drops `ck_memory_source` without `IF EXISTS`, so it fails if the constraint was never created.)
+
+Local SQLite dev databases: stop the app, back up `app.db` **with** its `-wal` and `-shm` files, then run
+`python -m alembic upgrade head`.
 
 ### Milestone 2.1 — Pipeline Dashboard
 
