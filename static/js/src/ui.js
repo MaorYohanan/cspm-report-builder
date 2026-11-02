@@ -470,28 +470,20 @@ export function renderDashboard() {
   // Handle temp-delete action
   deleteBtn.addEventListener('click', function() {
     if (currentFindingIndex === null) return;
+    var findingIndex = currentFindingIndex; // closing the modal resets currentFindingIndex
     closeTempActionModal();
-    // Dispatch custom event — Developer will handle backend call in Part 2
-    var evt = new CustomEvent('tempActionSelected', {
-      detail: {
-        findingIndex: currentFindingIndex,
-        action: 'temp_deleted'
-      }
-    });
-    document.dispatchEvent(evt);
+    document.dispatchEvent(new CustomEvent('tempActionSelected', {
+      detail: { findingIndex: findingIndex, action: 'temp_deleted' }
+    }));
   });
 
   // Handle temp-exception action
   exceptionBtn.addEventListener('click', function() {
     if (currentFindingIndex === null) return;
+    var findingIndex = currentFindingIndex; // closing the modal resets currentFindingIndex
     closeTempActionModal();
-    // Dispatch custom event — Developer will handle backend call in Part 2
-    var evt = new CustomEvent('tempActionSelected', {
-      detail: {
-        findingIndex: currentFindingIndex,
-        action: 'temp_excepted'
-      }
-    });
-    document.dispatchEvent(evt);
+    document.dispatchEvent(new CustomEvent('tempActionSelected', {
+      detail: { findingIndex: findingIndex, action: 'temp_excepted' }
+    }));
   });
 })();

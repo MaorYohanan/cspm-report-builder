@@ -3911,25 +3911,41 @@ ${draftWatermarkStyle}
         var finding = state.findings[findingIndex];
         if (!finding) return;
 
-        // Fix #2: Pipeline-scanned findings use _sourceSubscription (pipeline.py:306)
+        // Pipeline-scanned findings carry _sourceSubscription (pipeline.py:306)
         var subscription = finding._sourceSubscription || finding.subscription || '';
         var title = finding.title || '';
+        var product = ProductsPanel && ProductsPanel.selectedProduct;
 
+        function applyLocally(note) {
+          if (action === 'temp_deleted') {
+            state.findings.splice(findingIndex, 1);
+            showToast('הממצא נמחק זמנית' + note, 'success');
+            renderFindingsTable();
+            showFindingDetail(null);
+          } else if (action === 'temp_excepted') {
+            finding.exception = { active: true, reason: '', source: 'temp_excepted' };
+            showToast('הממצא הוחרג זמנית' + note, 'success');
+            renderFindingsTable();
+            showFindingDetail(findingIndex);
+          }
+          autoSave();
+        }
+
+        // Without a selected product / source subscription there is no Product Memory to carry the
+        // "return next cycle" reminder — apply the action to this report and say so.
+        if (!product || !product.id) {
+          applyLocally(' (לא נשמר בזיכרון המוצר — לא נבחר מוצר)');
+          return;
+        }
         if (!subscription || !title) {
-          showToast('לא ניתן לבצע פעולה זמנית — חסר מנוי או כותרת', 'error');
+          applyLocally(' (לא נשמר בזיכרון המוצר — לממצא אין מנוי מקור)');
           return;
         }
 
-        // Call API to create temp ProductMemoryEntry
-        fetch('/api/products/' + encodeURIComponent(state.product.id) + '/memory/entry', {
+        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            subscription: subscription,
-            title: title,
-            reason: '',
-            source: action
-          })
+          body: JSON.stringify({ subscription: subscription, title: title, reason: '', source: action })
         })
         .then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -3937,26 +3953,7 @@ ${draftWatermarkStyle}
         })
         .then(function(data) {
           if (data.error) throw new Error(data.error);
-
-          // Update local state based on action type
-          if (action === 'temp_deleted') {
-            // Remove from findings array
-            state.findings.splice(findingIndex, 1);
-            showToast('הממצא נמחק זמנית', 'success');
-            renderFindingsTable();
-            showFindingDetail(null); // Close detail pane
-          } else if (action === 'temp_excepted') {
-            // Mark as temp-excepted
-            finding.exception = {
-              active: true,
-              reason: '',
-              source: 'temp_excepted'
-            };
-            showToast('הממצא הוחרג זמנית', 'success');
-            renderFindingsTable();
-            showFindingDetail(findingIndex); // Refresh detail pane
-          }
-          autoSave();
+          applyLocally('');
         })
         .catch(function(err) {
           showToast('שגיאה בפעולה זמנית: ' + err.message, 'error');
