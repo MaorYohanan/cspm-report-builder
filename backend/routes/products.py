@@ -824,8 +824,8 @@ def upsert_memory_entry(product_id: str):
         return jsonify({"error": "title: too long"}), 400
     if not isinstance(reason, str) or len(reason) > _MAX_REASON_LEN:
         reason = ""
-    if source not in ("excepted", "deleted", "temp_excepted", "temp_deleted"):
-        return jsonify({"error": f"source: must be one of excepted, deleted, temp_excepted, temp_deleted"}), 400
+    if source not in ("excepted", "deleted", "temp_excepted"):
+        return jsonify({"error": "source: must be one of excepted, deleted, temp_excepted"}), 400
     if _contains_traversal(subscription) or _contains_traversal(title):
         return jsonify({"error": "Invalid field value"}), 400
 

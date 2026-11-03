@@ -199,14 +199,14 @@ table — see BL-12 below for how to bring one in line.
 
 ### BL-12 — Temporary Action
 
-Adds `product_memory_entries.consumed_at` and allows the new `source` values `temp_excepted` / `temp_deleted`.
+Adds `product_memory_entries.consumed_at` and allows the new `source` value `temp_excepted`.
 **Without the new column the app fails on every Product Memory query** (`no such column: consumed_at`), so apply
 this to Cloud SQL **before** deploying the new image. Take a backup first.
 
 ```sql
 ALTER TABLE product_memory_entries DROP CONSTRAINT IF EXISTS ck_memory_source;
 ALTER TABLE product_memory_entries
-  ADD CONSTRAINT ck_memory_source CHECK (source IN ('excepted','deleted','temp_excepted','temp_deleted'));
+  ADD CONSTRAINT ck_memory_source CHECK (source IN ('excepted','deleted','temp_excepted'));
 ALTER TABLE product_memory_entries ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMP NULL;
 ```
 

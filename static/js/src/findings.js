@@ -3905,7 +3905,7 @@ ${draftWatermarkStyle}
       document.addEventListener('tempActionSelected', function(evt) {
         var detail = evt.detail || {};
         var findingIndex = detail.findingIndex;
-        var action = detail.action; // 'temp_deleted' or 'temp_excepted'
+        var action = detail.action; // 'temp_excepted'
 
         if (findingIndex === null || findingIndex === undefined) return;
         var finding = state.findings[findingIndex];
@@ -3917,17 +3917,11 @@ ${draftWatermarkStyle}
         var product = ProductsPanel && ProductsPanel.selectedProduct;
 
         function applyLocally(note) {
-          if (action === 'temp_deleted') {
-            state.findings.splice(findingIndex, 1);
-            showToast('הממצא נמחק זמנית' + note, 'success');
-            renderFindingsTable();
-            showFindingDetail(null);
-          } else if (action === 'temp_excepted') {
-            finding.exception = { active: true, reason: '', source: 'temp_excepted' };
-            showToast('הממצא הוחרג זמנית' + note, 'success');
-            renderFindingsTable();
-            showFindingDetail(findingIndex);
-          }
+          if (action !== 'temp_excepted') return;
+          finding.exception = { active: true, reason: '', source: 'temp_excepted' };
+          showToast('הממצא הוחרג זמנית' + note, 'success');
+          renderFindingsTable();
+          showFindingDetail(findingIndex);
           autoSave();
         }
 

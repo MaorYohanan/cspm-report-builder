@@ -154,13 +154,13 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Effort:** Medium
 **Notes:** PARTIAL — a template selector (`#f-template`) already exists in the Add Finding form, populated from a hardcoded `findingTemplates` array in `findings.js` (line 581). Net-new work: a new ORM model (`FindingTemplate`), admin CRUD routes, a management UI in the admin panel, and merging custom templates into the selector dropdown at page load.
 
-### BL-12 · Temporary Action ("פעולה זמנית")
+### BL-12 · Temporary Action
 **Why:** Some findings need to be silenced for one report cycle only — currently any exception or delete is permanently carried forward by Product Memory, with no way to say "just this time."
 **Effort:** High
 **Design (grilled 2026-09-07):**
 - New **"פעולה זמנית"** button on each finding (alongside existing exception/delete actions)
 - Clicking it opens a modal asking the consultant to choose:
-  - **"מחק לפעם הזו"** — removes the finding from this report (same visual as delete)
+  - ~~**"מחק לפעם הזו"**~~ — DROPPED 2026-11-03: a plain delete already exists. Only the temporary exception ships.
   - **"החרג לפעם הזו"** — marks the finding as excepted in this report (different visual badge from regular exception — signals it is temporary)
 - Product Memory **is updated** but with a new `source` value (e.g. `"temp_excepted"` / `"temp_deleted"`) — distinct from the regular `"excepted"` / `"deleted"` sources
 - In the **next report**, when this finding is imported:

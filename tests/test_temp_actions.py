@@ -1,8 +1,8 @@
 """Unit tests for BL-12 Temporary Action feature.
 
 Tests that:
-1. temp_excepted and temp_deleted source values are accepted by the API
-2. ProductMemoryEntry model accepts the new source values
+1. temp_excepted is accepted (and temp_deleted rejected) by the API
+2. ProductMemoryEntry model accepts temp_excepted
 3. Database CHECK constraint enforces valid source values
 
 Full pipeline integration tests require a Wiz test environment and are
@@ -75,28 +75,20 @@ class TestProductMemoryEntryModel:
             assert retrieved is not None
             assert retrieved.source == "temp_excepted"
 
-    def test_temp_deleted_source_allowed(self, app):
-        """BL-12: temp_deleted should be a valid source value."""
+    def test_temp_deleted_source_rejected_by_check_constraint(self, app):
+        """BL-12: temp delete was dropped — the CHECK constraint must refuse it."""
         product_id = _create_product(app, "model-temp-del")
         with app.app_context():
-            entry = ProductMemoryEntry(
+            _db.session.add(ProductMemoryEntry(
                 product_id=product_id,
                 subscription="test-sub-2",
                 title="test finding 2",
                 reason="test",
                 source="temp_deleted",
-            )
-            _db.session.add(entry)
-            _db.session.commit()
-
-            # Verify it was stored correctly
-            retrieved = ProductMemoryEntry.query.filter_by(
-                product_id=product_id,
-                subscription="test-sub-2",
-                title="test finding 2",
-            ).first()
-            assert retrieved is not None
-            assert retrieved.source == "temp_deleted"
+            ))
+            with pytest.raises(IntegrityError):
+                _db.session.commit()
+            _db.session.rollback()
 
     def test_permanent_sources_still_work(self, app):
         """Verify existing source values (excepted, deleted) still work."""
@@ -132,7 +124,7 @@ class TestProductMemoryEntryModel:
                 subscription="test-sub",
                 title="test finding",
                 reason="test",
-                source="temp_deleted",
+                source="temp_excepted",
             )
             _db.session.add(entry)
             _db.session.commit()
@@ -230,6 +222,6 @@ class TestProductMemoryEntryModel:
 # ---------------------------------------------------------------------------
 # API Endpoint Tests (already covered in test_product_memory.py)
 # ---------------------------------------------------------------------------
-# The API endpoint tests for temp_excepted and temp_deleted are in
+# The API endpoint tests for temp_excepted (accepted) and temp_deleted (rejected) are in
 # test_product_memory.py::TestUpsertMemoryEntry::test_temp_excepted_source_accepted
-# test_product_memory.py::TestUpsertMemoryEntry::test_temp_deleted_source_accepted
+# test_product_memory.py::TestUpsertMemoryEntry::test_temp_deleted_source_rejected

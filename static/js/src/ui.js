@@ -433,10 +433,9 @@ export function renderDashboard() {
   var modal = document.getElementById('temp-action-modal');
   var overlay = document.getElementById('temp-action-modal-overlay');
   var closeBtn = document.getElementById('temp-action-modal-close');
-  var deleteBtn = document.getElementById('temp-action-delete');
   var exceptionBtn = document.getElementById('temp-action-exception');
 
-  if (!modal || !overlay || !closeBtn || !deleteBtn || !exceptionBtn) return;
+  if (!modal || !overlay || !closeBtn || !exceptionBtn) return;
 
   var currentFindingIndex = null;
 
@@ -445,7 +444,7 @@ export function renderDashboard() {
     currentFindingIndex = e.detail.findingIndex;
     modal.style.display = 'flex';
     // Focus first option for keyboard accessibility
-    deleteBtn.focus();
+    exceptionBtn.focus();
   });
 
   // Close modal function
@@ -465,16 +464,6 @@ export function renderDashboard() {
     if (e.key === 'Escape' && modal.style.display === 'flex') {
       closeTempActionModal();
     }
-  });
-
-  // Handle temp-delete action
-  deleteBtn.addEventListener('click', function() {
-    if (currentFindingIndex === null) return;
-    var findingIndex = currentFindingIndex; // closing the modal resets currentFindingIndex
-    closeTempActionModal();
-    document.dispatchEvent(new CustomEvent('tempActionSelected', {
-      detail: { findingIndex: findingIndex, action: 'temp_deleted' }
-    }));
   });
 
   // Handle temp-exception action

@@ -233,8 +233,8 @@ class TestUpsertMemoryEntry:
             assert entry is not None
             assert entry.source == "temp_excepted"
 
-    def test_temp_deleted_source_accepted(self, client):
-        """BL-12: temp_deleted source value should be accepted."""
+    def test_temp_deleted_source_rejected(self, client):
+        """BL-12: temp delete was dropped — temp_deleted must be rejected with 400 and store nothing."""
         _create_product(client, "mem-post-temp-del")
         response = client.post(
             "/api/products/mem-post-temp-del/memory/entry",
@@ -245,15 +245,9 @@ class TestUpsertMemoryEntry:
                 "source": "temp_deleted",
             },
         )
-        assert response.status_code == 200
+        assert response.status_code == 400
         with client.application.app_context():
-            entry = ProductMemoryEntry.query.filter_by(
-                product_id="mem-post-temp-del",
-                subscription="sub-temp-2",
-                title="temp finding 2",
-            ).first()
-            assert entry is not None
-            assert entry.source == "temp_deleted"
+            assert ProductMemoryEntry.query.filter_by(product_id="mem-post-temp-del").count() == 0
 
 
 # ---------------------------------------------------------------------------

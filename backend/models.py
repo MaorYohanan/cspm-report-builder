@@ -93,7 +93,7 @@ class ProductMemoryEntry(db.Model):
     __tablename__ = "product_memory_entries"
     __table_args__ = (
         db.UniqueConstraint("product_id", "subscription", "title"),
-        db.CheckConstraint("source IN ('excepted','deleted','temp_excepted','temp_deleted')", name="ck_memory_source"),
+        db.CheckConstraint("source IN ('excepted','deleted','temp_excepted')", name="ck_memory_source"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -101,7 +101,7 @@ class ProductMemoryEntry(db.Model):
     subscription = db.Column(db.String(200), nullable=False)
     title = db.Column(db.String(500), nullable=False)
     reason = db.Column(db.String(1000), nullable=True)
-    source = db.Column(db.String(20), nullable=False, default="excepted")  # excepted, deleted, temp_excepted, temp_deleted
+    source = db.Column(db.String(20), nullable=False, default="excepted")  # excepted, deleted, temp_excepted
     consumed_at = db.Column(db.DateTime, nullable=True)  # BL-12: tracks when temp action was applied (multi-worker safe)
 
     product = db.relationship("Product", back_populates="memory_entries")

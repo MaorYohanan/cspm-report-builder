@@ -447,7 +447,7 @@ BL-01 (Risk Score Trend Chart - Product Timeline): ✅ merged to main — 2026-1
 
 BL-12 (Temporary Action — "פעולה זמנית"): 🔍 awaiting merge approval — 2026-11-01
 - Branch: feature/bl-12-temporary-action (committed locally, not pushed)
-- ProductMemoryEntry.source accepts temp_excepted / temp_deleted; new consumed_at column; pipeline applies temp action on first scan, sets `_wasTempActioned` reminder on the next and consumes the entry; UI-only reminder banner + purple temp badge (hidden in PDF)
+- Scope change 2026-11-03: temp DELETE dropped (plain delete already exists) — only temp exception remains. ProductMemoryEntry.source accepts temp_excepted; new consumed_at column; pipeline applies temp action on first scan, sets `_wasTempActioned` reminder on the next and consumes the entry; UI-only reminder banner + purple temp badge (hidden in PDF)
 - UI entry points: footer button next to ⚠ החרג, plus item in the detail-pane ⋮ menu (⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc)
 - Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations
 - Local DB: migrations applied to instance/app.db on 2026-11-01 (alembic_version 48749912a976; backup in instance/backups/pre-bl12-*; rows verified identical, integrity ok). Documented in PRODUCTION_DEPLOY.md

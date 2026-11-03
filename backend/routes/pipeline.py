@@ -1001,10 +1001,6 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 product_id=snap.product_id, source="temp_excepted"
             ).all()
             temp_excepted_keys = {(e.subscription, e.title): e for e in temp_excepted_entries}
-            temp_deleted_entries = ProductMemoryEntry.query.filter_by(
-                product_id=snap.product_id, source="temp_deleted"
-            ).all()
-            temp_deleted_keys = {(e.subscription, e.title): e for e in temp_deleted_entries}
 
             weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
             risk = 0
@@ -1031,7 +1027,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
 
                 # BL-12: Temp action lifecycle (multi-worker safe via consumed_at timestamp)
                 temp_key = (sub, title)
-                temp_entry = temp_deleted_keys.get(temp_key) or temp_excepted_keys.get(temp_key)
+                temp_entry = temp_excepted_keys.get(temp_key)
 
                 if temp_entry:
                     # Check if this temp entry has already been consumed (applied once)
@@ -1039,32 +1035,26 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                         # FIRST SCAN: Apply the temp action and mark as consumed
                         temp_entry.consumed_at = datetime.now(UTC)
 
-                        if temp_entry.source == "temp_deleted":
-                            # Skip this finding entirely (do not add to DB)
-                            continue
-                        elif temp_entry.source == "temp_excepted":
-                            # Apply exception with temp source marker for badge display
-                            enriched["exception"] = {
-                                "active": True,
-                                "reason": temp_entry.reason or "",
-                                "source": "temp_excepted"  # Fix #3: enables purple badge display
-                            }
-                            # Add finding with exception active
-                            db.session.add(Finding(
-                                snapshot_id=snapshot_id,
-                                severity=sev,
-                                finding_data=enriched,
-                                exception_active=True,
-                            ))
-                            # Exceptions don't contribute to risk score
-                            written_count += 1
-                            if written_count % _BATCH == 0:
-                                db.session.flush()
-                            continue  # Skip normal processing below
+                        enriched["exception"] = {
+                            "active": True,
+                            "reason": temp_entry.reason or "",
+                            "source": "temp_excepted"  # enables purple badge display
+                        }
+                        db.session.add(Finding(
+                            snapshot_id=snapshot_id,
+                            severity=sev,
+                            finding_data=enriched,
+                            exception_active=True,
+                        ))
+                        # Exceptions don't contribute to risk score
+                        written_count += 1
+                        if written_count % _BATCH == 0:
+                            db.session.flush()
+                        continue  # Skip normal processing below
                     else:
                         # SECOND SCAN: Entry was already consumed, set reminder and delete
                         enriched["_wasTempActioned"] = True
-                        enriched["_tempActionReason"] = "excepted" if temp_entry.source == "temp_excepted" else "deleted"
+                        enriched["_tempActionReason"] = "excepted"
                         temp_entries_to_delete.append(temp_entry)
 
                 # DEV-CRIT-2: skip findings that the user has permanently deleted

@@ -1,4 +1,4 @@
-"""add temp source values to product memory
+"""add temp_excepted source value to product memory
 
 Revision ID: 022100960028
 Revises: 
@@ -28,7 +28,7 @@ def upgrade() -> None:
         op.create_check_constraint(
             'ck_memory_source',
             'product_memory_entries',
-            "source IN ('excepted','deleted','temp_excepted','temp_deleted')"
+            "source IN ('excepted','deleted','temp_excepted')"
         )
 
 
