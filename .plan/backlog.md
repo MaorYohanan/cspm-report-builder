@@ -44,6 +44,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-31 | Product Memory for Pipeline-Scanned Findings | Medium | **UNSCHEDULED** — pipeline findings carry no `_sourceSubscription`; design question open |
 | — | BL-32 | Temporary Label in Exceptions Overview | Low | **UNSCHEDULED** — cosmetic: temp exceptions look permanent in `/api/exceptions` view |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | **UNSCHEDULED** — nothing in the repo creates or reads `app.pid`/`app.log`; decide whether to keep, replace or remove |
+| — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | **UNSCHEDULED** — splitter drops `id="finding-F-xxx"` on chunked cards; many treatment-table links are dead in the PDF |
 
 ### Tier 3 — Significant Features _(2 of 5 complete)_
 Heavier implementation, meaningful product depth.
@@ -311,6 +312,11 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** `app.log` and `app.pid` keep appearing in the project root as untracked files. They are produced by starting the app in the background from a shell (output redirected to `app.log`, process id written to `app.pid`), not by any code in the repo, and the `app.pid` found on 2026-11-04 was stale (PID 477, no such process, from 2026-10-26). Nobody reads them, so they are easy to forget and they can hide a still-running or orphaned background server.
 **Effort:** Low
 **Notes:** Added to `.gitignore` on 2026-11-04 so they cannot be committed, but the underlying question is open. To check: (1) is there a documented way to start/stop the app in the background (a script, a Make target or a docs section) or is this ad-hoc; (2) should the PID/log live under `instance/` (already ignored) or a `logs/` folder instead of the project root; (3) should startup refuse or warn when `app.pid` points at a live process, and clean it up when the PID is stale; (4) note that the app's own logging is JSON to stdout (`backend/logging_config.py`), so `app.log` is only whatever the launching shell redirected. Not implemented.
+
+### BL-34 · Keep Finding Anchors After PDF Card Splitting (UNSCHEDULED)
+**Why:** Found by BL-04 QA (2026-11-04, 75 mock findings): the card splitter in `pdf_service.py` rebuilds chunk cards as new `div.finding-card` elements without the `id="finding-F-xxx"` anchor. About 53 of 75 findings lost their anchor, and 159 of 231 internal `#` links pointed at missing ids, so those treatment-table links are dead in the PDF. Pre-existing, not caused by BL-04. Also blocks per-finding bookmarks.
+**Effort:** Medium
+**Notes:** Candidate fix: keep the id on the first chunk of each split card. Needs `qa` before/after and the PDF geometry check. Unrelated nits seen in the same pass: heading id `detailed-state.findings` (findings.js ~3689) looks like a typo; section numbering skips 3. Not implemented.
 
 ---
 

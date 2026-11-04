@@ -683,6 +683,9 @@ class PDFService:
                                 path=str(pdf_path),
                                 format="A4",
                                 print_background=True,
+                                # Chromium only emits the bookmark outline for tagged PDFs.
+                                outline=True,
+                                tagged=True,
                                 display_header_footer=True,
                                 header_template=header,
                                 footer_template=footer,

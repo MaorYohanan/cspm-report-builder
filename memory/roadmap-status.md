@@ -457,9 +457,10 @@ BL-12 (Temporary Exception — "פעולה זמנית"): ✅ merged to main — 
 - Cache-busters: builder.css v=182, main.js v=196
 - **Tier 3: 2/5 complete**
 
-BL-04 (PDF Bookmarks / Named Destinations): 🔄 in progress — started 2026-11-04
-- Branch: feature/bl-04-pdf-bookmarks (rollback point: main @ bfc3405, nothing else touched)
-- Finding: TOC links + 17 named dests already work (Chromium); the bookmarks/outline panel is empty (0 entries). Plan: try page.pdf(outline=True) (Playwright 1.49.1) before any pypdf/pikepdf. qa baseline before, qa after.
+BL-04 (PDF Bookmarks / Named Destinations): 🔍 awaiting merge approval — 2026-11-04
+- Branch: feature/bl-04-pdf-bookmarks (rollback: main @ bfc3405 untouched)
+- Change: page.pdf(outline=True, tagged=True) in backend/services/pdf_service.py (no new dependency; outline=True alone is a no-op, Chromium needs tagged=True). Outline now has 17 bookmarks (chapters + categories; 18 with severity sort); ZIP export carries it. QA: layout identical to baseline (160 pages / 0 spills / 36 near-blank / 919px max / 187 links / 28 dests), file +9%, 276 tests passed.
+- Not done / notes: individual findings are not bookmarks (div.finding-title, not headings); numeric prefixes may display oddly in viewers (needs a visual check in Edge/Acrobat); ToC heading is itself a bookmark. Follow-up logged: BL-34 (splitter drops finding anchors, unscheduled).
 
 ## Next session — where to resume (written 2026-11-04)
 
