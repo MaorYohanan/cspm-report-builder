@@ -8,6 +8,7 @@ import {
   attachExceptionReasonButton_AddForm, attachExceptionReasonButton_DetailPane
 } from './findings.js';
 import { updateStepper } from './ui.js';
+import { stripInternalExportFields } from './export-sanitize.js';
 
 const importJsonBtn   = document.getElementById('btn-import-json');
 const importJsonInput = document.getElementById('input-import-json');
@@ -782,7 +783,7 @@ const dateInput       = document.getElementById('report-date');
             const resp = await fetch('/api/export/html', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(snapshot)
+              body: JSON.stringify(Object.assign({}, snapshot, { findings: stripInternalExportFields(snapshot.findings) }))
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
@@ -838,7 +839,7 @@ const dateInput       = document.getElementById('report-date');
             const resp = await fetch('/api/export-zip', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ html: html, meta: snapshot.meta, findings: snapshot.findings })
+              body: JSON.stringify({ html: html, meta: snapshot.meta, findings: stripInternalExportFields(snapshot.findings) })
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
