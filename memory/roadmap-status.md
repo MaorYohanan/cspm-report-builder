@@ -452,19 +452,22 @@ BL-12 (Temporary Exception — "פעולה זמנית"): ✅ merged to main — 
 - UI: footer button next to ⚠ החרג + ⋮ menu item; ⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc
 - Also merged: toast notifications last 30s (all types, closable, newest 5 kept)
 - Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations. Local DB migrated 2026-11-01 (alembic_version 48749912a976; backup in instance/backups/pre-bl12-*)
-- BLOCKER before deploy: the production Cloud SQL (PostgreSQL) database still needs the BL-12 SQL from PRODUCTION_DEPLOY.md applied BEFORE the new image is deployed — not done
 - Follow-ups logged, unscheduled: BL-31 (pipeline-scanned findings lack `_sourceSubscription`), BL-32 (no "זמני" label in /api/exceptions list)
 - Tests: 276 passed, 0 failed
 - Cache-busters: builder.css v=182, main.js v=196
 - **Tier 3: 2/5 complete**
 
+BL-04 (PDF Bookmarks / Named Destinations): 🔄 in progress — started 2026-11-04
+- Branch: feature/bl-04-pdf-bookmarks (rollback point: main @ bfc3405, nothing else touched)
+- Finding: TOC links + 17 named dests already work (Chromium); the bookmarks/outline panel is empty (0 entries). Plan: try page.pdf(outline=True) (Playwright 1.49.1) before any pypdf/pikepdf. qa baseline before, qa after.
+
 ## Next session — where to resume (written 2026-11-04)
 
 - State: `main` == `origin/main` at 75199df (pushed 2026-11-04); working tree clean. Tests: 276 passed.
 - Next roadmap task: **BL-04 PDF Bookmarks / Named Destinations** (Tier 3 #3; needs pypdf/pikepdf post-processing after the Playwright render, so run the `qa` agent before and after touching pdf_service.py). Then BL-23. **BL-24 is design-first — no code until a design session.** Tier 4 starts with BL-14 (webhooks).
-- Production deploy blocker (BL-12): apply the Cloud SQL SQL in PRODUCTION_DEPLOY.md ("BL-12 — Temporary Action") BEFORE deploying the new image — not done. Local `instance/app.db` is already migrated (alembic 48749912a976); backup: `instance/backups/pre-bl12-20261101-232213/` (app.db + -wal + -shm).
+- Local `instance/app.db` is already migrated (alembic 48749912a976); backup: `instance/backups/pre-bl12-20261101-232213/` (app.db + -wal + -shm). Cloud deploy steps live only in `PRODUCTION_DEPLOY.md` — not tracked as roadmap tasks (still in local dev).
 - Still genuinely open (older): DES-H-1 (table-row splitting; the specified selectors are inert in the PDF DOM) and the deliberately deferred PDF items PDF-D-01..04 in `.plan/improvements-and-fixes-roadmap.md` Phase 9.
 - Unscheduled backlog (do not start without scheduling): BL-31 (pipeline findings lack `_sourceSubscription`), BL-32 (no "זמני" label in /api/exceptions), BL-33 (check app.pid / app.log leftovers).
-- Decision pending for the user: `.gitignore` line `*.md` ignores CLAUDE.md, CONTEXT.md and docs/ (all untracked; roadmap-status.md only tracked because it was force-added). Options: add `!CLAUDE.md`, `!CONTEXT.md`, `!docs/**/*.md` and commit them together, or keep them local-only.
+- Decided 2026-11-04: CLAUDE.md, CONTEXT.md and docs/ stay local-only (ignored by `.gitignore` `*.md`) — do not upload them to git. Closed.
 - Known, left as-is: browser bulk import turns `deleted` memory entries into exceptions (pre-existing); 3 inline-handler CSP console errors on page load (findings.js ~1349, pre-existing); `export-sanitize.js` / `regression-utils.js` load without a `?v=`.
 - Environment notes: the user's own app runs inside WSL on port 8080 (never kill it; ask them to restart it after backend changes). Use `PORT=8765` for test servers. Playwright needs `channel="msedge"` (bundled Chromium is not installed). Test product for manual checks: `test` (v1.0 published).
