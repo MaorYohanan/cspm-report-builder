@@ -75,11 +75,13 @@ select[multiple] option {
   font-family: inherit;
   color: white;
   pointer-events: auto;
-  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+  animation: toastIn 0.3s ease;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   max-width: 400px;
   text-align: center;
 }
+
+.toast.toast-leaving { animation: toastOut 0.3s ease forwards; }
 
 .toast-success { background: #16a34a; }
 .toast-error   { background: var(--danger); }

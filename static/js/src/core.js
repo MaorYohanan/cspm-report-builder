@@ -24,10 +24,12 @@ export function sanitizeDataUrl(url) {
 
 // ── Toast notifications ──
 var toastContainer = document.getElementById('toast-container');
+var TOAST_DURATION_MS = 30000;
+var TOAST_MAX_VISIBLE = 5;
 export function showToast(message, type) {
   if (!toastContainer) return;
   type = type || 'info';
-  var duration = type === 'error' ? 10000 : 3200;
+  var duration = TOAST_DURATION_MS;
   var el = document.createElement('div');
   el.className = 'toast toast-' + type;
   el.style.display = 'flex';
@@ -37,13 +39,19 @@ export function showToast(message, type) {
   text.style.flex = '1';
   text.textContent = message;
   var closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
   closeBtn.textContent = '×';
-  closeBtn.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:16px;line-height:1;padding:0;opacity:0.8;flex-shrink:0;';
-  closeBtn.addEventListener('click', function() { if (el.parentNode) el.parentNode.removeChild(el); });
+  closeBtn.setAttribute('aria-label', 'סגור');
+  closeBtn.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:20px;line-height:1;padding:0 4px;opacity:0.8;flex-shrink:0;';
+  function remove() { if (el.parentNode) el.parentNode.removeChild(el); }
+  closeBtn.addEventListener('click', remove);
   el.appendChild(text);
   el.appendChild(closeBtn);
   toastContainer.appendChild(el);
-  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, duration);
+  // Long-lived toasts stack up, so keep only the newest few visible.
+  while (toastContainer.children.length > TOAST_MAX_VISIBLE) toastContainer.removeChild(toastContainer.firstChild);
+  setTimeout(function() { el.classList.add('toast-leaving'); }, duration - 300);
+  setTimeout(remove, duration);
 }
 
 export function styledConfirm(message, opts) {
