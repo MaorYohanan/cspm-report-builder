@@ -58,6 +58,8 @@ docker-compose.override.yml
 # Debug artifacts (logs, ad-hoc scripts kept locally)
 debug/
 introspect_excessive_access.py
+app.log
+app.pid
 
 # Node.js
 node_modules/
