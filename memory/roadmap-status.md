@@ -445,14 +445,15 @@ BL-01 (Risk Score Trend Chart - Product Timeline): ✅ merged to main — 2026-1
 - User confirmation: "grate"
 - **Tier 3: 1/5 complete**
 
-BL-12 (Temporary Action — "פעולה זמנית"): 🔍 awaiting merge approval — 2026-11-01
-- Branch: feature/bl-12-temporary-action (committed locally, not pushed)
-- Scope change 2026-11-03: temp DELETE dropped (plain delete already exists) — only temp exception remains. Semantics corrected 2026-11-03: the temp exception applies to the report where it was set; in the NEXT report the finding arrives as a normal ACTIVE finding (counts toward risk) with UI-only `_wasTempActioned` reminder banner, and the temp memory entry is consumed once (pipeline deletes it in the findings transaction; wizi.js applyProductMemory flags + DELETEs non-blocking). consumed_at column kept but unused. Purple temp badge (hidden in PDF)
-- UI entry points: footer button next to ⚠ החרג, plus item in the detail-pane ⋮ menu (⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc)
-- Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations
-- Local DB: migrations applied to instance/app.db on 2026-11-01 (alembic_version 48749912a976; backup in instance/backups/pre-bl12-*; rows verified identical, integrity ok). Documented in PRODUCTION_DEPLOY.md
+BL-12 (Temporary Exception — "פעולה זמנית"): ✅ merged to main — 2026-11-04 (local merge, not pushed)
+- Branch: feature/bl-12-temporary-action (fast-forwarded into main at b95ba88). Scope: temp DELETE dropped (plain delete already exists) — only the temporary exception ships
+- Behaviour: the temp exception applies to the report where it was set. In the NEXT report the finding arrives as a normal ACTIVE finding (counts toward risk) with a UI-only `_wasTempActioned` reminder banner; the temp memory entry is consumed once (pipeline deletes it in the findings transaction; wizi.js `applyProductMemory` flags + DELETEs, non-blocking). Purple badge + banner never reach the PDF/CSV; markers are stripped from ZIP and interactive-HTML exports. `consumed_at` column kept but unused
+- Reminder/badge survive reload, version load, JSON import and autoRestore (applySnapshot keeps `_wasTempActioned`/`_tempActionReason`/`_sourceSubscription`/`exception.source`); permanent exception clears the banner; regression chapter and AI trend baseline ignore temp-excepted findings
+- UI: footer button next to ⚠ החרג + ⋮ menu item; ⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc
+- Also merged: toast notifications last 30s (all types, closable, newest 5 kept)
+- Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations. Local DB migrated 2026-11-01 (alembic_version 48749912a976; backup in instance/backups/pre-bl12-*)
 - BLOCKER before deploy: the production Cloud SQL (PostgreSQL) database still needs the BL-12 SQL from PRODUCTION_DEPLOY.md applied BEFORE the new image is deployed — not done
-- Round 3 (uncommitted): ZIP / interactive-HTML exports strip internal temp-action fields; regression chapter ignores temp-excepted baseline findings; BL-31 and BL-32 logged as unscheduled backlog items; main.js?v=194
-- Tests: 266 passed, 0 failed (new tests/test_temp_actions_pipeline.py)
-- Round-2 fix 2026-11-03: applySnapshot now keeps `_wasTempActioned`/`_tempActionReason`/`_sourceSubscription`/`exception.source` (reload, version load, JSON import, autoRestore); edit-form save carries them over; permanent-exception confirm and exception toggle re-render the detail header; banner copy now only says excepted; light-theme contrast override for badge/banner; backup/restore round-trip test for temp_excepted + consumed_at. Not yet committed (QA gate).
-- Cache-busters: builder.css v=181, main.js v=193
+- Follow-ups logged, unscheduled: BL-31 (pipeline-scanned findings lack `_sourceSubscription`), BL-32 (no "זמני" label in /api/exceptions list)
+- Tests: 276 passed, 0 failed
+- Cache-busters: builder.css v=182, main.js v=196
+- **Tier 3: 2/5 complete**
