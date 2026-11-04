@@ -199,7 +199,9 @@ table — see BL-12 below for how to bring one in line.
 
 ### BL-12 — Temporary Action
 
-Adds `product_memory_entries.consumed_at` and allows the new `source` value `temp_excepted`.
+Adds `product_memory_entries.consumed_at` and allows the new `source` value `temp_excepted`. (`consumed_at` is
+present in the model and so must exist in the table, but the current logic does not write it: a temp entry is
+consumed by deleting the row.)
 **Without the new column the app fails on every Product Memory query** (`no such column: consumed_at`), so apply
 this to Cloud SQL **before** deploying the new image. Take a backup first.
 

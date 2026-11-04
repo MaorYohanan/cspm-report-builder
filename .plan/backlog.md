@@ -40,6 +40,8 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | 4 | BL-17 | Backup and Restore | Medium | Admin ZIP backup/restore for all DB tables |
 | 5 | BL-27 | Scan-Due Push Notifications | Medium | SSE or polling + badge/toast for new overdue items |
 | 6 | BL-29 | AI-Generated Diff Summary | Low-Medium | Gemini narrative paragraph above diff table |
+| — | BL-31 | Product Memory for Pipeline-Scanned Findings | Medium | **UNSCHEDULED** — pipeline findings carry no `_sourceSubscription`; design question open |
+| — | BL-32 | Temporary Label in Exceptions Overview | Low | **UNSCHEDULED** — cosmetic: temp exceptions look permanent in `/api/exceptions` view |
 
 ### Tier 3 — Significant Features _(after Tier 2 is merged)_
 Heavier implementation, meaningful product depth.
@@ -162,13 +164,13 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 - Clicking it opens a modal asking the consultant to choose:
   - ~~**"מחק לפעם הזו"**~~ — DROPPED 2026-11-03: a plain delete already exists. Only the temporary exception ships.
   - **"החרג לפעם הזו"** — marks the finding as excepted in this report (different visual badge from regular exception — signals it is temporary)
-- Product Memory **is updated** but with a new `source` value (e.g. `"temp_excepted"` / `"temp_deleted"`) — distinct from the regular `"excepted"` / `"deleted"` sources
+- Product Memory **is updated** but with a new `source` value (`"temp_excepted"`; the `"temp_deleted"` variant was dropped with temporary delete) — distinct from the regular `"excepted"` / `"deleted"` sources
 - In the **next report**, when this finding is imported:
   - It arrives as a **normal active finding** (not auto-excepted/deleted)
-  - It shows a banner in the **UI only** (never in PDF): **"הוחרג/נמחק זמנית בדוח הקודם"** to remind the consultant it was temporarily actioned last cycle
-  - The consultant then decides: permanent exception, permanent delete, or leave active
+  - It shows a banner in the **UI only** (never in PDF): **"הממצא הוחרג זמנית בדו"ח הקודם"** to remind the consultant it was temporarily actioned last cycle
+  - The consultant then decides: permanent exception, delete, or leave active
 - The temporary Product Memory entry is cleared once the next report processes it (or after the consultant takes a permanent action)
-**Notes:** Requires a new `source` value on `ProductMemoryEntry` (`temp_excepted`, `temp_deleted`). The `pipeline.py` auto-apply logic must skip temp entries when auto-applying exceptions, and instead inject the reminder banner.
+**Notes:** Requires a new `source` value on `ProductMemoryEntry` (`temp_excepted` only). The `pipeline.py` auto-apply logic must skip temp entries when auto-applying exceptions, and instead inject the reminder banner.
 
 ---
 
@@ -292,6 +294,16 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** The diff view shows color-coded rows and a numeric risk delta but produces no natural-language interpretation, leaving product owners and non-technical stakeholders unable to understand what the comparison means without consultant assistance.
 **Effort:** Low-Medium
 **Notes:** NET-NEW. `renderDiff` in `static/js/src/products.js` (line 855) generates a color-coded diff table (added/resolved/changed rows) and a numeric risk delta display but contains no AI call and no narrative paragraph. No `GeminiService` method, no backend route, and no `features.md` entry for a diff narrative exist anywhere in the codebase. Net-new work: (1) a new `GeminiService.generate_diff_summary()` method that receives added/resolved/changed counts, the risk delta value, version strings, and a representative sample of affected finding titles; (2) a new backend route `POST /api/generate-diff-summary` (`require_role("viewer")`) that validates inputs and delegates to the new Gemini method; (3) in `renderDiff`, after computing the diff data and before closing the `diff-panel` div, fire an async fetch to the route with the counts and sample titles, show a "מייצר סיכום..." loading placeholder while the call is in flight, then inject the returned Hebrew narrative paragraph above the diff row list; (4) degrade gracefully — if the Gemini call fails or returns empty, hide the narrative section entirely without surfacing an error to the user.
+
+### BL-31 · Product Memory for Pipeline-Scanned Findings (UNSCHEDULED)
+**Why:** Findings loaded from a backend pipeline scan cannot be saved to Product Memory from the editor, so an exception or delete set on them is not carried forward to the next cycle. This affects temporary exceptions (BL-12) and permanent exceptions and deletes alike.
+**Effort:** Medium
+**Notes:** `_transform_finding` in `backend/routes/pipeline.py` does not copy `_sourceSubscription` into the stored finding, and the memory-save calls in `findings.js` (`attachExceptionReasonButton*` / memory POST helpers) bail out when it is missing. Open design question: a merged multi-subscription finding has `owner` = comma-joined subscription names and no single subscription, so it is ambiguous which `(subscription, title)` key to write (all of them? the first? one entry per subscription?). Needs a decision, and must stay consistent with the matching in `_store_findings_with_memory` and with BL-24 (carry-forward hardening). Not implemented.
+
+### BL-32 · Temporary Label in Exceptions Overview (UNSCHEDULED)
+**Why:** A temporarily excepted finding in a published snapshot appears in the exceptions overview as an ordinary exception, so reviewers cannot tell it is due for review next cycle.
+**Effort:** Low
+**Notes:** Cosmetic. `GET /api/exceptions` (`backend/routes/products.py`) and `static/js/src/exceptions.js` do not read `exception.source`; add a `temporary` flag in the API response and a "זמני" badge in the list. Not implemented.
 
 ---
 

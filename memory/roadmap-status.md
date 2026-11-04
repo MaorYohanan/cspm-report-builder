@@ -447,10 +447,12 @@ BL-01 (Risk Score Trend Chart - Product Timeline): ✅ merged to main — 2026-1
 
 BL-12 (Temporary Action — "פעולה זמנית"): 🔍 awaiting merge approval — 2026-11-01
 - Branch: feature/bl-12-temporary-action (committed locally, not pushed)
-- Scope change 2026-11-03: temp DELETE dropped (plain delete already exists) — only temp exception remains. ProductMemoryEntry.source accepts temp_excepted; new consumed_at column; pipeline applies temp action on first scan, sets `_wasTempActioned` reminder on the next and consumes the entry; UI-only reminder banner + purple temp badge (hidden in PDF)
+- Scope change 2026-11-03: temp DELETE dropped (plain delete already exists) — only temp exception remains. Semantics corrected 2026-11-03: the temp exception applies to the report where it was set; in the NEXT report the finding arrives as a normal ACTIVE finding (counts toward risk) with UI-only `_wasTempActioned` reminder banner, and the temp memory entry is consumed once (pipeline deletes it in the findings transaction; wizi.js applyProductMemory flags + DELETEs non-blocking). consumed_at column kept but unused. Purple temp badge (hidden in PDF)
 - UI entry points: footer button next to ⚠ החרג, plus item in the detail-pane ⋮ menu (⋮ moved next to the severity chip, high-contrast, viewport-aware flip, closes on outside click/Esc)
 - Alembic introduced (alembic.ini, migrations/, requirements.txt) — 2 migrations
 - Local DB: migrations applied to instance/app.db on 2026-11-01 (alembic_version 48749912a976; backup in instance/backups/pre-bl12-*; rows verified identical, integrity ok). Documented in PRODUCTION_DEPLOY.md
 - BLOCKER before deploy: the production Cloud SQL (PostgreSQL) database still needs the BL-12 SQL from PRODUCTION_DEPLOY.md applied BEFORE the new image is deployed — not done
-- Tests: 261 passed, 0 failed
-- Cache-busters: builder.css v=180, main.js v=189
+- Round 3 (uncommitted): ZIP / interactive-HTML exports strip internal temp-action fields; regression chapter ignores temp-excepted baseline findings; BL-31 and BL-32 logged as unscheduled backlog items; main.js?v=194
+- Tests: 266 passed, 0 failed (new tests/test_temp_actions_pipeline.py)
+- Round-2 fix 2026-11-03: applySnapshot now keeps `_wasTempActioned`/`_tempActionReason`/`_sourceSubscription`/`exception.source` (reload, version load, JSON import, autoRestore); edit-form save carries them over; permanent-exception confirm and exception toggle re-render the detail header; banner copy now only says excepted; light-theme contrast override for badge/banner; backup/restore round-trip test for temp_excepted + consumed_at. Not yet committed (QA gate).
+- Cache-busters: builder.css v=181, main.js v=193

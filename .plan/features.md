@@ -567,3 +567,6 @@ When exporting a product version PDF whose status is `'draft'`, every page shows
 
 ### Sidebar Section Group Color Coding
 Workspace = blue, Files and Reports = orange, Products = yellow-green; active items inherit group accent color via CSS custom properties.
+
+### Temporary Exception
+An editor can mark a finding as excepted for the current report only, from the detail footer or the detail menu. In the next report the same finding arrives as a normal active finding that counts toward risk, with an on-screen reminder banner (not shown in the PDF), and the one-time memory entry is then consumed. The banner and the purple temporary badge survive draft reload, loading a saved version and editing the finding, and clear as soon as the consultant sets a permanent exception. A temporarily excepted finding that reappears is not treated as a regression (zombie) in the regression chapter, and the internal temporary-action markers are removed from ZIP and interactive-HTML exports.
