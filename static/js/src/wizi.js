@@ -1,6 +1,6 @@
 import { state } from './state.js';
 import { showToast, styledConfirm } from './core.js';
-import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY } from './findings.js';
+import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY, showFindingDetail } from './findings.js';
 import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
 import { ProductsPanel } from './products.js';
@@ -4304,21 +4304,50 @@ function _resolveItemCategory(item, qt) {
             var entries = data.entries;
             var subKey = subscription.toLowerCase().trim();
             var matched = 0;
+            var tempFlagged = 0;
+            var tempToConsume = [];
             newFindings.forEach(function(f) {
               if (!f.title) return;
               var key = subKey + '::' + f.title.toLowerCase().trim();
               var entry = entries[key];
               if (!entry) return;
+              // BL-12: temp exception was for the previous report only. The finding
+              // stays ACTIVE (counts toward risk), gets a UI-only reminder flag, and
+              // the temp memory entry is consumed once (skip if already flagged so a
+              // repeated call never fires a second DELETE).
+              if (entry.source === 'temp_excepted') {
+                if (f._wasTempActioned) return;
+                f._wasTempActioned = true;
+                f._tempActionReason = 'excepted';
+                tempFlagged++;
+                tempToConsume.push({ subscription: subKey, title: f.title.toLowerCase().trim() });
+                return;
+              }
               if (!(f.exception && f.exception.active)) {
                 f.exception = { active: true, reason: entry.reason || '' };
                 matched++;
               }
             });
-            if (matched > 0) {
+            if (matched > 0 || tempFlagged > 0) {
               renderFindingsTable();
+              if (typeof state.selectedFindingIndex === 'number' && state.findings[state.selectedFindingIndex]) {
+                showFindingDetail(state.selectedFindingIndex);
+              }
               autoSave();
+            }
+            if (matched > 0) {
               showToast(matched + ' ממצאים סומנו כמוחרגים אוטומטית על פי היסטוריה קודמת', 'info');
             }
+            // Consume temp entries now that the flagged findings are in state (non-blocking).
+            tempToConsume.forEach(function(body) {
+              try {
+                fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+                  method: 'DELETE',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body)
+                }).catch(function() {});
+              } catch (e) { /* swallow */ }
+            });
           })
           .catch(function() {});
       }

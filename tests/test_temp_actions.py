@@ -5,8 +5,7 @@ Tests that:
 2. ProductMemoryEntry model accepts temp_excepted
 3. Database CHECK constraint enforces valid source values
 
-Full pipeline integration tests require a Wiz test environment and are
-documented in manual test procedures.
+Pipeline lifecycle tests live in tests/test_temp_actions_pipeline.py.
 
 Run with:
     python -m pytest tests/test_temp_actions.py -v
@@ -170,53 +169,6 @@ class TestProductMemoryEntryModel:
             now_naive = datetime.now(UTC).replace(tzinfo=None)
             consumed_naive = retrieved.consumed_at.replace(tzinfo=None) if retrieved.consumed_at.tzinfo else retrieved.consumed_at
             assert abs((consumed_naive - now_naive).total_seconds()) < 60
-
-    def test_consumed_at_lifecycle_simulation(self, app):
-        """BL-12 Fix: Simulate two-scan lifecycle with consumed_at tracking."""
-        product_id = _create_product(app, "model-lifecycle")
-        with app.app_context():
-            # Create temp entry (user action)
-            entry = ProductMemoryEntry(
-                product_id=product_id,
-                subscription="lifecycle-sub",
-                title="lifecycle finding",
-                reason="test reason",
-                source="temp_excepted",
-            )
-            _db.session.add(entry)
-            _db.session.commit()
-
-            # FIRST SCAN: consumed_at is NULL, action should be applied
-            retrieved = ProductMemoryEntry.query.filter_by(
-                product_id=product_id,
-                subscription="lifecycle-sub",
-                title="lifecycle finding",
-            ).first()
-            assert retrieved.consumed_at is None  # Not yet consumed
-
-            # Simulate pipeline applying the action
-            retrieved.consumed_at = datetime.now(UTC)
-            _db.session.commit()
-
-            # SECOND SCAN: consumed_at is set, should set reminder and delete
-            retrieved = ProductMemoryEntry.query.filter_by(
-                product_id=product_id,
-                subscription="lifecycle-sub",
-                title="lifecycle finding",
-            ).first()
-            assert retrieved.consumed_at is not None  # Was consumed
-
-            # Simulate pipeline deleting the entry
-            _db.session.delete(retrieved)
-            _db.session.commit()
-
-            # Verify entry is gone
-            final = ProductMemoryEntry.query.filter_by(
-                product_id=product_id,
-                subscription="lifecycle-sub",
-                title="lifecycle finding",
-            ).first()
-            assert final is None
 
 
 # ---------------------------------------------------------------------------
