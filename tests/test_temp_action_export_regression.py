@@ -82,3 +82,69 @@ def test_exception_source_survives_version_roundtrip(client):
     client.post(f"/api/products/{pid}/versions/1.0/publish")
     body = client.get(f"/api/products/{pid}/versions/1.0").get_json()
     assert body["findings"][0]["exception"]["source"] == "temp_excepted"
+
+
+# ---- AI trend prompt: temp-excepted baseline is not counted as excepted ----
+
+def test_to_trend_finding_flags_temp_only_when_active_temp():
+    fs = [
+        {"title": "T", "severity": "high", "exception": {"active": True, "source": "temp_excepted"}},
+        {"title": "P", "severity": "low", "exception": {"active": True, "reason": "x"}},
+        {"title": "N", "severity": "low"},
+        {"title": "I", "exception": {"active": False, "source": "temp_excepted"}},
+    ]
+    out = _node("regression-utils.js", "d.f.map(m.toTrendFinding)", {"f": fs})
+    assert [o["exception"] for o in out] == [
+        {"active": True, "temp": True}, {"active": True, "temp": False},
+        {"active": False, "temp": False}, {"active": False, "temp": False}]
+
+
+def _captured_prompt(prev_findings):
+    from unittest.mock import patch
+    from backend.services.ai_service import GeminiService
+    svc = GeminiService(api_key="k", models=["m"], default_model="m")
+    with patch.object(GeminiService, "_call_gemini", return_value=("t", "m")) as cg:
+        svc.generate_regression_trend(
+            prev_snapshot_data={"riskScore": 5, "findings": prev_findings},
+            curr_findings=[], zombies=[], curr_risk_score=1, model="m")
+    return cg.call_args.kwargs.get("prompt") or cg.call_args.args[0]
+
+
+def _f(title, active, temp=False):
+    return {"title": title, "severity": "high", "exception": {"active": active, "temp": temp}}
+
+
+def test_prev_excepted_excludes_temp_baseline():
+    assert "מוחרגים: 0" in _captured_prompt([_f("a", True, True), _f("b", False)]).split("\n")[2]
+
+
+def test_prev_excepted_counts_permanent_baseline():
+    line = _captured_prompt([_f("a", True), _f("b", False)]).split("\n")[2]
+    assert "סה\"כ ממצאים קודם: 2" in line and "מוחרגים: 1" in line
+
+
+def test_prev_excepted_mixed():
+    line = _captured_prompt([_f("a", True, True), _f("b", True), _f("c", True), _f("d", False)]).split("\n")[2]
+    assert "קודם: 4" in line and "מוחרגים: 2" in line
+
+
+def test_endpoint_forwards_temp_flag(monkeypatch):
+    from flask import Flask
+    from backend.routes import ai as ai_routes
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    app.register_blueprint(ai_routes.ai_bp)
+    client = app.test_client()
+    seen = {}
+
+    class Fake:
+        def generate_regression_trend(self, **kw):
+            seen.update(kw)
+            return "t", "m"
+    monkeypatch.setattr(ai_routes, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(ai_routes, "get_gemini_service", lambda: Fake())
+    r = client.post("/api/generate-regression-trend", json={
+        "prev_snapshot_data": {"findings": [_f("a", True, True)]},
+        "curr_findings": [], "zombies": []})
+    assert r.status_code == 200
+    assert seen["prev_snapshot_data"]["findings"][0]["exception"] == {"active": True, "temp": True}

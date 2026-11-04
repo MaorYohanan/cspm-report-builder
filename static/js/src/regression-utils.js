@@ -40,3 +40,21 @@ export function detectZombies(baselineFindings, currFindings) {
 
   return zombies;
 }
+
+/**
+ * Build the sanitized finding shape sent to /api/generate-regression-trend.
+ * `exception.temp` is true when the exception is a temporary one
+ * (exception.source === 'temp_excepted'); the backend uses it to leave temp
+ * exceptions out of the baseline "excepted" count in the AI prompt.
+ *
+ * @param {Object} f - A snapshot finding.
+ * @returns {{title: string, severity: string, exception: {active: boolean, temp: boolean}}}
+ */
+export function toTrendFinding(f) {
+  var ex = (f && f.exception) || {};
+  return {
+    title: (f && f.title) || '',
+    severity: (f && f.severity) || '',
+    exception: { active: !!ex.active, temp: !!(ex.active && ex.source === 'temp_excepted') }
+  };
+}

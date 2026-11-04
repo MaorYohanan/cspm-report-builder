@@ -394,11 +394,14 @@ class GeminiService:
             )
 
         prev_total = len(prev_findings)
+        # Temporary exceptions (exception.temp) are "review next cycle", not a
+        # standing exclusion, so they are not counted as baseline exceptions.
         prev_excepted = sum(
             1 for f in prev_findings
             if isinstance(f, dict)
             and isinstance(f.get("exception"), dict)
             and f["exception"].get("active")
+            and not f["exception"].get("temp")
         )
 
         curr_total = len(curr_findings)

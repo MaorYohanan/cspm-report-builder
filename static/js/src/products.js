@@ -1,7 +1,7 @@
 import { showToast, styledConfirm } from './core.js';
 import { buildSnapshot, applySnapshot, switchToTab, buildReportHtml, buildFilename, hasUnsavedChanges } from './findings.js';
 
-import { detectZombies as _detectZombies } from './regression-utils.js';
+import { detectZombies as _detectZombies, toTrendFinding as _toTrendFinding } from './regression-utils.js';
 
 // ═══════════════════════════════════════════
 // Product Registry — products.js
@@ -779,21 +779,9 @@ export var ProductsPanel = {
                   body: JSON.stringify({
                     prev_snapshot_data: {
                       riskScore: priorData.riskScore || null,
-                      findings: priorFindings.map(function(f) {
-                        return {
-                          title: f.title || '',
-                          severity: f.severity || '',
-                          exception: { active: !!(f.exception && f.exception.active) }
-                        };
-                      })
+                      findings: priorFindings.map(_toTrendFinding)
                     },
-                    curr_findings: currFindings.map(function(f) {
-                      return {
-                        title: f.title || '',
-                        severity: f.severity || '',
-                        exception: { active: !!(f.exception && f.exception.active) }
-                      };
-                    }),
+                    curr_findings: currFindings.map(_toTrendFinding),
                     zombies: zombies.map(function(z) {
                       return {
                         title: z.title || '',

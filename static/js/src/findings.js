@@ -3940,7 +3940,7 @@ ${draftWatermarkStyle}
         var finding = state.findings[findingIndex];
         if (!finding) return;
 
-        // Pipeline-scanned findings carry _sourceSubscription (pipeline.py:306)
+        // _sourceSubscription is stamped only by browser Wiz import; pipeline-stored findings lack it (BL-31)
         var subscription = finding._sourceSubscription || finding.subscription || '';
         var title = finding.title || '';
         var product = ProductsPanel && ProductsPanel.selectedProduct;

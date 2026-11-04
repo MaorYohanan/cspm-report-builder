@@ -244,7 +244,10 @@ def api_generate_regression_trend():
             {
                 "title": (f.get("title") or "")[:200],
                 "severity": (f.get("severity") or "")[:20],
-                "exception": {"active": bool((f.get("exception") or {}).get("active", False))},
+                "exception": {
+                    "active": bool((f.get("exception") or {}).get("active", False)),
+                    "temp": bool((f.get("exception") or {}).get("temp", False)),
+                },
             }
             for f in prev_findings_raw
             if isinstance(f, dict)
