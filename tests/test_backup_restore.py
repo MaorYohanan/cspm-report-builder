@@ -696,3 +696,40 @@ class TestRestore:
             # Verify original user still exists (not the "restored" one)
             user = _db.session.execute(_db.select(User)).scalar_one()
             assert user.email == initial_email  # Should be the original user
+
+
+class TestTempMemoryRoundTrip:
+    """BL-12: temp_excepted ProductMemoryEntry (incl. consumed_at) survives backup -> restore."""
+
+    @patch("backend.services.auth_service._OAUTH_ENABLED", False)
+    def test_temp_excepted_and_consumed_at_round_trip(self, client, app, sample_data):
+        consumed = datetime(2026, 11, 3, 10, 30, 0)
+        with app.app_context():
+            _db.session.add(ProductMemoryEntry(
+                product_id="test-product", subscription="sub-1", title="temp finding",
+                reason="", source="temp_excepted", consumed_at=consumed,
+            ))
+            _db.session.commit()
+
+        backup = client.get("/api/admin/backup")
+        assert backup.status_code == 200
+        raw = backup.data
+
+        resp = client.post(
+            "/api/admin/restore",
+            data={"backup": (io.BytesIO(raw), "restore.zip")},
+            content_type="multipart/form-data",
+        )
+        assert resp.status_code == 200
+
+        with app.app_context():
+            row = _db.session.execute(
+                _db.select(ProductMemoryEntry).filter_by(title="temp finding")
+            ).scalar_one()
+            assert row.source == "temp_excepted"
+            assert row.consumed_at == consumed
+            plain = _db.session.execute(
+                _db.select(ProductMemoryEntry).filter_by(title="Deleted Finding")
+            ).scalar_one()
+            assert plain.consumed_at is None
+

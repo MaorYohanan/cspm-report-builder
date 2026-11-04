@@ -921,6 +921,12 @@
   }
 }
 
+/* Light theme: the dark-theme purple (L=0.75) is ~2.3:1 on white — use a darker tone (>=4.5:1) */
+[data-theme="light"] .badge-temp-exception,
+[data-theme="light"] .temp-actioned-reminder {
+  color: oklch(0.42 0.18 290);
+}
+
 /* ── RTL Adjustments ── */
 /* Modal is RTL-aware: all text flows right-to-left naturally */
 /* Flex layouts with gap handle spacing without physical-side margins */

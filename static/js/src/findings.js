@@ -84,7 +84,7 @@ let priorityTouched = false;
         var wasTempActioned = !!(f._wasTempActioned);
         var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">⏱ מוחרג זמנית</span>' : '';
         var reminderBanner = wasTempActioned
-          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">הממצא הזה הוחרג או נמחק זמנית בדו"ח הקודם</span></div>'
+          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">הממצא הוחרג זמנית בדו"ח הקודם</span></div>'
           : '';
 
         // Header
@@ -490,7 +490,7 @@ let priorityTouched = false;
             if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
             btnDetailException.textContent = '⚠ החרג';
             btnDetailException.className = 'btn btn-sm btn-exception';
-            renderDetailTab();
+            showFindingDetail(state.selectedFindingIndex); // header badge must follow state
             renderFindingsTable();
             autoSave();
             showToast('ההחרגה בוטלה', 'info');
@@ -509,6 +509,8 @@ let priorityTouched = false;
           var inp = document.getElementById('detail-exception-reason-input');
           var reason = inp ? inp.value.trim() : '';
           state.findings[state.selectedFindingIndex].exception = { active: true, reason: reason };
+          delete state.findings[state.selectedFindingIndex]._wasTempActioned; // BL-12: reminder is stale after a new action
+          delete state.findings[state.selectedFindingIndex]._tempActionReason;
           saveToProductMemory(state.findings[state.selectedFindingIndex], 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           var excBtn = document.getElementById('btn-detail-exception');
@@ -516,7 +518,7 @@ let priorityTouched = false;
             excBtn.textContent = '✓ בטל החרגה';
             excBtn.className = 'btn btn-sm btn-exception-active';
           }
-          renderDetailTab();
+          showFindingDetail(state.selectedFindingIndex); // re-render header so reminder banner / temp badge clear
           renderFindingsTable();
           autoSave();
           showToast('הממצא סומן כמוחרג', 'success');
@@ -1240,7 +1242,7 @@ let priorityTouched = false;
         state.findings.length = 0;
 
         snapshot.findings.forEach(f => {
-          state.findings.push({
+          var loaded = {
             id:          f.id          || '',
             title:       f.title       || '',
             severity:    f.severity    || 'medium',
@@ -1263,7 +1265,19 @@ let priorityTouched = false;
               ? { active: !!f.exception.active, reason: f.exception.reason || '' }
               : { active: false, reason: '' },
             notes: Array.isArray(f.notes) ? f.notes : []
-          });
+          };
+          // BL-12: carry temp-action markers through (absent in older snapshots -> left unset)
+          if (f.exception && typeof f.exception === 'object' && typeof f.exception.source === 'string' && f.exception.source) {
+            loaded.exception.source = f.exception.source;
+          }
+          if (f._wasTempActioned) {
+            loaded._wasTempActioned = true;
+            if (typeof f._tempActionReason === 'string') loaded._tempActionReason = f._tempActionReason;
+          }
+          if (typeof f._sourceSubscription === 'string' && f._sourceSubscription) {
+            loaded._sourceSubscription = f._sourceSubscription;
+          }
+          state.findings.push(loaded);
         });
 
         resetEditState();
@@ -2104,6 +2118,21 @@ let priorityTouched = false;
             })(),
             notes: state.editingIndex !== null ? (state.findings[state.editingIndex].notes || []) : []
           };
+
+          // BL-12: the form has no fields for these, so carry them over from the finding being edited
+          if (state.editingIndex !== null) {
+            var prevF = state.findings[state.editingIndex] || {};
+            if (prevF._sourceSubscription) newFinding._sourceSubscription = prevF._sourceSubscription;
+            if (newFinding.exception.active) {
+              // still excepted: a temp exception stays temp (reason unchanged semantics); a newly ticked one is permanent
+              if (prevF.exception && prevF.exception.active && prevF.exception.source) {
+                newFinding.exception.source = prevF.exception.source;
+              }
+            } else if (prevF._wasTempActioned) {
+              newFinding._wasTempActioned = true;
+              if (prevF._tempActionReason) newFinding._tempActionReason = prevF._tempActionReason;
+            }
+          }
 
           if (state.editingIndex === null) {
             state.findings.push(newFinding);
@@ -3919,6 +3948,8 @@ ${draftWatermarkStyle}
         function applyLocally(note) {
           if (action !== 'temp_excepted') return;
           finding.exception = { active: true, reason: '', source: 'temp_excepted' };
+          delete finding._wasTempActioned;
+          delete finding._tempActionReason;
           showToast('הממצא הוחרג זמנית' + note, 'success');
           renderFindingsTable();
           showFindingDetail(findingIndex);
