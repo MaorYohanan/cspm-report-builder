@@ -265,7 +265,7 @@ Overall risk level in a large colored badge with total, critical, and high sub-c
 Last five findings with ID, category chip, truncated title, severity chip, and owner; "Show All" button navigates to the Findings List panel.
 
 ### Toast Notification System
-`aria-live="polite"` container; used for success, error, and info feedback across all panels; null-guarded to avoid failures when the container is absent.
+`aria-live="polite"` container; used for success, error, and info feedback across all panels; null-guarded to avoid failures when the container is absent. Every toast stays visible for 30 seconds (all types), fades out at the end, and has a labelled `×` close button to dismiss it sooner; at most the newest 5 are shown at once.
 
 ### Keyboard Shortcuts Overlay Dialog
 Full-screen modal listing 7 shortcuts; toggled by pressing `?` (when no input is focused) or the sidebar button; closed by Escape, the close button, or clicking outside.

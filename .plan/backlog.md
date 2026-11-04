@@ -25,32 +25,33 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 - BL-28 (Report Version on Cover) — 2026-09-10
 - BL-30 (Unsaved-Data Warning) — 2026-10-19
 
-### Tier 2 — High Value, Moderate Work _(2 of 7 complete)_
+### Tier 2 — High Value, Moderate Work ✅ **COMPLETE** _(6 merged, 1 dropped)_
 
 **✅ Completed:**
 - BL-11 (Custom Org-Level Finding Templates) — 2026-10-19
 - BL-19 (Risk Score Color Tiers) — 2026-10-19
+- BL-07 (AI Finding Deduplication Detector) — 2026-10-22
+- BL-17 (Backup and Restore) — 2026-10-22
+- BL-27 (Scan-Due Push Notifications) — 2026-10-22
+- BL-29 (AI-Generated Diff Summary) — 2026-10-22
 
-**⏳ Remaining:**
+**⏭️ Dropped:** BL-02 (Executive vs Technical PDF Mode) — the PDF already contains both executive and technical sections.
+
+### Unscheduled follow-ups _(not in the tier sequence — do not start without scheduling)_
 
 | Order | ID | Feature | Effort | Note |
 |-------|----|---------|--------|------|
-| 1 | BL-02 | Executive vs Technical PDF Mode | Medium | **SPEC INCOMPLETE** — needs design before implementation |
-| 2 | BL-07 | AI Finding Deduplication Detector | Medium | Gemini semantic similarity post-import |
-| 4 | BL-17 | Backup and Restore | Medium | Admin ZIP backup/restore for all DB tables |
-| 5 | BL-27 | Scan-Due Push Notifications | Medium | SSE or polling + badge/toast for new overdue items |
-| 6 | BL-29 | AI-Generated Diff Summary | Low-Medium | Gemini narrative paragraph above diff table |
 | — | BL-31 | Product Memory for Pipeline-Scanned Findings | Medium | **UNSCHEDULED** — pipeline findings carry no `_sourceSubscription`; design question open |
 | — | BL-32 | Temporary Label in Exceptions Overview | Low | **UNSCHEDULED** — cosmetic: temp exceptions look permanent in `/api/exceptions` view |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | **UNSCHEDULED** — nothing in the repo creates or reads `app.pid`/`app.log`; decide whether to keep, replace or remove |
 
-### Tier 3 — Significant Features _(after Tier 2 is merged)_
+### Tier 3 — Significant Features _(2 of 5 complete)_
 Heavier implementation, meaningful product depth.
 
 | Order | ID | Feature | Effort | Note |
 |-------|----|---------|--------|------|
-| 1 | BL-01 | Longitudinal Risk Score Trend Chapter | High | PDF SVG chart of risk score across all published versions |
-| 2 | BL-12 | Finding "Review Next Cycle" Flag | High | New finding state; affects regression chapter |
+| 1 | BL-01 | Longitudinal Risk Score Trend Chapter | High | ✅ **MERGED 2026-10-26** — built as an SVG trend chart on the product timeline (not in the PDF) |
+| 2 | BL-12 | Temporary Exception ("פעולה זמנית") | High | ✅ **MERGED 2026-11-04** — temporary exception only (temp delete dropped); next report arrives active with a reminder |
 | 3 | BL-04 | PDF Bookmarks / Named Destinations | Medium | Requires post-processing with `pypdf` or `pikepdf` after Playwright render |
 | 4 | BL-23 | Acknowledge vs Exclude — Dual Dismissal States | High | Two distinct dismissal concepts replacing the single exception boolean; acknowledge hides entirely, exclude may appear in a separate report section |
 | 5 | BL-24 | Exception Carry-Forward Hardening | High | Design-first item — current (subscription+title) match is fragile to Wiz renames and aggregated findings; do not implement until design session completed |

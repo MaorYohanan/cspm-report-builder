@@ -591,54 +591,54 @@ After restructure the sidebar has 3 sections: אזור עבודה | קבצים �
 [✅ done] 16. 3.3   feature/multi-language           (Hebrew/English UI + PDF)
 
 ── WAVE 7 — Finish audit fixes (Phase 3 + Phase 7) ───────────────────────
-⬜  17. DES-CRIT-1  (Google Fonts → local @font-face, fixes PDF font metrics)
-⬜  18. DES-CRIT-2  (ui.js null-unguarded DOM queries)
-⬜  19. DES-H-1     (table rows split across PDF pages — break-inside: avoid)
-⬜  20. DES-H-2     (select chevron wrong side for RTL)
-⬜  21. DES-H-3     (note delete button wrong corner for RTL)
-⬜  22. DES-H-4     (preview panel anchored to wrong side for RTL)
-⬜  23. DES-H-5     (dashboard bar count LTR exception undocumented)
-⬜  24. DES-H-6     (back button arrow wrong direction for RTL)
-⬜  25. DES-H-7     (sidebar collapse arrows semantically inverted)
-⬜  26. DES-I-01    (tab elements missing aria-selected state management)
-⬜  27. DES-I-02    (SVG donut missing role + aria-label)
-⬜  28. DES-I-03    (show-all link → semantic <button>)
-⬜  29. DES-I-04    (exec summary + scope separated into distinct PDF page sections)
-⬜  30. DES-I-05    (prefers-reduced-motion media query for animations)
-⬜  31. DES-I-06    (severity chip accent border wrong side for RTL)
-⬜  32. DES-I-07    (oklch() fallback for unsupported browsers)
-⬜  33. DES-I-08    (delete user → styledConfirm instead of window.confirm)
-⬜  34. DES-I-09    (pipeline KPI card text-align right to match dashboard)
+[✅ done] 17. DES-CRIT-1  (Google Fonts → local @font-face, fixes PDF font metrics) — already fixed (local @font-face)
+[✅ done] 18. DES-CRIT-2  (ui.js null-unguarded DOM queries)
+⬜  19. DES-H-1     (table rows split across PDF pages — break-inside: avoid)  ← STILL OPEN: the .findings-table/.treatment-table selectors are inert in the PDF DOM; real fix pending (see memory/roadmap-status.md)
+[✅ done] 20. DES-H-2     (select chevron wrong side for RTL)
+[✅ done] 21. DES-H-3     (note delete button wrong corner for RTL)
+[✅ done] 22. DES-H-4     (preview panel anchored to wrong side for RTL)
+[✅ done] 23. DES-H-5     (dashboard bar count LTR exception undocumented)
+[⏭️ skipped] 24. DES-H-6     (back button arrow wrong direction for RTL)  (stale spec, no back link exists)
+[✅ done] 25. DES-H-7     (sidebar collapse arrows semantically inverted)
+[✅ done] 26. DES-I-01    (tab elements missing aria-selected state management)
+[✅ done] 27. DES-I-02    (SVG donut missing role + aria-label)
+[✅ done] 28. DES-I-03    (show-all link → semantic <button>)
+[✅ done] 29. DES-I-04    (exec summary + scope separated into distinct PDF page sections)
+[✅ done] 30. DES-I-05    (prefers-reduced-motion media query for animations)
+[✅ done] 31. DES-I-06    (severity chip accent border wrong side for RTL)
+[✅ done] 32. DES-I-07    (oklch() fallback for unsupported browsers)
+[✅ done] 33. DES-I-08    (delete user → styledConfirm instead of window.confirm)
+[✅ done] 34. DES-I-09    (pipeline KPI card text-align right to match dashboard)
 Full specs: `.plan/improvements-and-fixes-roadmap.md` Phase 3 (items 17–25) and Phase 7 (items 26–34).
 Suggested branches: fix/audit-critical-frontend (17–25) then fix/audit-improvements (26–34).
 
 ── WAVE 8 — Quick wins (Tier 1 backlog) ──────────────────────────────────
-⬜  35. BL-09  Bulk Finding Field Edit (un-hide existing hidden batch controls + add category)
-⬜  36. BL-03  Draft Watermark on Unpublished PDF
-⬜  37. BL-10  Pre-Publish Checklist (frontend validation modal before publish)
-⬜  38. BL-20  ZIP Bundle Export (PDF + HTML + CSV in one download)
-⬜  39. BL-06  AI Exception Reason Improver (UI-only — reuses /api/suggest)
-⬜  40. BL-05  AI Key Topics Suggestion (new Gemini method + route + button)
-⬜  41. BL-21  Treatment Priority Auto-Default from Severity
-⬜  42. BL-22  System Version Indicator in Report Details Panel (read-only badge)
-⬜  43. BL-25  PDF Export Animated Spinner (reuse .ai-progress-container pattern)
-⬜  44. BL-26  Skeleton Rows During Wiz Bulk Import
-⬜  45. BL-28  Report Version on PDF Cover Page (one template line)
+[✅ done] 35. BL-09  Bulk Finding Field Edit (un-hide existing hidden batch controls + add category)
+[✅ done] 36. BL-03  Draft Watermark on Unpublished PDF
+[✅ done] 37. BL-10  Pre-Publish Checklist (frontend validation modal before publish)
+[✅ done] 38. BL-20  ZIP Bundle Export (PDF + HTML + CSV in one download)
+[✅ done] 39. BL-06  AI Exception Reason Improver (UI-only — reuses /api/suggest)
+[✅ done] 40. BL-05  AI Key Topics Suggestion (new Gemini method + route + button)
+[✅ done] 41. BL-21  Treatment Priority Auto-Default from Severity
+[✅ done] 42. BL-22  System Version Indicator in Report Details Panel (read-only badge)
+[✅ done] 43. BL-25  PDF Export Animated Spinner (reuse .ai-progress-container pattern)
+[✅ done] 44. BL-26  Skeleton Rows During Wiz Bulk Import
+[✅ done] 45. BL-28  Report Version on PDF Cover Page (one template line)
 Full specs: `.plan/backlog.md`.
 
 ── WAVE 9 — High value, moderate work (Tier 2 backlog) ───────────────────
-⬜  46. BL-11  Custom Org-Level Finding Templates (DB model + admin CRUD)
+[✅ done] 46. BL-11  Custom Org-Level Finding Templates (DB model + admin CRUD)
 ⏭️  47. BL-02  Executive vs Technical PDF Mode — DROPPED (PDF already contains both executive + technical sections in sequence)
-⬜  48. BL-19  Risk Score SLA / Threshold Alerts (max_risk_score field + highlights)
-⬜  49. BL-07  AI Finding Deduplication Detector (post-import semantic similarity via Gemini)
-⬜  50. BL-17  Backup and Restore (admin ZIP download + restore route)
-⬜  51. BL-27  Scan-Due Push Notifications (SSE or polling interval + badge/toast)
-⬜  52. BL-29  AI-Generated Diff Summary (Gemini narrative paragraph above diff table)
+[✅ done] 48. BL-19  Risk Score SLA / Threshold Alerts (max_risk_score field + highlights) — delivered as Risk Score Color Tiers
+[✅ done] 49. BL-07  AI Finding Deduplication Detector (post-import semantic similarity via Gemini)
+[✅ done] 50. BL-17  Backup and Restore (admin ZIP download + restore route)
+[✅ done] 51. BL-27  Scan-Due Push Notifications (SSE or polling interval + badge/toast)
+[✅ done] 52. BL-29  AI-Generated Diff Summary (Gemini narrative paragraph above diff table)
 Full specs: `.plan/backlog.md`.
 
 ── WAVE 10 — Significant features (Tier 3 backlog) ───────────────────────
-⬜  53. BL-01  Longitudinal Risk Score Trend Chapter (SVG line chart across all published versions)
-⬜  54. BL-12  Finding "Review Next Cycle" Flag (new finding state; affects regression chapter)
+[✅ done] 53. BL-01  Longitudinal Risk Score Trend Chapter (SVG line chart across all published versions) — merged 2026-10-26
+[✅ done] 54. BL-12  Finding "Review Next Cycle" Flag (new finding state; affects regression chapter) — delivered as Temporary Exception (פעולה זמנית): applies to this report; next report arrives active with a reminder; merged 2026-11-04
 ⬜  55. BL-04  PDF Bookmarks / Named Destinations (pypdf/pikepdf post-processing)
 ⬜  56. BL-23  Acknowledge vs Exclude — Dual Dismissal States (replaces single exception boolean)
 ⬜  57. BL-24  Exception Carry-Forward Hardening ⚠️ DESIGN-FIRST — no code until design session done
