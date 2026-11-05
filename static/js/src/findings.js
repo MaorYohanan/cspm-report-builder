@@ -83,6 +83,16 @@ let priorityTouched = false;
         var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
         var wasTempActioned = !!(f._wasTempActioned);
         var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">⏱ מוחרג זמנית</span>' : '';
+        // BL-23: kind badge (acknowledged = amber, excluded = grey/dashed) + exclusion banner
+        var _isExcluded = isExcludedFinding(f);
+        var _isAcked = !!(f.exception && f.exception.active) && !_isExcluded && !isTempExcepted;
+        var kindBadge = _isExcluded
+          ? '<span class="badge-excluded">מוחרג (לא רלוונטי)</span>'
+          : (_isAcked ? '<span class="badge-exception">מאושר</span>' : '');
+        var exclusionBanner = _isExcluded
+          ? '<div class="exclusion-banner"><strong>מוחרג (לא רלוונטי) — לא נספר בציון הסיכון ולא מופיע בדו"ח.</strong>' +
+            ((f.exception.reason) ? '<div style="margin-top:6px;">' + escapeHtml(f.exception.reason) + '</div>' : '') + '</div>'
+          : '';
         var reminderBanner = wasTempActioned
           ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">הממצא הוחרג זמנית בדו"ח הקודם</span></div>'
           : '';
@@ -91,6 +101,7 @@ let priorityTouched = false;
         var headerEl = document.getElementById('findings-detail-header');
         headerEl.innerHTML =
           reminderBanner +
+          exclusionBanner +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
             '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
             '<span class="detail-actions-wrap">' +
@@ -105,6 +116,7 @@ let priorityTouched = false;
             '</span>' +
             '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
             tempBadge +
+            kindBadge +
             '<span style="font-size:11px;color:var(--text-muted);font-family:monospace;">' + escapeHtml(f.id || '') + '</span>' +
           '</div>' +
           '<div style="font-size:17px;font-weight:700;color:var(--text-heading);margin-bottom:4px;">' + escapeHtml(f.title || '') + '</div>' +
@@ -174,12 +186,7 @@ let priorityTouched = false;
         }
 
         // Sync exception button label/style to current finding
-        var _excBtn = document.getElementById('btn-detail-exception');
-        if (_excBtn) {
-          var _isExc = !!(f.exception && f.exception.active);
-          _excBtn.textContent = _isExc ? '✓ בטל החרגה' : '⚠ החרג';
-          _excBtn.className = 'btn btn-sm ' + (_isExc ? 'btn-exception-active' : 'btn-exception');
-        }
+        syncDismissalButtons(f);
         // Close the inline dialog when switching findings
         var _excDlg = document.getElementById('detail-exception-dialog');
         if (_excDlg) _excDlg.style.display = 'none';
@@ -205,11 +212,14 @@ let priorityTouched = false;
         } else if (state.activeDetailTab === 'exception') {
           var isExc = !!(f.exception && f.exception.active);
           var reason = (f.exception && f.exception.reason) || '';
+          var isExcl = isExcludedFinding(f);
+          var kindLabel = isExcl ? '<span class="badge-excluded" style="font-size:12px;padding:3px 10px;">מוחרג (לא רלוונטי)</span>'
+                                 : '<span class="badge-exception" style="font-size:12px;padding:3px 10px;">⚠ מאושר</span>';
           bodyEl.innerHTML = isExc
-            ? '<div class="exception-banner"><span class="badge-exception" style="font-size:12px;padding:3px 10px;">⚠ מוחרג</span>' +
+            ? '<div class="' + (isExcl ? 'exclusion-banner' : 'exception-banner') + '">' + kindLabel +
               (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">לא הוזנה סיבה.</div>') +
               '</div>'
-            : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג.</div>';
+            : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג או מאושר.</div>';
           return;
         } else if (state.activeDetailTab === 'notes') {
           var notes = Array.isArray(f.notes) ? f.notes : (f.notes = []);
@@ -312,6 +322,11 @@ let priorityTouched = false;
           }
         });
       });
+
+      // BL-23: an exception is either 'acknowledge' (default/absent kind) or 'exclude'.
+      export function isExcludedFinding(f) {
+        return !!(f && f.exception && f.exception.active && f.exception.kind === 'exclude');
+      }
 
       // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
       export function saveToProductMemory(f, source, reason) {
@@ -473,34 +488,73 @@ let priorityTouched = false;
         });
       }
 
-      // ── Exception toggle ──
+      // ── Exception toggle (BL-23: acknowledge vs exclude) ──
       var btnDetailException = document.getElementById('btn-detail-exception');
+      var btnDetailExclude = document.getElementById('btn-detail-exclude');
       var detailExceptionDialog = document.getElementById('detail-exception-dialog');
       var btnExceptionConfirm = document.getElementById('btn-exception-confirm');
       var btnExceptionCancel = document.getElementById('btn-exception-cancel');
+      var pendingDismissalKind = 'acknowledge';
+
+      // Label / class of both dismissal buttons follows the selected finding's state.
+      function syncDismissalButtons(f) {
+        var ack = document.getElementById('btn-detail-exception');
+        var exc = document.getElementById('btn-detail-exclude');
+        var active = !!(f && f.exception && f.exception.active);
+        var excluded = isExcludedFinding(f);
+        if (ack) {
+          var ackOn = active && !excluded;
+          ack.textContent = ackOn ? '✓ בטל אישור סיכון' : '⚠ אשר סיכון';
+          ack.className = 'btn btn-sm ' + (ackOn ? 'btn-exception-active' : 'btn-exception');
+        }
+        if (exc) {
+          exc.textContent = excluded ? '✓ בטל החרגה' : '🚫 החרג (לא רלוונטי)';
+          exc.className = 'btn btn-sm ' + (excluded ? 'btn-exclude-active' : 'btn-exclude');
+        }
+      }
+
+      function refreshAfterDismissalChange() {
+        showFindingDetail(state.selectedFindingIndex); // header badges / banner must follow state
+        renderFindingsTable();
+        autoSave();
+      }
+
+      function handleDismissalClick(kind) {
+        if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
+        var f = state.findings[state.selectedFindingIndex];
+        var active = !!(f.exception && f.exception.active);
+        var curKind = isExcludedFinding(f) ? 'exclude' : 'acknowledge';
+        var wantKind = kind === 'exclude' ? 'exclude' : 'acknowledge';
+        if (active && curKind === wantKind) {
+          // Same button again: immediately toggle off
+          removeFromProductMemory(f);
+          f.exception = { active: false, reason: '' };
+          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+          refreshAfterDismissalChange();
+          showToast(wantKind === 'exclude' ? 'ההחרגה בוטלה' : 'אישור הסיכון בוטל', 'info');
+        } else if (active) {
+          // Other button while dismissed: switch kind, keeping the reason
+          var keptReason = f.exception.reason || '';
+          f.exception = { active: true, reason: keptReason };
+          if (wantKind === 'exclude') f.exception.kind = 'exclude';
+          saveToProductMemory(f, wantKind === 'exclude' ? 'excluded' : 'excepted', keptReason);
+          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+          refreshAfterDismissalChange();
+          showToast(wantKind === 'exclude' ? 'הממצא הוחרג (לא רלוונטי)' : 'הסיכון אושר', 'success');
+        } else {
+          // Not dismissed: show reason dialog, pre-fill if re-dismissing
+          pendingDismissalKind = wantKind;
+          var inp = document.getElementById('detail-exception-reason-input');
+          if (inp) inp.value = (f.exception && f.exception.reason) || '';
+          if (detailExceptionDialog) detailExceptionDialog.style.display = '';
+        }
+      }
 
       if (btnDetailException) {
-        btnDetailException.addEventListener('click', function() {
-          if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
-          var f = state.findings[state.selectedFindingIndex];
-          if (f.exception && f.exception.active) {
-            // Already excepted — immediately toggle off
-            removeFromProductMemory(f);
-            f.exception = { active: false, reason: '' };
-            if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
-            btnDetailException.textContent = '⚠ החרג';
-            btnDetailException.className = 'btn btn-sm btn-exception';
-            showFindingDetail(state.selectedFindingIndex); // header badge must follow state
-            renderFindingsTable();
-            autoSave();
-            showToast('ההחרגה בוטלה', 'info');
-          } else {
-            // Not excepted — show reason dialog, pre-fill if re-excepting
-            var inp = document.getElementById('detail-exception-reason-input');
-            if (inp) inp.value = (f.exception && f.exception.reason) || '';
-            if (detailExceptionDialog) detailExceptionDialog.style.display = '';
-          }
-        });
+        btnDetailException.addEventListener('click', function() { handleDismissalClick('acknowledge'); });
+      }
+      if (btnDetailExclude) {
+        btnDetailExclude.addEventListener('click', function() { handleDismissalClick('exclude'); });
       }
 
       if (btnExceptionConfirm) {
@@ -508,20 +562,16 @@ let priorityTouched = false;
           if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
           var inp = document.getElementById('detail-exception-reason-input');
           var reason = inp ? inp.value.trim() : '';
-          state.findings[state.selectedFindingIndex].exception = { active: true, reason: reason };
-          delete state.findings[state.selectedFindingIndex]._wasTempActioned; // BL-12: reminder is stale after a new action
-          delete state.findings[state.selectedFindingIndex]._tempActionReason;
-          saveToProductMemory(state.findings[state.selectedFindingIndex], 'excepted', reason);
+          var isExclude = pendingDismissalKind === 'exclude';
+          var target = state.findings[state.selectedFindingIndex];
+          target.exception = { active: true, reason: reason };
+          if (isExclude) target.exception.kind = 'exclude';
+          delete target._wasTempActioned; // BL-12: reminder is stale after a new action
+          delete target._tempActionReason;
+          saveToProductMemory(target, isExclude ? 'excluded' : 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
-          var excBtn = document.getElementById('btn-detail-exception');
-          if (excBtn) {
-            excBtn.textContent = '✓ בטל החרגה';
-            excBtn.className = 'btn btn-sm btn-exception-active';
-          }
-          showFindingDetail(state.selectedFindingIndex); // re-render header so reminder banner / temp badge clear
-          renderFindingsTable();
-          autoSave();
-          showToast('הממצא סומן כמוחרג', 'success');
+          refreshAfterDismissalChange(); // also clears reminder banner / temp badge
+          showToast(isExclude ? 'הממצא הוחרג (לא רלוונטי)' : 'הסיכון אושר', 'success');
         });
       }
 
@@ -1270,6 +1320,10 @@ let priorityTouched = false;
           if (f.exception && typeof f.exception === 'object' && typeof f.exception.source === 'string' && f.exception.source) {
             loaded.exception.source = f.exception.source;
           }
+          // BL-23: preserve the dismissal kind ('exclude'); absent = acknowledge
+          if (f.exception && typeof f.exception === 'object' && f.exception.active && f.exception.kind === 'exclude') {
+            loaded.exception.kind = 'exclude';
+          }
           if (f._wasTempActioned) {
             loaded._wasTempActioned = true;
             if (typeof f._tempActionReason === 'string') loaded._tempActionReason = f._tempActionReason;
@@ -1370,6 +1424,9 @@ let priorityTouched = false;
               var filterCat = document.getElementById('findings-filter-category').value;
               var filterSev = document.getElementById('findings-filter-severity').value;
               var filterExcOnly = !!(document.getElementById('findings-filter-show-exceptions') || {}).checked;
+              // BL-23: kind filters; when either is ticked a finding must match at least one ticked kind
+              var filterAck = !!(document.getElementById('findings-filter-show-acknowledged') || {}).checked;
+              var filterExcl = !!(document.getElementById('findings-filter-show-excluded') || {}).checked;
 
               var filtered = [];
               state.findings.forEach(function(f, idx) {
@@ -1377,6 +1434,11 @@ let priorityTouched = false;
                 if (filterCat && f.category !== filterCat) return;
                 if (filterSev && f.severity !== filterSev) return;
                 if (filterExcOnly && !(f.exception && f.exception.active)) return;
+                if (filterAck || filterExcl) {
+                  var _act = !!(f.exception && f.exception.active);
+                  var _ex = isExcludedFinding(f);
+                  if (!((filterAck && _act && !_ex) || (filterExcl && _ex))) return;
+                }
                 filtered.push({ f: f, idx: idx });
               });
 
@@ -1429,12 +1491,15 @@ let priorityTouched = false;
                 var isExc = !!(f.exception && f.exception.active);
                 // BL-12: Check for temp-exception vs regular exception
                 var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
+                var isExcl = isExcludedFinding(f);
                 var excBadge = isTempExcepted
                   ? ' <span class="badge-temp-exception">⏱ מוחרג זמנית</span>'
-                  : (isExc ? ' <span class="badge-exception">מוחרג</span>' : '');
-                var rowStyle = isExc ? ' style="opacity:0.65;"' : '';
+                  : (isExcl ? ' <span class="badge-excluded">מוחרג (לא רלוונטי)</span>'
+                    : (isExc ? ' <span class="badge-exception">מאושר</span>' : ''));
+                var rowStyle = (isExc && !isExcl) ? ' style="opacity:0.65;"' : '';
+                var rowClass = isExcl ? ' class="is-excluded"' : '';
 
-                html += '<tr data-idx="' + idx + '"' + rowStyle + '>' +
+                html += '<tr data-idx="' + idx + '"' + rowClass + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
                   '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + escapeHtml(f.id || '') + '</td>' +
@@ -1738,6 +1803,9 @@ let priorityTouched = false;
       document.getElementById('findings-filter-severity').addEventListener('change', renderFindingsTable);
       var excFilterEl = document.getElementById('findings-filter-show-exceptions');
       if (excFilterEl) excFilterEl.addEventListener('change', renderFindingsTable);
+      document.querySelectorAll('[data-filter-kind]').forEach(function(el) {
+        el.addEventListener('change', renderFindingsTable);
+      });
 
       // ── Category count badges ──
       export function renderCategoryBadges() {
@@ -2127,6 +2195,10 @@ let priorityTouched = false;
               // still excepted: a temp exception stays temp (reason unchanged semantics); a newly ticked one is permanent
               if (prevF.exception && prevF.exception.active && prevF.exception.source) {
                 newFinding.exception.source = prevF.exception.source;
+              }
+              // BL-23: editing other fields must not silently turn an exclusion back into an acknowledgement
+              if (prevF.exception && prevF.exception.active && prevF.exception.kind === 'exclude') {
+                newFinding.exception.kind = 'exclude';
               }
             } else if (prevF._wasTempActioned) {
               newFinding._wasTempActioned = true;
@@ -2585,6 +2657,10 @@ let priorityTouched = false;
       }
 
       export function buildReportHtml({ isDraft = false, severitySort = false } = {}) {
+        // BL-23: excluded findings are omitted from the PDF entirely (cards, TOC, counts, tables).
+        // Acknowledged findings (exception.kind absent/'acknowledge') render exactly as before.
+        const reportFindings = state.findings.filter(function(f) { return !isExcludedFinding(f); });
+        function countRF(key) { return reportFindings.filter(function(f) { return f.severity === key; }).length; }
         const lang = document.getElementById('report-lang').value || 'he';
         const t = i18n[lang] || i18n.he;
         const client          = document.getElementById('report-client').value.trim();
@@ -2603,16 +2679,16 @@ let priorityTouched = false;
         const coverNote   = document.getElementById('report-cover-note').value.trim() || 'מסמך זה מסכם את ממצאי בדיקת האבטחה כפי שאותרו, כולל ניתוח סיכונים והמלצות לטיפול.';
         const reportVersion = document.getElementById('report-version').value.trim();
 
-        const critCount  = countSeverity('critical');
-        const highCount  = countSeverity('high');
-        const medCount   = countSeverity('medium');
-        const lowCount   = countSeverity('low');
-        const infoCount  = countSeverity('info');
+        const critCount  = countRF('critical');
+        const highCount  = countRF('high');
+        const medCount   = countRF('medium');
+        const lowCount   = countRF('low');
+        const infoCount  = countRF('info');
         const riskScore  = calcRiskScore();
 
         // Exception counts per severity (for summary table annotation)
         function countExcBySeverity(key) {
-          return state.findings.filter(function(f){ return f.severity === key && f.exception && f.exception.active; }).length;
+          return reportFindings.filter(function(f){ return f.severity === key && f.exception && f.exception.active; }).length;
         }
         const critExc = countExcBySeverity('critical');
         const highExc = countExcBySeverity('high');
@@ -2620,7 +2696,7 @@ let priorityTouched = false;
         const lowExc  = countExcBySeverity('low');
 
         // ── Sorting and grouping logic ──
-        var sortedFindings = state.findings.slice();
+        var sortedFindings = reportFindings.slice();
         var findingsByCategory = {};
         var findingsBySeverity = {};
         var exceptedFindings = [];
@@ -2855,7 +2931,7 @@ let priorityTouched = false;
           });
         }
 
-        const treatmentTableHtml = state.findings.map(f => {
+        const treatmentTableHtml = reportFindings.map(f => {
           const sev = state.severityMap[f.severity] || state.severityMap.medium;
           const anchorId = makeFindingAnchorId(f.id);
 
@@ -2881,7 +2957,7 @@ let priorityTouched = false;
           );
         }).join('\n');
 
-        const appendixHtml = state.findings.map(f => {
+        const appendixHtml = reportFindings.map(f => {
           // Join all policies; empty array produces '' (falsy) → falls back to '—'
           const allPolicies = f.policies.join(', ');
           return `
@@ -3593,8 +3669,8 @@ ${draftWatermarkStyle}
             });
             tocFindings = tocFindings.concat(exceptedFindings);
           } else {
-            // Category mode: use state.findings as-is
-            tocFindings = state.findings;
+            // Category mode: use reportFindings as-is
+            tocFindings = reportFindings;
           }
           return tocFindings.map(function(f) {
             var sev = state.severityMap[f.severity] || state.severityMap.medium;
@@ -3619,7 +3695,7 @@ ${draftWatermarkStyle}
            from the domain model in CONTEXT.md (critical:4, high:3, medium:2, low:1).
            The reportRisk free-text field is preserved in state but not rendered here to
            avoid contradicting the computed label. Track as a separate weight-fix task. -->
-      ${state.findings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
+      ${reportFindings.length ? '<p><strong>' + t.riskScoreLabel + ':</strong> ' + riskScore.percent + '% (' + (t[riskScore.level] || riskScore.label) + ') ' + t.riskScoreSuffix + '</p>' : ''}
     </section>
 
     <section class="section-intro" style="margin-top: 2rem;">

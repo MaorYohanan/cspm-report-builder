@@ -462,6 +462,11 @@ BL-04 (PDF Bookmarks / Named Destinations): ✅ merged to main — 2026-11-05 (b
 - Change: page.pdf(outline=True, tagged=True) in backend/services/pdf_service.py (no new dependency; outline=True alone is a no-op, Chromium needs tagged=True). Outline now has 17 bookmarks (chapters + categories; 18 with severity sort); ZIP export carries it. QA: layout identical to baseline (160 pages / 0 spills / 36 near-blank / 919px max / 187 links / 28 dests), file +9%, 276 tests passed.
 - Not done / notes: individual findings are not bookmarks (div.finding-title, not headings); numeric prefixes may display oddly in viewers (needs a visual check in Edge/Acrobat); ToC heading is itself a bookmark. Follow-up logged: BL-34 (splitter drops finding anchors, unscheduled).
 
+BL-23 (Acknowledge vs Exclude): 🔄 in progress — started 2026-11-05
+- Branch: feature/bl-23-acknowledge-exclude
+- Dual dismissal states, acknowledge vs exclude; exception.kind on top of exception.active
+- Part 2 (Developer) done on branch, awaiting merge approval: Finding.exception_kind + Alembic b23a0c5d7e11 (+ SQLite startup widening of ck_memory_source), 'excluded' memory source, findings.js/wizi.js/export*.js wiring; excluded findings omitted from PDF/ZIP/interactive HTML, kept in CSV/JSON snapshot. Tests: 289 passed.
+
 ## Next session — where to resume (written 2026-11-04)
 
 - State: `main` == `origin/main` at 75199df (pushed 2026-11-04); working tree clean. Tests: 276 passed.

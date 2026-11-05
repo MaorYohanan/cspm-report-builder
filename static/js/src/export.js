@@ -8,7 +8,7 @@ import {
   attachExceptionReasonButton_AddForm, attachExceptionReasonButton_DetailPane
 } from './findings.js';
 import { updateStepper } from './ui.js';
-import { stripInternalExportFields } from './export-sanitize.js';
+import { stripInternalExportFields, omitExcludedFindings } from './export-sanitize.js';
 
 const importJsonBtn   = document.getElementById('btn-import-json');
 const importJsonInput = document.getElementById('input-import-json');
@@ -23,7 +23,7 @@ const dateInput       = document.getElementById('report-date');
           return;
         }
 
-        var csvHeaders = ['כותרת', 'חומרה', 'קטגוריה', 'תיאור', 'השפעה', 'פרטים טכניים', 'מדיניות', 'המלצות', 'עדיפות', 'בעלים', 'מוחרג', 'סיבת חריג'];
+        var csvHeaders = ['כותרת', 'חומרה', 'קטגוריה', 'תיאור', 'השפעה', 'פרטים טכניים', 'מדיניות', 'המלצות', 'עדיפות', 'בעלים', 'מוחרג', 'סיבת חריג', 'סוג החרגה'];
 
         function csvEscape(val) {
           var s = (val === null || val === undefined) ? '' : String(val);
@@ -57,7 +57,9 @@ const dateInput       = document.getElementById('report-date');
             f.priority || '',
             f.owner || '',
             (f.exception && f.exception.active) ? 'כן' : 'לא',
-            (f.exception && f.exception.reason) ? f.exception.reason : ''
+            (f.exception && f.exception.reason) ? f.exception.reason : '',
+            // BL-23: 'exclude' | 'acknowledge' | '' (not an exception)
+            (f.exception && f.exception.active) ? (f.exception.kind === 'exclude' ? 'exclude' : 'acknowledge') : ''
           ];
           lines.push(row.map(csvEscape).join(','));
         });
@@ -783,7 +785,7 @@ const dateInput       = document.getElementById('report-date');
             const resp = await fetch('/api/export/html', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(Object.assign({}, snapshot, { findings: stripInternalExportFields(snapshot.findings) }))
+              body: JSON.stringify(Object.assign({}, snapshot, { findings: stripInternalExportFields(omitExcludedFindings(snapshot.findings)) }))
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
@@ -839,7 +841,7 @@ const dateInput       = document.getElementById('report-date');
             const resp = await fetch('/api/export-zip', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ html: html, meta: snapshot.meta, findings: stripInternalExportFields(snapshot.findings) })
+              body: JSON.stringify({ html: html, meta: snapshot.meta, findings: stripInternalExportFields(omitExcludedFindings(snapshot.findings)) })
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
@@ -1132,7 +1134,7 @@ const dateInput       = document.getElementById('report-date');
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              findings: findings.map(function(f) {
+              findings: omitExcludedFindings(findings).map(function(f) {
                 return {
                   title: f.title || '',
                   severity: f.severity || '',
@@ -1201,7 +1203,7 @@ const dateInput       = document.getElementById('report-date');
             body: JSON.stringify({
               client: client,
               model: model,
-              findings: findings.map(function(f) {
+              findings: omitExcludedFindings(findings).map(function(f) {
                 return { title: f.title || '', severity: f.severity || '' };
               })
             })

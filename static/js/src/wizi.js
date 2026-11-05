@@ -4325,6 +4325,8 @@ function _resolveItemCategory(item, qt) {
               }
               if (!(f.exception && f.exception.active)) {
                 f.exception = { active: true, reason: entry.reason || '' };
+                // BL-23: carry the dismissal kind forward ('excluded' memory source -> kind 'exclude')
+                if (entry.source === 'excluded') f.exception.kind = 'exclude';
                 matched++;
               }
             });
