@@ -88,10 +88,10 @@ let priorityTouched = false;
         // Excluded findings (legacy exception) keep their legacy look: no header badge.
         var _isAcked = isAcknowledgedFinding(f);
         var kindBadge = _isAcked
-          ? '<span class="badge-acknowledged">מאושר — לא יודפס</span>'
+          ? '<span class="badge-acknowledged">' + escapeHtml(t('מאושר — לא יודפס')) + '</span>'
           : '';
         var exclusionBanner = _isAcked
-          ? '<div class="acknowledge-banner"><strong>מאושר — מוסתר לחלוטין מהדו"ח</strong>' +
+          ? '<div class="acknowledge-banner"><strong>' + escapeHtml(t('מאושר — מוסתר לחלוטין מהדו"ח')) + '</strong>' +
             ((f.exception.reason) ? '<div style="margin-top:6px;">' + escapeHtml(f.exception.reason) + '</div>' : '') + '</div>'
           : '';
         var reminderBanner = wasTempActioned
@@ -215,13 +215,13 @@ let priorityTouched = false;
           var isExc = !!(f.exception && f.exception.active);
           var reason = (f.exception && f.exception.reason) || '';
           var isAck = isAcknowledgedFinding(f);
-          var kindLabel = isAck ? '<span class="badge-acknowledged" style="font-size:12px;padding:3px 10px;">מאושר — מוסתר לחלוטין מהדו"ח</span>'
-                                : '<span class="badge-exception" style="font-size:12px;padding:3px 10px;">⚠ מוחרג</span>';
+          var kindLabel = isAck ? '<span class="badge-acknowledged" style="font-size:12px;padding:3px 10px;">' + escapeHtml(t('מאושר — מוסתר לחלוטין מהדו"ח')) + '</span>'
+                                : '<span class="badge-exception" style="font-size:12px;padding:3px 10px;">' + escapeHtml(t('⚠ מוחרג')) + '</span>';
           bodyEl.innerHTML = isExc
             ? '<div class="' + (isAck ? 'acknowledge-banner' : 'exception-banner') + '">' + kindLabel +
-              (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">לא הוזנה סיבה.</div>') +
+              (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">' + escapeHtml(t('לא הוזנה סיבה.')) + '</div>') +
               '</div>'
-            : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג או מאושר.</div>';
+            : '<div class="detail-content-block" style="color:var(--text-muted);">' + escapeHtml(t('ממצא זה אינו מוחרג או מאושר.')) + '</div>';
           return;
         } else if (state.activeDetailTab === 'notes') {
           var notes = Array.isArray(f.notes) ? f.notes : (f.notes = []);
@@ -448,11 +448,15 @@ let priorityTouched = false;
 
         document.addEventListener('fullscreenchange', function() {
           if (document.fullscreenElement) {
-            btnDetailExpand.title = 'צמצם';
-            btnDetailExpand.textContent = '✕';
+            btnDetailExpand.setAttribute('data-i18n-title', 'צמצם');
+            btnDetailExpand.title = t('צמצם');
+            btnDetailExpand.setAttribute('data-i18n', '✕ צמצם');
+            btnDetailExpand.textContent = t('✕ צמצם');
           } else {
-            btnDetailExpand.title = 'הרחב';
-            btnDetailExpand.textContent = '⛶';
+            btnDetailExpand.setAttribute('data-i18n-title', 'הרחב');
+            btnDetailExpand.title = t('הרחב');
+            btnDetailExpand.setAttribute('data-i18n', '⛶ הרחב');
+            btnDetailExpand.textContent = t('⛶ הרחב');
           }
         });
       }
@@ -520,12 +524,16 @@ let priorityTouched = false;
           else tmp.removeAttribute('aria-disabled');
         }
         if (ack) {
-          ack.textContent = acked ? '✓ בטל אישור' : '✓ אשר והסתר';
+          var ackKey = acked ? '✓ בטל אישור' : '✓ אשר והסתר';
+          ack.setAttribute('data-i18n', ackKey); // a later language toggle re-translates from this key
+          ack.textContent = t(ackKey);
           ack.className = 'btn btn-sm ' + (acked ? 'btn-acknowledge-active' : 'btn-acknowledge');
         }
         if (exc) {
           var excOn = active && !acked;
-          exc.textContent = excOn ? '✓ בטל החרגה' : '⚠ החרג';
+          var excKey = excOn ? '✓ בטל החרגה' : '⚠ החרג';
+          exc.setAttribute('data-i18n', excKey);
+          exc.textContent = t(excKey);
           exc.className = 'btn btn-sm ' + (excOn ? 'btn-exception-active' : 'btn-exception');
         }
       }
@@ -548,7 +556,7 @@ let priorityTouched = false;
           f.exception = { active: false, reason: '' };
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange();
-          showToast(wantKind === 'acknowledge' ? 'האישור בוטל' : 'ההחרגה בוטלה', 'info');
+          showToast(t(wantKind === 'acknowledge' ? 'האישור בוטל' : 'ההחרגה בוטלה'), 'info');
         } else if (active) {
           // Other button while dismissed: switch kind, keeping the reason
           var keptReason = f.exception.reason || '';
@@ -557,7 +565,7 @@ let priorityTouched = false;
           saveToProductMemory(f, wantKind === 'acknowledge' ? 'acknowledged' : 'excepted', keptReason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange();
-          showToast(wantKind === 'acknowledge' ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג', 'success');
+          showToast(t(wantKind === 'acknowledge' ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג'), 'success');
         } else {
           // Not dismissed: show reason dialog, pre-fill if re-dismissing
           pendingDismissalKind = wantKind;
@@ -588,7 +596,7 @@ let priorityTouched = false;
           saveToProductMemory(target, isAck ? 'acknowledged' : 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange(); // also clears reminder banner / temp badge
-          showToast(isAck ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג', 'success');
+          showToast(t(isAck ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג'), 'success');
         });
       }
 
@@ -1412,7 +1420,7 @@ let priorityTouched = false;
                 findingsTab.innerHTML = tabIcon + 'ממצאים <span class="sidebar-badge" id="step-findings-count">' + (state.findings.length || '') + '</span>';
               }
               var listCountEl = document.getElementById('findings-list-count');
-              if (listCountEl) listCountEl.textContent = state.findings.length + ' ממצאים';
+              if (listCountEl) listCountEl.textContent = state.findings.length === 1 ? t('ממצא אחד') : t('{n} ממצאים').replace('{n}', state.findings.length);
               updateStepper();
 
               var batchActions = document.getElementById('batch-actions');
@@ -1512,7 +1520,7 @@ let priorityTouched = false;
                 var isAck = isAcknowledgedFinding(f);
                 var excBadge = isTempExcepted
                   ? ' <span class="badge-temp-exception">⏱ מוחרג זמנית</span>'
-                  : (isAck ? ' <span class="badge-acknowledged">מאושר — לא יודפס</span>'
+                  : (isAck ? ' <span class="badge-acknowledged">' + escapeHtml(t('מאושר — לא יודפס')) + '</span>'
                     : (isExc ? ' <span class="badge-exception">מוחרג</span>' : ''));
                 var rowStyle = (isExc && !isAck) ? ' style="opacity:0.65;"' : '';
                 var rowClass = isAck ? ' class="is-acknowledged"' : '';
@@ -1687,7 +1695,7 @@ let priorityTouched = false;
         var batchCountInline = document.getElementById('batch-count-inline');
         if (selected.length > 0) {
           batchActions.style.display = '';
-          batchCount.textContent = selected.length + ' ממצאים נבחרו';
+          batchCount.textContent = selected.length === 1 ? t('ממצא אחד נבחר') : t('{n} ממצאים נבחרו').replace('{n}', selected.length);
           if (batchCountInline) {
             batchCountInline.textContent = selected.length + ' נבחרו';
             batchCountInline.style.display = 'inline-block';

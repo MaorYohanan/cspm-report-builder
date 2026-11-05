@@ -502,8 +502,12 @@ export function renderDashboard() {
     if (!p.toggle || !p.menu) return;
     if (p.toggle.contains(e.target)) { setOpen(p.menu.hidden); return; }
     if (p.menu.hidden) return;
-    // Item click: let its own handler run, then close. Outside click: just close.
+    // Item click: its own handler already ran. Close, and if focus was on the (now hidden) item
+    // return it to the toggle so keyboard users are not dropped on BODY. If the item's handler moved
+    // focus elsewhere (e.g. into a dialog) focus is no longer inside the menu and is left alone.
+    var focusWasInMenu = p.menu.contains(document.activeElement);
     setOpen(false);
+    if (focusWasInMenu && p.menu.contains(e.target)) p.toggle.focus();
   });
   document.addEventListener('keydown', function(e) {
     var p = parts();
@@ -521,5 +525,19 @@ export function renderDashboard() {
       var next = e.key === 'ArrowDown' ? (idx + 1) % list.length : (idx <= 0 ? list.length - 1 : idx - 1);
       list[next].focus();
     }
+  });
+})();
+
+
+// ── Toasts in fullscreen ──
+// Only the fullscreen element and its descendants render in the top layer, so the toast container
+// (a child of body) is invisible after "Expand". Re-parent it into the fullscreen element and back.
+(function initToastFullscreen() {
+  document.addEventListener('fullscreenchange', function() {
+    var c = document.getElementById('toast-container');
+    if (!c) return;
+    var fs = document.fullscreenElement;
+    if (fs) { fs.appendChild(c); }
+    else if (c.parentNode !== document.body) { document.body.insertBefore(c, document.body.firstChild); }
   });
 })();

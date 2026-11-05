@@ -4340,13 +4340,14 @@ function _resolveItemCategory(item, qt) {
               }
               autoSave();
             }
-            if (matched > 0 && matchedAck > 0) {
-              showToast(t('{x} ממצאים סומנו כמוחרגים ו-{a} אושרו והוסתרו אוטומטית על פי היסטוריה קודמת')
-                .replace('{x}', matched).replace('{a}', matchedAck), 'info');
-            } else if (matchedAck > 0) {
-              showToast(t('{n} ממצאים אושרו והוסתרו אוטומטית על פי היסטוריה קודמת').replace('{n}', matchedAck), 'info');
-            } else if (matched > 0) {
-              showToast(t('{n} ממצאים סומנו כמוחרגים אוטומטית על פי היסטוריה קודמת').replace('{n}', matched), 'info');
+            if (matched > 0 || matchedAck > 0) {
+              // Singular / plural phrases (he + en via i18n), then one shared suffix.
+              var exclPhrase = matched === 1 ? t('ממצא אחד סומן כמוחרג') : t('{n} ממצאים סומנו כמוחרגים').replace('{n}', matched);
+              var ackPhrase = matchedAck === 1 ? t('ממצא אחד אושר והוסתר') : t('{n} ממצאים אושרו והוסתרו').replace('{n}', matchedAck);
+              var phrase = (matched > 0 && matchedAck > 0)
+                ? t('{x} ו-{a}').replace('{x}', exclPhrase).replace('{a}', ackPhrase)
+                : (matchedAck > 0 ? ackPhrase : exclPhrase);
+              showToast(t('{p} אוטומטית על פי היסטוריה קודמת').replace('{p}', phrase), 'info');
             }
             // Consume temp entries now that the flagged findings are in state (non-blocking).
             tempToConsume.forEach(function(body) {

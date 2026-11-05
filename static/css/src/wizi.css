@@ -86,7 +86,7 @@ select[multiple] option {
 .toast-success { background: #16a34a; }
 .toast-error   { background: var(--danger); }
 .toast-info    { background: var(--accent); }
-.toast-warning { background: #d97706; }
+.toast-warning { background: #b45309; } /* white on #b45309 = 5.0:1 (AA) */
 
 @keyframes toastIn {
   from { opacity: 0; transform: translateY(-12px); }
