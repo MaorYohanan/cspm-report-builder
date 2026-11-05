@@ -573,3 +573,4 @@ An editor can mark a finding as excepted for the current report only, from the d
 
 ### Acknowledge vs Exclude Findings
 A consultant can dismiss a finding in two ways from the finding detail footer. Exclude is the classic exception: the finding stays in the PDF with an approved-exception banner, is counted as "included exceptions" in the summary and is not scored. Acknowledge hides the finding entirely from the PDF, interactive HTML, ZIP bundle and AI summaries and from the risk score, while it stays visible in the builder list (grey badge) and in the CSV and JSON snapshot. Both choices are remembered per product and restored on the next import, and the findings list has separate filters for each kind.
+The acknowledged state is fully translated, the "עוד" menu returns focus to its toggle, and the Exceptions panel shows a kind chip per row.

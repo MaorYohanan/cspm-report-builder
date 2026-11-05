@@ -511,6 +511,20 @@ let priorityTouched = false;
       var btnExceptionConfirm = document.getElementById('btn-exception-confirm');
       var btnExceptionCancel = document.getElementById('btn-exception-cancel');
       var pendingDismissalKind = 'exclude';
+      var dismissalInvoker = null;
+
+      // Close the reason dialog and put focus somewhere visible: the invoking control if it is still
+      // rendered, else the "עוד" toggle, else the selected finding row. Never leaves focus on body.
+      function closeReasonDialog(returnFocus) {
+        if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+        var inv = dismissalInvoker;
+        dismissalInvoker = null;
+        if (!returnFocus) return;
+        var isShown = function(el) { return el && document.body.contains(el) && el.getClientRects().length > 0; };
+        var toggle = document.getElementById('btn-footer-overflow');
+        var target = isShown(inv) ? inv : (isShown(toggle) ? toggle : document.querySelector('.finding-list-item.active'));
+        if (target && target.focus) target.focus();
+      }
 
       // Label / class of both dismissal buttons follows the selected finding's state.
       function syncDismissalButtons(f) {
@@ -572,6 +586,10 @@ let priorityTouched = false;
           var inp = document.getElementById('detail-exception-reason-input');
           if (inp) inp.value = (f.exception && f.exception.reason) || '';
           if (detailExceptionDialog) detailExceptionDialog.style.display = '';
+          // Focus the textarea synchronously: the menu's document-level click handler (ui.js) runs after
+          // this and only returns focus to the toggle if focus is still inside the menu.
+          dismissalInvoker = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+          if (inp) inp.focus();
         }
       }
 
@@ -594,15 +612,20 @@ let priorityTouched = false;
           delete target._wasTempActioned; // BL-12: reminder is stale after a new action
           delete target._tempActionReason;
           saveToProductMemory(target, isAck ? 'acknowledged' : 'excepted', reason);
-          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange(); // also clears reminder banner / temp badge
+          closeReasonDialog(true);
           showToast(t(isAck ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג'), 'success');
         });
       }
 
       if (btnExceptionCancel) {
         btnExceptionCancel.addEventListener('click', function() {
-          if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
+          closeReasonDialog(true);
+        });
+      }
+      if (detailExceptionDialog) {
+        detailExceptionDialog.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeReasonDialog(true); }
         });
       }
 
