@@ -202,6 +202,13 @@ const TRANSLATIONS = {
     'כללי סינון פעילים:': 'Active Filter Rules:',
     'ניהול כללי סינון': 'Manage Filter Rules',
     // ── Exceptions panel ──
+    'סוג': 'Type',
+    'החרגה': 'Exclusion',
+    'אישור (מוסתר)': 'Acknowledged (hidden)',
+    'לא ניתן להחיל פעולה זמנית על ממצא מאושר. בטל את האישור תחילה.': 'A temporary action cannot be applied to an acknowledged finding. Cancel the acknowledgement first.',
+    '{n} ממצאים סומנו כמוחרגים אוטומטית על פי היסטוריה קודמת': '{n} findings were automatically marked as excluded based on previous history',
+    '{n} ממצאים אושרו והוסתרו אוטומטית על פי היסטוריה קודמת': '{n} findings were automatically acknowledged and hidden based on previous history',
+    '{x} ממצאים סומנו כמוחרגים ו-{a} אושרו והוסתרו אוטומטית על פי היסטוריה קודמת': '{x} findings were automatically excluded and {a} acknowledged and hidden based on previous history',
     'מוצר': 'Product',
     'ממצא': 'Finding',
     'סיבת חריגה': 'Exception Reason',

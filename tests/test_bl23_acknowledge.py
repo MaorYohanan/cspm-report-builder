@@ -437,3 +437,28 @@ def test_ai_exec_summary_and_key_topics_drop_acknowledged_findings(monkeypatch):
     assert c.post("/api/generate-key-topics", json={"findings": findings, "client": "c"}).status_code == 200
     assert seen["summary"] == ["legacy", "live"]
     assert seen["topics"] == ["legacy", "live"]
+
+
+def test_ai_regression_trend_drops_acknowledged_findings(monkeypatch):
+    from backend.routes import ai
+
+    seen = {}
+
+    class _Svc:
+        def generate_regression_trend(self, prev_snapshot_data, curr_findings, zombies, curr_risk_score, **kw):
+            seen["curr"] = [f["title"] for f in curr_findings]
+            seen["prev"] = [f["title"] for f in prev_snapshot_data["findings"]]
+            seen["score"] = curr_risk_score
+            return "trend", "m"
+
+    monkeypatch.setattr(ai, "GEMINI_API_KEY", "k")
+    monkeypatch.setattr(ai, "get_gemini_service", lambda: _Svc())
+    findings = _export_payload()["findings"]
+    r = _bp_client(ai.ai_bp).post("/api/generate-regression-trend", json={
+        "prev_snapshot_data": {"riskScore": 0, "findings": findings},
+        "curr_findings": findings,
+        "zombies": [],
+    })
+    assert r.status_code == 200
+    assert seen["curr"] == ["legacy", "live"]
+    assert seen["prev"] == ["legacy", "live"]

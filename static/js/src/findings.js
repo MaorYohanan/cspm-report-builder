@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
+import { t } from './i18n.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
@@ -165,6 +166,7 @@ let priorityTouched = false;
           });
           document.getElementById('detail-action-temp').addEventListener('click', function() {
             detailActionsMenu.style.display = 'none';
+            if (blockTempActionIfAcknowledged(state.findings[state.selectedFindingIndex])) return;
             // Dispatch custom event to open temp action modal — ui.js will handle it
             var evt = new CustomEvent('openTempActionModal', { detail: { findingIndex: state.selectedFindingIndex } });
             document.dispatchEvent(evt);
@@ -329,6 +331,14 @@ let priorityTouched = false;
         return !!(f && f.exception && f.exception.active && f.exception.kind === 'acknowledge');
       }
 
+      // BL-23 (W2): a temporary action would overwrite the exception (dropping kind 'acknowledge' and
+      // un-hiding the finding). Block it for acknowledged findings; returns true when blocked.
+      function blockTempActionIfAcknowledged(f) {
+        if (!isAcknowledgedFinding(f)) return false;
+        showToast(t('לא ניתן להחיל פעולה זמנית על ממצא מאושר. בטל את האישור תחילה.'), 'warning');
+        return true;
+      }
+
       // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
       export function saveToProductMemory(f, source, reason) {
         if (!f || !f._sourceSubscription || !f.title) return;
@@ -485,6 +495,7 @@ let priorityTouched = false;
       if (btnDetailTemp) {
         btnDetailTemp.addEventListener('click', function() {
           if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
+          if (blockTempActionIfAcknowledged(state.findings[state.selectedFindingIndex])) return;
           document.dispatchEvent(new CustomEvent('openTempActionModal', { detail: { findingIndex: state.selectedFindingIndex } }));
         });
       }
@@ -503,6 +514,11 @@ let priorityTouched = false;
         var exc = document.getElementById('btn-detail-exception');
         var active = !!(f && f.exception && f.exception.active);
         var acked = isAcknowledgedFinding(f);
+        var tmp = document.getElementById('btn-detail-temp');
+        if (tmp) {
+          if (acked) tmp.setAttribute('aria-disabled', 'true');
+          else tmp.removeAttribute('aria-disabled');
+        }
         if (ack) {
           ack.textContent = acked ? '✓ בטל אישור' : '✓ אשר והסתר';
           ack.className = 'btn btn-sm ' + (acked ? 'btn-acknowledge-active' : 'btn-acknowledge');
@@ -4018,6 +4034,7 @@ ${draftWatermarkStyle}
         if (findingIndex === null || findingIndex === undefined) return;
         var finding = state.findings[findingIndex];
         if (!finding) return;
+        if (blockTempActionIfAcknowledged(finding)) return;
 
         // _sourceSubscription is stamped only by browser Wiz import; pipeline-stored findings lack it (BL-31)
         var subscription = finding._sourceSubscription || finding.subscription || '';

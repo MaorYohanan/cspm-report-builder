@@ -237,6 +237,10 @@ def api_generate_regression_trend():
     if not model or model not in GEMINI_MODELS:
         model = GEMINI_DEFAULT_MODEL
 
+    # BL-23: acknowledged findings are hidden from the report, so they are excluded from the trend.
+    curr_findings = drop_acknowledged_findings(curr_findings)
+    prev_findings_raw = drop_acknowledged_findings(prev_findings_raw)
+
     # Compute current risk score from curr_findings using the shared utility.
     # compute_risk_score expects a snapshot dict with a "findings" key.
     curr_risk_score = compute_risk_score({"findings": curr_findings})
