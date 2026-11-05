@@ -26,15 +26,15 @@ export function stripInternalExportFields(findings) {
 }
 
 /**
- * BL-23: drop findings dismissed with exception.kind === 'exclude'. Customer-facing
+ * BL-23: drop findings dismissed with exception.kind === 'acknowledge'. Customer-facing
  * artifacts (PDF, interactive HTML, ZIP findings JSON) omit them; the internal
  * JSON snapshot and CSV keep them. Returns a new array; never mutates the input.
  *
  * @param {Array} findings
  * @returns {Array}
  */
-export function omitExcludedFindings(findings) {
+export function omitAcknowledgedFindings(findings) {
   return (findings || []).filter(function(f) {
-    return !(f && f.exception && f.exception.active && f.exception.kind === 'exclude');
+    return !(f && f.exception && f.exception.active && f.exception.kind === 'acknowledge');
   });
 }

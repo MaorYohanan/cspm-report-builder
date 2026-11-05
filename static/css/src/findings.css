@@ -888,10 +888,13 @@
   }
 }
 
-/* ── BL-23 Acknowledge vs Exclude ──
-   Acknowledged = amber (.badge-exception, unchanged). Excluded = neutral grey, dashed
-   border, so the two states differ by shape as well as hue (WCAG 1.4.1). */
-.badge-excluded {
+/* ── BL-23 Exclude vs Acknowledge ──
+   EXCLUDE (kind 'exclude', legacy) = amber (.badge-exception / .btn-exception /
+   .exception-banner in products.css) - stays in the report as an approved exception.
+   ACKNOWLEDGE (kind 'acknowledge') = neutral grey with a dashed border - the finding
+   is hidden from the report entirely ("will not print"). The two differ by shape as
+   well as hue (WCAG 1.4.1 Use of Color). */
+.badge-acknowledged {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -903,37 +906,38 @@
   color: oklch(0.78 0.01 250);
   border: 1px dashed oklch(0.65 0.01 250 / 0.6);
   margin-right: 5px;
+  vertical-align: middle;
 }
-[data-theme="light"] .badge-excluded {
+[data-theme="light"] .badge-acknowledged {
   color: oklch(0.38 0.02 250);
   background: oklch(0.55 0.01 250 / 0.1);
   border-color: oklch(0.45 0.02 250 / 0.55);
 }
-/* List item / row of an excluded finding: muted, title struck through */
-.finding-list-item.is-excluded,
-tr.is-excluded {
+/* List item / row of an acknowledged finding: muted, title struck through = will not print */
+.finding-list-item.is-acknowledged,
+tr.is-acknowledged {
   opacity: 0.65;
 }
-.finding-list-item.is-excluded .finding-list-title,
-tr.is-excluded td {
+.finding-list-item.is-acknowledged .finding-list-title,
+tr.is-acknowledged td {
   text-decoration: line-through;
   text-decoration-color: var(--text-muted);
 }
-/* Exclude action button: neutral grey (distinct from amber acknowledge) */
-.btn.btn-exclude {
+/* Acknowledge action button: neutral grey dashed (distinct from amber exclude) */
+.btn.btn-acknowledge {
   background: oklch(0.55 0.01 250 / 0.12);
   color: oklch(0.45 0.02 250);
   border: 1px dashed oklch(0.55 0.01 250 / 0.55);
 }
-.btn.btn-exclude:hover:not(:disabled) { background: oklch(0.55 0.01 250 / 0.22); }
-.btn.btn-exclude-active {
+.btn.btn-acknowledge:hover:not(:disabled) { background: oklch(0.55 0.01 250 / 0.22); }
+.btn.btn-acknowledge-active {
   background: oklch(0.55 0.01 250 / 0.28);
   color: var(--text);
   border: 1px solid oklch(0.55 0.01 250 / 0.7);
 }
-[data-theme="dark"] .btn-exclude { color: oklch(0.78 0.01 250); }
-/* Exclusion banner in the detail pane (hook for Part 2) */
-.exclusion-banner {
+[data-theme="dark"] .btn-acknowledge { color: oklch(0.78 0.01 250); }
+/* "Hidden from report" banner in the detail pane */
+.acknowledge-banner {
   background: oklch(0.55 0.01 250 / 0.1);
   border: 1px dashed oklch(0.55 0.01 250 / 0.5);
   border-radius: var(--radius);

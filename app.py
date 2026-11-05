@@ -168,8 +168,8 @@ if not os.environ.get("DATABASE_URL"):
             # BL-23: widen ck_memory_source (SQLite keeps CHECKs in the table definition).
             try:
                 from backend.services.sqlite_schema import set_memory_source_check as _widen
-                if _widen(_c, allow_excluded=True):
-                    _log.info("Rebuilt product_memory_entries to allow source 'excluded'")
+                if _widen(_c, allow_acknowledged=True):
+                    _log.info("Rebuilt product_memory_entries to allow source 'acknowledged'")
                 _c.commit()
             except Exception as _exc:
                 _c.rollback()

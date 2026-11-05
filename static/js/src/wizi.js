@@ -4325,8 +4325,9 @@ function _resolveItemCategory(item, qt) {
               }
               if (!(f.exception && f.exception.active)) {
                 f.exception = { active: true, reason: entry.reason || '' };
-                // BL-23: carry the dismissal kind forward ('excluded' memory source -> kind 'exclude')
-                if (entry.source === 'excluded') f.exception.kind = 'exclude';
+                // BL-23: carry the dismissal kind forward ('acknowledged' memory source -> kind
+                // 'acknowledge', hidden from the PDF). Legacy 'excepted' entries stay plain exclusions.
+                if (entry.source === 'acknowledged') f.exception.kind = 'acknowledge';
                 matched++;
               }
             });

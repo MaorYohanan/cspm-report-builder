@@ -887,8 +887,9 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
         product_id=product_id, source="excepted"
     ).all()
     exception_keys = {(e.subscription, e.title): e for e in excepted_entries}
-    # BL-23: 'excluded' memory entries restore as exceptions of kind 'exclude'.
-    for e in ProductMemoryEntry.query.filter_by(product_id=product_id, source="excluded").all():
+    # BL-23: 'acknowledged' memory entries restore as exceptions of kind 'acknowledge'
+    # (hidden from the PDF). Legacy 'excepted' entries restore as 'exclude' behaviour.
+    for e in ProductMemoryEntry.query.filter_by(product_id=product_id, source="acknowledged").all():
         exception_keys.setdefault((e.subscription, e.title), e)
     deleted_keys = {
         (e.subscription, e.title)
@@ -937,14 +938,14 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
         is_excepted = mem_entry is not None
         if is_excepted:
             enriched["exception"] = {"active": True, "reason": mem_entry.reason or ""}
-            if mem_entry.source == "excluded":
-                enriched["exception"]["kind"] = "exclude"
+            if mem_entry.source == "acknowledged":
+                enriched["exception"]["kind"] = "acknowledge"
         db.session.add(Finding(
             snapshot_id=snapshot_id,
             severity=sev,
             finding_data=enriched,
             exception_active=is_excepted,
-            exception_kind="exclude" if is_excepted and mem_entry.source == "excluded" else None,
+            exception_kind="acknowledge" if is_excepted and mem_entry.source == "acknowledged" else None,
         ))
         if not is_excepted:
             risk += weights.get(sev, 0)

@@ -9,7 +9,7 @@ from flask import Blueprint, jsonify, request
 
 from backend.services import GeminiService
 from backend.services.auth_service import require_role
-from backend.utils import compute_risk_score
+from backend.utils import compute_risk_score, drop_acknowledged_findings
 
 _log = logging.getLogger(__name__)
 ai_bp = Blueprint('ai', __name__)
@@ -136,6 +136,8 @@ def api_generate_exec_summary():
     if not model or model not in GEMINI_MODELS:
         model = GEMINI_DEFAULT_MODEL
 
+    # BL-23: acknowledged findings are hidden from the report, so they are not summarised.
+    findings = drop_acknowledged_findings(findings)
     safe_findings = [
         {
             "title": (f.get("title") or "")[:200],
@@ -178,6 +180,8 @@ def api_generate_key_topics():
     if not isinstance(findings, list) or not findings:
         return jsonify({"error": "findings must be a non-empty list"}), 400
     findings = findings[:500]
+    # BL-23: acknowledged findings are hidden from the report, so they are not summarised.
+    findings = drop_acknowledged_findings(findings)
     # Sanitize to {title, severity} only
     safe_findings = [
         {"title": str(f.get("title", ""))[:200], "severity": str(f.get("severity", ""))}

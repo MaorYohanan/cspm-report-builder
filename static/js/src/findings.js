@@ -83,14 +83,14 @@ let priorityTouched = false;
         var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
         var wasTempActioned = !!(f._wasTempActioned);
         var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">⏱ מוחרג זמנית</span>' : '';
-        // BL-23: kind badge (acknowledged = amber, excluded = grey/dashed) + exclusion banner
-        var _isExcluded = isExcludedFinding(f);
-        var _isAcked = !!(f.exception && f.exception.active) && !_isExcluded && !isTempExcepted;
-        var kindBadge = _isExcluded
-          ? '<span class="badge-excluded">מוחרג (לא רלוונטי)</span>'
-          : (_isAcked ? '<span class="badge-exception">מאושר</span>' : '');
-        var exclusionBanner = _isExcluded
-          ? '<div class="exclusion-banner"><strong>מוחרג (לא רלוונטי) — לא נספר בציון הסיכון ולא מופיע בדו"ח.</strong>' +
+        // BL-23: acknowledged findings (hidden from the report) get a grey badge + banner.
+        // Excluded findings (legacy exception) keep their legacy look: no header badge.
+        var _isAcked = isAcknowledgedFinding(f);
+        var kindBadge = _isAcked
+          ? '<span class="badge-acknowledged">מאושר — לא יודפס</span>'
+          : '';
+        var exclusionBanner = _isAcked
+          ? '<div class="acknowledge-banner"><strong>מאושר — מוסתר לחלוטין מהדו"ח</strong>' +
             ((f.exception.reason) ? '<div style="margin-top:6px;">' + escapeHtml(f.exception.reason) + '</div>' : '') + '</div>'
           : '';
         var reminderBanner = wasTempActioned
@@ -212,11 +212,11 @@ let priorityTouched = false;
         } else if (state.activeDetailTab === 'exception') {
           var isExc = !!(f.exception && f.exception.active);
           var reason = (f.exception && f.exception.reason) || '';
-          var isExcl = isExcludedFinding(f);
-          var kindLabel = isExcl ? '<span class="badge-excluded" style="font-size:12px;padding:3px 10px;">מוחרג (לא רלוונטי)</span>'
-                                 : '<span class="badge-exception" style="font-size:12px;padding:3px 10px;">⚠ מאושר</span>';
+          var isAck = isAcknowledgedFinding(f);
+          var kindLabel = isAck ? '<span class="badge-acknowledged" style="font-size:12px;padding:3px 10px;">מאושר — מוסתר לחלוטין מהדו"ח</span>'
+                                : '<span class="badge-exception" style="font-size:12px;padding:3px 10px;">⚠ מוחרג</span>';
           bodyEl.innerHTML = isExc
-            ? '<div class="' + (isExcl ? 'exclusion-banner' : 'exception-banner') + '">' + kindLabel +
+            ? '<div class="' + (isAck ? 'acknowledge-banner' : 'exception-banner') + '">' + kindLabel +
               (reason ? '<div style="margin-top:8px;font-size:13px;color:var(--text);">' + escapeHtml(reason) + '</div>' : '<div style="margin-top:6px;color:var(--text-muted);font-size:12px;">לא הוזנה סיבה.</div>') +
               '</div>'
             : '<div class="detail-content-block" style="color:var(--text-muted);">ממצא זה אינו מוחרג או מאושר.</div>';
@@ -323,9 +323,10 @@ let priorityTouched = false;
         });
       });
 
-      // BL-23: an exception is either 'acknowledge' (default/absent kind) or 'exclude'.
-      export function isExcludedFinding(f) {
-        return !!(f && f.exception && f.exception.active && f.exception.kind === 'exclude');
+      // BL-23: an exception is either 'exclude' (default/absent kind = legacy exception, stays in the
+      // report with a banner) or 'acknowledge' (hidden entirely from the report and the risk score).
+      export function isAcknowledgedFinding(f) {
+        return !!(f && f.exception && f.exception.active && f.exception.kind === 'acknowledge');
       }
 
       // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
@@ -490,26 +491,26 @@ let priorityTouched = false;
 
       // ── Exception toggle (BL-23: acknowledge vs exclude) ──
       var btnDetailException = document.getElementById('btn-detail-exception');
-      var btnDetailExclude = document.getElementById('btn-detail-exclude');
+      var btnDetailAcknowledge = document.getElementById('btn-detail-acknowledge');
       var detailExceptionDialog = document.getElementById('detail-exception-dialog');
       var btnExceptionConfirm = document.getElementById('btn-exception-confirm');
       var btnExceptionCancel = document.getElementById('btn-exception-cancel');
-      var pendingDismissalKind = 'acknowledge';
+      var pendingDismissalKind = 'exclude';
 
       // Label / class of both dismissal buttons follows the selected finding's state.
       function syncDismissalButtons(f) {
-        var ack = document.getElementById('btn-detail-exception');
-        var exc = document.getElementById('btn-detail-exclude');
+        var ack = document.getElementById('btn-detail-acknowledge');
+        var exc = document.getElementById('btn-detail-exception');
         var active = !!(f && f.exception && f.exception.active);
-        var excluded = isExcludedFinding(f);
+        var acked = isAcknowledgedFinding(f);
         if (ack) {
-          var ackOn = active && !excluded;
-          ack.textContent = ackOn ? '✓ בטל אישור סיכון' : '⚠ אשר סיכון';
-          ack.className = 'btn btn-sm ' + (ackOn ? 'btn-exception-active' : 'btn-exception');
+          ack.textContent = acked ? '✓ בטל אישור' : '✓ אשר והסתר';
+          ack.className = 'btn btn-sm ' + (acked ? 'btn-acknowledge-active' : 'btn-acknowledge');
         }
         if (exc) {
-          exc.textContent = excluded ? '✓ בטל החרגה' : '🚫 החרג (לא רלוונטי)';
-          exc.className = 'btn btn-sm ' + (excluded ? 'btn-exclude-active' : 'btn-exclude');
+          var excOn = active && !acked;
+          exc.textContent = excOn ? '✓ בטל החרגה' : '⚠ החרג';
+          exc.className = 'btn btn-sm ' + (excOn ? 'btn-exception-active' : 'btn-exception');
         }
       }
 
@@ -523,24 +524,24 @@ let priorityTouched = false;
         if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
         var f = state.findings[state.selectedFindingIndex];
         var active = !!(f.exception && f.exception.active);
-        var curKind = isExcludedFinding(f) ? 'exclude' : 'acknowledge';
-        var wantKind = kind === 'exclude' ? 'exclude' : 'acknowledge';
+        var curKind = isAcknowledgedFinding(f) ? 'acknowledge' : 'exclude';
+        var wantKind = kind === 'acknowledge' ? 'acknowledge' : 'exclude';
         if (active && curKind === wantKind) {
           // Same button again: immediately toggle off
           removeFromProductMemory(f);
           f.exception = { active: false, reason: '' };
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange();
-          showToast(wantKind === 'exclude' ? 'ההחרגה בוטלה' : 'אישור הסיכון בוטל', 'info');
+          showToast(wantKind === 'acknowledge' ? 'האישור בוטל' : 'ההחרגה בוטלה', 'info');
         } else if (active) {
           // Other button while dismissed: switch kind, keeping the reason
           var keptReason = f.exception.reason || '';
           f.exception = { active: true, reason: keptReason };
-          if (wantKind === 'exclude') f.exception.kind = 'exclude';
-          saveToProductMemory(f, wantKind === 'exclude' ? 'excluded' : 'excepted', keptReason);
+          if (wantKind === 'acknowledge') f.exception.kind = 'acknowledge';
+          saveToProductMemory(f, wantKind === 'acknowledge' ? 'acknowledged' : 'excepted', keptReason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange();
-          showToast(wantKind === 'exclude' ? 'הממצא הוחרג (לא רלוונטי)' : 'הסיכון אושר', 'success');
+          showToast(wantKind === 'acknowledge' ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג', 'success');
         } else {
           // Not dismissed: show reason dialog, pre-fill if re-dismissing
           pendingDismissalKind = wantKind;
@@ -551,10 +552,10 @@ let priorityTouched = false;
       }
 
       if (btnDetailException) {
-        btnDetailException.addEventListener('click', function() { handleDismissalClick('acknowledge'); });
+        btnDetailException.addEventListener('click', function() { handleDismissalClick('exclude'); });
       }
-      if (btnDetailExclude) {
-        btnDetailExclude.addEventListener('click', function() { handleDismissalClick('exclude'); });
+      if (btnDetailAcknowledge) {
+        btnDetailAcknowledge.addEventListener('click', function() { handleDismissalClick('acknowledge'); });
       }
 
       if (btnExceptionConfirm) {
@@ -562,16 +563,16 @@ let priorityTouched = false;
           if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
           var inp = document.getElementById('detail-exception-reason-input');
           var reason = inp ? inp.value.trim() : '';
-          var isExclude = pendingDismissalKind === 'exclude';
+          var isAck = pendingDismissalKind === 'acknowledge';
           var target = state.findings[state.selectedFindingIndex];
           target.exception = { active: true, reason: reason };
-          if (isExclude) target.exception.kind = 'exclude';
+          if (isAck) target.exception.kind = 'acknowledge';
           delete target._wasTempActioned; // BL-12: reminder is stale after a new action
           delete target._tempActionReason;
-          saveToProductMemory(target, isExclude ? 'excluded' : 'excepted', reason);
+          saveToProductMemory(target, isAck ? 'acknowledged' : 'excepted', reason);
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange(); // also clears reminder banner / temp badge
-          showToast(isExclude ? 'הממצא הוחרג (לא רלוונטי)' : 'הסיכון אושר', 'success');
+          showToast(isAck ? 'הממצא אושר והוסתר מהדו"ח' : 'הממצא סומן כמוחרג', 'success');
         });
       }
 
@@ -1320,9 +1321,9 @@ let priorityTouched = false;
           if (f.exception && typeof f.exception === 'object' && typeof f.exception.source === 'string' && f.exception.source) {
             loaded.exception.source = f.exception.source;
           }
-          // BL-23: preserve the dismissal kind ('exclude'); absent = acknowledge
-          if (f.exception && typeof f.exception === 'object' && f.exception.active && f.exception.kind === 'exclude') {
-            loaded.exception.kind = 'exclude';
+          // BL-23: preserve the dismissal kind ('acknowledge'); absent = legacy exclude
+          if (f.exception && typeof f.exception === 'object' && f.exception.active && f.exception.kind === 'acknowledge') {
+            loaded.exception.kind = 'acknowledge';
           }
           if (f._wasTempActioned) {
             loaded._wasTempActioned = true;
@@ -1425,6 +1426,7 @@ let priorityTouched = false;
               var filterSev = document.getElementById('findings-filter-severity').value;
               var filterExcOnly = !!(document.getElementById('findings-filter-show-exceptions') || {}).checked;
               // BL-23: kind filters; when either is ticked a finding must match at least one ticked kind
+              // (acknowledged = hidden from report; excluded = any other active exception)
               var filterAck = !!(document.getElementById('findings-filter-show-acknowledged') || {}).checked;
               var filterExcl = !!(document.getElementById('findings-filter-show-excluded') || {}).checked;
 
@@ -1436,8 +1438,8 @@ let priorityTouched = false;
                 if (filterExcOnly && !(f.exception && f.exception.active)) return;
                 if (filterAck || filterExcl) {
                   var _act = !!(f.exception && f.exception.active);
-                  var _ex = isExcludedFinding(f);
-                  if (!((filterAck && _act && !_ex) || (filterExcl && _ex))) return;
+                  var _ak = isAcknowledgedFinding(f);
+                  if (!((filterAck && _ak) || (filterExcl && _act && !_ak))) return;
                 }
                 filtered.push({ f: f, idx: idx });
               });
@@ -1491,13 +1493,13 @@ let priorityTouched = false;
                 var isExc = !!(f.exception && f.exception.active);
                 // BL-12: Check for temp-exception vs regular exception
                 var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
-                var isExcl = isExcludedFinding(f);
+                var isAck = isAcknowledgedFinding(f);
                 var excBadge = isTempExcepted
                   ? ' <span class="badge-temp-exception">⏱ מוחרג זמנית</span>'
-                  : (isExcl ? ' <span class="badge-excluded">מוחרג (לא רלוונטי)</span>'
-                    : (isExc ? ' <span class="badge-exception">מאושר</span>' : ''));
-                var rowStyle = (isExc && !isExcl) ? ' style="opacity:0.65;"' : '';
-                var rowClass = isExcl ? ' class="is-excluded"' : '';
+                  : (isAck ? ' <span class="badge-acknowledged">מאושר — לא יודפס</span>'
+                    : (isExc ? ' <span class="badge-exception">מוחרג</span>' : ''));
+                var rowStyle = (isExc && !isAck) ? ' style="opacity:0.65;"' : '';
+                var rowClass = isAck ? ' class="is-acknowledged"' : '';
 
                 html += '<tr data-idx="' + idx + '"' + rowClass + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
@@ -2196,9 +2198,9 @@ let priorityTouched = false;
               if (prevF.exception && prevF.exception.active && prevF.exception.source) {
                 newFinding.exception.source = prevF.exception.source;
               }
-              // BL-23: editing other fields must not silently turn an exclusion back into an acknowledgement
-              if (prevF.exception && prevF.exception.active && prevF.exception.kind === 'exclude') {
-                newFinding.exception.kind = 'exclude';
+              // BL-23: editing other fields must not silently turn an acknowledgement back into a plain exclusion
+              if (prevF.exception && prevF.exception.active && prevF.exception.kind === 'acknowledge') {
+                newFinding.exception.kind = 'acknowledge';
               }
             } else if (prevF._wasTempActioned) {
               newFinding._wasTempActioned = true;
@@ -2463,6 +2465,7 @@ let priorityTouched = false;
       export function calcRiskScore() {
         var weights = { critical: 10, high: 7, medium: 4, low: 1, info: 0 };
         var total = 0;
+        // Any active exception scores zero: legacy 'exclude' (kept in the PDF) and 'acknowledge' (hidden from it).
         var scored = state.findings.filter(function(f) { return !(f.exception && f.exception.active); });
         var maxPossible = scored.length * 10;
         scored.forEach(function(f) {
@@ -2657,9 +2660,9 @@ let priorityTouched = false;
       }
 
       export function buildReportHtml({ isDraft = false, severitySort = false } = {}) {
-        // BL-23: excluded findings are omitted from the PDF entirely (cards, TOC, counts, tables).
-        // Acknowledged findings (exception.kind absent/'acknowledge') render exactly as before.
-        const reportFindings = state.findings.filter(function(f) { return !isExcludedFinding(f); });
+        // BL-23: acknowledged findings are omitted from the PDF entirely (cards, TOC, counts, tables).
+        // Excluded findings (exception.kind absent/'exclude' = legacy exception) render exactly as before.
+        const reportFindings = state.findings.filter(function(f) { return !isAcknowledgedFinding(f); });
         function countRF(key) { return reportFindings.filter(function(f) { return f.severity === key; }).length; }
         const lang = document.getElementById('report-lang').value || 'he';
         const t = i18n[lang] || i18n.he;

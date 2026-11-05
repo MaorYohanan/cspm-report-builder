@@ -25,13 +25,17 @@ _MAX_MEMORY_ENTRIES = 2000
 _MAX_SUBSCRIPTION_LEN = 200
 _MAX_TITLE_LEN = 500
 _MAX_REASON_LEN = 1000
-_MEMORY_SOURCES = ("excepted", "deleted", "temp_excepted", "excluded")
+_MEMORY_SOURCES = ("excepted", "deleted", "temp_excepted", "acknowledged")
 
 
 def _exception_kind(exc):
-    """BL-23: denormalised exception kind. NULL = acknowledge (legacy), 'exclude' = PDF-dismissed."""
-    if isinstance(exc, dict) and exc.get("active") and exc.get("kind") == "exclude":
-        return "exclude"
+    """BL-23: denormalised exception kind.
+
+    NULL = legacy exception / 'exclude' (stays in the PDF with a banner);
+    'acknowledge' = hidden entirely from the PDF and the risk score.
+    """
+    if isinstance(exc, dict) and exc.get("active") and exc.get("kind") == "acknowledge":
+        return "acknowledge"
     return None
 
 # ---------------------------------------------------------------------------
@@ -756,7 +760,7 @@ def list_exceptions():
                         "severity": f.severity,
                         "category": fd.get("category"),
                         "exceptionReason": exception_reason,
-                        "kind": f.exception_kind or "acknowledge",
+                        "kind": f.exception_kind or "exclude",
                         "publishedAt": published_at,
                     })
 

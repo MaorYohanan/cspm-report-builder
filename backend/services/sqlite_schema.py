@@ -17,7 +17,7 @@ _OLD_VARIANTS = (
     "'excepted','deleted','temp_excepted'",
     "'excepted','deleted'",
 )
-_FULL = "'excepted','deleted','temp_excepted','excluded'"
+_FULL = "'excepted','deleted','temp_excepted','acknowledged'"
 _BASE = "'excepted','deleted','temp_excepted'"
 
 
@@ -38,11 +38,11 @@ def _rebuild_memory_table(conn, new_sql: str, index_sqls: list[str]) -> None:
         conn.execute(text(sql))
 
 
-def set_memory_source_check(conn, allow_excluded: bool) -> bool:
-    """Make the SQLite ck_memory_source CHECK allow (or not) the 'excluded' source.
+def set_memory_source_check(conn, allow_acknowledged: bool) -> bool:
+    """Make the SQLite ck_memory_source CHECK allow (or not) the 'acknowledged' source.
 
     Returns True when the table was rebuilt. No-op on a fresh/up-to-date table
-    or when the table does not exist. On downgrade, 'excluded' rows are
+    or when the table does not exist. On downgrade, 'acknowledged' rows are
     converted to 'excepted' first so the narrower CHECK holds.
     """
     row = conn.execute(text(
@@ -51,13 +51,13 @@ def set_memory_source_check(conn, allow_excluded: bool) -> bool:
     if not row or not row[0]:
         return False
     sql = row[0]
-    has_excluded = "'excluded'" in sql
-    if allow_excluded == has_excluded:
+    has_acknowledged = "'acknowledged'" in sql
+    if allow_acknowledged == has_acknowledged:
         return False
     index_sqls = [r[0] for r in conn.execute(text(
         "SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=:t AND sql IS NOT NULL"
     ), {"t": _TABLE}).fetchall()]
-    if allow_excluded:
+    if allow_acknowledged:
         new_sql = sql
         for old in _OLD_VARIANTS:
             if old in new_sql:
@@ -67,7 +67,7 @@ def set_memory_source_check(conn, allow_excluded: bool) -> bool:
             _log.warning("ck_memory_source definition not recognised; table left unchanged")
             return False
     else:
-        conn.execute(text(f"UPDATE {_TABLE} SET source='excepted' WHERE source='excluded'"))
+        conn.execute(text(f"UPDATE {_TABLE} SET source='excepted' WHERE source='acknowledged'"))
         new_sql = sql.replace(_FULL, _BASE, 1)
     _rebuild_memory_table(conn, new_sql, index_sqls)
     return True

@@ -1,4 +1,4 @@
-"""add findings.exception_kind and 'excluded' memory source (BL-23)
+"""add findings.exception_kind and 'acknowledged' memory source (BL-23)
 
 Revision ID: b23a0c5d7e11
 Revises: 48749912a976
@@ -26,31 +26,31 @@ def _column_exists(bind, table: str, column: str) -> bool:
 
 def upgrade() -> None:
     bind = op.get_bind()
-    # NULL = 'acknowledge' (legacy exception behaviour); 'exclude' = dismissed from the PDF.
+    # NULL or 'exclude' = legacy exception (stays in the PDF as an exclusion banner); 'acknowledge' = hidden entirely from the PDF.
     if not _column_exists(bind, 'findings', 'exception_kind'):
         op.add_column('findings', sa.Column('exception_kind', sa.String(length=20), nullable=True))
     if bind.dialect.name == 'postgresql':
         op.drop_constraint('ck_memory_source', 'product_memory_entries', type_='check')
         op.create_check_constraint(
             'ck_memory_source', 'product_memory_entries',
-            "source IN ('excepted','deleted','temp_excepted','excluded')"
+            "source IN ('excepted','deleted','temp_excepted','acknowledged')"
         )
     elif bind.dialect.name == 'sqlite':
-        set_memory_source_check(bind, allow_excluded=True)
+        set_memory_source_check(bind, allow_acknowledged=True)
 
 
 def downgrade() -> None:
     bind = op.get_bind()
     if bind.dialect.name == 'postgresql':
-        # Excluded entries degrade to plain exceptions so the narrower CHECK holds.
-        op.execute("UPDATE product_memory_entries SET source='excepted' WHERE source='excluded'")
+        # Acknowledged entries degrade to plain exceptions so the narrower CHECK holds.
+        op.execute("UPDATE product_memory_entries SET source='excepted' WHERE source='acknowledged'")
         op.drop_constraint('ck_memory_source', 'product_memory_entries', type_='check')
         op.create_check_constraint(
             'ck_memory_source', 'product_memory_entries',
             "source IN ('excepted','deleted','temp_excepted')"
         )
     elif bind.dialect.name == 'sqlite':
-        set_memory_source_check(bind, allow_excluded=False)
+        set_memory_source_check(bind, allow_acknowledged=False)
     if _column_exists(bind, 'findings', 'exception_kind'):
         with op.batch_alter_table('findings') as batch:
             batch.drop_column('exception_kind')

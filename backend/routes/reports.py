@@ -24,6 +24,7 @@ from flask import Blueprint, Response, jsonify, render_template, request, send_f
 
 from backend.services.pdf_service import PDFService
 from backend.services.auth_service import require_role
+from backend.utils import drop_acknowledged_findings
 
 _log = logging.getLogger(__name__)
 reports_bp = Blueprint('reports', __name__)
@@ -181,6 +182,10 @@ def api_export_html():
     if not isinstance(snapshot, dict):
         return jsonify({"error": "Request body must be a JSON object"}), 400
 
+    # BL-23 defence in depth: acknowledged findings are hidden from customer-facing output.
+    if isinstance(snapshot.get("findings"), list):
+        snapshot["findings"] = drop_acknowledged_findings(snapshot["findings"])
+
     # Derive a YYYY-MM-DD date string for the download filename.
     meta = snapshot.get("meta") or {}
     raw_date = (meta.get("reportDate") or "").strip()
@@ -242,6 +247,8 @@ def api_export_zip():
     findings = data.get("findings")
     if not isinstance(findings, list):
         findings = []
+    # BL-23 defence in depth: acknowledged findings never leave in the bundle.
+    findings = drop_acknowledged_findings(findings)
 
     # Render PDF
     try:

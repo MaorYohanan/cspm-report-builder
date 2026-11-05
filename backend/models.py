@@ -83,7 +83,7 @@ class Finding(db.Model):
     # NOTE: nullable=False applies to new databases only; no migration framework in use
     severity = db.Column(db.String(20), nullable=False, default="medium", server_default="medium", index=True)
     exception_active = db.Column(db.Boolean, nullable=False, default=False, index=True)
-    # BL-23: NULL = 'acknowledge' (legacy exception behaviour), 'exclude' = dismissed from the PDF.
+    # BL-23: NULL or 'exclude' = legacy exception (stays in PDF with banner); 'acknowledge' = hidden entirely from PDF.
     exception_kind = db.Column(db.String(20), nullable=True)
     # Full finding payload (includes all dynamic Wiz fields: policies, resourceId, etc.)
     finding_data = db.Column(db.JSON, nullable=False, default=dict)
@@ -95,7 +95,7 @@ class ProductMemoryEntry(db.Model):
     __tablename__ = "product_memory_entries"
     __table_args__ = (
         db.UniqueConstraint("product_id", "subscription", "title"),
-        db.CheckConstraint("source IN ('excepted','deleted','temp_excepted','excluded')", name="ck_memory_source"),
+        db.CheckConstraint("source IN ('excepted','deleted','temp_excepted','acknowledged')", name="ck_memory_source"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -103,7 +103,7 @@ class ProductMemoryEntry(db.Model):
     subscription = db.Column(db.String(200), nullable=False)
     title = db.Column(db.String(500), nullable=False)
     reason = db.Column(db.String(1000), nullable=True)
-    source = db.Column(db.String(20), nullable=False, default="excepted")  # excepted, deleted, temp_excepted, excluded
+    source = db.Column(db.String(20), nullable=False, default="excepted")  # excepted, deleted, temp_excepted, acknowledged
     consumed_at = db.Column(db.DateTime, nullable=True)  # BL-12: tracks when temp action was applied (multi-worker safe)
 
     product = db.relationship("Product", back_populates="memory_entries")
