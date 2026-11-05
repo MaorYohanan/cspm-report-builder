@@ -46,14 +46,14 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | **UNSCHEDULED** — nothing in the repo creates or reads `app.pid`/`app.log`; decide whether to keep, replace or remove |
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | **UNSCHEDULED** — splitter drops `id="finding-F-xxx"` on chunked cards; many treatment-table links are dead in the PDF |
 
-### Tier 3 — Significant Features _(2 of 5 complete)_
+### Tier 3 — Significant Features _(3 of 5 complete)_
 Heavier implementation, meaningful product depth.
 
 | Order | ID | Feature | Effort | Note |
 |-------|----|---------|--------|------|
 | 1 | BL-01 | Longitudinal Risk Score Trend Chapter | High | ✅ **MERGED 2026-10-26** — built as an SVG trend chart on the product timeline (not in the PDF) |
 | 2 | BL-12 | Temporary Exception ("פעולה זמנית") | High | ✅ **MERGED 2026-11-04** — temporary exception only (temp delete dropped); next report arrives active with a reminder |
-| 3 | BL-04 | PDF Bookmarks / Named Destinations | Medium | Requires post-processing with `pypdf` or `pikepdf` after Playwright render |
+| 3 | BL-04 | PDF Bookmarks / Named Destinations | Medium | ✅ **MERGED 2026-11-05** — done with `page.pdf(outline=True, tagged=True)` (no pypdf); chapter/category bookmarks only, findings are not headings |
 | 4 | BL-23 | Acknowledge vs Exclude — Dual Dismissal States | High | Two distinct dismissal concepts replacing the single exception boolean; acknowledge hides entirely, exclude may appear in a separate report section |
 | 5 | BL-24 | Exception Carry-Forward Hardening | High | Design-first item — current (subscription+title) match is fragile to Wiz renames and aggregated findings; do not implement until design session completed |
 
