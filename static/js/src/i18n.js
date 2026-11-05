@@ -114,7 +114,9 @@ const TRANSLATIONS = {
     // ── Findings list ──
     'כל הקטגוריות': 'All Categories',
     'כל החומרות': 'All Severities',
-    'הצג מוחרגים בלבד': 'Show Excluded Only',
+    'הצג את כל המוסתרים (מוחרגים + מאושרים)': 'Show all dismissed (excluded + acknowledged)',
+    'עוד': 'More',
+    'פעולות נוספות': 'More actions',
     'עדיפות': 'Priority',
     'מיידי': 'Immediate',
     'מיין ↓': 'Sort ↓',

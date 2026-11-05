@@ -476,3 +476,50 @@ export function renderDashboard() {
     }));
   });
 })();
+
+
+// ── Findings footer overflow menu (click toggle, Esc, outside click, arrow keys) ──
+(function initFooterOverflow() {
+  function parts() {
+    return {
+      toggle: document.getElementById('btn-footer-overflow'),
+      menu: document.getElementById('footer-overflow-menu')
+    };
+  }
+  function setOpen(open, returnFocus) {
+    var p = parts();
+    if (!p.toggle || !p.menu) return;
+    p.menu.hidden = !open;
+    p.toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (!open && returnFocus) p.toggle.focus();
+  }
+  function items() {
+    var p = parts();
+    return p.menu ? Array.prototype.slice.call(p.menu.querySelectorAll('[role="menuitem"]:not([hidden])')) : [];
+  }
+  document.addEventListener('click', function(e) {
+    var p = parts();
+    if (!p.toggle || !p.menu) return;
+    if (p.toggle.contains(e.target)) { setOpen(p.menu.hidden); return; }
+    if (p.menu.hidden) return;
+    // Item click: let its own handler run, then close. Outside click: just close.
+    setOpen(false);
+  });
+  document.addEventListener('keydown', function(e) {
+    var p = parts();
+    if (!p.toggle || !p.menu) return;
+    var open = !p.menu.hidden;
+    if (e.key === 'Escape' && open) { e.preventDefault(); setOpen(false, true); return; }
+    if (e.key === 'Tab' && open) { setOpen(false); return; }
+    var onToggle = document.activeElement === p.toggle;
+    var list = items();
+    if (!list.length) return;
+    var idx = list.indexOf(document.activeElement);
+    if ((onToggle || idx > -1) && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      if (!open) setOpen(true);
+      var next = e.key === 'ArrowDown' ? (idx + 1) % list.length : (idx <= 0 ? list.length - 1 : idx - 1);
+      list[next].focus();
+    }
+  });
+})();
