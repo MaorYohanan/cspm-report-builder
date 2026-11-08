@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
-import { t } from './i18n.js';
+import { t, countPhrase, LANG_CHANGE_EVENT } from './i18n.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
@@ -83,7 +83,7 @@ let priorityTouched = false;
         // BL-12: Check for temp-exception status and was-temp-actioned flag
         var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
         var wasTempActioned = !!(f._wasTempActioned);
-        var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">⏱ מוחרג זמנית</span>' : '';
+        var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">' + escapeHtml(t('⏱ מוחרג זמנית')) + '</span>' : '';
         // BL-23: acknowledged findings (hidden from the report) get a grey badge + banner.
         // Excluded findings (legacy exception) keep their legacy look: no header badge.
         var _isAcked = isAcknowledgedFinding(f);
@@ -95,7 +95,7 @@ let priorityTouched = false;
             ((f.exception.reason) ? '<div style="margin-top:6px;">' + escapeHtml(f.exception.reason) + '</div>' : '') + '</div>'
           : '';
         var reminderBanner = wasTempActioned
-          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">הממצא הוחרג זמנית בדו"ח הקודם</span></div>'
+          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">' + escapeHtml(t('הממצא הוחרג זמנית בדו"ח הקודם')) + '</span></div>'
           : '';
 
         // Header
@@ -106,13 +106,13 @@ let priorityTouched = false;
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
             '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
             '<span class="detail-actions-wrap">' +
-              '<button type="button" class="detail-actions-btn" id="btn-detail-actions" title="פעולות" aria-label="פעולות" aria-haspopup="menu">⋮</button>' +
+              '<button type="button" class="detail-actions-btn" id="btn-detail-actions" title="' + escapeHtml(t('פעולות')) + '" aria-label="' + escapeHtml(t('פעולות')) + '" aria-haspopup="menu">⋮</button>' +
               '<div class="actions-dropdown actions-dropdown-fixed" id="detail-actions-menu" role="menu" style="display:none;">' +
-                '<button class="actions-dropdown-item" id="detail-action-edit">✏️ ערוך</button>' +
-                '<button class="actions-dropdown-item" id="detail-action-dup">📋 שכפל</button>' +
-                '<button class="actions-dropdown-item" id="detail-action-ai">🤖 שיפור AI</button>' +
-                '<button class="actions-dropdown-item" id="detail-action-temp">⏱ פעולה זמנית</button>' +
-                '<button class="actions-dropdown-item actions-dropdown-danger" id="detail-action-delete">🗑️ מחק</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-edit">' + escapeHtml(t('✏️ ערוך')) + '</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-dup">' + escapeHtml(t('📋 שכפל')) + '</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-ai">' + escapeHtml(t('🤖 שיפור AI')) + '</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-temp">' + escapeHtml(t('⏱ פעולה זמנית')) + '</button>' +
+                '<button class="actions-dropdown-item actions-dropdown-danger" id="detail-action-delete">' + escapeHtml(t('🗑️ מחק')) + '</button>' +
               '</div>' +
             '</span>' +
             '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
@@ -151,7 +151,7 @@ let priorityTouched = false;
               dup.id = generateNextId(dup.category || 'CSPM');
               state.findings.splice(state.selectedFindingIndex + 1, 0, dup);
               renderFindingsTable();
-              showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
+              showToast(t('שוכפל {a} → {b}').replace('{a}', orig.id).replace('{b}', dup.id), 'success');
             }
           });
           document.getElementById('detail-action-ai').addEventListener('click', function() {
@@ -1451,10 +1451,10 @@ let priorityTouched = false;
               var findingsTab = document.getElementById('tab-findings-list');
               if (findingsTab) {
                 var tabIcon = '<span class="sidebar-item-icon">◆</span> ';
-                findingsTab.innerHTML = tabIcon + 'ממצאים <span class="sidebar-badge" id="step-findings-count">' + (state.findings.length || '') + '</span>';
+                findingsTab.innerHTML = tabIcon + escapeHtml(t('ממצאים')) + ' <span class="sidebar-badge" id="step-findings-count">' + (state.findings.length || '') + '</span>';
               }
               var listCountEl = document.getElementById('findings-list-count');
-              if (listCountEl) listCountEl.textContent = state.findings.length === 1 ? t('ממצא אחד') : t('{n} ממצאים').replace('{n}', state.findings.length);
+              if (listCountEl) listCountEl.textContent = countPhrase(state.findings.length, 'ממצא אחד', '{n} ממצאים');
               updateStepper();
 
               var batchActions = document.getElementById('batch-actions');
@@ -1539,9 +1539,9 @@ let priorityTouched = false;
               html += '<table><caption class="muted small-text">' + (fStart + 1) + '–' + fEnd + ' מתוך ' + totalFiltered + filterNote + '</caption><thead><tr>' +
                 '<th><input type="checkbox" id="finding-check-all" class="finding-check"></th>' +
                 '<th>#</th>' +
-                '<th class="sortable-th" data-findings-sort="id">מזהה' + fSortInd('id') + '</th>' +
-                '<th class="sortable-th" data-findings-sort="title">כותרת' + fSortInd('title') + '</th>' +
-                '<th class="sortable-th" data-findings-sort="severity">חומרה' + fSortInd('severity') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="id">' + escapeHtml(t('מזהה')) + '' + fSortInd('id') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="title">' + escapeHtml(t('כותרת')) + '' + fSortInd('title') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="severity">' + escapeHtml(t('חומרה')) + '' + fSortInd('severity') + '</th>' +
                 '</tr></thead><tbody>';
 
               pagedFiltered.forEach(function(item) {
@@ -1553,9 +1553,9 @@ let priorityTouched = false;
                 var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
                 var isAck = isAcknowledgedFinding(f);
                 var excBadge = isTempExcepted
-                  ? ' <span class="badge-temp-exception">⏱ מוחרג זמנית</span>'
+                  ? ' <span class="badge-temp-exception">' + escapeHtml(t('⏱ מוחרג זמנית')) + '</span>'
                   : (isAck ? ' <span class="badge-acknowledged">' + escapeHtml(t('מאושר — לא יודפס')) + '</span>'
-                    : (isExc ? ' <span class="badge-exception">מוחרג</span>' : ''));
+                    : (isExc ? ' <span class="badge-exception">' + escapeHtml(t('מוחרג')) + '</span>' : ''));
                 var rowStyle = (isExc && !isAck) ? ' style="opacity:0.65;"' : '';
                 var rowClass = isAck ? ' class="is-acknowledged"' : '';
 
@@ -1610,7 +1610,7 @@ let priorityTouched = false;
                     dup.id = generateNextId(dup.category || 'CSPM');
                     state.findings.splice(idx + 1, 0, dup);
                     renderFindingsTable();
-                    showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
+                    showToast(t('שוכפל {a} → {b}').replace('{a}', orig.id).replace('{b}', dup.id), 'success');
                   }
                 });
               });
@@ -1729,9 +1729,9 @@ let priorityTouched = false;
         var batchCountInline = document.getElementById('batch-count-inline');
         if (selected.length > 0) {
           batchActions.style.display = '';
-          batchCount.textContent = selected.length === 1 ? t('ממצא אחד נבחר') : t('{n} ממצאים נבחרו').replace('{n}', selected.length);
+          batchCount.textContent = countPhrase(selected.length, 'ממצא אחד נבחר', '{n} ממצאים נבחרו');
           if (batchCountInline) {
-            batchCountInline.textContent = selected.length + ' נבחרו';
+            batchCountInline.textContent = countPhrase(selected.length, 'נבחר אחד', '{n} נבחרו');
             batchCountInline.style.display = 'inline-block';
           }
         } else {
@@ -4122,3 +4122,27 @@ ${draftWatermarkStyle}
           showToast('שגיאה בפעולה זמנית: ' + err.message, 'error');
         });
       });
+
+
+// ── Language switch mid-session: re-render JS-built views (they use t(), not data-i18n) ──
+// Covers the findings table (row badges, list count, tab label), the detail pane (acknowledged banner,
+// badges, actions menu, active tab) and the batch count. Checkbox selection and an open reason dialog
+// are preserved across the re-render.
+document.addEventListener(LANG_CHANGE_EVENT, function() {
+  var checked = [];
+  document.querySelectorAll('.finding-row-check:checked').forEach(function(cb) { checked.push(cb.getAttribute('data-idx')); });
+  var dlg = document.getElementById('detail-exception-dialog');
+  var dlgOpen = !!(dlg && dlg.style.display !== 'none');
+  renderFindingsTable();
+  if (state.selectedFindingIndex !== null && state.findings[state.selectedFindingIndex]) {
+    showFindingDetail(state.selectedFindingIndex); // closes the reason dialog; reopened below
+  }
+  if (dlgOpen && dlg && state.selectedFindingIndex !== null) dlg.style.display = '';
+  if (checked.length) {
+    checked.forEach(function(i) {
+      var cb = document.querySelector('.finding-row-check[data-idx="' + i + '"]');
+      if (cb) cb.checked = true;
+    });
+    updateBatchActions();
+  }
+});

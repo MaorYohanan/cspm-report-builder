@@ -1,4 +1,4 @@
-import { t } from './i18n.js';
+import { t, LANG_CHANGE_EVENT } from './i18n.js';
 
 // ═══════════════════════════════════════════
 // Exception List View — exceptions.js
@@ -130,6 +130,11 @@ export var ExceptionsPanel = {
         if (searchEl) {
             searchEl.addEventListener('keyup', applyFilters);
         }
+
+        // Re-render JS-built rows (kind chips) when the UI language changes mid-session
+        document.addEventListener(LANG_CHANGE_EVENT, function() {
+            if (_data && _data.length) { renderRows(_data); applyFilters(); }
+        });
 
         // Wire severity filter
         var severityEl = document.getElementById('exceptions-filter-severity');

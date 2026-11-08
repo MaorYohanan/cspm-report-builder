@@ -218,12 +218,27 @@ const TRANSLATIONS = {
     '{n} ממצאים': '{n} findings',
     'ממצא אחד נבחר': 'One finding selected',
     '{n} ממצאים נבחרו': '{n} findings selected',
-    'ממצא אחד סומן כמוחרג': 'One finding was excluded',
+    'ממצא אחד סומן כמוחרג': '1 finding was excluded',
     '{n} ממצאים סומנו כמוחרגים': '{n} findings were excluded',
-    'ממצא אחד אושר והוסתר': 'One finding was acknowledged and hidden',
+    'ממצא אחד אושר והוסתר': '1 finding was acknowledged and hidden',
     '{n} ממצאים אושרו והוסתרו': '{n} findings were acknowledged and hidden',
-    '{x} ו-{a}': '{x} and {a}',
+    // Mixed exclude + acknowledge: Hebrew attaches "ו" to the word, or "ו-" before a digit
+    '{x} ו{a}': '{x}; {a}',
+    '{x} ו-{a}': '{x}; {a}',
     '{p} אוטומטית על פי היסטוריה קודמת': '{p} automatically based on previous history',
+    'נבחר אחד': '1 selected',
+    '{n} נבחרו': '{n} selected',
+    '✏️ ערוך': '✏️ Edit',
+    '📋 שכפל': '📋 Duplicate',
+    '🤖 שיפור AI': '🤖 AI improve',
+    '🗑️ מחק': '🗑️ Delete',
+    'פעולות': 'Actions',
+    'גרסת מערכת': 'System version',
+    'מיין לפי חומרה': 'Sort by severity',
+    '📦 ייצא ZIP': '📦 Export ZIP',
+    '⏱ מוחרג זמנית': '⏱ Temporarily excluded',
+    'הממצא הוחרג זמנית בדו"ח הקודם': 'This finding was temporarily excluded in the previous report',
+    'שוכפל {a} → {b}': 'Duplicated {a} → {b}',
     'מוצר': 'Product',
     'ממצא': 'Finding',
     'סיבת חריגה': 'Exception Reason',
@@ -274,6 +289,9 @@ const TRANSLATIONS = {
   }
 };
 
+export const LANG_CHANGE_EVENT = 'ui-lang-change';
+var _appliedLang = null;
+
 /**
  * Returns the current UI language code ('he' or 'en').
  * Reads from localStorage key 'ui-lang'; defaults to 'he'.
@@ -312,6 +330,14 @@ export function setLang(lang) {
   // Update lang toggle button label
   var toggleBtn = document.getElementById('btn-lang-toggle');
   if (toggleBtn) toggleBtn.textContent = lang === 'he' ? 'EN' : 'HE';
+
+  // Notify JS-rendered views (they are built with t(), not data-i18n) so they can re-render.
+  // Not fired for the first call (page load): views render with the right language anyway.
+  var prev = _appliedLang;
+  _appliedLang = lang;
+  if (prev !== null && prev !== lang) {
+    document.dispatchEvent(new CustomEvent(LANG_CHANGE_EVENT, { detail: { lang: lang } }));
+  }
 }
 
 /**
@@ -325,4 +351,36 @@ export function t(key) {
   return (TRANSLATIONS[lang] && TRANSLATIONS[lang][key] !== undefined)
     ? TRANSLATIONS[lang][key]
     : (TRANSLATIONS.he[key] !== undefined ? TRANSLATIONS.he[key] : key);
+}
+
+/**
+ * Count phrase with singular / plural keys. The plural key holds an {n} placeholder.
+ * n === 1 uses the singular key; any other count (including 0) the plural one.
+ * @param {number} n
+ * @param {string} oneKey
+ * @param {string} manyKey
+ * @returns {string}
+ */
+export function countPhrase(n, oneKey, manyKey) {
+  return n === 1 ? t(oneKey) : t(manyKey).split('{n}').join(String(n));
+}
+
+/**
+ * Toast text for findings dismissed automatically from product memory on import.
+ * @param {number} excluded - findings carried forward as plain exclusions
+ * @param {number} acked - findings carried forward as acknowledged (hidden from the report)
+ * @returns {string} '' when both counts are 0
+ */
+export function carryForwardMessage(excluded, acked) {
+  if (!(excluded > 0) && !(acked > 0)) return '';
+  var x = countPhrase(excluded, 'ממצא אחד סומן כמוחרג', '{n} ממצאים סומנו כמוחרגים');
+  var a = countPhrase(acked, 'ממצא אחד אושר והוסתר', '{n} ממצאים אושרו והוסתרו');
+  var phrase;
+  if (excluded > 0 && acked > 0) {
+    // Hebrew: "ו" + word when the second phrase starts with a word (singular), "ו-" + digit otherwise
+    phrase = t(acked === 1 ? '{x} ו{a}' : '{x} ו-{a}').replace('{x}', function() { return x; }).replace('{a}', function() { return a; });
+  } else {
+    phrase = acked > 0 ? a : x;
+  }
+  return t('{p} אוטומטית על פי היסטוריה קודמת').replace('{p}', function() { return phrase; });
 }

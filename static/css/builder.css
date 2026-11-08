@@ -4496,11 +4496,12 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
   font-size: 10px;
   font-weight: 700;
   background: oklch(0.72 0.16 60 / 0.15);
-  color: oklch(0.72 0.16 60);
+  color: oklch(0.93 0.09 75); /* dark = default theme; must stay >= 4.5:1 inside a dimmed row (opacity .65) */
   border: 1px solid oklch(0.72 0.16 60 / 0.35);
   margin-right: 5px;
   vertical-align: middle;
 }
+[data-theme="light"] .badge-exception { color: oklch(0.20 0.05 60); }
 
 .exception-banner {
   background: oklch(0.72 0.16 60 / 0.1);

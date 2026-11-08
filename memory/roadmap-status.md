@@ -466,13 +466,21 @@ BL-23 (Acknowledge vs Exclude): ✅ merged to main — branch feature/bl-23-ackn
 - Branch: feature/bl-23-acknowledge-exclude
 - Dual dismissal states, acknowledge vs exclude; exception.kind on top of exception.active
 - Semantics (user decision 2026-11-05): EXCLUDE = legacy exception (kind NULL/'exclude'; banner, "(כולל N מוחרגים)", trailing section, status 'מוחרג', not scored). ACKNOWLEDGE = kind 'acknowledge': hidden entirely from PDF/ZIP/interactive HTML/AI summaries and the risk score; kept in CSV/JSON snapshot.
-- Part 2 (Developer) done on branch, awaiting merge approval: Finding.exception_kind + Alembic b23a0c5d7e11 (+ SQLite startup widening of ck_memory_source to allow source 'acknowledged'), findings.js/wizi.js/export*.js wiring, server-side drop of acknowledged findings in export-zip, export/html and AI summary routes. Tests: 296 passed.
+- Part 2 (Developer) done and merged (merge commit 3562db6, status commit a168673, pushed): Finding.exception_kind + Alembic b23a0c5d7e11 (+ SQLite startup widening of ck_memory_source to allow source 'acknowledged'), findings.js/wizi.js/export*.js wiring, server-side drop of acknowledged findings in export-zip, export/html and AI summary routes. Tests: 296 passed.
 
-## Next session — where to resume (written 2026-11-04)
+BL-23 follow-ups (fix/bl-23-followups): 🔍 awaiting merge approval
+- Branch: fix/bl-23-followups (not merged, not pushed). Designer commit efd025d + Developer commit (see git log).
+- Summary: AA contrast for exception / temporary / acknowledged controls, menu Home/End and focus fallback, Escape closes the reason dialog; mid-session language switch re-renders the acknowledged banner, row badges, list count and Exceptions kind chips; singular/plural counts; natural carry-forward toast in he + en for all exclude/ack/mixed cases; actions menu, row badge and toast close label routed through t(); legacy .badge-exception contrast fixed (>= 4.5:1 in dimmed rows, dark and light).
+- Tests: 308 passed (excluding tests/test_ssc_query.py). Cache-busters: builder.css v=189, main.js v=205.
+- Out of scope / left as-is: the 3 pre-existing inline-onclick CSP console errors on page load (findings.js empty-state buttons); findings table caption and some other findings.js strings are still hard-coded Hebrew.
 
-- State: `main` == `origin/main` at 75199df (pushed 2026-11-04); working tree clean. Tests: 276 passed.
-- BL-23 is merged (Tier 3 now 4/5). Next: **BL-24 is design-first — no code until a design session.** Tier 4 starts with BL-14 (webhooks). BL-04 is merged (Tier 3 now 3/5).
-- Local `instance/app.db` is already migrated (alembic 48749912a976); backup: `instance/backups/pre-bl12-20261101-232213/` (app.db + -wal + -shm). Cloud deploy steps live only in `PRODUCTION_DEPLOY.md` — not tracked as roadmap tasks (still in local dev).
+## Next session — where to resume (written 2026-11-08)
+
+- State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Branch fix/bl-23-followups holds the follow-up work awaiting merge approval. Tests: 308 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.
+- User personally verified BL-23 checks 1-3: real Wiz import with product memory, live Gemini call, and a PDF page with an acknowledged finding.
+- Still unverified: the Postgres migration (Alembic b23a0c5d7e11). The user's local DB `alembic upgrade head` status is unknown; do not touch their DB, ask them to run it.
+- Next: **BL-24 is design-first — no code until a design session** (must be designed together with the shipped acknowledge/exclude split). Then BL-14 (webhooks), which starts Tier 4.
+- Local `instance/app.db` was migrated to alembic 48749912a976 as of 2026-11-04 (BL-23 revision b23a0c5d7e11 not confirmed); backup: `instance/backups/pre-bl12-20261101-232213/` (app.db + -wal + -shm). Cloud deploy steps live only in `PRODUCTION_DEPLOY.md` — not tracked as roadmap tasks (still in local dev).
 - Still genuinely open (older): DES-H-1 (table-row splitting; the specified selectors are inert in the PDF DOM) and the deliberately deferred PDF items PDF-D-01..04 in `.plan/improvements-and-fixes-roadmap.md` Phase 9.
 - Unscheduled backlog (do not start without scheduling): BL-31 (pipeline findings lack `_sourceSubscription`), BL-32 (no "זמני" label in /api/exceptions), BL-33 (check app.pid / app.log leftovers).
 - Decided 2026-11-04: CLAUDE.md, CONTEXT.md and docs/ stay local-only (ignored by `.gitignore` `*.md`) — do not upload them to git. Closed.
