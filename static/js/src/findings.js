@@ -522,7 +522,11 @@ let priorityTouched = false;
         if (!returnFocus) return;
         var isShown = function(el) { return el && document.body.contains(el) && el.getClientRects().length > 0; };
         var toggle = document.getElementById('btn-footer-overflow');
-        var target = isShown(inv) ? inv : (isShown(toggle) ? toggle : document.querySelector('.finding-list-item.active'));
+        // Rows are tr[data-idx] and the selected one carries .active-row (not .finding-list-item.active, which
+        // never matches in the table view). Table rows are not focusable by default, so give it tabindex -1.
+        var row = document.querySelector('tr[data-idx].active-row');
+        var target = isShown(inv) ? inv : (isShown(toggle) ? toggle : row);
+        if (target === row && row && !row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1');
         if (target && target.focus) target.focus();
       }
 
@@ -626,6 +630,13 @@ let priorityTouched = false;
       if (detailExceptionDialog) {
         detailExceptionDialog.addEventListener('keydown', function(e) {
           if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeReasonDialog(true); }
+        });
+        // Escape also closes the dialog when focus is elsewhere on the page (e.g. user clicked away).
+        // Focus is only moved if it was lost (on body); otherwise it stays where the user put it.
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+          if (detailExceptionDialog.style.display === 'none') return;
+          closeReasonDialog(!document.activeElement || document.activeElement === document.body);
         });
       }
 

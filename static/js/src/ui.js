@@ -478,7 +478,7 @@ export function renderDashboard() {
 })();
 
 
-// ── Findings footer overflow menu (click toggle, Esc, outside click, arrow keys) ──
+// ── Findings footer overflow menu (click toggle, Esc, outside click, arrow + Home/End keys) ──
 (function initFooterOverflow() {
   function parts() {
     return {
@@ -524,6 +524,11 @@ export function renderDashboard() {
       if (!open) setOpen(true);
       var next = e.key === 'ArrowDown' ? (idx + 1) % list.length : (idx <= 0 ? list.length - 1 : idx - 1);
       list[next].focus();
+    }
+    // Home / End (WAI-ARIA APG menu pattern): first / last item. Only once the menu is open and focus is inside it.
+    if (open && (onToggle || idx > -1) && (e.key === 'Home' || e.key === 'End')) {
+      e.preventDefault();
+      list[e.key === 'Home' ? 0 : list.length - 1].focus();
     }
   });
 })();

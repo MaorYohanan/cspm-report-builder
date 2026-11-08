@@ -1760,9 +1760,10 @@ button.dashboard-link {
 /* Footer "temporary action" button — same purple family as the temp badge, mid-tone so it reads on dark and light themes */
 .btn-temp-action {
   background: oklch(0.60 0.18 290 / 0.10);
-  color: oklch(0.60 0.18 290);
+  color: oklch(0.82 0.11 290); /* dark = default theme; >= 4.5:1 incl. hover */
   border: 1px solid oklch(0.60 0.18 290 / 0.40);
 }
+[data-theme="light"] .btn-temp-action { color: oklch(0.42 0.16 290); }
 .btn-temp-action:hover:not(:disabled) {
   background: oklch(0.60 0.18 290 / 0.20);
 }
@@ -1803,13 +1804,13 @@ button.dashboard-link {
   font-size: 10px;
   font-weight: 700;
   background: oklch(0.55 0.01 250 / 0.15);
-  color: oklch(0.78 0.01 250);
+  color: oklch(0.92 0.01 250); /* must stay >= 4.5:1 inside tr.is-acknowledged (opacity .65) */
   border: 1px dashed oklch(0.65 0.01 250 / 0.6);
   margin-inline-end: 5px;
   vertical-align: middle;
 }
 [data-theme="light"] .badge-acknowledged {
-  color: oklch(0.38 0.02 250);
+  color: oklch(0.22 0.02 250);
   background: oklch(0.55 0.01 250 / 0.1);
   border-color: oklch(0.45 0.02 250 / 0.55);
 }
@@ -1864,7 +1865,7 @@ tr.is-acknowledged td {
 }
 .exception-kind-acknowledge {
   background: oklch(0.55 0.01 250 / 0.15);
-  color: oklch(0.78 0.01 250);
+  color: oklch(0.92 0.01 250); /* must stay >= 4.5:1 inside tr.is-acknowledged (opacity .65) */
   border: 1px dashed oklch(0.65 0.01 250 / 0.6);
 }
 [data-theme="light"] .exception-kind-exclude { color: oklch(0.42 0.12 60); }
@@ -4513,17 +4514,19 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
 /* Exception toggle button — amber when inactive, green when active */
 .btn-exception {
   background: oklch(0.72 0.16 60 / 0.1);
-  color: oklch(0.60 0.16 60);
+  color: oklch(0.84 0.14 70); /* dark = default theme; >= 4.5:1 incl. hover (WCAG 1.4.3) */
   border: 1px solid oklch(0.72 0.16 60 / 0.4);
 }
+[data-theme="light"] .btn-exception { color: oklch(0.44 0.11 60); }
 .btn-exception:hover:not(:disabled) {
   background: oklch(0.72 0.16 60 / 0.2);
 }
 .btn-exception-active {
   background: oklch(0.65 0.15 145 / 0.12);
-  color: oklch(0.50 0.15 145);
+  color: oklch(0.84 0.15 145); /* dark = default theme */
   border: 1px solid oklch(0.65 0.15 145 / 0.4);
 }
+[data-theme="light"] .btn-exception-active { color: oklch(0.40 0.12 145); }
 .btn-exception-active:hover:not(:disabled) {
   background: oklch(0.65 0.15 145 / 0.22);
 }
