@@ -1910,6 +1910,29 @@ tr.is-acknowledged td {
   color: oklch(0.42 0.18 290);
 }
 
+/* ── Dimmed rows: badges / severity chips stay >= 4.5:1 (WCAG 1.4.3) ──
+   A dimmed row is tr.is-acknowledged (class) or an excluded/temp-excepted row, which findings.js dims with an
+   inline style="opacity:0.65" (hence the attribute hook). The 0.65 opacity blends the text toward the row
+   background, so the base badge / chip colours fall to 2-4:1; these overrides apply ONLY inside a dimmed row
+   (non-dimmed styling is untouched). Dark = default theme; light via [data-theme="light"].
+   Measured with getComputedStyle against the effective background (opacity included), plain and selected
+   (.active-row) rows. */
+tr.is-acknowledged .badge-temp-exception,
+tr[style*="opacity"] .badge-temp-exception { color: oklch(0.94 0.05 290); }
+[data-theme="light"] tr.is-acknowledged .badge-temp-exception,
+[data-theme="light"] tr[style*="opacity"] .badge-temp-exception { color: oklch(0.15 0.10 290); }
+
+tr.is-acknowledged .sev-critical, tr[style*="opacity"] .sev-critical { color: oklch(0.94 0.05 15); }
+tr.is-acknowledged .sev-high,     tr[style*="opacity"] .sev-high     { color: oklch(0.94 0.05 40); }
+tr.is-acknowledged .sev-medium,   tr[style*="opacity"] .sev-medium   { color: oklch(0.95 0.07 85); }
+tr.is-acknowledged .sev-low,      tr[style*="opacity"] .sev-low      { color: oklch(0.94 0.07 155); }
+tr.is-acknowledged .sev-info,     tr[style*="opacity"] .sev-info     { color: oklch(0.94 0.01 220); }
+[data-theme="light"] tr.is-acknowledged .sev-critical, [data-theme="light"] tr[style*="opacity"] .sev-critical { color: oklch(0.20 0.10 20); }
+[data-theme="light"] tr.is-acknowledged .sev-high,     [data-theme="light"] tr[style*="opacity"] .sev-high     { color: oklch(0.20 0.09 30); }
+[data-theme="light"] tr.is-acknowledged .sev-medium,   [data-theme="light"] tr[style*="opacity"] .sev-medium   { color: oklch(0.20 0.07 50); }
+[data-theme="light"] tr.is-acknowledged .sev-low,      [data-theme="light"] tr[style*="opacity"] .sev-low      { color: oklch(0.20 0.07 150); }
+[data-theme="light"] tr.is-acknowledged .sev-info,     [data-theme="light"] tr[style*="opacity"] .sev-info     { color: oklch(0.20 0.01 250); }
+
 /* ── RTL Adjustments ── */
 /* Modal is RTL-aware: all text flows right-to-left naturally */
 /* Flex layouts with gap handle spacing without physical-side margins */
