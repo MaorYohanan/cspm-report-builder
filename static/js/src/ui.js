@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { escapeHtml } from './core.js';
+import { t } from './i18n.js';
 
 // ── Theme toggle ──
 (function() {
@@ -417,10 +418,10 @@ export function renderDashboard() {
       recentEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">אין ממצאים עדיין</div>';
     } else {
       var recent = state.findings.slice(0, 5);
-      var h = '<table style="width:100%;font-size:12px;"><thead><tr><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th></tr></thead><tbody>';
+      var h = '<table style="width:100%;font-size:12px;"><thead><tr><th>' + escapeHtml(t('מזהה')) + '</th><th>' + escapeHtml(t('קטגוריה')) + '</th><th>' + escapeHtml(t('כותרת')) + '</th><th>' + escapeHtml(t('חומרה')) + '</th><th>' + escapeHtml(t('בעלים')) + '</th></tr></thead><tbody>';
       recent.forEach(function(f) {
         var sev = state.severityMap[f.severity] || state.severityMap.medium;
-        h += '<tr><td style="color:var(--accent);font-family:monospace;">' + escapeHtml(f.id || '') + '</td><td><span class="tag-inline">' + escapeHtml(f.category || '') + '</span></td><td>' + escapeHtml((f.title || '').substring(0, 50)) + '</td><td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td><td>' + escapeHtml(f.owner || '—') + '</td></tr>';
+        h += '<tr><td style="color:var(--accent);font-family:monospace;">' + escapeHtml(f.id || '') + '</td><td><span class="tag-inline">' + escapeHtml(f.category || '') + '</span></td><td>' + escapeHtml((f.title || '').substring(0, 50)) + '</td><td><span class="severity-chip ' + sev.class + '">' + escapeHtml(t(sev.text)) + '</span></td><td>' + escapeHtml(f.owner || '—') + '</td></tr>';
       });
       h += '</tbody></table>';
       recentEl.innerHTML = h;

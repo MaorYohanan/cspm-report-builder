@@ -1674,7 +1674,7 @@ function _resolveItemCategory(item, qt) {
           var sev = (node.severity || '').toLowerCase();
           if (!sev && qt === 'issues') sev = (node.severity || '').toLowerCase();
           var sevLabel = { critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', informational: 'מידע' };
-          var sevDisplay = sevLabel[sev] || sev || '-';
+          var sevDisplay = sevLabel[sev] ? t(sevLabel[sev]) : (sev || '-');
           var sevClass = sev === 'informational' ? 'info' : sev;
           var subName = getNodeSubscriptionName(node, qt);
           var status = node.status || (node.result || '') || '-';
@@ -3474,7 +3474,7 @@ function _resolveItemCategory(item, qt) {
             var isSelected = bulkSelectionState[qt] && bulkSelectionState[qt].has(i);
             h += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + i + '"' + (isSelected ? ' checked' : '') + '></td>';
             h += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
-            h += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
+            h += '<td><span class="severity-chip ' + sevInfo.class + '">' + escapeHtml(t(sevInfo.text)) + '</span></td>';
             h += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
             if (qt === 'vulnerabilityFindings' || qt === 'endOfLifeFindings') {
               var asset = node.vulnerableAsset || {};

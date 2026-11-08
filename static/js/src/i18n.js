@@ -286,6 +286,37 @@ const TRANSLATIONS = {
     'סמן כמוחרג': 'Mark as Excluded',
     'הרחב הכל': 'Expand All',
     'כווץ הכל': 'Collapse All',
+    // ── Findings toasts / table caption (findings.js) ──
+    '{a}–{b} מתוך {c}': '{a}–{b} of {c}',
+    '(מציג {a} מתוך {b})': '(showing {a} of {b})',
+    'ממצא נמחק': 'Finding deleted',
+    'שגיאה בהעתקה': 'Copy failed',
+    'ממצא הועתק ללוח': 'Finding copied to clipboard',
+    'חומרה עודכנה ל-1 ממצאים': 'Severity updated for 1 finding',
+    'חומרה עודכנה ל-{n} ממצאים': 'Severity updated for {n} findings',
+    'עדיפות עודכנה ל-1 ממצאים': 'Priority updated for 1 finding',
+    'עדיפות עודכנה ל-{n} ממצאים': 'Priority updated for {n} findings',
+    'בעלים עודכן ל-1 ממצאים': 'Owner updated for 1 finding',
+    'בעלים עודכן ל-{n} ממצאים': 'Owner updated for {n} findings',
+    'קטגוריה עודכנה ל-1 ממצאים': 'Category updated for 1 finding',
+    'קטגוריה עודכנה ל-{n} ממצאים': 'Category updated for {n} findings',
+    '1 ממצאים נמחקו': '1 finding deleted',
+    '{n} ממצאים נמחקו': '{n} findings deleted',
+    'לא נבחרו ממצאים': 'No findings selected',
+    'כל הממצאים הנבחרים כבר כוללים סיכום AI': 'All selected findings already include an AI summary',
+    'ממצא הוזז': 'Finding moved',
+    'נוסף ממצא {id}. סה״כ: {n}': 'Finding {id} added. Total: {n}',
+    'עודכן ממצא {id}': 'Finding {id} updated',
+    'אין ממצאים לשיפור': 'No findings to improve',
+    'כל הממצאים כבר כוללים סיכום AI': 'All findings already include an AI summary',
+    'הממצאים הנבחרים כבר כוללים סיכום AI': 'The selected findings already include an AI summary',
+    'לא נבחר מוצר פעיל. שמור גרסה תחילה.': 'No active product selected. Save a version first.',
+    'אין ממצאים לבדיקה': 'No findings to check',
+    'שגיאה בשיפור הניסוח: {e}': 'Error improving wording: {e}',
+    'שגיאה בפעולה זמנית: {e}': 'Temporary action error: {e}',
+    'הממצא הוחרג זמנית': 'Finding temporarily excluded',
+    '(לא נשמר בזיכרון המוצר — לא נבחר מוצר)': '(not saved to product memory — no product selected)',
+    '(לא נשמר בזיכרון המוצר — לממצא אין מנוי מקור)': '(not saved to product memory — finding has no source subscription)',
   }
 };
 
@@ -351,6 +382,18 @@ export function t(key) {
   return (TRANSLATIONS[lang] && TRANSLATIONS[lang][key] !== undefined)
     ? TRANSLATIONS[lang][key]
     : (TRANSLATIONS.he[key] !== undefined ? TRANSLATIONS.he[key] : key);
+}
+
+/**
+ * Translates a key and fills {name} placeholders from vars (function replacers: no $-pattern surprises).
+ * @param {string} key
+ * @param {Object} vars
+ * @returns {string}
+ */
+export function tFormat(key, vars) {
+  return t(key).replace(/\{(\w+)\}/g, function(m, name) {
+    return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : m;
+  });
 }
 
 /**
