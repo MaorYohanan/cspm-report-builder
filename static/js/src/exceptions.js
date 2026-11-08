@@ -1,3 +1,5 @@
+import { t } from './i18n.js';
+
 // ═══════════════════════════════════════════
 // Exception List View — exceptions.js
 // Fetches /api/exceptions and renders a cross-product
@@ -44,7 +46,9 @@ function renderRows(data) {
                 + '<td>' + _esc(item.findingTitle) + '</td>'
                 + '<td>' + _esc(item.severity) + '</td>'
                 + '<td>' + _esc(item.category) + '</td>'
-                + '<td>' + _esc(item.exceptionReason) + '</td>'
+                + '<td>' + '<span class="exception-kind exception-kind-' + (item.kind === 'acknowledge' ? 'acknowledge' : 'exclude') + '">'
+                + _esc(t(item.kind === 'acknowledge' ? 'אישור (מוסתר)' : 'החרגה')) + '</span> '
+                + _esc(item.exceptionReason) + '</td>'
                 + '<td>' + _esc(_fmtDate(item.publishedAt)) + '</td>'
                 + '</tr>';
         }

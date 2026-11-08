@@ -3,6 +3,7 @@ import { showToast, styledConfirm } from './core.js';
 import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY, showFindingDetail } from './findings.js';
 import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
+import { t } from './i18n.js';
 import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules } from './exclude_rules.js';
 
@@ -4304,6 +4305,7 @@ function _resolveItemCategory(item, qt) {
             var entries = data.entries;
             var subKey = subscription.toLowerCase().trim();
             var matched = 0;
+            var matchedAck = 0;
             var tempFlagged = 0;
             var tempToConsume = [];
             newFindings.forEach(function(f) {
@@ -4325,18 +4327,27 @@ function _resolveItemCategory(item, qt) {
               }
               if (!(f.exception && f.exception.active)) {
                 f.exception = { active: true, reason: entry.reason || '' };
-                matched++;
+                // BL-23: carry the dismissal kind forward ('acknowledged' memory source -> kind
+                // 'acknowledge', hidden from the PDF). Legacy 'excepted' entries stay plain exclusions.
+                if (entry.source === 'acknowledged') { f.exception.kind = 'acknowledge'; matchedAck++; }
+                else matched++;
               }
             });
-            if (matched > 0 || tempFlagged > 0) {
+            if (matched > 0 || matchedAck > 0 || tempFlagged > 0) {
               renderFindingsTable();
               if (typeof state.selectedFindingIndex === 'number' && state.findings[state.selectedFindingIndex]) {
                 showFindingDetail(state.selectedFindingIndex);
               }
               autoSave();
             }
-            if (matched > 0) {
-              showToast(matched + ' ממצאים סומנו כמוחרגים אוטומטית על פי היסטוריה קודמת', 'info');
+            if (matched > 0 || matchedAck > 0) {
+              // Singular / plural phrases (he + en via i18n), then one shared suffix.
+              var exclPhrase = matched === 1 ? t('ממצא אחד סומן כמוחרג') : t('{n} ממצאים סומנו כמוחרגים').replace('{n}', matched);
+              var ackPhrase = matchedAck === 1 ? t('ממצא אחד אושר והוסתר') : t('{n} ממצאים אושרו והוסתרו').replace('{n}', matchedAck);
+              var phrase = (matched > 0 && matchedAck > 0)
+                ? t('{x} ו-{a}').replace('{x}', exclPhrase).replace('{a}', ackPhrase)
+                : (matchedAck > 0 ? ackPhrase : exclPhrase);
+              showToast(t('{p} אוטומטית על פי היסטוריה קודמת').replace('{p}', phrase), 'info');
             }
             // Consume temp entries now that the flagged findings are in state (non-blocking).
             tempToConsume.forEach(function(body) {

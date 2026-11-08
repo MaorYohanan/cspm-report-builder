@@ -145,6 +145,7 @@ if not os.environ.get("DATABASE_URL"):
         with db.engine.connect() as _c:
             for _stmt in [
                 "ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly'",
+                "ALTER TABLE findings ADD COLUMN exception_kind VARCHAR(20)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_status ON report_snapshots (status)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_published_at ON report_snapshots (published_at)",
                 (
@@ -164,6 +165,15 @@ if not os.environ.get("DATABASE_URL"):
                 except Exception as _exc:
                     if "duplicate column" not in str(_exc).lower() and "already exists" not in str(_exc).lower():
                         _log.warning("DB migration step skipped unexpectedly: %s", _exc)
+            # BL-23: widen ck_memory_source (SQLite keeps CHECKs in the table definition).
+            try:
+                from backend.services.sqlite_schema import set_memory_source_check as _widen
+                if _widen(_c, allow_acknowledged=True):
+                    _log.info("Rebuilt product_memory_entries to allow source 'acknowledged'")
+                _c.commit()
+            except Exception as _exc:
+                _c.rollback()
+                _log.warning("ck_memory_source widening skipped: %s", _exc)
 
 # On every startup, mark any snapshot whose _scan_status is "fetching" as "error".
 # Background scan threads don't survive process restarts, so any "fetching" record

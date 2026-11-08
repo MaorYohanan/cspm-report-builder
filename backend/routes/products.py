@@ -25,6 +25,18 @@ _MAX_MEMORY_ENTRIES = 2000
 _MAX_SUBSCRIPTION_LEN = 200
 _MAX_TITLE_LEN = 500
 _MAX_REASON_LEN = 1000
+_MEMORY_SOURCES = ("excepted", "deleted", "temp_excepted", "acknowledged")
+
+
+def _exception_kind(exc):
+    """BL-23: denormalised exception kind.
+
+    NULL = legacy exception / 'exclude' (stays in the PDF with a banner);
+    'acknowledge' = hidden entirely from the PDF and the risk score.
+    """
+    if isinstance(exc, dict) and exc.get("active") and exc.get("kind") == "acknowledge":
+        return "acknowledge"
+    return None
 
 # ---------------------------------------------------------------------------
 # Pure helpers (unchanged — also imported directly by tests)
@@ -539,6 +551,7 @@ def save_version(product_id: str):
                     snapshot_id=snap.id,
                     severity=str(fd.get("severity", "")).lower() or None,
                     exception_active=bool(isinstance(exc, dict) and exc.get("active")),
+                    exception_kind=_exception_kind(exc),
                     finding_data=fd,
                 ))
     else:
@@ -563,6 +576,7 @@ def save_version(product_id: str):
                     snapshot_id=snap.id,
                     severity=str(fd.get("severity", "")).lower() or None,
                     exception_active=bool(isinstance(exc, dict) and exc.get("active")),
+                    exception_kind=_exception_kind(exc),
                     finding_data=fd,
                 ))
 
@@ -723,6 +737,7 @@ def list_exceptions():
                     "severity": None,
                     "category": None,
                     "exceptionReason": None,
+                    "kind": None,
                     "publishedAt": None,
                 })
             else:
@@ -745,6 +760,7 @@ def list_exceptions():
                         "severity": f.severity,
                         "category": fd.get("category"),
                         "exceptionReason": exception_reason,
+                        "kind": f.exception_kind or "exclude",
                         "publishedAt": published_at,
                     })
 
@@ -824,8 +840,8 @@ def upsert_memory_entry(product_id: str):
         return jsonify({"error": "title: too long"}), 400
     if not isinstance(reason, str) or len(reason) > _MAX_REASON_LEN:
         reason = ""
-    if source not in ("excepted", "deleted", "temp_excepted"):
-        return jsonify({"error": "source: must be one of excepted, deleted, temp_excepted"}), 400
+    if source not in _MEMORY_SOURCES:
+        return jsonify({"error": "source: must be one of " + ", ".join(_MEMORY_SOURCES)}), 400
     if _contains_traversal(subscription) or _contains_traversal(title):
         return jsonify({"error": "Invalid field value"}), 400
 
