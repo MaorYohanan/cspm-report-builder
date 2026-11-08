@@ -462,7 +462,7 @@ BL-04 (PDF Bookmarks / Named Destinations): ✅ merged to main — 2026-11-05 (b
 - Change: page.pdf(outline=True, tagged=True) in backend/services/pdf_service.py (no new dependency; outline=True alone is a no-op, Chromium needs tagged=True). Outline now has 17 bookmarks (chapters + categories; 18 with severity sort); ZIP export carries it. QA: layout identical to baseline (160 pages / 0 spills / 36 near-blank / 919px max / 187 links / 28 dests), file +9%, 276 tests passed.
 - Not done / notes: individual findings are not bookmarks (div.finding-title, not headings); numeric prefixes may display oddly in viewers (needs a visual check in Edge/Acrobat); ToC heading is itself a bookmark. Follow-up logged: BL-34 (splitter drops finding anchors, unscheduled).
 
-BL-23 (Acknowledge vs Exclude): 🔍 awaiting merge approval — branch feature/bl-23-acknowledge-exclude, 2026-11-05, acknowledge hides finding entirely / exclude = legacy exception
+BL-23 (Acknowledge vs Exclude): ✅ merged to main — branch feature/bl-23-acknowledge-exclude, 2026-11-08, acknowledge hides finding entirely / exclude = legacy exception
 - Branch: feature/bl-23-acknowledge-exclude
 - Dual dismissal states, acknowledge vs exclude; exception.kind on top of exception.active
 - Semantics (user decision 2026-11-05): EXCLUDE = legacy exception (kind NULL/'exclude'; banner, "(כולל N מוחרגים)", trailing section, status 'מוחרג', not scored). ACKNOWLEDGE = kind 'acknowledge': hidden entirely from PDF/ZIP/interactive HTML/AI summaries and the risk score; kept in CSV/JSON snapshot.
@@ -471,7 +471,7 @@ BL-23 (Acknowledge vs Exclude): 🔍 awaiting merge approval — branch feature/
 ## Next session — where to resume (written 2026-11-04)
 
 - State: `main` == `origin/main` at 75199df (pushed 2026-11-04); working tree clean. Tests: 276 passed.
-- Next roadmap task: **BL-23 Acknowledge vs Exclude** (Tier 3 #4). **BL-24 is design-first — no code until a design session.** Tier 4 starts with BL-14 (webhooks). BL-04 is merged (Tier 3 now 3/5).
+- BL-23 is merged (Tier 3 now 4/5). Next: **BL-24 is design-first — no code until a design session.** Tier 4 starts with BL-14 (webhooks). BL-04 is merged (Tier 3 now 3/5).
 - Local `instance/app.db` is already migrated (alembic 48749912a976); backup: `instance/backups/pre-bl12-20261101-232213/` (app.db + -wal + -shm). Cloud deploy steps live only in `PRODUCTION_DEPLOY.md` — not tracked as roadmap tasks (still in local dev).
 - Still genuinely open (older): DES-H-1 (table-row splitting; the specified selectors are inert in the PDF DOM) and the deliberately deferred PDF items PDF-D-01..04 in `.plan/improvements-and-fixes-roadmap.md` Phase 9.
 - Unscheduled backlog (do not start without scheduling): BL-31 (pipeline findings lack `_sourceSubscription`), BL-32 (no "זמני" label in /api/exceptions), BL-33 (check app.pid / app.log leftovers).
