@@ -663,6 +663,9 @@ class PDFService:
 
                                         const newCard = document.createElement('div');
                                         newCard.className = 'finding-card';
+                                        // Keep the anchor on the first chunk so treatment-table
+                                        // links and bookmarks still resolve (BL-34).
+                                        if (i === 0 && card.id) newCard.id = card.id;
                                         chunk.forEach(el => newCard.appendChild(el));
                                         newSection.appendChild(newCard);
                                         return newSection;

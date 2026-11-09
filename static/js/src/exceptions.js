@@ -48,6 +48,7 @@ function renderRows(data) {
                 + '<td>' + _esc(item.category) + '</td>'
                 + '<td>' + '<span class="exception-kind exception-kind-' + (item.kind === 'acknowledge' ? 'acknowledge' : 'exclude') + '">'
                 + _esc(t(item.kind === 'acknowledge' ? 'אישור (מוסתר)' : 'החרגה')) + '</span> '
+                + (item.temporary ? '<span class="exception-kind exception-kind-temporary">' + _esc(t('זמני')) + '</span> ' : '')
                 + _esc(item.exceptionReason) + '</td>'
                 + '<td>' + _esc(_fmtDate(item.publishedAt)) + '</td>'
                 + '</tr>';

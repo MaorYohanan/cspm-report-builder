@@ -3746,7 +3746,7 @@ ${draftWatermarkStyle}
             <span><a href="#findings-summary">${t.findingsSummary}</a></span>
         </li>
         <li class="toc-item">
-            <span><a href="#detailed-state.findings">${t.detailedFindings}</a></span>
+            <span><a href="#detailed-findings">${t.detailedFindings}</a></span>
         </li>
         ${(function() {
           // Build TOC findings list in the same order as the body
@@ -3853,7 +3853,7 @@ ${draftWatermarkStyle}
     </section>
 
     <section class="section-intro findings-intro">
-      <h1 id="detailed-state.findings">${t.detailedFindings}</h1>
+      <h1 id="detailed-findings">${t.detailedFindings}</h1>
       <p>
         ${t.detailedFindingsText}
       </p>
