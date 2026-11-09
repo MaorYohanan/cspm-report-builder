@@ -474,7 +474,7 @@ BL-23 follow-ups (fix/bl-23-followups): 🔍 ready to merge after QA
 - Tests: 346 passed (excluding tests/test_ssc_query.py). Cache-busters: builder.css v=191, main.js v=207.
 - Out of scope / left as-is: the 3 pre-existing inline-onclick CSP console errors on page load (findings.js empty-state buttons); findings table caption and some other findings.js strings are still hard-coded Hebrew.
 
-BL-24 (Carry-forward hardening): 🔍 awaiting merge approval (Part 2 backend + business-logic JS done 2026-11-09; designer UI part still to come)
+BL-24 (Carry-forward hardening): ✅ merged to main — branch feature/bl-24-carry-forward-hardening, 2026-11-09 (local merge, not pushed). Rule-ID primary match with (subscription,title) fallback, unmatched-memory warning panel, loose-match review flag; Alembic c24b7e9f1a30 adds product_memory_entries.rule_key; 433 tests passed. Follow-up: BL-37 (server-side ExcludeRule).
 - Branch: feature/bl-24-carry-forward-hardening (not merged, not pushed). Stable rule key (`ProductMemoryEntry.rule_key`, Alembic c24b7e9f1a30 on top of b23a0c5d7e11) matched first, (subscription,title) fallback, `_matchedLoosely` UI marker, `memory:unmatched` event + `dropMemoryEntry` helper, pipeline `unmatched_memory` payload, VULN-001 pipeline carry-forward fix. ExcludeRule server-side split out as BL-37 (unscheduled). Cache-buster main.js v=208.
 - Tests: 420 passed (excluding tests/test_ssc_query.py), 0 skipped; migration verified up/down on temp DB copies only. The user's DB still needs `alembic upgrade head` (or an app start, which backfills the column in dev SQLite).
 
@@ -483,7 +483,7 @@ BL-24 (Carry-forward hardening): 🔍 awaiting merge approval (Part 2 backend + 
 - State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Follow-up branch fix/bl-23-followups merged to main locally 2026-11-09 (merge 6d8e994, NOT pushed). Tests: 346 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.
 - User personally verified BL-23 checks 1-3: real Wiz import with product memory, live Gemini call, and a PDF page with an acknowledged finding.
 - Still unverified: the Postgres migration (Alembic b23a0c5d7e11). The user's local DB `alembic upgrade head` status is unknown; do not touch their DB, ask them to run it.
-- Next: **BL-24 is design-first — no code until a design session** (must be designed together with the shipped acknowledge/exclude split). Then BL-14 (webhooks), which starts Tier 4.
+- Next: BL-14 (webhooks), which starts Tier 4. Tier 3 is 5/5. User must back up instance/app.db (+wal/shm) and run `alembic upgrade head` for c24b7e9f1a30.
 - Local `instance/app.db` was migrated to alembic 48749912a976 as of 2026-11-04 (BL-23 revision b23a0c5d7e11 not confirmed); backup: `instance/backups/pre-bl12-20261101-232213/` (app.db + -wal + -shm). Cloud deploy steps live only in `PRODUCTION_DEPLOY.md` — not tracked as roadmap tasks (still in local dev).
 - Still genuinely open (older): DES-H-1 (table-row splitting; the specified selectors are inert in the PDF DOM) and the deliberately deferred PDF items PDF-D-01..04 in `.plan/improvements-and-fixes-roadmap.md` Phase 9.
 - Unscheduled backlog (do not start without scheduling): BL-31 (pipeline findings lack `_sourceSubscription`), BL-32 (no "זמני" label in /api/exceptions), BL-33 (check app.pid / app.log leftovers).
