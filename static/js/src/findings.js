@@ -98,9 +98,17 @@ let priorityTouched = false;
           ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">' + escapeHtml(t('הממצא הוחרג זמנית בדו"ח הקודם')) + '</span></div>'
           : '';
 
+        // BL-24: UI-only "matched loosely" banner (screen only; stripped from every export)
+        var looseBanner = f._matchedLoosely
+          ? '<div class="loose-match-banner" role="status"><span class="loose-match-banner-text"><strong>' + escapeHtml(t('הותאם באופן חלקי — נא לבדוק')) + '</strong> ' +
+            escapeHtml(t('ההחרגה שוחזרה מזיכרון המוצר לפי מזהה הכלל, אך כותרת הממצא השתנתה. יש לוודא שהיא עדיין רלוונטית.')) + '</span>' +
+            '<button type="button" class="btn btn-secondary btn-sm" id="btn-loose-confirm">' + escapeHtml(t('אשר התאמה')) + '</button></div>'
+          : '';
+
         // Header
         var headerEl = document.getElementById('findings-detail-header');
         headerEl.innerHTML =
+          looseBanner +
           reminderBanner +
           exclusionBanner +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
@@ -125,6 +133,16 @@ let priorityTouched = false;
             (f.owner ? '👤 ' + escapeHtml(f.owner) : '') +
             (f.priority ? ' · ⏱ ' + escapeHtml(f.priority) : '') +
           '</div>';
+
+        var looseConfirmBtn = document.getElementById('btn-loose-confirm');
+        if (looseConfirmBtn) {
+          looseConfirmBtn.addEventListener('click', function() {
+            delete f._matchedLoosely; // BL-24: reviewer confirmed the match
+            autoSave();
+            renderFindingsTable();
+            showFindingDetail(idx);
+          });
+        }
 
         // Wire detail actions dropdown
         var detailActionsBtn = document.getElementById('btn-detail-actions');
@@ -1563,6 +1581,9 @@ let priorityTouched = false;
                   ? ' <span class="badge-temp-exception">' + escapeHtml(t('⏱ מוחרג זמנית')) + '</span>'
                   : (isAck ? ' <span class="badge-acknowledged">' + escapeHtml(t('מאושר — לא יודפס')) + '</span>'
                     : (isExc ? ' <span class="badge-exception">' + escapeHtml(t('מוחרג')) + '</span>' : ''));
+                if (f._matchedLoosely) {
+                  excBadge += ' <span class="badge-loose-match" title="' + escapeHtml(t('הותאם באופן חלקי — נא לבדוק')) + '">' + escapeHtml(t('בדיקת התאמה')) + '</span>';
+                }
                 var rowStyle = (isExc && !isAck) ? ' style="opacity:0.65;"' : '';
                 var rowClass = isAck ? ' class="is-acknowledged"' : '';
 

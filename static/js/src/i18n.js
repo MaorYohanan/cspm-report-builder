@@ -330,6 +330,22 @@ const TRANSLATIONS = {
     'הממצא הוחרג זמנית': 'Finding temporarily excluded',
     '(לא נשמר בזיכרון המוצר — לא נבחר מוצר)': '(not saved to product memory — no product selected)',
     '(לא נשמר בזיכרון המוצר — לממצא אין מנוי מקור)': '(not saved to product memory — finding has no source subscription)',
+    // ── BL-24: loose match + unmatched product-memory panel ──
+    'הותאם באופן חלקי — נא לבדוק': 'Matched loosely — please review',
+    'בדיקת התאמה': 'Review match',
+    'ההחרגה שוחזרה מזיכרון המוצר לפי מזהה הכלל, אך כותרת הממצא השתנתה. יש לוודא שהיא עדיין רלוונטית.': 'The exception was restored from product memory by rule ID, but the finding title changed. Check that it still applies.',
+    'אשר התאמה': 'Confirm match',
+    'רשומת זיכרון אחת לא תאמה אף ממצא': '1 remembered entry matched no finding',
+    '{n} רשומות זיכרון לא תאמו אף ממצא': '{n} remembered entries matched no finding',
+    'ייתכן שהבעיה תוקנה או שהכלל השתנה. ניתן להסיר רשומות שאינן רלוונטיות מזיכרון המוצר.': 'The issue may have been fixed or the rule may have changed. You can remove stale entries from product memory.',
+    'מוחרג (זיכרון)': 'Excepted',
+    'נמחק (זיכרון)': 'Deleted',
+    'מוחרג זמנית (זיכרון)': 'Temporarily excepted',
+    'מאושר (זיכרון)': 'Acknowledged',
+    'הסר מהזיכרון': 'Remove from memory',
+    'הסר מהזיכרון: {title}': 'Remove from memory: {title}',
+    'סגור את ההתראה': 'Dismiss warning',
+    'הסרת הרשומה נכשלה ({err})': 'Failed to remove the entry ({err})',
   }
 };
 

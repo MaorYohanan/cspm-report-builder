@@ -10,8 +10,8 @@ exact title match not loose, the `memory:unmatched` event (detail shape, scope, 
 stale entry through the dropMemoryEntry helper (server row gone + event re-published), and that the PDF
 HTML builder output is identical with and without the UI-only markers.
 
-UI rendering of the unmatched panel / loose badge belongs to the designer's part; extend this file with
-DOM assertions on that panel once it exists (it already listens to the same event + helper).
+UI (designer part): DOM assertions on the unmatched-memory panel (#memory-unmatched-panel: rows, singular /
+plural header, drop button, dismiss, he/en live switch, viewer gating) and on the loose-match badge / banner.
 """
 from __future__ import annotations
 
@@ -216,6 +216,26 @@ async () => {
 """
 
 
+_PANEL = """
+() => {
+  const p = document.getElementById('memory-unmatched-panel');
+  return { hidden: p.hidden, visible: !!(p.offsetWidth || p.offsetHeight),
+    title: (p.querySelector('.memory-unmatched-title') || {}).textContent || '',
+    rows: [...p.querySelectorAll('.memory-unmatched-row')].map(r => ({
+      source: r.querySelector('.memory-unmatched-source').textContent,
+      sub: r.querySelector('.memory-unmatched-sub').textContent,
+      title: r.querySelector('.memory-unmatched-entry-title').textContent,
+      reason: (r.querySelector('.memory-unmatched-reason') || {}).textContent || '',
+      drop: (r.querySelector('.memory-unmatched-drop') || {}).textContent || null,
+      aria: (r.querySelector('.memory-unmatched-drop') || {getAttribute: () => null}).getAttribute('aria-label') })) };
+}
+"""
+
+
+def _panel(pg):
+    return pg.evaluate(_PANEL)
+
+
 def _wait_event(pg, count=1):
     # wait_for_function evals a string, which the page CSP forbids; poll with evaluate instead
     deadline = time.time() + 15
@@ -293,7 +313,19 @@ def test_single_query_path(page, server):
     assert got["stale one"]["ruleKey"] == "configurationfindings|gone"
     assert got["stale one"]["source"] == "excepted" and got["stale one"]["reason"] == "s1"
 
+    # panel: one stale entry -> singular header, one row with translated source, subscription, title, reason
+    pn = _panel(page)
+    assert pn["visible"] and pn["hidden"] is False
+    assert pn["title"].endswith("רשומת זיכרון אחת לא תאמה אף ממצא")
+    assert len(pn["rows"]) == 1
+    row = pn["rows"][0]
+    assert (row["source"], row["sub"], row["title"]) == ("מוחרג (זיכרון)", SUB.lower(), "stale one")  # memory keys are normalised (lower-case)
+    assert row["reason"] == "— s1" and row["drop"] == "הסר מהזיכרון" and "stale one" in row["aria"]
+    # loose badge: only the rule-key match whose title changed
+    assert page.evaluate("() => document.querySelectorAll('.badge-loose-match').length") == 1
+
     _drop_and_check(page, pid, ev, "stale one")
+    assert _panel(page)["hidden"] is True  # last row dropped -> empty event -> panel hides
     remaining = _mem_titles(pid)
     assert {"old cfg title", "exact cfg", "stale two", "elsewhere", "stale issues rule"} <= remaining
 
@@ -338,7 +370,21 @@ def test_bulk_path(page, server):
     assert got == {"stale one", "stale two"}
     assert {e["source"] for e in ev["entries"]} == {"excepted", "deleted"}
 
-    _drop_and_check(page, pid, ev, "stale two")
+    pn = _panel(page)
+    assert pn["visible"] and len(pn["rows"]) == 2
+    assert pn["title"].endswith("2 רשומות זיכרון לא תאמו אף ממצא")  # plural
+    assert {r["title"] for r in pn["rows"]} == {"stale one", "stale two"}
+    assert {r["source"] for r in pn["rows"]} == {"מוחרג (זיכרון)", "נמחק (זיכרון)"}
+
+    # drop through the real button: row gone, header back to singular, server entry gone
+    page.click(".memory-unmatched-drop[aria-label*='stale two']")
+    deadline = time.time() + 10
+    while time.time() < deadline and len(_panel(page)["rows"]) != 1:
+        time.sleep(0.2)
+    pn = _panel(page)
+    assert [r["title"] for r in pn["rows"]] == ["stale one"]
+    assert pn["title"].endswith("רשומת זיכרון אחת לא תאמה אף ממצא")
+    assert "stale two" not in _mem_titles(pid)
     assert {"old cfg title", "exact cfg", "stale one", "elsewhere"} <= _mem_titles(pid)
 
     res = page.evaluate(_REPORT_HTML_UNCHANGED)
@@ -363,3 +409,100 @@ def test_event_always_dispatched_even_with_nothing_stale(page, server):
     }""")
     ev = _wait_event(page)[-1]
     assert ev["entries"] == []
+    assert _panel(page)["hidden"] is True
+
+
+def test_panel_and_badge_ui_states(page, server):
+    """Loose badge confirm, he/en live switch, dismiss, empty hides, error path, screenshots.
+
+    Needs the loosely matched finding the bulk test leaves in state.findings.
+    """
+    shots = Path(tempfile.gettempdir()) / "bl24-shots"
+    shots.mkdir(exist_ok=True)
+    page.evaluate("() => document.querySelectorAll('#confirm-no').forEach(b => b.click())")  # leftover AI prompt
+    page.evaluate("""async () => {
+      const { publishUnmatchedMemory } = await import('/static/js/src/memory-match.js');
+      publishUnmatchedMemory([
+        { subscription: 'BL24-Sub', title: 'Gone control', source: 'excepted', reason: 'accepted', ruleKey: 'x|1' },
+        { subscription: 'BL24-Sub', title: 'Gone temp', source: 'temp_excepted', reason: '', ruleKey: '' },
+        { subscription: 'BL24-Sub', title: 'Gone ack', source: 'acknowledged', reason: 'n/a', ruleKey: '' }],
+        { type: 'bulk', productId: 'p-1', subscription: 'BL24-Sub' });
+      document.getElementById('tab-findings-list').click();
+    }""")
+    # the event-dispatch test above cleared state.findings; re-create a loose finding to review
+    page.evaluate("""async () => {
+      const { state } = await import('/static/js/src/state.js');
+      const { renderFindingsTable, showFindingDetail } = await import('/static/js/src/findings.js');
+      state.findings.length = 0;
+      state.findings.push({ id: 'CSPM-001', title: 'New cfg title', severity: 'high', category: 'CSPM',
+        exception: { active: true, reason: 'accepted risk' }, _matchedLoosely: true, evidence: [], notes: [] });
+      renderFindingsTable();
+      showFindingDetail(0);
+    }""")
+    pn = _panel(page)
+    assert len(pn["rows"]) == 3 and pn["title"].endswith("3 רשומות זיכרון לא תאמו אף ממצא")
+    assert [r["source"] for r in pn["rows"]] == ["מוחרג (זיכרון)", "מוחרג זמנית (זיכרון)", "מאושר (זיכרון)"]
+    assert page.evaluate("() => document.documentElement.dir") == "rtl"
+    assert page.evaluate("() => !!document.querySelector('#findings-detail-header .loose-match-banner')")
+    page.screenshot(path=str(shots / "he.png"))
+
+    # live language switch: panel + badge/banner re-render, no reload
+    page.click("#btn-lang-toggle")
+    pn = _panel(page)
+    assert pn["title"].endswith("3 remembered entries matched no finding")
+    assert [r["source"] for r in pn["rows"]] == ["Excepted", "Temporarily excepted", "Acknowledged"]
+    assert pn["rows"][0]["drop"] == "Remove from memory" and "Gone control" in pn["rows"][0]["aria"]
+    assert page.evaluate("() => document.querySelector('.badge-loose-match').textContent") == "Review match"
+    assert page.evaluate("() => document.querySelector('.loose-match-banner strong').textContent") \
+        == "Matched loosely — please review"
+    assert page.evaluate("() => document.documentElement.dir") == "ltr"
+    page.screenshot(path=str(shots / "en.png"))
+    page.click("#btn-lang-toggle")
+    assert _panel(page)["title"].endswith("3 רשומות זיכרון לא תאמו אף ממצא")
+
+    # failed drop (unknown product -> HTTP error): row stays, inline alert shown
+    page.click(".memory-unmatched-drop[aria-label*='Gone ack']")
+    page.wait_for_selector(".memory-unmatched-error", timeout=10000)
+    assert len(_panel(page)["rows"]) == 3
+    assert "HTTP" in page.evaluate("() => document.querySelector('.memory-unmatched-error').textContent")
+
+    # dismiss hides; the next import event shows it again; an empty event hides it
+    page.click("#btn-memory-unmatched-dismiss")
+    assert _panel(page)["hidden"] is True
+    page.evaluate("""async () => {
+      const { state } = await import('/static/js/src/state.js');
+      const { publishUnmatchedMemory } = await import('/static/js/src/memory-match.js');
+      publishUnmatchedMemory(state.unmatchedMemory.entries, state.unmatchedMemory.scope); }""")
+    assert _panel(page)["hidden"] is False
+    page.evaluate("""async () => {
+      const { publishUnmatchedMemory } = await import('/static/js/src/memory-match.js');
+      publishUnmatchedMemory([], null); }""")
+    assert _panel(page)["hidden"] is True
+
+    # confirm the loose match: flag removed from state, badge + banner gone
+    page.click("#btn-loose-confirm")
+    res = page.evaluate("""async () => {
+      const { state } = await import('/static/js/src/state.js');
+      return { flagged: state.findings.filter(f => f._matchedLoosely).length,
+               badges: document.querySelectorAll('.badge-loose-match').length,
+               banners: document.querySelectorAll('.loose-match-banner').length };
+    }""")
+    assert res == {"flagged": 0, "badges": 0, "banners": 0}
+    assert page.page_errors == []
+
+
+def test_viewer_has_no_drop_button(page, server):
+    """OAuth viewer role (mocked /api/me): rows are listed but there is no drop button."""
+    page.route("**/api/me", lambda route: route.fulfill(
+        status=200, content_type="application/json",
+        body=json.dumps({"oauth_enabled": True, "authenticated": True, "role": "viewer", "email": "v@example.com"})))
+    page.reload()
+    page.wait_for_selector("#btn-lang-toggle")
+    page.wait_for_timeout(500)  # /api/me round trip
+    page.evaluate("""async () => {
+      const { publishUnmatchedMemory } = await import('/static/js/src/memory-match.js');
+      publishUnmatchedMemory([{ subscription: 'BL24-Sub', title: 'Gone control', source: 'excepted',
+        reason: '', ruleKey: '' }], { type: 'bulk', productId: 'p-1', subscription: 'BL24-Sub' }); }""")
+    pn = _panel(page)
+    assert len(pn["rows"]) == 1 and pn["rows"][0]["drop"] is None
+    page.unroute("**/api/me")

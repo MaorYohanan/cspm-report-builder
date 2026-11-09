@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=191">
+  <link rel="stylesheet" href="/static/css/builder.css?v=193">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -179,6 +179,9 @@
         <h1 class="content-title" id="content-title" data-i18n="לוח בקרה">לוח בקרה</h1>
         <span id="autosave-time" class="muted small-text"></span>
       </div>
+
+      <!-- BL-24: unmatched product-memory warning (rendered by ui.js; shared by Wizi + pipeline imports) -->
+      <section id="memory-unmatched-panel" class="memory-unmatched-panel" role="region" aria-labelledby="memory-unmatched-title" hidden></section>
 
     <!-- Panel: Dashboard -->
     <section class="tab-panel" id="panel-dashboard" role="tabpanel" aria-labelledby="tab-dashboard">
@@ -1013,6 +1016,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=208"></script>
+  <script type="module" src="/static/js/src/main.js?v=210"></script>
 </body>
 </html>

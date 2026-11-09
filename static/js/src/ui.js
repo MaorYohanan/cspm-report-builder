@@ -1,6 +1,7 @@
 import { state } from './state.js';
-import { escapeHtml } from './core.js';
-import { t, countPhrase } from './i18n.js';
+import { escapeHtml, showToast } from './core.js';
+import { t, tFormat, countPhrase, LANG_CHANGE_EVENT } from './i18n.js';
+import { dropMemoryEntry } from './memory-match.js';
 
 // ── Theme toggle ──
 (function() {
@@ -546,4 +547,118 @@ export function renderDashboard() {
     if (fs) { fs.appendChild(c); }
     else if (c.parentNode !== document.body) { document.body.insertBefore(c, document.body.firstChild); }
   });
+})();
+
+
+// ── BL-24: unmatched product-memory panel ──
+// Rendered from the 'memory:unmatched' event (published after every import) and from
+// state.unmatchedMemory on load. state.unmatchedMemory is NOT persisted across reloads, so after a
+// page reload the panel only comes back with the next import. Built with textContent (XSS-safe).
+(function() {
+  var panel = document.getElementById('memory-unmatched-panel');
+  if (!panel) return;
+  function sourceLabel(src) {
+    if (src === 'excepted') return t('מוחרג (זיכרון)');
+    if (src === 'deleted') return t('נמחק (זיכרון)');
+    if (src === 'temp_excepted') return t('מוחרג זמנית (זיכרון)');
+    if (src === 'acknowledged') return t('מאושר (זיכרון)');
+    return src || '';
+  }
+  var dismissed = false;
+  var errorText = '';
+  var isViewer = false; // drop is editor-only (backend: 403 for viewers); /api/me exposes the role when OAuth is on
+
+  function mk(tag, cls, text) {
+    var el = document.createElement(tag);
+    if (cls) el.className = cls;
+    if (text !== undefined) el.textContent = text;
+    return el;
+  }
+
+  function render() {
+    var um = state.unmatchedMemory || { entries: [], scope: null };
+    var entries = um.entries || [];
+    if (!entries.length || dismissed) {
+      panel.hidden = true;
+      panel.textContent = '';
+      return;
+    }
+    var hadFocusInside = panel.contains(document.activeElement);
+    var productId = um.scope && um.scope.productId;
+    var canDrop = !isViewer && !!productId;
+    panel.textContent = '';
+    panel.dir = document.documentElement.getAttribute('dir') || 'rtl'; // follows the UI language (body CSS stays RTL in English)
+
+    var head = mk('div', 'memory-unmatched-head');
+    var title = mk('h3', 'memory-unmatched-title',
+      '⚠ ' + countPhrase(entries.length, 'רשומת זיכרון אחת לא תאמה אף ממצא', '{n} רשומות זיכרון לא תאמו אף ממצא'));
+    title.id = 'memory-unmatched-title';
+    title.tabIndex = -1;
+    title.dir = 'auto'; // body is RTL even in English: let the text decide so the count stays at the string start
+    var close = mk('button', 'btn btn-secondary btn-sm', '✕');
+    close.type = 'button';
+    close.id = 'btn-memory-unmatched-dismiss';
+    close.setAttribute('aria-label', t('סגור את ההתראה'));
+    close.title = t('סגור את ההתראה');
+    close.addEventListener('click', function() { dismissed = true; render(); });
+    head.appendChild(title);
+    head.appendChild(close);
+    panel.appendChild(head);
+    var hint = mk('p', 'memory-unmatched-hint',
+      t('ייתכן שהבעיה תוקנה או שהכלל השתנה. ניתן להסיר רשומות שאינן רלוונטיות מזיכרון המוצר.'));
+    hint.dir = 'auto';
+    panel.appendChild(hint);
+
+    var list = mk('ul', 'memory-unmatched-list');
+    entries.forEach(function(e) {
+      var li = mk('li', 'memory-unmatched-row');
+      li.setAttribute('data-source', e.source || '');
+      li.appendChild(mk('span', 'memory-unmatched-source', sourceLabel(e.source)));
+      var info = mk('div', 'memory-unmatched-info');
+      var sub = mk('span', 'memory-unmatched-sub', e.subscription || '');
+      sub.dir = 'ltr'; // subscription names are LTR technical values
+      info.appendChild(sub);
+      info.appendChild(document.createTextNode(' '));
+      info.appendChild(mk('strong', 'memory-unmatched-entry-title', e.title || ''));
+      if (e.reason) {
+        info.appendChild(document.createTextNode(' '));
+        info.appendChild(mk('span', 'memory-unmatched-reason', '— ' + e.reason));
+      }
+      li.appendChild(info);
+      if (canDrop) {
+        var btn = mk('button', 'btn btn-secondary btn-sm memory-unmatched-drop', t('הסר מהזיכרון'));
+        btn.type = 'button';
+        btn.setAttribute('aria-label', tFormat('הסר מהזיכרון: {title}', { title: e.title || '' }));
+        btn.addEventListener('click', function() {
+          btn.disabled = true;
+          errorText = '';
+          dropMemoryEntry(productId, e).catch(function(err) {
+            errorText = tFormat('הסרת הרשומה נכשלה ({err})', { err: err && err.message ? err.message : 'error' });
+            showToast(errorText, 'error');
+            render();
+          }); // success: dropMemoryEntry re-publishes 'memory:unmatched' -> onEvent() re-renders
+        });
+        li.appendChild(btn);
+      }
+      list.appendChild(li);
+    });
+    panel.appendChild(list);
+    if (errorText) {
+      var err = mk('p', 'memory-unmatched-error', errorText);
+      err.setAttribute('role', 'alert');
+      panel.appendChild(err);
+    }
+    panel.hidden = false;
+    // A removed row took keyboard focus with it: park it on the header so it is not lost to <body>
+    if (hadFocusInside && !panel.contains(document.activeElement)) title.focus();
+  }
+
+  document.addEventListener('memory:unmatched', function() { dismissed = false; render(); });
+  document.addEventListener(LANG_CHANGE_EVENT, render);
+
+  fetch('/api/me').then(function(r) { return r.ok ? r.json() : null; }).then(function(d) {
+    if (d && d.oauth_enabled && d.authenticated && d.role === 'viewer') { isViewer = true; render(); }
+  }).catch(function() {});
+
+  render(); // state may already hold a result (e.g. a pipeline import that finished before this view mounted)
 })();
