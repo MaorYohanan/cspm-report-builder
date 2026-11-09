@@ -879,7 +879,8 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
 
 
 def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_store: list,
-                                scope_subs: list | None = None, unmatched_out: list | None = None):
+                                scope_subs: list | None = None, unmatched_out: list | None = None,
+                                failed_types: set | None = None):
     """Add Finding rows for a snapshot, applying Product Memory. Does NOT commit.
 
     BL-24 matching: a stable rule key (``_ruleKey``, derived from the raw node)
@@ -941,17 +942,22 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
         if temp_entry is not None:
             enriched["_wasTempActioned"] = True
             enriched["_tempActionReason"] = "excepted"
-            loose = loose or temp_loose
+            # A rule-only temp match does not set the loose flag: the finding stays active.
             for e in res.matched:
                 if e.source == "temp_excepted":
                     temp_entries_to_delete[e.id] = e
 
-        # DEV-CRIT-2: skip findings that the user has permanently deleted
-        if res.pick("deleted")[0] is not None:
+        # DEV-CRIT-2: skip findings that the user has permanently deleted -- only on an
+        # EXACT (subscription, title) match. A rule-only deleted match never drops silently;
+        # it is restored below as a flagged loose exception (same as the browser).
+        if "deleted" in res.exact:
             continue
         # BL-23: 'acknowledged' restores as exception kind 'acknowledge' (hidden from
-        # the PDF); legacy 'excepted' restores as an exclusion. 'excepted' wins a tie.
+        # the PDF); legacy 'excepted' restores as an exclusion. Order mirrors the browser:
+        # excepted, loose deleted, acknowledged.
         mem_entry, exc_loose = res.pick("excepted")
+        if mem_entry is None:
+            mem_entry, exc_loose = res.pick("deleted")
         if mem_entry is None:
             mem_entry, exc_loose = res.pick("acknowledged")
         is_excepted = mem_entry is not None
@@ -985,7 +991,7 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
 
     if unmatched_out is not None:
         unmatched_out.extend(compute_unmatched(
-            all_entries, matched_ids, scope_subs or [],
+            all_entries, matched_ids, scope_subs or [], failed_types,
         ))
 
     return risk, written_count
@@ -1026,6 +1032,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             # Same rule in multiple subscriptions → one Finding record with
             # all contributing subscriptions listed in _subscriptions.
             aggregated: dict = {}
+            failed_types: set = set()  # BL-24: query types that failed for any subscription
 
             for sub_name in selected_subs:
                 resolved = wiz.resolve_subscription(sub_name)
@@ -1068,6 +1075,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                                     n["_subscriptions"] = [sub_name]
                                     aggregated[key] = n
                         except Exception as exc:
+                            failed_types.add(qtype)
                             _log.warning(
                                 "pipeline fetch skipped %s/%s: %s",
                                 sub_name, qtype, exc,
@@ -1108,6 +1116,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             risk, written_count = _store_findings_with_memory(
                 snapshot_id, snap.product_id, findings_to_store,
                 scope_subs=list(selected_subs), unmatched_out=unmatched_memory,
+                failed_types=failed_types,
             )
 
             # Final commit + update snapshot metadata

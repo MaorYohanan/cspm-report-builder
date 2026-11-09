@@ -3322,6 +3322,8 @@ function _resolveItemCategory(item, qt) {
 
         // Show per-query-type errors
         var errorKeys = Object.keys(errors);
+        // BL-24: remember failed query types so a partial fetch never makes stale-memory claims.
+        state.bulkFailedQueryTypes = errorKeys.slice();
         var progressHtml = '';
         if (errorKeys.length) {
           errorKeys.forEach(function(qt) {
@@ -4371,7 +4373,7 @@ function _resolveItemCategory(item, qt) {
                 seen.push({ subscription: f._sourceSubscription || '', title: f.title, ruleKey: f._ruleKey });
               });
               unmatched = computeUnmatchedEntries(list, res.matchedKeys,
-                { subscription: subscription, queryType: ctx.queryType || null }, seen);
+                { subscription: subscription, queryType: ctx.queryType || null, failedTypes: ctx.failedTypes || [] }, seen);
             }
             publishUnmatchedMemory(unmatched, scope);
           })
@@ -4504,7 +4506,8 @@ function _resolveItemCategory(item, qt) {
                   bulkSeen.push({ title: getWiziItemTitle(node, qt), ruleKey: buildRuleKey(node, qt) });
                 });
               });
-              applyProductMemory(newFindings, bulkSubscription, { scopeType: 'bulk', seenNodes: bulkSeen, complete: true });
+              applyProductMemory(newFindings, bulkSubscription, { scopeType: 'bulk', seenNodes: bulkSeen, complete: true,
+                failedTypes: (state.bulkFailedQueryTypes || []).slice() });
 
               // Enrich newly imported findings with AI remediation summaries.
               if (newFindings.length) {

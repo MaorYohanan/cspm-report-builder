@@ -231,6 +231,11 @@ def _fmt_dt(dt: datetime | None) -> str | None:
 def _snapshot_to_dict(snapshot: ReportSnapshot) -> dict:
     """Reconstruct the full snapshot payload the frontend expects."""
     result = dict(snapshot.snapshot_data or {})
+    # Server-only scan bookkeeping (_scan_status/_scan_total/_scan_error,
+    # _unmatched_memory) must not leak into version payloads. get_scan_status
+    # reads the raw snapshot_data, not this function, so polling is unaffected.
+    for k in [k for k in result if k.startswith("_scan_") or k == "_unmatched_memory"]:
+        result.pop(k, None)
     result["findings"] = [f.finding_data for f in snapshot.findings]
     result["version"] = snapshot.version
     result["reportVersion"] = snapshot.report_version
@@ -908,25 +913,42 @@ def delete_memory_entry(product_id: str):
     if not isinstance(subscription, str) or not isinstance(title, str):
         return jsonify({"error": "subscription and title required"}), 400
 
+    # BL-24: optional rule_key, validated like POST (type, strip, length, traversal).
+    rule_key = data.get("rule_key")
+    if rule_key is not None:
+        if not isinstance(rule_key, str):
+            return jsonify({"error": "rule_key: must be a string"}), 400
+        rule_key = rule_key.lower().strip() or None
+        if rule_key is not None:
+            if len(rule_key) > _MAX_RULE_KEY_LEN:
+                return jsonify({"error": "rule_key: too long"}), 400
+            if _contains_traversal(rule_key):
+                return jsonify({"error": "rule_key: invalid"}), 400
+
+    sub_norm = subscription.lower().strip()
     entry = ProductMemoryEntry.query.filter_by(
         product_id=safe_id,
-        subscription=subscription.lower().strip(),
+        subscription=sub_norm,
         title=title.lower().strip(),
     ).first()
 
     if entry:
+        # BL-24: entries of the same rule in the same subscription AND of the same memory
+        # source (stored under an older title) are cleared too, so an un-excepted finding does
+        # not come back from a stale entry. Entries of other sources (deleted / acknowledged /
+        # temp) for the same rule are separate decisions and are left alone. Only swept when
+        # the exact entry existed.
+        entry_source = entry.source
+        entry_id = entry.id
         db.session.delete(entry)
-
-    # BL-24: when the client also sends the finding's rule_key, entries of the same rule in the
-    # same subscription (stored under an older title) are cleared too, so an un-excepted finding
-    # does not come back from a stale entry on the next scan.
-    rule_key = data.get("rule_key")
-    if isinstance(rule_key, str) and rule_key.strip() and len(rule_key) <= _MAX_RULE_KEY_LEN             and subscription.strip():
-        ProductMemoryEntry.query.filter_by(
-            product_id=safe_id,
-            subscription=subscription.lower().strip(),
-            rule_key=rule_key.lower().strip(),
-        ).delete(synchronize_session=False)
+        if rule_key and sub_norm:
+            ProductMemoryEntry.query.filter(
+                ProductMemoryEntry.product_id == safe_id,
+                ProductMemoryEntry.subscription == sub_norm,
+                ProductMemoryEntry.rule_key == rule_key,
+                ProductMemoryEntry.source == entry_source,
+                ProductMemoryEntry.id != entry_id,
+            ).delete(synchronize_session=False)
 
     db.session.commit()
     return jsonify({"ok": True}), 200

@@ -223,12 +223,41 @@ def test_rule_match_exception_kinds(app, source):
     assert risk == 0
 
 
-def test_rule_match_deleted_drops_finding(app):
+def test_rule_only_deleted_match_is_kept_visible_as_flagged_loose_exception(app):
+    """A deleted entry matched only by rule key never drops the finding silently (browser parity)."""
+    _product()
+    _mem("Gone title", "deleted", rule_key="configurationfindings|r-1", reason="was removed")
+    rows, unmatched, risk, count = _store([_cfg("Fresh title", "R-1"), _cfg("Other", "R-2")])
+    assert count == 2
+    f = _by_title(rows)["Fresh title"]
+    assert f["_matchedLoosely"] is True
+    assert f["exception"] == {"active": True, "reason": "was removed"}
+    assert risk == 3  # only "Other" (HIGH) counts
+    assert unmatched == []
+
+
+def test_exact_deleted_match_still_drops_finding(app):
     _product()
     _mem("Gone title", "deleted", rule_key="configurationfindings|r-1")
-    rows, unmatched, _, count = _store([_cfg("Fresh title", "R-1"), _cfg("Other", "R-2")])
+    rows, unmatched, _, count = _store([_cfg("Gone title", "R-1"), _cfg("Other", "R-2")])
     assert count == 1 and [r["title"] for r in rows] == ["Other"]
     assert unmatched == []
+
+
+def test_exact_deleted_wins_over_loose_excepted(app):
+    _product()
+    _mem("Gone title", "deleted", rule_key="configurationfindings|r-1")
+    _mem("older", "excepted", rule_key="configurationfindings|r-1")
+    _, _, _, count = _store([_cfg("Gone title", "R-1")])
+    assert count == 0
+
+
+def test_aggregated_cross_subscription_rule_match_is_loose(app):
+    """Documented: an entry in ANY contributing subscription matches an aggregated finding."""
+    _product()
+    _mem("Old title", "excepted", rule_key="configurationfindings|r-1", sub=OTHER)
+    rows, _, _, _ = _store([_cfg("New title", "R-1", sub=SUB, subs=[SUB, OTHER])], scope=[SUB, OTHER])
+    assert rows[0]["exception"]["active"] is True and rows[0]["_matchedLoosely"] is True
 
 
 def test_rule_match_temp_entry_flags_reminder_and_is_consumed(app):
@@ -236,7 +265,8 @@ def test_rule_match_temp_entry_flags_reminder_and_is_consumed(app):
     _mem("Gone title", "temp_excepted", rule_key="configurationfindings|r-1")
     rows, unmatched, risk, _ = _store([_cfg("Fresh title", "R-1", sev="CRITICAL")])
     f = rows[0]
-    assert f["_wasTempActioned"] is True and f["_matchedLoosely"] is True
+    assert f["_wasTempActioned"] is True
+    assert "_matchedLoosely" not in f  # temp-only loose match must not claim an exception restore
     assert f["exception"]["active"] is False  # stays ACTIVE and counts toward risk
     assert risk == 4
     assert ProductMemoryEntry.query.filter_by(source="temp_excepted").count() == 0
@@ -436,6 +466,41 @@ def test_delete_with_rule_key_clears_stale_same_rule_entries(client):
     with client.application.app_context():
         left = {e.title for e in ProductMemoryEntry.query.filter_by(product_id="api-p").all()}
         assert left == {"other sub", "other rule"}
+
+
+def test_delete_sweep_is_limited_to_same_source(client):
+    _api_product(client)
+    with client.application.app_context():
+        _mem("exc a", "excepted", rule_key="issues|r1", sub="s", pid="api-p")
+        _mem("exc old", "excepted", rule_key="issues|r1", sub="s", pid="api-p")
+        _mem("del b", "deleted", rule_key="issues|r1", sub="s", pid="api-p")
+        _mem("ack c", "acknowledged", rule_key="issues|r1", sub="s", pid="api-p")
+        _mem("tmp d", "temp_excepted", rule_key="issues|r1", sub="s", pid="api-p")
+    r = client.delete("/api/products/api-p/memory/entry", json={
+        "subscription": "s", "title": "exc a", "rule_key": "issues|r1"})
+    assert r.status_code == 200
+    with client.application.app_context():
+        left = {e.title for e in ProductMemoryEntry.query.filter_by(product_id="api-p").all()}
+        assert left == {"del b", "ack c", "tmp d"}
+
+
+def test_delete_no_sweep_when_exact_entry_missing(client):
+    _api_product(client)
+    with client.application.app_context():
+        _mem("keep", "excepted", rule_key="issues|r1", sub="s", pid="api-p")
+    r = client.delete("/api/products/api-p/memory/entry", json={
+        "subscription": "s", "title": "nonexistent", "rule_key": "issues|r1"})
+    assert r.status_code == 200
+    with client.application.app_context():
+        assert ProductMemoryEntry.query.filter_by(product_id="api-p").count() == 1
+
+
+@pytest.mark.parametrize("bad", ["x" * 301, "../etc|x", 5])
+def test_delete_rejects_invalid_rule_key(client, bad):
+    _api_product(client)
+    r = client.delete("/api/products/api-p/memory/entry", json={
+        "subscription": "s", "title": "t", "rule_key": bad})
+    assert r.status_code == 400
 
 
 def test_delete_without_rule_key_only_removes_that_entry(client):
@@ -688,7 +753,7 @@ def test_js_temp_entry_flagged_once_and_consumed():
     out = _apply(f, _entries((SUB, "Old", "temp_excepted", "issues|r", "")))
     x = out["f"][0]
     assert x["_wasTempActioned"] is True and x["_tempActionReason"] == "excepted"
-    assert x["_matchedLoosely"] is True and "exception" not in x
+    assert "_matchedLoosely" not in x and "exception" not in x
     assert out["res"]["tempToConsume"] == [{"subscription": SUB, "title": "old"}]
     # an already-flagged finding never fires a second DELETE
     f2 = [{"title": "Gone", "_ruleKey": "issues|r", "_wasTempActioned": True}]
@@ -802,3 +867,31 @@ def test_js_export_sanitize_strips_loose_marker_and_rule_key():
                                     capture_output=True, text=True, check=True, timeout=30).stdout)
     assert out["o"] == [{"title": "A"}]
     assert out["f"][0]["_matchedLoosely"] is True  # input never mutated
+
+
+@needs_node
+def test_js_temp_only_rule_match_is_not_marked_loose():
+    f = [{"title": "Gone", "_ruleKey": "issues|r"}]
+    out = _apply(f, _entries((SUB, "Old", "temp_excepted", "issues|r", "")))
+    assert "_matchedLoosely" not in out["f"][0] and out["res"]["loose"] == 0
+
+
+@needs_node
+def test_js_rule_only_deleted_restores_as_flagged_loose_exclusion():
+    f = [{"title": "Renamed", "_ruleKey": "issues|r"}]
+    out = _apply(f, _entries((SUB, "Old", "deleted", "issues|r", "gone")))
+    assert out["f"][0]["exception"] == {"active": True, "reason": "gone"}
+    assert out["f"][0]["_matchedLoosely"] is True
+
+
+@needs_node
+def test_js_failed_types_suppress_stale_claims():
+    entries = _entries(
+        (SUB, "stale issue", "excepted", "issues|gone", ""),
+        (SUB, "stale cfg", "excepted", "configurationfindings|gone", ""),
+        (SUB, "title only", "excepted", None, ""),
+    )
+    out = _apply([], entries, scope={"subscription": SUB, "failedTypes": ["issues"]})
+    assert [u["title"] for u in out["un"]] == ["stale cfg"]
+    out2 = _apply([], entries, scope={"subscription": SUB})
+    assert len(out2["un"]) == 3

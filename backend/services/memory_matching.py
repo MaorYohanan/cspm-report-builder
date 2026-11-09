@@ -17,6 +17,13 @@ Matching rules
   the candidate subscriptions.  The subscription must agree, so a rule that was
   excepted in subscription A never silently excepts the same rule in B.  A rule
   match without an exact match is *loose* (the title changed).
+* Aggregated (cross-subscription) pipeline findings list every contributing
+  subscription as a candidate, so an entry in ANY contributing subscription
+  matches (flagged loose where only the rule key matched).  Intentional.
+* A loose (rule-only) 'deleted' match never drops a finding: it is kept visible
+  as a flagged exception (``_matchedLoosely``), like the browser.  Only an exact
+  (subscription, title) deleted match drops.  A loose match that is only a
+  temp_excepted entry never sets the loose flag (the finding stays active).
 * Per memory source the exact entry wins over a rule entry.  Precedence between
   sources is unchanged from before: deleted drops the finding, then excepted,
   then acknowledged; temp_excepted is independent (reminder + single use).
@@ -122,15 +129,27 @@ def in_scope(sub: str, scope: set[str]) -> bool:
     return False
 
 
-def compute_unmatched(entries: Iterable[Any], matched_ids: set, scope_subs: Iterable[str]) -> list[dict]:
-    """Entries (all sources) in scope that matched no finding in this scan."""
+def compute_unmatched(entries: Iterable[Any], matched_ids: set, scope_subs: Iterable[str],
+                      failed_types: Iterable[str] | None = None) -> list[dict]:
+    """Entries (all sources) in scope that matched no finding in this scan.
+
+    ``failed_types``: query types that failed / were not fetched.  Absence of
+    their findings proves nothing, so entries with a rule key of such a type are
+    skipped, and so are title-only entries (no rule key: cannot be attributed to
+    a type) whenever any type failed.
+    """
     scope = {norm(s) for s in scope_subs if norm(s)}
+    failed = {norm(t) for t in (failed_types or []) if norm(t)}
     out = []
     for e in sorted(entries, key=lambda x: x.id or 0):
         if e.id in matched_ids:
             continue
         if not in_scope(e.subscription, scope):
             continue
+        if failed:
+            rk = norm(getattr(e, "rule_key", None))
+            if not rk or rk.split("|", 1)[0] in failed:
+                continue
         out.append({
             "subscription": e.subscription,
             "title": e.title,
