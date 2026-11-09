@@ -25,6 +25,7 @@ _MAX_MEMORY_ENTRIES = 2000
 _MAX_SUBSCRIPTION_LEN = 200
 _MAX_TITLE_LEN = 500
 _MAX_REASON_LEN = 1000
+_MAX_RULE_KEY_LEN = 300  # BL-24: ProductMemoryEntry.rule_key column width
 _MEMORY_SOURCES = ("excepted", "deleted", "temp_excepted", "acknowledged")
 
 
@@ -230,6 +231,11 @@ def _fmt_dt(dt: datetime | None) -> str | None:
 def _snapshot_to_dict(snapshot: ReportSnapshot) -> dict:
     """Reconstruct the full snapshot payload the frontend expects."""
     result = dict(snapshot.snapshot_data or {})
+    # Server-only scan bookkeeping (_scan_status/_scan_total/_scan_error,
+    # _unmatched_memory) must not leak into version payloads. get_scan_status
+    # reads the raw snapshot_data, not this function, so polling is unaffected.
+    for k in [k for k in result if k.startswith("_scan_") or k == "_unmatched_memory"]:
+        result.pop(k, None)
     result["findings"] = [f.finding_data for f in snapshot.findings]
     result["version"] = snapshot.version
     result["reportVersion"] = snapshot.report_version
@@ -795,6 +801,10 @@ def _memory_to_dict(product_id: str) -> dict:
                 "exception": True,
                 "reason": e.reason or "",
                 "source": e.source,
+                # BL-24: original (normalised) fields so clients can match by rule and drop stale entries
+                "subscription": e.subscription,
+                "title": e.title,
+                "rule_key": e.rule_key,
             }
             for e in entries
         },
@@ -829,6 +839,7 @@ def upsert_memory_entry(product_id: str):
     title = data.get("title", "")
     reason = data.get("reason", "")
     source = data.get("source", "excepted")
+    rule_key = data.get("rule_key")
 
     if not isinstance(subscription, str) or not subscription.strip():
         return jsonify({"error": "subscription: required non-empty string"}), 400
@@ -844,6 +855,16 @@ def upsert_memory_entry(product_id: str):
         return jsonify({"error": "source: must be one of " + ", ".join(_MEMORY_SOURCES)}), 400
     if _contains_traversal(subscription) or _contains_traversal(title):
         return jsonify({"error": "Invalid field value"}), 400
+    # BL-24: optional stable rule key ("<queryType>|<rule id>"); absent/blank = no key
+    if rule_key is not None:
+        if not isinstance(rule_key, str):
+            return jsonify({"error": "rule_key: must be a string"}), 400
+        rule_key = rule_key.lower().strip() or None
+        if rule_key is not None:
+            if len(rule_key) > _MAX_RULE_KEY_LEN:
+                return jsonify({"error": "rule_key: too long"}), 400
+            if _contains_traversal(rule_key):
+                return jsonify({"error": "Invalid field value"}), 400
 
     count = ProductMemoryEntry.query.filter_by(product_id=safe_id).count()
     if count >= _MAX_MEMORY_ENTRIES:
@@ -858,6 +879,8 @@ def upsert_memory_entry(product_id: str):
     if existing:
         existing.reason = reason
         existing.source = source
+        if rule_key is not None:
+            existing.rule_key = rule_key
     else:
         db.session.add(ProductMemoryEntry(
             product_id=safe_id,
@@ -865,6 +888,7 @@ def upsert_memory_entry(product_id: str):
             title=title.lower().strip(),
             reason=reason,
             source=source,
+            rule_key=rule_key,
         ))
 
     db.session.commit()
@@ -889,16 +913,44 @@ def delete_memory_entry(product_id: str):
     if not isinstance(subscription, str) or not isinstance(title, str):
         return jsonify({"error": "subscription and title required"}), 400
 
+    # BL-24: optional rule_key, validated like POST (type, strip, length, traversal).
+    rule_key = data.get("rule_key")
+    if rule_key is not None:
+        if not isinstance(rule_key, str):
+            return jsonify({"error": "rule_key: must be a string"}), 400
+        rule_key = rule_key.lower().strip() or None
+        if rule_key is not None:
+            if len(rule_key) > _MAX_RULE_KEY_LEN:
+                return jsonify({"error": "rule_key: too long"}), 400
+            if _contains_traversal(rule_key):
+                return jsonify({"error": "rule_key: invalid"}), 400
+
+    sub_norm = subscription.lower().strip()
     entry = ProductMemoryEntry.query.filter_by(
         product_id=safe_id,
-        subscription=subscription.lower().strip(),
+        subscription=sub_norm,
         title=title.lower().strip(),
     ).first()
 
     if entry:
+        # BL-24: entries of the same rule in the same subscription AND of the same memory
+        # source (stored under an older title) are cleared too, so an un-excepted finding does
+        # not come back from a stale entry. Entries of other sources (deleted / acknowledged /
+        # temp) for the same rule are separate decisions and are left alone. Only swept when
+        # the exact entry existed.
+        entry_source = entry.source
+        entry_id = entry.id
         db.session.delete(entry)
-        db.session.commit()
+        if rule_key and sub_norm:
+            ProductMemoryEntry.query.filter(
+                ProductMemoryEntry.product_id == safe_id,
+                ProductMemoryEntry.subscription == sub_norm,
+                ProductMemoryEntry.rule_key == rule_key,
+                ProductMemoryEntry.source == entry_source,
+                ProductMemoryEntry.id != entry_id,
+            ).delete(synchronize_session=False)
 
+    db.session.commit()
     return jsonify({"ok": True}), 200
 
 

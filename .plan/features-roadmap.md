@@ -641,7 +641,7 @@ Full specs: `.plan/backlog.md`.
 [✅ done] 54. BL-12  Finding "Review Next Cycle" Flag (new finding state; affects regression chapter) — delivered as Temporary Exception (פעולה זמנית): applies to this report; next report arrives active with a reminder; merged 2026-11-04
 [✅ done] 55. BL-04  PDF Bookmarks / Named Destinations — delivered as page.pdf(outline=True, tagged=True), no pypdf needed; chapter+category bookmarks; merged 2026-11-05
 [✅ done] 56. BL-23  Acknowledge vs Exclude — Dual Dismissal States — acknowledge hides a finding entirely from PDF/ZIP/HTML/AI and the score, exclude stays the legacy exception; carried through product memory and Alembic migration; merged 2026-11-08
-⬜  57. BL-24  Exception Carry-Forward Hardening ⚠️ DESIGN-FIRST — no code until design session done
+[✅ done] 57. BL-24  Exception Carry-Forward Hardening — stable rule-ID match (rule_key) with (subscription,title) fallback, loose-match marker, unmatched-memory event/list with drop, VULN-001 pipeline fix; backend + business logic done 2026-11-09 (designer UI part separate); awaiting merge approval
 Full specs: `.plan/backlog.md`.
 
 ── WAVE 11 — Enterprise & Integration (Tier 4 backlog) ───────────────────

@@ -1947,6 +1947,100 @@ tr[style*="opacity"] .finding-id-cell { color: oklch(0.94 0.03 250); }
 /* Modal is RTL-aware: all text flows right-to-left naturally */
 /* Flex layouts with gap handle spacing without physical-side margins */
 
+/* ── BL-24: loose-match badge / banner + unmatched product-memory panel (screen only, never in PDF) ──
+   RTL: logical properties only (margin-inline-*, padding-inline-*, text-align: start). */
+.badge-loose-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: oklch(0.72 0.16 85 / 0.16);
+  color: oklch(0.9 0.12 85);
+  border: 1px solid oklch(0.72 0.16 85 / 0.5);
+  margin-inline-end: 5px;
+  vertical-align: middle;
+}
+[data-theme="light"] .badge-loose-match {
+  color: oklch(0.38 0.09 70);
+  background: oklch(0.72 0.16 85 / 0.18);
+  border-color: oklch(0.5 0.12 70 / 0.55);
+}
+/* Dimmed (excepted) rows blend text toward the row background: keep >= 4.5:1 */
+tr.is-acknowledged .badge-loose-match,
+tr[style*="opacity"] .badge-loose-match { color: oklch(0.97 0.05 85); }
+[data-theme="light"] tr.is-acknowledged .badge-loose-match,
+[data-theme="light"] tr[style*="opacity"] .badge-loose-match { color: oklch(0.15 0.05 70); }
+
+.loose-match-banner {
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: oklch(0.72 0.16 85 / 0.1);
+  border: 1px solid oklch(0.72 0.16 85 / 0.4);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 12px;
+  color: var(--text);
+  text-align: start;
+}
+.loose-match-banner-text { flex: 1 1 220px; line-height: 1.5; }
+[data-theme="light"] .loose-match-banner { color: oklch(0.25 0.04 70); }
+
+.memory-unmatched-panel {
+  margin: 12px 24px 0; /* aligns with .content-header padding */
+  padding: 12px 14px;
+  background: oklch(0.72 0.16 85 / 0.1);
+  border: 1px solid oklch(0.72 0.16 85 / 0.45);
+  border-radius: var(--radius);
+  color: var(--text);
+  text-align: start;
+}
+.memory-unmatched-panel[hidden] { display: none; }
+[data-theme="light"] .memory-unmatched-panel { color: oklch(0.22 0.03 70); background: oklch(0.96 0.05 90); }
+.memory-unmatched-head { display: flex; align-items: center; gap: 10px; }
+.memory-unmatched-title { flex: 1; margin: 0; font-size: 14px; font-weight: 700; text-transform: none; letter-spacing: normal; color: var(--text-heading); }
+[data-theme="light"] .memory-unmatched-title { color: oklch(0.22 0.03 70); }
+.memory-unmatched-title:focus { outline: none; }
+.memory-unmatched-hint { margin: 4px 0 8px; font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+[data-theme="light"] .memory-unmatched-hint { color: oklch(0.35 0.03 70); }
+.memory-unmatched-list { list-style: none; margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+.memory-unmatched-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-hover);
+  font-size: 12px;
+}
+.memory-unmatched-source {
+  flex: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid oklch(0.72 0.16 85 / 0.5);
+}
+.memory-unmatched-info { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.memory-unmatched-sub { font-family: monospace; font-size: 11px; color: var(--text-dim); }
+[data-theme="light"] .memory-unmatched-sub { color: oklch(0.35 0.03 70); }
+.memory-unmatched-reason { color: var(--text-dim); }
+[data-theme="light"] .memory-unmatched-reason { color: oklch(0.35 0.03 70); }
+.memory-unmatched-row .btn,
+.memory-unmatched-head .btn { min-height: 28px; min-width: 28px; flex: none; }
+.memory-unmatched-panel .btn:focus-visible,
+.loose-match-banner .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.memory-unmatched-error { margin: 6px 0 0; font-size: 12px; color: oklch(0.8 0.15 25); }
+[data-theme="light"] .memory-unmatched-error { color: oklch(0.42 0.18 25); }
+
+@media print {
+  .badge-loose-match, .loose-match-banner, .memory-unmatched-panel { display: none; }
+}
+
 @media (max-width: 900px) {
   .sidebar { width: 52px; }
   .sidebar-brand-text, .sidebar-new-sub, .sidebar-section-label,

@@ -17,6 +17,7 @@ from backend.database import db
 from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 from backend.scan_state import scan_jobs as _scan_jobs, scan_jobs_lock as _lock
 from backend.services.auth_service import require_role
+from backend.services.memory_matching import MemoryIndex, compute_unmatched, rule_key_for
 from backend.graphql.queries import QUERY_TYPE_MAP
 from backend.services.wiz_service import WizService, build_bulk_filter
 
@@ -869,11 +870,23 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
         "evidence": [],
         "exception": {"active": False, "reason": ""},
         "notes": [],
+        # BL-24: Product Memory key for the aggregate = comma-joined subscription
+        # names (how the browser stores it); individual names stay matchable via
+        # _subscriptions (consumed by _store_findings_with_memory, not persisted).
+        "_sourceSubscription": ", ".join(subscription_names),
+        "_subscriptions": list(subscription_names),
     }
 
 
-def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_store: list):
+def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_store: list,
+                                scope_subs: list | None = None, unmatched_out: list | None = None,
+                                failed_types: set | None = None):
     """Add Finding rows for a snapshot, applying Product Memory. Does NOT commit.
+
+    BL-24 matching: a stable rule key (``_ruleKey``, derived from the raw node)
+    is tried first, ``(subscription, title)`` is the fallback; a rule-only match
+    (title changed) restores the exception and flags the finding
+    ``_matchedLoosely`` (UI-only).  See ``backend/services/memory_matching.py``.
 
     Permanent 'excepted' entries mark the finding as an exception, 'deleted'
     entries drop it. BL-12 temporary exceptions are NOT applied to the report
@@ -881,26 +894,14 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
     toward risk), flagged ``_wasTempActioned`` for a UI-only reminder, and the
     temp entry row is deleted in the caller's transaction (single use).
 
+    When ``unmatched_out`` is a list, it receives the remembered entries (all
+    sources) in ``scope_subs`` that matched no finding in this scan.
+
     Returns (risk, written_count).
     """
-    excepted_entries = ProductMemoryEntry.query.filter_by(
-        product_id=product_id, source="excepted"
-    ).all()
-    exception_keys = {(e.subscription, e.title): e for e in excepted_entries}
-    # BL-23: 'acknowledged' memory entries restore as exceptions of kind 'acknowledge'
-    # (hidden from the PDF). Legacy 'excepted' entries restore as 'exclude' behaviour.
-    for e in ProductMemoryEntry.query.filter_by(product_id=product_id, source="acknowledged").all():
-        exception_keys.setdefault((e.subscription, e.title), e)
-    deleted_keys = {
-        (e.subscription, e.title)
-        for e in ProductMemoryEntry.query.filter_by(product_id=product_id, source="deleted").all()
-    }
-    temp_excepted_keys = {
-        (e.subscription, e.title): e
-        for e in ProductMemoryEntry.query.filter_by(
-            product_id=product_id, source="temp_excepted"
-        ).all()
-    }
+    all_entries = ProductMemoryEntry.query.filter_by(product_id=product_id).all()
+    index = MemoryIndex(all_entries)
+    matched_ids: set = set()
 
     weights = {"critical": 4, "high": 3, "medium": 2, "low": 1}
     risk = 0
@@ -914,32 +915,59 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
     for raw in findings_to_store:
         # Aggregated VULN finding is already in enriched format;
         # all other raw nodes need transformation.
-        if raw.get("id") == "VULN-001" and raw.get("category") == "VULN":
-            enriched = raw
+        is_vuln_agg = raw.get("id") == "VULN-001" and raw.get("category") == "VULN"
+        if is_vuln_agg:
+            enriched = dict(raw)
+            enriched.pop("_subscriptions", None)
         else:
             enriched = _transform_finding(raw, cat_counters)
         sev = enriched.get("severity") or ""
-        title = enriched.get("title", "").lower().strip()
-        sub = (raw.get("_sourceSubscription") or "").lower().strip()
+        title = enriched.get("title", "")
+
+        # Candidate subscriptions: the source subscription plus every contributing
+        # subscription of an aggregated (multi-subscription) finding.
+        subs = [raw.get("_sourceSubscription") or ""] + list(raw.get("_subscriptions") or [])
+        rule_key = None if is_vuln_agg else rule_key_for(raw)
+        if rule_key:
+            enriched["_ruleKey"] = rule_key
+        res = index.resolve(title, rule_key, subs)
+        for e in res.matched:
+            matched_ids.add(e.id)
+        loose = False
 
         # BL-12: a temp exception was set in the previous report only. Flag
         # the finding as active + reminder, and consume the entry (even when a
         # permanent entry also matches, which keeps its own behaviour below).
-        temp_entry = temp_excepted_keys.get((sub, title))
+        temp_entry, temp_loose = res.pick("temp_excepted")
         if temp_entry is not None:
             enriched["_wasTempActioned"] = True
             enriched["_tempActionReason"] = "excepted"
-            temp_entries_to_delete[(sub, title)] = temp_entry
+            # A rule-only temp match does not set the loose flag: the finding stays active.
+            for e in res.matched:
+                if e.source == "temp_excepted":
+                    temp_entries_to_delete[e.id] = e
 
-        # DEV-CRIT-2: skip findings that the user has permanently deleted
-        if (sub, title) in deleted_keys:
+        # DEV-CRIT-2: skip findings that the user has permanently deleted -- only on an
+        # EXACT (subscription, title) match. A rule-only deleted match never drops silently;
+        # it is restored below as a flagged loose exception (same as the browser).
+        if "deleted" in res.exact:
             continue
-        mem_entry = exception_keys.get((sub, title))
+        # BL-23: 'acknowledged' restores as exception kind 'acknowledge' (hidden from
+        # the PDF); legacy 'excepted' restores as an exclusion. Order mirrors the browser:
+        # excepted, loose deleted, acknowledged.
+        mem_entry, exc_loose = res.pick("excepted")
+        if mem_entry is None:
+            mem_entry, exc_loose = res.pick("deleted")
+        if mem_entry is None:
+            mem_entry, exc_loose = res.pick("acknowledged")
         is_excepted = mem_entry is not None
         if is_excepted:
+            loose = loose or exc_loose
             enriched["exception"] = {"active": True, "reason": mem_entry.reason or ""}
             if mem_entry.source == "acknowledged":
                 enriched["exception"]["kind"] = "acknowledge"
+        if loose:
+            enriched["_matchedLoosely"] = True
         db.session.add(Finding(
             snapshot_id=snapshot_id,
             severity=sev,
@@ -955,11 +983,16 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
 
     # Consume temp entries in the same transaction as the findings. Guard
     # against another worker having already removed the row.
-    for temp_entry in temp_entries_to_delete.values():
+    for entry_id in temp_entries_to_delete:
         # Query-level DELETE: a row already removed by another worker is a no-op.
-        ProductMemoryEntry.query.filter_by(id=temp_entry.id).delete(
+        ProductMemoryEntry.query.filter_by(id=entry_id).delete(
             synchronize_session=False
         )
+
+    if unmatched_out is not None:
+        unmatched_out.extend(compute_unmatched(
+            all_entries, matched_ids, scope_subs or [], failed_types,
+        ))
 
     return risk, written_count
 
@@ -999,6 +1032,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             # Same rule in multiple subscriptions → one Finding record with
             # all contributing subscriptions listed in _subscriptions.
             aggregated: dict = {}
+            failed_types: set = set()  # BL-24: query types that failed for any subscription
 
             for sub_name in selected_subs:
                 resolved = wiz.resolve_subscription(sub_name)
@@ -1041,6 +1075,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                                     n["_subscriptions"] = [sub_name]
                                     aggregated[key] = n
                         except Exception as exc:
+                            failed_types.add(qtype)
                             _log.warning(
                                 "pipeline fetch skipped %s/%s: %s",
                                 sub_name, qtype, exc,
@@ -1077,8 +1112,11 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                     snap.snapshot_data = _d
                     db.session.commit()
                 return
+            unmatched_memory: list = []
             risk, written_count = _store_findings_with_memory(
-                snapshot_id, snap.product_id, findings_to_store
+                snapshot_id, snap.product_id, findings_to_store,
+                scope_subs=list(selected_subs), unmatched_out=unmatched_memory,
+                failed_types=failed_types,
             )
 
             # Final commit + update snapshot metadata
@@ -1087,6 +1125,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             snap_data = dict(snap.snapshot_data or {})
             snap_data["findings_count"] = written_count
             snap_data["_scan_status"] = "done"
+            snap_data["_unmatched_memory"] = unmatched_memory  # BL-24 (multi-worker status fallback)
             snap.snapshot_data = snap_data
 
             product = db.session.get(Product, snap.product_id)
@@ -1099,6 +1138,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 if snapshot_id in _scan_jobs:
                     _scan_jobs[snapshot_id]["status"] = "done"
                     _scan_jobs[snapshot_id]["findings_count"] = written_count
+                    _scan_jobs[snapshot_id]["unmatched_memory"] = unmatched_memory
                     _scan_jobs[snapshot_id]["completed_at"] = time.monotonic()
 
         except Exception as exc:
@@ -1309,7 +1349,8 @@ def get_scan_status(product_id, snapshot_id):
                         "findings_count": 0, "error": None}), 200
     elif scan_status == "done":
         return jsonify({"status": "done", "done": total, "total": total,
-                        "findings_count": scan_data.get("findings_count", 0), "error": None}), 200
+                        "findings_count": scan_data.get("findings_count", 0), "error": None,
+                        "unmatched_memory": scan_data.get("_unmatched_memory", [])}), 200
     elif scan_status == "error":
         return jsonify({"status": "error", "done": 0, "total": total,
                         "findings_count": 0,

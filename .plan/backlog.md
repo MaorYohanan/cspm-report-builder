@@ -47,6 +47,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | **UNSCHEDULED** — splitter drops `id="finding-F-xxx"` on chunked cards; many treatment-table links are dead in the PDF |
 | — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | **UNSCHEDULED** — critical 3.43, info 4.03, low 4.42 are below 4.5:1; needs PDF/visual check |
 | — | BL-36 | Translation Sweep for Remaining Hebrew in English Mode | Medium | **UNSCHEDULED** — several modules still show hard-coded Hebrew when the UI is English |
+| — | BL-37 | Server-Side Exclude Rules for Pipeline Scans | Medium | **UNSCHEDULED** — ExcludeRule is applied only in the browser import paths; pipeline scans ignore it |
 
 ### Tier 3 — Significant Features _(3 of 5 complete)_
 Heavier implementation, meaningful product depth.
@@ -377,3 +378,7 @@ Features implemented outside the prioritized backlog, added by direct user reque
 - `static/js/src/findings.js` — updated both truncation messages (lines 2527, 2531)
 - `index.html` — JS cache-buster v=171 → v=172
 
+### BL-37 · Server-Side Exclude Rules for Pipeline Scans (UNSCHEDULED)
+**Why:** Exclude rules (title / category rules stored in `ExcludeRule`) filter findings only in the browser single-query and bulk import paths. Findings stored by the server-side pipeline scan (`_store_findings_with_memory`) never see them, so rules the user relies on silently stop working for scheduled scans. Split out of BL-24 (carry-forward hardening) as out of scope.
+**Effort:** Medium
+**Notes:** Apply the active rules in the pipeline store step with the same semantics as `isExcludedByRules` (fields `title` / `category`; operators `startsWith` / `contains` / `regex`, with the existing regex safety limits), before memory matching. Needs a shared definition of the category for a raw node (the browser resolves it via `_resolveItemCategory`). Decide whether excluded findings are dropped or stored and flagged. Not implemented.

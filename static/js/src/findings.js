@@ -98,9 +98,17 @@ let priorityTouched = false;
           ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">' + escapeHtml(t('הממצא הוחרג זמנית בדו"ח הקודם')) + '</span></div>'
           : '';
 
+        // BL-24: UI-only "matched loosely" banner (screen only; stripped from every export)
+        var looseBanner = f._matchedLoosely
+          ? '<div class="loose-match-banner" role="status"><span class="loose-match-banner-text"><strong>' + escapeHtml(t('הותאם באופן חלקי — נא לבדוק')) + '</strong> ' +
+            escapeHtml(t('ההחרגה שוחזרה מזיכרון המוצר לפי מזהה הכלל, אך כותרת הממצא השתנתה. יש לוודא שהיא עדיין רלוונטית.')) + '</span>' +
+            '<button type="button" class="btn btn-secondary btn-sm" id="btn-loose-confirm">' + escapeHtml(t('אשר התאמה')) + '</button></div>'
+          : '';
+
         // Header
         var headerEl = document.getElementById('findings-detail-header');
         headerEl.innerHTML =
+          looseBanner +
           reminderBanner +
           exclusionBanner +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
@@ -125,6 +133,16 @@ let priorityTouched = false;
             (f.owner ? '👤 ' + escapeHtml(f.owner) : '') +
             (f.priority ? ' · ⏱ ' + escapeHtml(f.priority) : '') +
           '</div>';
+
+        var looseConfirmBtn = document.getElementById('btn-loose-confirm');
+        if (looseConfirmBtn) {
+          looseConfirmBtn.addEventListener('click', function() {
+            delete f._matchedLoosely; // BL-24: reviewer confirmed the match
+            autoSave();
+            renderFindingsTable();
+            showFindingDetail(idx);
+          });
+        }
 
         // Wire detail actions dropdown
         var detailActionsBtn = document.getElementById('btn-detail-actions');
@@ -347,7 +365,8 @@ let priorityTouched = false;
         fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, reason: reason || '', source: source || 'excepted' })
+          // BL-24: rule_key (stable id) travels with every entry so the next scan can match by rule
+          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, reason: reason || '', source: source || 'excepted', rule_key: f._ruleKey || undefined })
         }).catch(function() {});
       }
 
@@ -358,7 +377,8 @@ let priorityTouched = false;
         fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title })
+          // BL-24: rule_key also clears entries stored under an older title of the same rule
+          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, rule_key: f._ruleKey || undefined })
         }).catch(function() {});
       }
 
@@ -572,6 +592,7 @@ let priorityTouched = false;
           // Same button again: immediately toggle off
           removeFromProductMemory(f);
           f.exception = { active: false, reason: '' };
+          delete f._matchedLoosely; // BL-24
           if (detailExceptionDialog) detailExceptionDialog.style.display = 'none';
           refreshAfterDismissalChange();
           showToast(t(wantKind === 'acknowledge' ? 'האישור בוטל' : 'ההחרגה בוטלה'), 'info');
@@ -615,6 +636,7 @@ let priorityTouched = false;
           if (isAck) target.exception.kind = 'acknowledge';
           delete target._wasTempActioned; // BL-12: reminder is stale after a new action
           delete target._tempActionReason;
+          delete target._matchedLoosely; // BL-24: an explicit user action settles the loose match
           saveToProductMemory(target, isAck ? 'acknowledged' : 'excepted', reason);
           refreshAfterDismissalChange(); // also clears reminder banner / temp badge
           closeReasonDialog(true);
@@ -1390,6 +1412,9 @@ let priorityTouched = false;
           if (typeof f._sourceSubscription === 'string' && f._sourceSubscription) {
             loaded._sourceSubscription = f._sourceSubscription;
           }
+          // BL-24: stable rule key (memory matching) and the UI-only "matched loosely" marker
+          if (typeof f._ruleKey === 'string' && f._ruleKey) loaded._ruleKey = f._ruleKey;
+          if (f._matchedLoosely) loaded._matchedLoosely = true;
           state.findings.push(loaded);
         });
 
@@ -1556,6 +1581,9 @@ let priorityTouched = false;
                   ? ' <span class="badge-temp-exception">' + escapeHtml(t('⏱ מוחרג זמנית')) + '</span>'
                   : (isAck ? ' <span class="badge-acknowledged">' + escapeHtml(t('מאושר — לא יודפס')) + '</span>'
                     : (isExc ? ' <span class="badge-exception">' + escapeHtml(t('מוחרג')) + '</span>' : ''));
+                if (f._matchedLoosely) {
+                  excBadge += ' <span class="badge-loose-match" title="' + escapeHtml(t('הותאם באופן חלקי — נא לבדוק')) + '">' + escapeHtml(t('בדיקת התאמה')) + '</span>';
+                }
                 var rowStyle = (isExc && !isAck) ? ' style="opacity:0.65;"' : '';
                 var rowClass = isAck ? ' class="is-acknowledged"' : '';
 
@@ -2251,6 +2279,8 @@ let priorityTouched = false;
           if (state.editingIndex !== null) {
             var prevF = state.findings[state.editingIndex] || {};
             if (prevF._sourceSubscription) newFinding._sourceSubscription = prevF._sourceSubscription;
+            if (prevF._ruleKey) newFinding._ruleKey = prevF._ruleKey; // BL-24
+            if (prevF._matchedLoosely && newFinding.exception.active) newFinding._matchedLoosely = true; // BL-24
             if (newFinding.exception.active) {
               // still excepted: a temp exception stays temp (reason unchanged semantics); a newly ticked one is permanent
               if (prevF.exception && prevF.exception.active && prevF.exception.source) {
@@ -4088,6 +4118,7 @@ ${draftWatermarkStyle}
           finding.exception = { active: true, reason: '', source: 'temp_excepted' };
           delete finding._wasTempActioned;
           delete finding._tempActionReason;
+          delete finding._matchedLoosely; // BL-24
           showToast(t('הממצא הוחרג זמנית') + note, 'success');
           renderFindingsTable();
           showFindingDetail(findingIndex);
@@ -4108,7 +4139,7 @@ ${draftWatermarkStyle}
         fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: subscription, title: title, reason: '', source: action })
+          body: JSON.stringify({ subscription: subscription, title: title, reason: '', source: action, rule_key: finding._ruleKey || undefined })
         })
         .then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
