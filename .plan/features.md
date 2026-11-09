@@ -544,6 +544,8 @@ Complete `[dir="ltr"]` attribute-selector override file flipping physical proper
 ### Hebrew / English Language Toggle
 `#btn-lang-toggle` in sidebar footer; displays "EN" in Hebrew mode, "HE" in English mode.
 
+In English mode the findings table, severity chips and the dashboard (legend, centre label, risk summary, empty states) are fully translated; some other modules still show Hebrew text.
+
 ### `setLang()` Behavior
 Sets `lang`/`dir` on `<html>`; translates `data-i18n` elements via `textContent` (XSS-safe); updates `data-i18n-title` tooltip titles; updates toggle label.
 

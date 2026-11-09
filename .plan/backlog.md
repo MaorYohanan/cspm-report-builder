@@ -45,6 +45,8 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-32 | Temporary Label in Exceptions Overview | Low | **UNSCHEDULED** — cosmetic: temp exceptions look permanent in `/api/exceptions` view |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | **UNSCHEDULED** — nothing in the repo creates or reads `app.pid`/`app.log`; decide whether to keep, replace or remove |
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | **UNSCHEDULED** — splitter drops `id="finding-F-xxx"` on chunked cards; many treatment-table links are dead in the PDF |
+| — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | **UNSCHEDULED** — critical 3.43, info 4.03, low 4.42 are below 4.5:1; needs PDF/visual check |
+| — | BL-36 | Translation Sweep for Remaining Hebrew in English Mode | Medium | **UNSCHEDULED** — several modules still show hard-coded Hebrew when the UI is English |
 
 ### Tier 3 — Significant Features _(3 of 5 complete)_
 Heavier implementation, meaningful product depth.
@@ -318,6 +320,16 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** Found by BL-04 QA (2026-11-04, 75 mock findings): the card splitter in `pdf_service.py` rebuilds chunk cards as new `div.finding-card` elements without the `id="finding-F-xxx"` anchor. About 53 of 75 findings lost their anchor, and 159 of 231 internal `#` links pointed at missing ids, so those treatment-table links are dead in the PDF. Pre-existing, not caused by BL-04. Also blocks per-finding bookmarks.
 **Effort:** Medium
 **Notes:** Candidate fix: keep the id on the first chunk of each split card. Needs `qa` before/after and the PDF geometry check. Unrelated nits seen in the same pass: heading id `detailed-state.findings` (findings.js ~3689) looks like a typo; section numbering skips 3. Not implemented.
+
+### BL-35 · Base Severity Chip Contrast on Dark Theme (UNSCHEDULED)
+**Why:** Found during the BL-23 follow-ups contrast pass (2026-11-09): the base severity chips on the dark theme fall below WCAG AA 4.5:1 for text: critical 3.43, info 4.03, low 4.42. The dimmed-row and exception/temporary/acknowledged controls were already fixed; the base chip colours were deliberately left alone.
+**Effort:** Low
+**Notes:** Fixing it changes the base chip colours everywhere they appear, so it needs a visual check in both themes and a PDF check (`qa` before/after) in case the chips are shared with print styles. Prove the CSS is live via getComputedStyle before editing. Not implemented.
+
+### BL-36 · Translation Sweep for Remaining Hebrew in English Mode (UNSCHEDULED)
+**Why:** After the BL-23 follow-ups i18n work (2026-11-09) the findings table and dashboard are translated, but other modules still show hard-coded Hebrew when the UI language is English.
+**Effort:** Medium
+**Notes:** Known remaining spots: the trend-comparison panel in `export.js`; the reason-dialog textarea placeholder in `index.html`; Wiz import toasts and `styledConfirm` dialogs in `wizi.js`; user-facing strings in `duplicates.js`, `exclude_rules.js`, `pipeline.js` and `products.js`. Route strings through `t()` with he + en entries in `i18n.js`, support live language switch, and extend the i18n tests. Split between Designer (templates, UI JS) and Developer (business-logic JS). Not implemented.
 
 ---
 
