@@ -1972,7 +1972,7 @@ tr[style*="opacity"] .finding-id-cell { color: oklch(0.94 0.03 250); }
 tr.is-acknowledged .badge-loose-match,
 tr[style*="opacity"] .badge-loose-match { color: oklch(0.97 0.05 85); }
 [data-theme="light"] tr.is-acknowledged .badge-loose-match,
-[data-theme="light"] tr[style*="opacity"] .badge-loose-match { color: oklch(0.25 0.06 70); }
+[data-theme="light"] tr[style*="opacity"] .badge-loose-match { color: oklch(0.15 0.05 70); }
 
 .loose-match-banner {
   padding: 10px 14px;
