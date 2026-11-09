@@ -2,7 +2,7 @@ import { state } from './state.js';
 import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
-import { t } from './i18n.js';
+import { t, tFormat, countPhrase, LANG_CHANGE_EVENT } from './i18n.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
@@ -83,7 +83,7 @@ let priorityTouched = false;
         // BL-12: Check for temp-exception status and was-temp-actioned flag
         var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
         var wasTempActioned = !!(f._wasTempActioned);
-        var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">⏱ מוחרג זמנית</span>' : '';
+        var tempBadge = isTempExcepted ? '<span class="badge-temp-exception">' + escapeHtml(t('⏱ מוחרג זמנית')) + '</span>' : '';
         // BL-23: acknowledged findings (hidden from the report) get a grey badge + banner.
         // Excluded findings (legacy exception) keep their legacy look: no header badge.
         var _isAcked = isAcknowledgedFinding(f);
@@ -95,7 +95,7 @@ let priorityTouched = false;
             ((f.exception.reason) ? '<div style="margin-top:6px;">' + escapeHtml(f.exception.reason) + '</div>' : '') + '</div>'
           : '';
         var reminderBanner = wasTempActioned
-          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">הממצא הוחרג זמנית בדו"ח הקודם</span></div>'
+          ? '<div class="temp-actioned-reminder"><span class="temp-actioned-reminder-icon">⏱</span><span class="temp-actioned-reminder-text">' + escapeHtml(t('הממצא הוחרג זמנית בדו"ח הקודם')) + '</span></div>'
           : '';
 
         // Header
@@ -104,15 +104,15 @@ let priorityTouched = false;
           reminderBanner +
           exclusionBanner +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-            '<span class="severity-chip ' + sev.class + '">' + sev.text + '</span>' +
+            '<span class="severity-chip ' + sev.class + '">' + escapeHtml(t(sev.text)) + '</span>' +
             '<span class="detail-actions-wrap">' +
-              '<button type="button" class="detail-actions-btn" id="btn-detail-actions" title="פעולות" aria-label="פעולות" aria-haspopup="menu">⋮</button>' +
+              '<button type="button" class="detail-actions-btn" id="btn-detail-actions" title="' + escapeHtml(t('פעולות')) + '" aria-label="' + escapeHtml(t('פעולות')) + '" aria-haspopup="menu">⋮</button>' +
               '<div class="actions-dropdown actions-dropdown-fixed" id="detail-actions-menu" role="menu" style="display:none;">' +
-                '<button class="actions-dropdown-item" id="detail-action-edit">✏️ ערוך</button>' +
-                '<button class="actions-dropdown-item" id="detail-action-dup">📋 שכפל</button>' +
-                '<button class="actions-dropdown-item" id="detail-action-ai">🤖 שיפור AI</button>' +
-                '<button class="actions-dropdown-item" id="detail-action-temp">⏱ פעולה זמנית</button>' +
-                '<button class="actions-dropdown-item actions-dropdown-danger" id="detail-action-delete">🗑️ מחק</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-edit">' + escapeHtml(t('✏️ ערוך')) + '</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-dup">' + escapeHtml(t('📋 שכפל')) + '</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-ai">' + escapeHtml(t('🤖 שיפור AI')) + '</button>' +
+                '<button class="actions-dropdown-item" id="detail-action-temp">' + escapeHtml(t('⏱ פעולה זמנית')) + '</button>' +
+                '<button class="actions-dropdown-item actions-dropdown-danger" id="detail-action-delete">' + escapeHtml(t('🗑️ מחק')) + '</button>' +
               '</div>' +
             '</span>' +
             '<span class="tag-inline">' + escapeHtml(f.category || 'CSPM') + '</span>' +
@@ -151,7 +151,7 @@ let priorityTouched = false;
               dup.id = generateNextId(dup.category || 'CSPM');
               state.findings.splice(state.selectedFindingIndex + 1, 0, dup);
               renderFindingsTable();
-              showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
+              showToast(t('שוכפל {a} → {b}').replace('{a}', orig.id).replace('{b}', dup.id), 'success');
             }
           });
           document.getElementById('detail-action-ai').addEventListener('click', function() {
@@ -424,7 +424,7 @@ let priorityTouched = false;
           state.selectedFindingIndex = null;
           showFindingDetail(null);
           renderFindingsTable();
-          showToast('ממצא נמחק', 'info');
+          showToast(t('ממצא נמחק'), 'info');
           promptReorderAfterDelete();
         }
       });
@@ -480,16 +480,16 @@ let priorityTouched = false;
             'המלצות: ' + (Array.isArray(f.recs) ? f.recs.join('; ') : (f.recs || ''));
 
           if (!navigator.clipboard) {
-            showToast('שגיאה בהעתקה', 'error');
+            showToast(t('שגיאה בהעתקה'), 'error');
             return;
           }
 
           navigator.clipboard.writeText(text)
             .then(function() {
-              showToast('ממצא הועתק ללוח', 'success');
+              showToast(t('ממצא הועתק ללוח'), 'success');
             })
             .catch(function() {
-              showToast('שגיאה בהעתקה', 'error');
+              showToast(t('שגיאה בהעתקה'), 'error');
             });
         });
       }
@@ -522,7 +522,11 @@ let priorityTouched = false;
         if (!returnFocus) return;
         var isShown = function(el) { return el && document.body.contains(el) && el.getClientRects().length > 0; };
         var toggle = document.getElementById('btn-footer-overflow');
-        var target = isShown(inv) ? inv : (isShown(toggle) ? toggle : document.querySelector('.finding-list-item.active'));
+        // Rows are tr[data-idx] and the selected one carries .active-row (not .finding-list-item.active, which
+        // never matches in the table view). Table rows are not focusable by default, so give it tabindex -1.
+        var row = document.querySelector('tr[data-idx].active-row');
+        var target = isShown(inv) ? inv : (isShown(toggle) ? toggle : row);
+        if (target === row && row && !row.hasAttribute('tabindex')) row.setAttribute('tabindex', '-1');
         if (target && target.focus) target.focus();
       }
 
@@ -626,6 +630,13 @@ let priorityTouched = false;
       if (detailExceptionDialog) {
         detailExceptionDialog.addEventListener('keydown', function(e) {
           if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeReasonDialog(true); }
+        });
+        // Escape also closes the dialog when focus is elsewhere on the page (e.g. user clicked away).
+        // Focus is only moved if it was lost (on body); otherwise it stays where the user put it.
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+          if (detailExceptionDialog.style.display === 'none') return;
+          closeReasonDialog(!document.activeElement || document.activeElement === document.body);
         });
       }
 
@@ -1440,10 +1451,10 @@ let priorityTouched = false;
               var findingsTab = document.getElementById('tab-findings-list');
               if (findingsTab) {
                 var tabIcon = '<span class="sidebar-item-icon">◆</span> ';
-                findingsTab.innerHTML = tabIcon + 'ממצאים <span class="sidebar-badge" id="step-findings-count">' + (state.findings.length || '') + '</span>';
+                findingsTab.innerHTML = tabIcon + escapeHtml(t('ממצאים')) + ' <span class="sidebar-badge" id="step-findings-count">' + (state.findings.length || '') + '</span>';
               }
               var listCountEl = document.getElementById('findings-list-count');
-              if (listCountEl) listCountEl.textContent = state.findings.length === 1 ? t('ממצא אחד') : t('{n} ממצאים').replace('{n}', state.findings.length);
+              if (listCountEl) listCountEl.textContent = countPhrase(state.findings.length, 'ממצא אחד', '{n} ממצאים');
               updateStepper();
 
               var batchActions = document.getElementById('batch-actions');
@@ -1509,7 +1520,7 @@ let priorityTouched = false;
                 });
               }
 
-              var filterNote = filtered.length < state.findings.length ? ' (מציג ' + filtered.length + ' מתוך ' + state.findings.length + ')' : '';
+              var filterNote = filtered.length < state.findings.length ? ' ' + tFormat('(מציג {a} מתוך {b})', { a: filtered.length, b: state.findings.length }) : '';
 
               // Pagination
               var totalFiltered = filtered.length;
@@ -1525,12 +1536,12 @@ let priorityTouched = false;
               }
 
               let html = '';
-              html += '<table><caption class="muted small-text">' + (fStart + 1) + '–' + fEnd + ' מתוך ' + totalFiltered + filterNote + '</caption><thead><tr>' +
+              html += '<table><caption class="muted small-text">' + tFormat('{a}–{b} מתוך {c}', { a: fStart + 1, b: fEnd, c: totalFiltered }) + filterNote + '</caption><thead><tr>' +
                 '<th><input type="checkbox" id="finding-check-all" class="finding-check"></th>' +
                 '<th>#</th>' +
-                '<th class="sortable-th" data-findings-sort="id">מזהה' + fSortInd('id') + '</th>' +
-                '<th class="sortable-th" data-findings-sort="title">כותרת' + fSortInd('title') + '</th>' +
-                '<th class="sortable-th" data-findings-sort="severity">חומרה' + fSortInd('severity') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="id">' + escapeHtml(t('מזהה')) + '' + fSortInd('id') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="title">' + escapeHtml(t('כותרת')) + '' + fSortInd('title') + '</th>' +
+                '<th class="sortable-th" data-findings-sort="severity">' + escapeHtml(t('חומרה')) + '' + fSortInd('severity') + '</th>' +
                 '</tr></thead><tbody>';
 
               pagedFiltered.forEach(function(item) {
@@ -1542,18 +1553,18 @@ let priorityTouched = false;
                 var isTempExcepted = !!(f.exception && f.exception.source === 'temp_excepted');
                 var isAck = isAcknowledgedFinding(f);
                 var excBadge = isTempExcepted
-                  ? ' <span class="badge-temp-exception">⏱ מוחרג זמנית</span>'
+                  ? ' <span class="badge-temp-exception">' + escapeHtml(t('⏱ מוחרג זמנית')) + '</span>'
                   : (isAck ? ' <span class="badge-acknowledged">' + escapeHtml(t('מאושר — לא יודפס')) + '</span>'
-                    : (isExc ? ' <span class="badge-exception">מוחרג</span>' : ''));
+                    : (isExc ? ' <span class="badge-exception">' + escapeHtml(t('מוחרג')) + '</span>' : ''));
                 var rowStyle = (isExc && !isAck) ? ' style="opacity:0.65;"' : '';
                 var rowClass = isAck ? ' class="is-acknowledged"' : '';
 
                 html += '<tr data-idx="' + idx + '"' + rowClass + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
-                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + escapeHtml(f.id || '') + '</td>' +
+                  '<td class="finding-id-cell" style="font-family:monospace;font-size:10px;">' + escapeHtml(f.id || '') + '</td>' +
                   '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(f.title || '') + excBadge + '</td>' +
-                  '<td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td>' +
+                  '<td><span class="severity-chip ' + sev.class + '">' + escapeHtml(t(sev.text)) + '</span></td>' +
                   '</tr>';
               });
 
@@ -1587,7 +1598,7 @@ let priorityTouched = false;
                     if (state.editingIndex === idx) resetEditState();
                     else if (state.editingIndex !== null && idx < state.editingIndex) state.editingIndex--;
                     renderFindingsTable();
-                    showToast('ממצא נמחק', 'info');
+                    showToast(t('ממצא נמחק'), 'info');
                     promptReorderAfterDelete();
                   } else if (action === 'preview') {
                     showFindingDetail(idx);
@@ -1599,7 +1610,7 @@ let priorityTouched = false;
                     dup.id = generateNextId(dup.category || 'CSPM');
                     state.findings.splice(idx + 1, 0, dup);
                     renderFindingsTable();
-                    showToast('שוכפל ' + orig.id + ' → ' + dup.id, 'success');
+                    showToast(t('שוכפל {a} → {b}').replace('{a}', orig.id).replace('{b}', dup.id), 'success');
                   }
                 });
               });
@@ -1718,9 +1729,9 @@ let priorityTouched = false;
         var batchCountInline = document.getElementById('batch-count-inline');
         if (selected.length > 0) {
           batchActions.style.display = '';
-          batchCount.textContent = selected.length === 1 ? t('ממצא אחד נבחר') : t('{n} ממצאים נבחרו').replace('{n}', selected.length);
+          batchCount.textContent = countPhrase(selected.length, 'ממצא אחד נבחר', '{n} ממצאים נבחרו');
           if (batchCountInline) {
-            batchCountInline.textContent = selected.length + ' נבחרו';
+            batchCountInline.textContent = countPhrase(selected.length, 'נבחר אחד', '{n} נבחרו');
             batchCountInline.style.display = 'inline-block';
           }
         } else {
@@ -1746,7 +1757,7 @@ let priorityTouched = false;
         this.value = '';
         renderFindingsTable();
         autoSave();
-        showToast('חומרה עודכנה ל-' + indices.length + ' ממצאים', 'success');
+        showToast(countPhrase(indices.length, 'חומרה עודכנה ל-1 ממצאים', 'חומרה עודכנה ל-{n} ממצאים'), 'success');
       });
 
       // Batch priority change
@@ -1760,7 +1771,7 @@ let priorityTouched = false;
           this.value = '';
           renderFindingsTable();
           autoSave();
-          showToast('עדיפות עודכנה ל-' + indices.length + ' ממצאים', 'success');
+          showToast(countPhrase(indices.length, 'עדיפות עודכנה ל-1 ממצאים', 'עדיפות עודכנה ל-{n} ממצאים'), 'success');
         });
       }
 
@@ -1778,7 +1789,7 @@ let priorityTouched = false;
             this.value = '';
             renderFindingsTable();
             autoSave();
-            showToast('בעלים עודכן ל-' + indices.length + ' ממצאים', 'success');
+            showToast(countPhrase(indices.length, 'בעלים עודכן ל-1 ממצאים', 'בעלים עודכן ל-{n} ממצאים'), 'success');
           }
         });
       })();
@@ -1802,7 +1813,7 @@ let priorityTouched = false;
           this.value = '';
           renderFindingsTable();
           autoSave();
-          showToast('קטגוריה עודכנה ל-' + indices.length + ' ממצאים', 'success');
+          showToast(countPhrase(indices.length, 'קטגוריה עודכנה ל-1 ממצאים', 'קטגוריה עודכנה ל-{n} ממצאים'), 'success');
         });
       }
 
@@ -1821,7 +1832,7 @@ let priorityTouched = false;
           state.editingIndex = null;
           renderFindingsTable();
           autoSave();
-          showToast(indices.length + ' ממצאים נמחקו', 'info');
+          showToast(countPhrase(indices.length, '1 ממצאים נמחקו', '{n} ממצאים נמחקו'), 'info');
           promptReorderAfterDelete();
         });
       });
@@ -1830,7 +1841,7 @@ let priorityTouched = false;
       document.getElementById('btn-batch-ai-enrich').addEventListener('click', function() {
         var indices = getSelectedFindingIndices();
         if (!indices.length) {
-          showToast('לא נבחרו ממצאים', 'warning');
+          showToast(t('לא נבחרו ממצאים'), 'warning');
           return;
         }
         var selected = indices.map(function(idx) { return state.findings[idx]; }).filter(function(f) {
@@ -1840,7 +1851,7 @@ let priorityTouched = false;
           return true;
         });
         if (!selected.length) {
-          showToast('כל הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+          showToast(t('כל הממצאים הנבחרים כבר כוללים סיכום AI'), 'info');
           return;
         }
         enrichFindingsWithAiSummaries(selected);
@@ -1867,7 +1878,7 @@ let priorityTouched = false;
           counts[cat] = (counts[cat] || 0) + 1;
         });
         var filterCat = document.getElementById('findings-filter-category');
-        var html = '<span class="cat-badge' + (!filterCat.value ? ' active' : '') + '" data-cat="">הכל <span class="cat-count">' + state.findings.length + '</span></span>';
+        var html = '<span class="cat-badge' + (!filterCat.value ? ' active' : '') + '" data-cat="">' + escapeHtml(t('הכל')) + ' <span class="cat-count">' + state.findings.length + '</span></span>';
         Object.keys(counts).sort().forEach(function(cat) {
           var isActive = filterCat.value === cat;
           html += '<span class="cat-badge' + (isActive ? ' active' : '') + '" data-cat="' + cat + '">' + cat + ' <span class="cat-count">' + counts[cat] + '</span></span>';
@@ -1966,7 +1977,7 @@ let priorityTouched = false;
             dragSrcIdx = null;
             renderFindingsTable();
             autoSave();
-            showToast('ממצא הוזז', 'info');
+            showToast(t('ממצא הוזז'), 'info');
           });
         });
       }
@@ -2257,10 +2268,10 @@ let priorityTouched = false;
 
           if (state.editingIndex === null) {
             state.findings.push(newFinding);
-            showToast('נוסף ממצא ' + newFinding.id + '. סה״כ: ' + state.findings.length, 'success');
+            showToast(tFormat('נוסף ממצא {id}. סה״כ: {n}', { id: newFinding.id, n: state.findings.length }), 'success');
           } else {
             state.findings[state.editingIndex] = newFinding;
-            showToast('עודכן ממצא ' + newFinding.id, 'success');
+            showToast(tFormat('עודכן ממצא {id}', { id: newFinding.id }), 'success');
             resetEditState();
           }
 
@@ -2337,7 +2348,7 @@ let priorityTouched = false;
         menuBatchDelete.addEventListener('click', function() {
           var indices = getSelectedFindingIndices().sort(function(a, b) { return b - a; });
           if (!indices.length) {
-            showToast('לא נבחרו ממצאים', 'warning');
+            showToast(t('לא נבחרו ממצאים'), 'warning');
             return;
           }
           styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
@@ -2351,7 +2362,7 @@ let priorityTouched = false;
             state.editingIndex = null;
             renderFindingsTable();
             autoSave();
-            showToast(indices.length + ' ממצאים נמחקו', 'info');
+            showToast(countPhrase(indices.length, '1 ממצאים נמחקו', '{n} ממצאים נמחקו'), 'info');
             promptReorderAfterDelete();
           });
         });
@@ -2375,7 +2386,7 @@ let priorityTouched = false;
       // AI enrich all state.findings
       document.getElementById('btn-ai-enrich-all').addEventListener('click', function() {
         if (!state.findings.length) {
-          showToast('אין ממצאים לשיפור', 'warning');
+          showToast(t('אין ממצאים לשיפור'), 'warning');
           return;
         }
         // Filter out state.findings that already have an AI summary
@@ -2386,7 +2397,7 @@ let priorityTouched = false;
           return true;
         });
         if (!toEnrich.length) {
-          showToast('כל הממצאים כבר כוללים סיכום AI', 'info');
+          showToast(t('כל הממצאים כבר כוללים סיכום AI'), 'info');
           return;
         }
         enrichFindingsWithAiSummaries(toEnrich);
@@ -2398,7 +2409,7 @@ let priorityTouched = false;
         _btnAiEnrichSelected.addEventListener('click', function() {
           var indices = getSelectedFindingIndices();
           if (!indices.length) {
-            showToast('לא נבחרו ממצאים', 'warning');
+            showToast(t('לא נבחרו ממצאים'), 'warning');
             return;
           }
           var selected = indices.map(function(idx) { return state.findings[idx]; });
@@ -2409,7 +2420,7 @@ let priorityTouched = false;
             return true;
           });
           if (!toEnrich.length) {
-            showToast('הממצאים הנבחרים כבר כוללים סיכום AI', 'info');
+            showToast(t('הממצאים הנבחרים כבר כוללים סיכום AI'), 'info');
             return;
           }
           enrichFindingsWithAiSummaries(toEnrich);
@@ -2421,11 +2432,11 @@ let priorityTouched = false;
       if (_btnDetectDuplicates) {
         _btnDetectDuplicates.addEventListener('click', function() {
           if (!ProductsPanel.selectedProduct || !ProductsPanel.selectedProduct.id) {
-            showToast('לא נבחר מוצר פעיל. שמור גרסה תחילה.', 'warning');
+            showToast(t('לא נבחר מוצר פעיל. שמור גרסה תחילה.'), 'warning');
             return;
           }
           if (!state.findings.length) {
-            showToast('אין ממצאים לבדיקה', 'warning');
+            showToast(t('אין ממצאים לבדיקה'), 'warning');
             return;
           }
           detectDuplicates(ProductsPanel.selectedProduct.id);
@@ -3981,7 +3992,7 @@ ${draftWatermarkStyle}
             textarea.dispatchEvent(new Event('input'));
           })
           .catch(function(err) {
-            showToast('שגיאה בשיפור הניסוח: ' + err.message, 'error');
+            showToast(tFormat('שגיאה בשיפור הניסוח: {e}', { e: err.message }), 'error');
           })
           .finally(function() {
             btn.disabled = false;
@@ -4047,7 +4058,7 @@ ${draftWatermarkStyle}
             ta.dispatchEvent(new Event('input'));
           })
           .catch(function(err) {
-            showToast('שגיאה בשיפור הניסוח: ' + err.message, 'error');
+            showToast(tFormat('שגיאה בשיפור הניסוח: {e}', { e: err.message }), 'error');
           })
           .finally(function() {
             btn.disabled = false;
@@ -4077,7 +4088,7 @@ ${draftWatermarkStyle}
           finding.exception = { active: true, reason: '', source: 'temp_excepted' };
           delete finding._wasTempActioned;
           delete finding._tempActionReason;
-          showToast('הממצא הוחרג זמנית' + note, 'success');
+          showToast(t('הממצא הוחרג זמנית') + note, 'success');
           renderFindingsTable();
           showFindingDetail(findingIndex);
           autoSave();
@@ -4086,11 +4097,11 @@ ${draftWatermarkStyle}
         // Without a selected product / source subscription there is no Product Memory to carry the
         // "return next cycle" reminder — apply the action to this report and say so.
         if (!product || !product.id) {
-          applyLocally(' (לא נשמר בזיכרון המוצר — לא נבחר מוצר)');
+          applyLocally(' ' + t('(לא נשמר בזיכרון המוצר — לא נבחר מוצר)'));
           return;
         }
         if (!subscription || !title) {
-          applyLocally(' (לא נשמר בזיכרון המוצר — לממצא אין מנוי מקור)');
+          applyLocally(' ' + t('(לא נשמר בזיכרון המוצר — לממצא אין מנוי מקור)'));
           return;
         }
 
@@ -4108,6 +4119,37 @@ ${draftWatermarkStyle}
           applyLocally('');
         })
         .catch(function(err) {
-          showToast('שגיאה בפעולה זמנית: ' + err.message, 'error');
+          showToast(tFormat('שגיאה בפעולה זמנית: {e}', { e: err.message }), 'error');
         });
       });
+
+
+// ── Language switch mid-session: re-render JS-built views (they use t(), not data-i18n) ──
+// Covers the findings table (row badges, list count, tab label), the detail pane (acknowledged banner,
+// badges, actions menu, active tab) and the batch count. Checkbox selection and an open reason dialog
+// are preserved across the re-render.
+document.addEventListener(LANG_CHANGE_EVENT, function() {
+  var checked = [];
+  document.querySelectorAll('.finding-row-check:checked').forEach(function(cb) { checked.push(cb.getAttribute('data-idx')); });
+  var dlg = document.getElementById('detail-exception-dialog');
+  var dlgOpen = !!(dlg && dlg.style.display !== 'none');
+  // Focus inside the reason dialog must survive the re-render; anywhere else it is left alone.
+  var focusInDlg = !!(dlgOpen && dlg.contains(document.activeElement));
+  renderFindingsTable();
+  renderDashboard(); // recent-findings table uses t() for severity chips and headers
+  if (state.selectedFindingIndex !== null && state.findings[state.selectedFindingIndex]) {
+    showFindingDetail(state.selectedFindingIndex); // closes the reason dialog; reopened below
+  }
+  if (dlgOpen && dlg && state.selectedFindingIndex !== null) {
+    dlg.style.display = '';
+    var reasonInp = document.getElementById('detail-exception-reason-input');
+    if (focusInDlg && reasonInp) reasonInp.focus();
+  }
+  if (checked.length) {
+    checked.forEach(function(i) {
+      var cb = document.querySelector('.finding-row-check[data-idx="' + i + '"]');
+      if (cb) cb.checked = true;
+    });
+    updateBatchActions();
+  }
+});

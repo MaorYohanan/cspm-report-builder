@@ -51,6 +51,19 @@ const TRANSLATIONS = {
     'הערכת סיכון': 'Risk Assessment',
     'ממצאים אחרונים': 'Recent Findings',
     'הצג הכל ←': 'Show All →',
+    // Dashboard dynamic strings (renderDashboard) and the findings category badge
+    'אין ממצאים': 'No findings',
+    'אין נתונים': 'No data',
+    'אין ממצאים עדיין': 'No findings yet',
+    'לא הוגדר': 'Not set',
+    'תרשים עוגה לפי חומרה': 'Donut chart by severity',
+    'הכל': 'All',
+    '1 ממצאים': '1 finding',
+    '{n} ממצאים': '{n} findings',
+    '1 קריטיים': '1 critical',
+    '{n} קריטיים': '{n} critical',
+    '1 גבוהים': '1 high',
+    '{n} גבוהים': '{n} high',
     // ── Report details panel ──
     '💾 שמור כברירת מחדל': '💾 Save as Default',
     '📂 טען ברירת מחדל': '📂 Load Default',
@@ -218,12 +231,27 @@ const TRANSLATIONS = {
     '{n} ממצאים': '{n} findings',
     'ממצא אחד נבחר': 'One finding selected',
     '{n} ממצאים נבחרו': '{n} findings selected',
-    'ממצא אחד סומן כמוחרג': 'One finding was excluded',
+    'ממצא אחד סומן כמוחרג': '1 finding was excluded',
     '{n} ממצאים סומנו כמוחרגים': '{n} findings were excluded',
-    'ממצא אחד אושר והוסתר': 'One finding was acknowledged and hidden',
+    'ממצא אחד אושר והוסתר': '1 finding was acknowledged and hidden',
     '{n} ממצאים אושרו והוסתרו': '{n} findings were acknowledged and hidden',
-    '{x} ו-{a}': '{x} and {a}',
+    // Mixed exclude + acknowledge: Hebrew attaches "ו" to the word, or "ו-" before a digit
+    '{x} ו{a}': '{x}; {a}',
+    '{x} ו-{a}': '{x}; {a}',
     '{p} אוטומטית על פי היסטוריה קודמת': '{p} automatically based on previous history',
+    'נבחר אחד': '1 selected',
+    '{n} נבחרו': '{n} selected',
+    '✏️ ערוך': '✏️ Edit',
+    '📋 שכפל': '📋 Duplicate',
+    '🤖 שיפור AI': '🤖 AI improve',
+    '🗑️ מחק': '🗑️ Delete',
+    'פעולות': 'Actions',
+    'גרסת מערכת': 'System version',
+    'מיין לפי חומרה': 'Sort by severity',
+    '📦 ייצא ZIP': '📦 Export ZIP',
+    '⏱ מוחרג זמנית': '⏱ Temporarily excluded',
+    'הממצא הוחרג זמנית בדו"ח הקודם': 'This finding was temporarily excluded in the previous report',
+    'שוכפל {a} → {b}': 'Duplicated {a} → {b}',
     'מוצר': 'Product',
     'ממצא': 'Finding',
     'סיבת חריגה': 'Exception Reason',
@@ -271,8 +299,42 @@ const TRANSLATIONS = {
     'סמן כמוחרג': 'Mark as Excluded',
     'הרחב הכל': 'Expand All',
     'כווץ הכל': 'Collapse All',
+    // ── Findings toasts / table caption (findings.js) ──
+    '{a}–{b} מתוך {c}': '{a}–{b} of {c}',
+    '(מציג {a} מתוך {b})': '(showing {a} of {b})',
+    'ממצא נמחק': 'Finding deleted',
+    'שגיאה בהעתקה': 'Copy failed',
+    'ממצא הועתק ללוח': 'Finding copied to clipboard',
+    'חומרה עודכנה ל-1 ממצאים': 'Severity updated for 1 finding',
+    'חומרה עודכנה ל-{n} ממצאים': 'Severity updated for {n} findings',
+    'עדיפות עודכנה ל-1 ממצאים': 'Priority updated for 1 finding',
+    'עדיפות עודכנה ל-{n} ממצאים': 'Priority updated for {n} findings',
+    'בעלים עודכן ל-1 ממצאים': 'Owner updated for 1 finding',
+    'בעלים עודכן ל-{n} ממצאים': 'Owner updated for {n} findings',
+    'קטגוריה עודכנה ל-1 ממצאים': 'Category updated for 1 finding',
+    'קטגוריה עודכנה ל-{n} ממצאים': 'Category updated for {n} findings',
+    '1 ממצאים נמחקו': '1 finding deleted',
+    '{n} ממצאים נמחקו': '{n} findings deleted',
+    'לא נבחרו ממצאים': 'No findings selected',
+    'כל הממצאים הנבחרים כבר כוללים סיכום AI': 'All selected findings already include an AI summary',
+    'ממצא הוזז': 'Finding moved',
+    'נוסף ממצא {id}. סה״כ: {n}': 'Finding {id} added. Total: {n}',
+    'עודכן ממצא {id}': 'Finding {id} updated',
+    'אין ממצאים לשיפור': 'No findings to improve',
+    'כל הממצאים כבר כוללים סיכום AI': 'All findings already include an AI summary',
+    'הממצאים הנבחרים כבר כוללים סיכום AI': 'The selected findings already include an AI summary',
+    'לא נבחר מוצר פעיל. שמור גרסה תחילה.': 'No active product selected. Save a version first.',
+    'אין ממצאים לבדיקה': 'No findings to check',
+    'שגיאה בשיפור הניסוח: {e}': 'Error improving wording: {e}',
+    'שגיאה בפעולה זמנית: {e}': 'Temporary action error: {e}',
+    'הממצא הוחרג זמנית': 'Finding temporarily excluded',
+    '(לא נשמר בזיכרון המוצר — לא נבחר מוצר)': '(not saved to product memory — no product selected)',
+    '(לא נשמר בזיכרון המוצר — לממצא אין מנוי מקור)': '(not saved to product memory — finding has no source subscription)',
   }
 };
+
+export const LANG_CHANGE_EVENT = 'ui-lang-change';
+var _appliedLang = null;
 
 /**
  * Returns the current UI language code ('he' or 'en').
@@ -312,6 +374,14 @@ export function setLang(lang) {
   // Update lang toggle button label
   var toggleBtn = document.getElementById('btn-lang-toggle');
   if (toggleBtn) toggleBtn.textContent = lang === 'he' ? 'EN' : 'HE';
+
+  // Notify JS-rendered views (they are built with t(), not data-i18n) so they can re-render.
+  // Not fired for the first call (page load): views render with the right language anyway.
+  var prev = _appliedLang;
+  _appliedLang = lang;
+  if (prev !== null && prev !== lang) {
+    document.dispatchEvent(new CustomEvent(LANG_CHANGE_EVENT, { detail: { lang: lang } }));
+  }
 }
 
 /**
@@ -325,4 +395,48 @@ export function t(key) {
   return (TRANSLATIONS[lang] && TRANSLATIONS[lang][key] !== undefined)
     ? TRANSLATIONS[lang][key]
     : (TRANSLATIONS.he[key] !== undefined ? TRANSLATIONS.he[key] : key);
+}
+
+/**
+ * Translates a key and fills {name} placeholders from vars (function replacers: no $-pattern surprises).
+ * @param {string} key
+ * @param {Object} vars
+ * @returns {string}
+ */
+export function tFormat(key, vars) {
+  return t(key).replace(/\{(\w+)\}/g, function(m, name) {
+    return Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : m;
+  });
+}
+
+/**
+ * Count phrase with singular / plural keys. The plural key holds an {n} placeholder.
+ * n === 1 uses the singular key; any other count (including 0) the plural one.
+ * @param {number} n
+ * @param {string} oneKey
+ * @param {string} manyKey
+ * @returns {string}
+ */
+export function countPhrase(n, oneKey, manyKey) {
+  return n === 1 ? t(oneKey) : t(manyKey).split('{n}').join(String(n));
+}
+
+/**
+ * Toast text for findings dismissed automatically from product memory on import.
+ * @param {number} excluded - findings carried forward as plain exclusions
+ * @param {number} acked - findings carried forward as acknowledged (hidden from the report)
+ * @returns {string} '' when both counts are 0
+ */
+export function carryForwardMessage(excluded, acked) {
+  if (!(excluded > 0) && !(acked > 0)) return '';
+  var x = countPhrase(excluded, 'ממצא אחד סומן כמוחרג', '{n} ממצאים סומנו כמוחרגים');
+  var a = countPhrase(acked, 'ממצא אחד אושר והוסתר', '{n} ממצאים אושרו והוסתרו');
+  var phrase;
+  if (excluded > 0 && acked > 0) {
+    // Hebrew: "ו" + word when the second phrase starts with a word (singular), "ו-" + digit otherwise
+    phrase = t(acked === 1 ? '{x} ו{a}' : '{x} ו-{a}').replace('{x}', function() { return x; }).replace('{a}', function() { return a; });
+  } else {
+    phrase = acked > 0 ? a : x;
+  }
+  return t('{p} אוטומטית על פי היסטוריה קודמת').replace('{p}', function() { return phrase; });
 }

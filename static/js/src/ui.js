@@ -1,5 +1,6 @@
 import { state } from './state.js';
 import { escapeHtml } from './core.js';
+import { t, countPhrase } from './i18n.js';
 
 // ── Theme toggle ──
 (function() {
@@ -338,16 +339,16 @@ export function renderDashboard() {
   var donutEl = document.getElementById('dashboard-donut');
   if (donutEl) {
     if (total === 0) {
-      donutEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">אין ממצאים</div>';
+      donutEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">' + escapeHtml(t('אין ממצאים')) + '</div>';
     } else {
       var segments = [
-        { count: crit, color: safeColor('oklch(0.58 0.22 15)', '#d94f3a'), label: 'קריטי' },
-        { count: high, color: safeColor('oklch(0.68 0.18 40)', '#d4813a'), label: 'גבוה' },
-        { count: med,  color: safeColor('oklch(0.72 0.16 80)', '#c8b23a'), label: 'בינוני' },
-        { count: low,  color: safeColor('oklch(0.62 0.17 155)', '#3aad72'), label: 'נמוך' }
+        { count: crit, color: safeColor('oklch(0.58 0.22 15)', '#d94f3a'), label: t('קריטי') },
+        { count: high, color: safeColor('oklch(0.68 0.18 40)', '#d4813a'), label: t('גבוה') },
+        { count: med,  color: safeColor('oklch(0.72 0.16 80)', '#c8b23a'), label: t('בינוני') },
+        { count: low,  color: safeColor('oklch(0.62 0.17 155)', '#3aad72'), label: t('נמוך') }
       ].filter(function(s) { return s.count > 0; });
       // DES-I-02: role="img" + aria-label make this SVG accessible without a <title> element.
-      var svg = '<svg viewBox="0 0 120 120" width="100" height="100" role="img" aria-label="תרשים עוגה לפי חומרה" style="display:block;margin:0 auto;">';
+      var svg = '<svg viewBox="0 0 120 120" width="100" height="100" role="img" aria-label="' + escapeHtml(t('תרשים עוגה לפי חומרה')) + '" style="display:block;margin:0 auto;">';
       var offset = 0;
       var circumference = 2 * Math.PI * 38;
       segments.forEach(function(seg) {
@@ -358,7 +359,7 @@ export function renderDashboard() {
         offset += dash;
       });
       svg += '<text x="60" y="56" text-anchor="middle" fill="var(--text-heading)" font-size="18" font-weight="800">' + total + '</text>';
-      svg += '<text x="60" y="72" text-anchor="middle" fill="var(--text-muted)" font-size="9">ממצאים</text>';
+      svg += '<text x="60" y="72" text-anchor="middle" fill="var(--text-muted)" font-size="9">' + escapeHtml(t('ממצאים')) + '</text>';
       svg += '</svg>';
       var legend = '<div style="margin-top:10px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">';
       segments.forEach(function(seg) {
@@ -373,7 +374,7 @@ export function renderDashboard() {
   var catsEl = document.getElementById('dashboard-categories');
   if (catsEl) {
     if (total === 0) {
-      catsEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">אין נתונים</div>';
+      catsEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">' + escapeHtml(t('אין נתונים')) + '</div>';
     } else {
       var catColors = {
         CSPM: safeColor('oklch(0.58 0.2 220)',  '#3a7fd4'),
@@ -406,21 +407,21 @@ export function renderDashboard() {
                    riskVal === 'גבוהה'   ? safeColor('oklch(0.68 0.18 40)', '#d4813a') :
                    riskVal === 'בינונית' ? safeColor('oklch(0.72 0.16 80)', '#c8b23a') :
                                            safeColor('oklch(0.62 0.17 155)', '#3aad72');
-    riskEl.innerHTML = '<div style="font-size:28px;font-weight:800;color:' + riskColor + ';">' + (riskVal || 'לא הוגדר') + '</div>' +
-      '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">' + total + ' ממצאים | ' + crit + ' קריטיים | ' + high + ' גבוהים</div>';
+    riskEl.innerHTML = '<div style="font-size:28px;font-weight:800;color:' + riskColor + ';">' + escapeHtml(riskVal ? t(riskVal) : t('לא הוגדר')) + '</div>' +
+      '<div style="margin-top:8px;font-size:12px;color:var(--text-muted);">' + escapeHtml(countPhrase(total, '1 ממצאים', '{n} ממצאים') + ' | ' + countPhrase(crit, '1 קריטיים', '{n} קריטיים') + ' | ' + countPhrase(high, '1 גבוהים', '{n} גבוהים')) + '</div>';
   }
 
   // Recent findings
   var recentEl = document.getElementById('dashboard-recent-findings');
   if (recentEl) {
     if (total === 0) {
-      recentEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">אין ממצאים עדיין</div>';
+      recentEl.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px;">' + escapeHtml(t('אין ממצאים עדיין')) + '</div>';
     } else {
       var recent = state.findings.slice(0, 5);
-      var h = '<table style="width:100%;font-size:12px;"><thead><tr><th>מזהה</th><th>קטגוריה</th><th>כותרת</th><th>חומרה</th><th>בעלים</th></tr></thead><tbody>';
+      var h = '<table style="width:100%;font-size:12px;"><thead><tr><th>' + escapeHtml(t('מזהה')) + '</th><th>' + escapeHtml(t('קטגוריה')) + '</th><th>' + escapeHtml(t('כותרת')) + '</th><th>' + escapeHtml(t('חומרה')) + '</th><th>' + escapeHtml(t('בעלים')) + '</th></tr></thead><tbody>';
       recent.forEach(function(f) {
         var sev = state.severityMap[f.severity] || state.severityMap.medium;
-        h += '<tr><td style="color:var(--accent);font-family:monospace;">' + escapeHtml(f.id || '') + '</td><td><span class="tag-inline">' + escapeHtml(f.category || '') + '</span></td><td>' + escapeHtml((f.title || '').substring(0, 50)) + '</td><td><span class="severity-chip ' + sev.class + '">' + sev.text + '</span></td><td>' + escapeHtml(f.owner || '—') + '</td></tr>';
+        h += '<tr><td style="color:var(--accent);font-family:monospace;">' + escapeHtml(f.id || '') + '</td><td><span class="tag-inline">' + escapeHtml(f.category || '') + '</span></td><td>' + escapeHtml((f.title || '').substring(0, 50)) + '</td><td><span class="severity-chip ' + sev.class + '">' + escapeHtml(t(sev.text)) + '</span></td><td>' + escapeHtml(f.owner || '—') + '</td></tr>';
       });
       h += '</tbody></table>';
       recentEl.innerHTML = h;
@@ -478,7 +479,7 @@ export function renderDashboard() {
 })();
 
 
-// ── Findings footer overflow menu (click toggle, Esc, outside click, arrow keys) ──
+// ── Findings footer overflow menu (click toggle, Esc, outside click, arrow + Home/End keys) ──
 (function initFooterOverflow() {
   function parts() {
     return {
@@ -524,6 +525,11 @@ export function renderDashboard() {
       if (!open) setOpen(true);
       var next = e.key === 'ArrowDown' ? (idx + 1) % list.length : (idx <= 0 ? list.length - 1 : idx - 1);
       list[next].focus();
+    }
+    // Home / End (WAI-ARIA APG menu pattern): first / last item. Only once the menu is open and focus is inside it.
+    if (open && (onToggle || idx > -1) && (e.key === 'Home' || e.key === 'End')) {
+      e.preventDefault();
+      list[e.key === 'Home' ? 0 : list.length - 1].focus();
     }
   });
 })();

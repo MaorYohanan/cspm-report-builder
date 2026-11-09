@@ -3,7 +3,7 @@ import { showToast, styledConfirm } from './core.js';
 import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY, showFindingDetail } from './findings.js';
 import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
-import { t } from './i18n.js';
+import { t, carryForwardMessage } from './i18n.js';
 import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules } from './exclude_rules.js';
 
@@ -1674,7 +1674,7 @@ function _resolveItemCategory(item, qt) {
           var sev = (node.severity || '').toLowerCase();
           if (!sev && qt === 'issues') sev = (node.severity || '').toLowerCase();
           var sevLabel = { critical: 'קריטי', high: 'גבוה', medium: 'בינוני', low: 'נמוך', informational: 'מידע' };
-          var sevDisplay = sevLabel[sev] || sev || '-';
+          var sevDisplay = sevLabel[sev] ? t(sevLabel[sev]) : (sev || '-');
           var sevClass = sev === 'informational' ? 'info' : sev;
           var subName = getNodeSubscriptionName(node, qt);
           var status = node.status || (node.result || '') || '-';
@@ -3474,7 +3474,7 @@ function _resolveItemCategory(item, qt) {
             var isSelected = bulkSelectionState[qt] && bulkSelectionState[qt].has(i);
             h += '<td><input type="checkbox" class="bulk-check" data-query-type="' + qt + '" data-node-index="' + i + '"' + (isSelected ? ' checked' : '') + '></td>';
             h += '<td><span class="tag-inline">' + escapeHtml(label) + '</span></td>';
-            h += '<td><span class="severity-chip ' + sevInfo.class + '">' + sevInfo.text + '</span></td>';
+            h += '<td><span class="severity-chip ' + sevInfo.class + '">' + escapeHtml(t(sevInfo.text)) + '</span></td>';
             h += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title) + '</td>';
             if (qt === 'vulnerabilityFindings' || qt === 'endOfLifeFindings') {
               var asset = node.vulnerableAsset || {};
@@ -4341,13 +4341,7 @@ function _resolveItemCategory(item, qt) {
               autoSave();
             }
             if (matched > 0 || matchedAck > 0) {
-              // Singular / plural phrases (he + en via i18n), then one shared suffix.
-              var exclPhrase = matched === 1 ? t('ממצא אחד סומן כמוחרג') : t('{n} ממצאים סומנו כמוחרגים').replace('{n}', matched);
-              var ackPhrase = matchedAck === 1 ? t('ממצא אחד אושר והוסתר') : t('{n} ממצאים אושרו והוסתרו').replace('{n}', matchedAck);
-              var phrase = (matched > 0 && matchedAck > 0)
-                ? t('{x} ו-{a}').replace('{x}', exclPhrase).replace('{a}', ackPhrase)
-                : (matchedAck > 0 ? ackPhrase : exclPhrase);
-              showToast(t('{p} אוטומטית על פי היסטוריה קודמת').replace('{p}', phrase), 'info');
+              showToast(carryForwardMessage(matched, matchedAck), 'info');
             }
             // Consume temp entries now that the flagged findings are in state (non-blocking).
             tempToConsume.forEach(function(body) {

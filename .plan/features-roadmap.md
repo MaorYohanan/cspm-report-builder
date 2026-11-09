@@ -640,7 +640,7 @@ Full specs: `.plan/backlog.md`.
 [✅ done] 53. BL-01  Longitudinal Risk Score Trend Chapter (SVG line chart across all published versions) — merged 2026-10-26
 [✅ done] 54. BL-12  Finding "Review Next Cycle" Flag (new finding state; affects regression chapter) — delivered as Temporary Exception (פעולה זמנית): applies to this report; next report arrives active with a reminder; merged 2026-11-04
 [✅ done] 55. BL-04  PDF Bookmarks / Named Destinations — delivered as page.pdf(outline=True, tagged=True), no pypdf needed; chapter+category bookmarks; merged 2026-11-05
-⬜  56. BL-23  Acknowledge vs Exclude — Dual Dismissal States (replaces single exception boolean)
+[✅ done] 56. BL-23  Acknowledge vs Exclude — Dual Dismissal States — acknowledge hides a finding entirely from PDF/ZIP/HTML/AI and the score, exclude stays the legacy exception; carried through product memory and Alembic migration; merged 2026-11-08
 ⬜  57. BL-24  Exception Carry-Forward Hardening ⚠️ DESIGN-FIRST — no code until design session done
 Full specs: `.plan/backlog.md`.
 

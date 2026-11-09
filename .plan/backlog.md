@@ -45,6 +45,8 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-32 | Temporary Label in Exceptions Overview | Low | **UNSCHEDULED** — cosmetic: temp exceptions look permanent in `/api/exceptions` view |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | **UNSCHEDULED** — nothing in the repo creates or reads `app.pid`/`app.log`; decide whether to keep, replace or remove |
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | **UNSCHEDULED** — splitter drops `id="finding-F-xxx"` on chunked cards; many treatment-table links are dead in the PDF |
+| — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | **UNSCHEDULED** — critical 3.43, info 4.03, low 4.42 are below 4.5:1; needs PDF/visual check |
+| — | BL-36 | Translation Sweep for Remaining Hebrew in English Mode | Medium | **UNSCHEDULED** — several modules still show hard-coded Hebrew when the UI is English |
 
 ### Tier 3 — Significant Features _(3 of 5 complete)_
 Heavier implementation, meaningful product depth.
@@ -54,7 +56,7 @@ Heavier implementation, meaningful product depth.
 | 1 | BL-01 | Longitudinal Risk Score Trend Chapter | High | ✅ **MERGED 2026-10-26** — built as an SVG trend chart on the product timeline (not in the PDF) |
 | 2 | BL-12 | Temporary Exception ("פעולה זמנית") | High | ✅ **MERGED 2026-11-04** — temporary exception only (temp delete dropped); next report arrives active with a reminder |
 | 3 | BL-04 | PDF Bookmarks / Named Destinations | Medium | ✅ **MERGED 2026-11-05** — done with `page.pdf(outline=True, tagged=True)` (no pypdf); chapter/category bookmarks only, findings are not headings |
-| 4 | BL-23 | Acknowledge vs Exclude — Dual Dismissal States | High | Two distinct dismissal concepts replacing the single exception boolean; acknowledge hides entirely, exclude may appear in a separate report section |
+| 4 | BL-23 | Acknowledge vs Exclude — Dual Dismissal States | High | ✅ **MERGED 2026-11-08** — acknowledge hides entirely (PDF/ZIP/HTML/AI/score), exclude = legacy exception section; follow-ups (i18n, a11y, contrast) on fix/bl-23-followups |
 | 5 | BL-24 | Exception Carry-Forward Hardening | High | Design-first item — current (subscription+title) match is fragile to Wiz renames and aggregated findings; do not implement until design session completed |
 
 ### Tier 4 — Enterprise & Integration Track _(folded into main sequence, after Tier 3)_
@@ -254,6 +256,7 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Notes:** Requires deep design work before any implementation. Open questions that must be resolved first: (1) Should the match key include Wiz rule ID, CVE identifier, or a content hash alongside the title? Needs to account for aggregated findings where there is no single stable ID. (2) Should a failed carry-forward (no match found for a previously excepted finding) surface as a consultant warning rather than silently disappearing? (3) How does the proposed BL-23 Acknowledge/Exclude split interact with this — the two features must be designed together. (4) Does `ExcludeRule` (currently browser-only) need to be applied server-side in the pipeline scan path for consistency? **Do not implement until a design session has been completed and the open questions above are answered.**
 
 ### BL-23 · Acknowledge vs Exclude — Dual Dismissal States
+**Status:** ✅ DONE — merged to main 2026-11-08. Delivered as `exception.kind` ('acknowledge' vs legacy exclude) on top of `exception.active`, with an Alembic migration. The text below is the original pre-implementation note and is kept for history only; the note "no migration framework — manual ALTER TABLE" is superseded by Alembic (`migrations/`). BL-24 below remains design-first (it must be designed together with the shipped acknowledge/exclude split).
 **Why:** The current single exception boolean collapses two meaningfully different decisions — "this finding is a false positive / irrelevant" and "this finding is real but we have investigated and accepted the risk for a period" — making it impossible to distinguish noise suppression from documented risk acceptance in audit trails or report chapters.
 **Effort:** High
 **Notes:** NET-NEW. The `Finding` model currently has one dismissal field: `exception_active` (boolean, `models.py:85`) with a reason string inside `finding_data`. No `dismiss_type`, `acknowledge`, or `exclude` field exists anywhere in the model, routes, or UI. The `ProductMemoryEntry.source` field (`excepted`/`deleted`) is a pipeline-memory concept, not a per-finding dismissal state. Implementation requires: (1) a new field on `Finding` — either a string `dismissal_type` enum (none/acknowledge/exclude) replacing `exception_active`, or a companion boolean `exclude_active` alongside the existing `exception_active` (rename to `acknowledge_active`); (2) optional `exclude_until` date field for time-limited exclusions; (3) DB migration (no migration framework — manual ALTER TABLE or re-create); (4) updated risk score logic in `compute_risk_score()` (both states exclude from score); (5) two distinct UI action buttons in the finding detail pane (replacing the single "החרג" button); (6) a "show acknowledged only" and "show excluded only" filter in the findings list; (7) PDF template change — acknowledged findings continue as today (exception banner in Section 4); excluded findings optionally appear in a new "Excluded Findings" sub-section distinct from the main finding cards; (8) update `ProductMemoryEntry` pipeline memory source to carry the dismissal type so future scans restore the correct state.
@@ -317,6 +320,16 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** Found by BL-04 QA (2026-11-04, 75 mock findings): the card splitter in `pdf_service.py` rebuilds chunk cards as new `div.finding-card` elements without the `id="finding-F-xxx"` anchor. About 53 of 75 findings lost their anchor, and 159 of 231 internal `#` links pointed at missing ids, so those treatment-table links are dead in the PDF. Pre-existing, not caused by BL-04. Also blocks per-finding bookmarks.
 **Effort:** Medium
 **Notes:** Candidate fix: keep the id on the first chunk of each split card. Needs `qa` before/after and the PDF geometry check. Unrelated nits seen in the same pass: heading id `detailed-state.findings` (findings.js ~3689) looks like a typo; section numbering skips 3. Not implemented.
+
+### BL-35 · Base Severity Chip Contrast on Dark Theme (UNSCHEDULED)
+**Why:** Found during the BL-23 follow-ups contrast pass (2026-11-09): the base severity chips on the dark theme fall below WCAG AA 4.5:1 for text: critical 3.43, info 4.03, low 4.42. The dimmed-row and exception/temporary/acknowledged controls were already fixed; the base chip colours were deliberately left alone.
+**Effort:** Low
+**Notes:** Also covers the non-dimmed ID cell (4.03:1 dark, 3.89:1 on the striped row). Fixing it changes the base chip colours everywhere they appear, so it needs a visual check in both themes and a PDF check (`qa` before/after) in case the chips are shared with print styles. Prove the CSS is live via getComputedStyle before editing. Not implemented.
+
+### BL-36 · Translation Sweep for Remaining Hebrew in English Mode (UNSCHEDULED)
+**Why:** After the BL-23 follow-ups i18n work (2026-11-09) the findings table and dashboard are translated, but other modules still show hard-coded Hebrew when the UI language is English.
+**Effort:** Medium
+**Notes:** Known remaining spots: the trend-comparison panel in `export.js`; the reason-dialog textarea placeholder in `index.html`; Wiz import toasts and `styledConfirm` dialogs in `wizi.js`; user-facing strings in `duplicates.js`, `exclude_rules.js`, `pipeline.js` and `products.js`. Route strings through `t()` with he + en entries in `i18n.js`, support live language switch, and extend the i18n tests. Split between Designer (templates, UI JS) and Developer (business-logic JS). Not implemented.
 
 ---
 

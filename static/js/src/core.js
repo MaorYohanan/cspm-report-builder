@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { t } from './i18n.js';
 
 // ── HTML escaping ──
 export function escapeHtml(str) {
@@ -41,7 +42,7 @@ export function showToast(message, type) {
   var closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = '×';
-  closeBtn.setAttribute('aria-label', 'סגור');
+  closeBtn.setAttribute('aria-label', t('סגור'));
   closeBtn.style.cssText = 'background:none;border:none;color:inherit;cursor:pointer;font-size:20px;line-height:1;padding:0 4px;opacity:0.8;flex-shrink:0;';
   function remove() { if (el.parentNode) el.parentNode.removeChild(el); }
   closeBtn.addEventListener('click', remove);

@@ -544,6 +544,8 @@ Complete `[dir="ltr"]` attribute-selector override file flipping physical proper
 ### Hebrew / English Language Toggle
 `#btn-lang-toggle` in sidebar footer; displays "EN" in Hebrew mode, "HE" in English mode.
 
+In English mode the findings table, severity chips and the dashboard (legend, centre label, risk summary, empty states) are fully translated; some other modules still show Hebrew text.
+
 ### `setLang()` Behavior
 Sets `lang`/`dir` on `<html>`; translates `data-i18n` elements via `textContent` (XSS-safe); updates `data-i18n-title` tooltip titles; updates toggle label.
 
@@ -573,4 +575,4 @@ An editor can mark a finding as excepted for the current report only, from the d
 
 ### Acknowledge vs Exclude Findings
 A consultant can dismiss a finding in two ways from the finding detail footer. Exclude is the classic exception: the finding stays in the PDF with an approved-exception banner, is counted as "included exceptions" in the summary and is not scored. Acknowledge hides the finding entirely from the PDF, interactive HTML, ZIP bundle and AI summaries and from the risk score, while it stays visible in the builder list (grey badge) and in the CSV and JSON snapshot. Both choices are remembered per product and restored on the next import, and the findings list has separate filters for each kind.
-The acknowledged state is fully translated, the "עוד" menu returns focus to its toggle, and the Exceptions panel shows a kind chip per row.
+The acknowledged state is fully translated in Hebrew and English, and switching language mid-session immediately retranslates the acknowledged banner, row badges, list and selection counts, the actions menu and the Exceptions panel kind chips without a reload. Counts use proper singular and plural wording, and the notice shown when previously dismissed findings are restored automatically on import reads naturally in both languages for exclude-only, acknowledge-only and mixed cases. The "עוד" menu returns focus to its toggle, Escape closes the reason dialog, and the dismissal controls meet WCAG AA contrast in both themes, including inside dimmed rows. Severity chips, the findings table caption and the findings toasts are also translated, and an open reason dialog keeps its text and moves focus to the reason field when the language is switched while focus was inside it.
