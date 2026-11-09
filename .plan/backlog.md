@@ -324,7 +324,7 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 ### BL-35 · Base Severity Chip Contrast on Dark Theme (UNSCHEDULED)
 **Why:** Found during the BL-23 follow-ups contrast pass (2026-11-09): the base severity chips on the dark theme fall below WCAG AA 4.5:1 for text: critical 3.43, info 4.03, low 4.42. The dimmed-row and exception/temporary/acknowledged controls were already fixed; the base chip colours were deliberately left alone.
 **Effort:** Low
-**Notes:** Fixing it changes the base chip colours everywhere they appear, so it needs a visual check in both themes and a PDF check (`qa` before/after) in case the chips are shared with print styles. Prove the CSS is live via getComputedStyle before editing. Not implemented.
+**Notes:** Also covers the non-dimmed ID cell (4.03:1 dark, 3.89:1 on the striped row). Fixing it changes the base chip colours everywhere they appear, so it needs a visual check in both themes and a PDF check (`qa` before/after) in case the chips are shared with print styles. Prove the CSS is live via getComputedStyle before editing. Not implemented.
 
 ### BL-36 · Translation Sweep for Remaining Hebrew in English Mode (UNSCHEDULED)
 **Why:** After the BL-23 follow-ups i18n work (2026-11-09) the findings table and dashboard are translated, but other modules still show hard-coded Hebrew when the UI language is English.

@@ -471,12 +471,12 @@ BL-23 (Acknowledge vs Exclude): ✅ merged to main — branch feature/bl-23-ackn
 BL-23 follow-ups (fix/bl-23-followups): 🔍 ready to merge after QA
 - Branch: fix/bl-23-followups (not merged, not pushed). Latest Designer commit 0b0ad2a: dimmed-row ID cell contrast fixed (6.72:1 dark / 5.64:1 light) and English dashboard strings translated (legend, centre label, risk summary, aria-label, empty states, All badge). Cache-busters now builder.css v=191, main.js v=207. Remaining items logged as BL-35 (base chip contrast) and BL-36 (translation sweep), both unscheduled.
 - Summary: AA contrast for exception / temporary / acknowledged controls, menu Home/End and focus fallback, Escape closes the reason dialog; mid-session language switch re-renders the acknowledged banner, row badges, list count and Exceptions kind chips; singular/plural counts; natural carry-forward toast in he + en for all exclude/ack/mixed cases; actions menu, row badge and toast close label routed through t(); legacy .badge-exception contrast fixed (>= 4.5:1 in dimmed rows, dark and light).
-- Tests: 308 passed (excluding tests/test_ssc_query.py). Cache-busters: builder.css v=189, main.js v=205.
+- Tests: 346 passed (excluding tests/test_ssc_query.py). Cache-busters: builder.css v=191, main.js v=207.
 - Out of scope / left as-is: the 3 pre-existing inline-onclick CSP console errors on page load (findings.js empty-state buttons); findings table caption and some other findings.js strings are still hard-coded Hebrew.
 
 ## Next session — where to resume (written 2026-11-08)
 
-- State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Branch fix/bl-23-followups holds the follow-up work awaiting merge approval. Tests: 308 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.
+- State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Branch fix/bl-23-followups holds the follow-up work awaiting merge approval. Tests: 346 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.
 - User personally verified BL-23 checks 1-3: real Wiz import with product memory, live Gemini call, and a PDF page with an acknowledged finding.
 - Still unverified: the Postgres migration (Alembic b23a0c5d7e11). The user's local DB `alembic upgrade head` status is unknown; do not touch their DB, ask them to run it.
 - Next: **BL-24 is design-first — no code until a design session** (must be designed together with the shipped acknowledge/exclude split). Then BL-14 (webhooks), which starts Tier 4.
