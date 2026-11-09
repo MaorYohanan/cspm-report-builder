@@ -1562,7 +1562,7 @@ let priorityTouched = false;
                 html += '<tr data-idx="' + idx + '"' + rowClass + rowStyle + '>' +
                   '<td><input type="checkbox" class="finding-check finding-row-check" data-idx="' + idx + '"></td>' +
                   '<td>' + (idx + 1) + '</td>' +
-                  '<td style="font-family:monospace;font-size:10px;color:var(--accent);">' + escapeHtml(f.id || '') + '</td>' +
+                  '<td class="finding-id-cell" style="font-family:monospace;font-size:10px;">' + escapeHtml(f.id || '') + '</td>' +
                   '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(f.title || '') + excBadge + '</td>' +
                   '<td><span class="severity-chip ' + sev.class + '">' + escapeHtml(t(sev.text)) + '</span></td>' +
                   '</tr>';
@@ -1878,7 +1878,7 @@ let priorityTouched = false;
           counts[cat] = (counts[cat] || 0) + 1;
         });
         var filterCat = document.getElementById('findings-filter-category');
-        var html = '<span class="cat-badge' + (!filterCat.value ? ' active' : '') + '" data-cat="">הכל <span class="cat-count">' + state.findings.length + '</span></span>';
+        var html = '<span class="cat-badge' + (!filterCat.value ? ' active' : '') + '" data-cat="">' + escapeHtml(t('הכל')) + ' <span class="cat-count">' + state.findings.length + '</span></span>';
         Object.keys(counts).sort().forEach(function(cat) {
           var isActive = filterCat.value === cat;
           html += '<span class="cat-badge' + (isActive ? ' active' : '') + '" data-cat="' + cat + '">' + cat + ' <span class="cat-count">' + counts[cat] + '</span></span>';

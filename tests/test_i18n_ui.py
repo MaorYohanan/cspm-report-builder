@@ -194,6 +194,7 @@ DYNAMIC_ALLOWED = {
     ("findings.js", "excKey"): _findings_dismiss_keys,
     ("findings.js", "sev.text"): _state_severity_texts,
     ("ui.js", "sev.text"): _state_severity_texts,
+    ("ui.js", "riskVal"): lambda: {"נמוכה", "בינונית", "גבוהה", "קריטית"},  # #report-risk option values
     ("wizi.js", "sevInfo.text"): _state_severity_texts,
     ("wizi.js", "sevLabel[sev]"): _wizi_sev_label_values,
 }

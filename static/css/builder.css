@@ -1933,6 +1933,16 @@ tr.is-acknowledged .sev-info,     tr[style*="opacity"] .sev-info     { color: ok
 [data-theme="light"] tr.is-acknowledged .sev-low,      [data-theme="light"] tr[style*="opacity"] .sev-low      { color: oklch(0.20 0.07 150); }
 [data-theme="light"] tr.is-acknowledged .sev-info,     [data-theme="light"] tr[style*="opacity"] .sev-info     { color: oklch(0.20 0.01 250); }
 
+/* Findings-table ID cell: colour moved from an inline style to a class so a dimmed row can override it.
+   Non-dimmed rows keep var(--accent) exactly as before; inside a dimmed row (0.65 opacity) the accent falls
+   to ~2.4:1 dark / ~3.3:1 light, so use a high-lightness (dark) / low-lightness (light) tone, >= 4.5:1.
+   Monospace Latin IDs stay LTR-neutral; no physical sides involved. */
+.finding-id-cell { color: var(--accent); }
+tr.is-acknowledged .finding-id-cell,
+tr[style*="opacity"] .finding-id-cell { color: oklch(0.94 0.03 250); }
+[data-theme="light"] tr.is-acknowledged .finding-id-cell,
+[data-theme="light"] tr[style*="opacity"] .finding-id-cell { color: oklch(0.20 0.03 250); }
+
 /* ── RTL Adjustments ── */
 /* Modal is RTL-aware: all text flows right-to-left naturally */
 /* Flex layouts with gap handle spacing without physical-side margins */

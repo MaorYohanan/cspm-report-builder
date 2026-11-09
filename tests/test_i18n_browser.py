@@ -189,3 +189,147 @@ def test_reason_dialog_focus_after_toggle(page):
     assert page.input_value("#detail-exception-reason-input") == "typed reason"
     assert page.evaluate("document.activeElement.id") == "findings-search"
     assert not page.page_errors, page.page_errors
+
+
+# ── Dashboard English leftovers + dimmed-row ID contrast (BL-23 follow-ups, round 3) ──
+
+_HEB = "[֐-׿]"
+
+_SEED_DASH = """
+async (withExc) => {
+  const { state } = await import('/static/js/src/state.js');
+  const f = await import('/static/js/src/findings.js');
+  const ui = await import('/static/js/src/ui.js');
+  state.findings.length = 0;
+  const sev = ['critical', 'high', 'medium', 'low'];
+  for (let i = 1; i <= 4; i++) {
+    state.findings.push({ id: 'F-' + i, title: 'Finding ' + i, severity: sev[i - 1], category: 'CSPM',
+      description: 'd', impact: 'i', technical: [], policies: [], recs: ['r'], priority: '', owner: 'o',
+      exception: { active: withExc && i === 2, reason: withExc && i === 2 ? 'r' : '' } });
+  }
+  document.getElementById('report-risk').value = 'גבוהה';
+  f.renderFindingsTable();
+  ui.renderDashboard();
+}
+"""
+
+_EMPTY_DASH = """
+async () => {
+  const { state } = await import('/static/js/src/state.js');
+  const f = await import('/static/js/src/findings.js');
+  const ui = await import('/static/js/src/ui.js');
+  state.findings.length = 0;
+  document.getElementById('report-risk').value = '';
+  f.renderFindingsTable();
+  ui.renderDashboard();
+}
+"""
+
+
+def _to_he(page):
+    if page.get_attribute("html", "lang") != "he":
+        page.click("#btn-lang-toggle")
+        page.wait_for_function("document.documentElement.lang === 'he'")
+
+
+def _dash_text(page):
+    parts = page.evaluate("""() => [
+        ...['dashboard-donut', 'dashboard-risk-summary', 'dashboard-categories', 'dashboard-recent-findings']
+            .map(i => document.getElementById(i).innerText),
+        document.getElementById('dashboard-donut').innerHTML,
+        document.getElementById('category-badges').innerText]""")
+    return " | ".join(parts)
+
+
+def test_dashboard_english_no_hebrew_and_live_toggle(page):
+    import re
+    _to_he(page)
+    page.evaluate(_SEED_DASH, False)
+    he = _dash_text(page)
+    assert "תרשים עוגה לפי חומרה" in he and "4 ממצאים | 1 קריטיים | 1 גבוהים" in he
+    assert "גבוהה" in he and "הכל" in page.inner_text("#category-badges")
+
+    page.click("#btn-lang-toggle")  # he -> en, mid-session
+    page.wait_for_function("document.documentElement.lang === 'en'")
+    en = _dash_text(page)
+    assert not re.search(_HEB, en), re.findall(_HEB + "+", en)
+    assert "4 findings | 1 critical | 1 high" in en
+    assert 'aria-label="Donut chart by severity"' in en
+    assert "All" in page.inner_text("#category-badges")
+    donut = page.inner_text("#dashboard-donut")
+    assert "Critical 1" in donut and "Findings" in donut
+
+    page.click("#btn-lang-toggle")  # en -> he, live
+    page.wait_for_function("document.documentElement.lang === 'he'")
+    assert _dash_text(page) == he  # Hebrew byte-identical after the round trip
+    assert not page.page_errors, page.page_errors
+
+
+def test_dashboard_empty_states_translate(page):
+    import re
+    _to_he(page)
+    page.evaluate(_EMPTY_DASH)
+    ids = ["dashboard-donut", "dashboard-categories", "dashboard-risk-summary", "dashboard-recent-findings"]
+    he = [page.inner_text("#" + i) for i in ids]
+    assert he[0] == "אין ממצאים" and he[1] == "אין נתונים" and he[3] == "אין ממצאים עדיין"
+    assert he[2].startswith("לא הוגדר") and "0 ממצאים | 0 קריטיים | 0 גבוהים" in he[2]
+    page.click("#btn-lang-toggle")
+    page.wait_for_function("document.documentElement.lang === 'en'")
+    en = [page.inner_text("#" + i) for i in ids]
+    assert en[0] == "No findings" and en[1] == "No data" and en[3] == "No findings yet"
+    assert en[2].startswith("Not set") and "0 findings | 0 critical | 0 high" in en[2]
+    assert not re.search(_HEB, "".join(en))
+    page.click("#btn-lang-toggle")
+    page.wait_for_function("document.documentElement.lang === 'he'")
+
+
+_CONTRAST_JS = """
+() => {
+  const cv = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  const rgba = (c) => { cv.clearRect(0, 0, 1, 1); cv.fillStyle = '#000'; cv.fillStyle = c; cv.fillRect(0, 0, 1, 1);
+    const d = cv.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2], d[3] / 255]; };
+  const mix = (a, b, al) => a.slice(0, 3).map((v, i) => v * al + b[i] * (1 - al));
+  const lum = (c) => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const behindOf = (el) => { let n = el; while (n) { const b = rgba(getComputedStyle(n).backgroundColor);
+    if (b[3] === 1) return b.slice(0, 3); n = n.parentElement; } return [255, 255, 255]; };
+  const measure = (td) => {
+    const tr = td.closest('tr');
+    const op = parseFloat(getComputedStyle(tr).opacity);
+    const behind = behindOf(tr.parentElement);
+    let rowBg = behind;
+    for (const el of [td, tr]) { const b = rgba(getComputedStyle(el).backgroundColor);
+      if (b[3] > 0) { rowBg = mix(b, behind, b[3]); break; } }
+    const fg = rgba(getComputedStyle(td).color);
+    const fgEff = mix(fg, behind, op), bgEff = mix(rowBg, behind, op);
+    const a = lum(fgEff) + 0.05, b = lum(bgEff) + 0.05;
+    return { color: getComputedStyle(td).color, ratio: Math.max(a, b) / Math.min(a, b), opacity: op };
+  };
+  const cells = [...document.querySelectorAll('#findings-table-wrapper tbody tr')].map(tr => measure(tr.querySelector('.finding-id-cell')));
+  return cells;
+}
+"""
+
+
+@pytest.mark.parametrize("theme", ["dark", "light"])
+def test_dimmed_row_id_cell_contrast_aa(page, theme):
+    _to_he(page)
+    page.evaluate(_SEED_DASH, True)
+    page.evaluate("document.getElementById('tab-findings-list').click()")
+    page.evaluate("t => { if (t === 'light') document.documentElement.setAttribute('data-theme', 'light'); "
+                  "else document.documentElement.removeAttribute('data-theme'); }", theme)
+    try:
+        cells = page.evaluate(_CONTRAST_JS)
+        assert len(cells) == 4
+        dimmed = cells[1]
+        print("DIMMED_ID_CONTRAST", theme, round(dimmed["ratio"], 2), dimmed["color"])
+        assert dimmed["opacity"] == 0.65
+        assert dimmed["ratio"] >= 4.5, dimmed
+        # non-dimmed rows keep the base accent colour and full opacity
+        accent = page.evaluate("""() => { const p = document.createElement('span');
+            p.style.color = 'var(--accent)'; document.body.appendChild(p);
+            const c = getComputedStyle(p).color; p.remove(); return c; }""")
+        for i in (0, 2, 3):
+            assert cells[i]["opacity"] == 1 and cells[i]["color"] == accent, (i, cells[i], accent)
+    finally:
+        page.evaluate("document.documentElement.removeAttribute('data-theme')")
