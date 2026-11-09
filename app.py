@@ -146,6 +146,8 @@ if not os.environ.get("DATABASE_URL"):
             for _stmt in [
                 "ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly'",
                 "ALTER TABLE findings ADD COLUMN exception_kind VARCHAR(20)",
+                "ALTER TABLE product_memory_entries ADD COLUMN rule_key VARCHAR(300)",
+                "CREATE INDEX IF NOT EXISTS ix_memory_product_rule_key ON product_memory_entries (product_id, rule_key)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_status ON report_snapshots (status)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_published_at ON report_snapshots (published_at)",
                 (

@@ -143,7 +143,7 @@ Two distinct import modes in `wizi.js`. "Keep Existing" (הוסף לקיים) ap
 `_next_version()` in `products.py` computes the next version string. First version is `1.0`. Major bump: `N+1.0`. Minor bump: `N.M+1` (wraps to `N+1.0` at M=9). Draft type reuses the current version. `_valid_version_str()` enforces `^\d+\.\d+$` format on URL parameters.
 
 ### Product Memory (Exception and Deletion History)
-`GET /api/products/<id>/memory` (`viewer`) returns the full product memory as a dict keyed by `subscription::title`. `POST /api/products/<id>/memory/entry` (`editor`) upserts a memory entry with `source = "excepted"` or `"deleted"`. `DELETE /api/products/<id>/memory/entry` (`editor`) removes an entry. Capped at 2,000 entries per product. Used by the pipeline scanner to automatically re-apply exceptions and skip deleted findings in future scans.
+`GET /api/products/<id>/memory` (`viewer`) returns the full product memory as a dict keyed by `subscription::title`. `POST /api/products/<id>/memory/entry` (`editor`) upserts a memory entry with `source = "excepted"`, `"deleted"`, `"temp_excepted"` or `"acknowledged"`, optionally with a stable rule key. `DELETE /api/products/<id>/memory/entry` (`editor`) removes an entry. Capped at 2,000 entries per product. Used by the pipeline scanner to automatically re-apply exceptions and skip deleted findings in future scans.
 
 ### Cross-Product Exception List
 `GET /api/exceptions` (`viewer`) queries every product's latest published snapshot and returns a flat list of all active exceptions across all products. Products with no published snapshot appear as placeholder rows. Results are sorted by product name ascending, then by published date descending.
@@ -169,6 +169,9 @@ Two distinct import modes in `wizi.js`. "Keep Existing" (הוסף לקיים) ap
 
 ### Product Memory Applied During Scans
 During `_run_wiz_fetch`, the pipeline looks up the product's `ProductMemoryEntry` rows. Findings matching a `"deleted"` entry are skipped entirely. Findings matching an `"excepted"` entry have their exception flag set and reason populated automatically, so they appear in the PDF with the exception banner without requiring manual action.
+
+### Exception Carry-Forward Hardening (stable rule match, loose-match marker, stale-entry list)
+Remembered exceptions, acknowledgements, deletions and temporary exceptions now follow a finding by its stable Wiz rule ID, not only by its title, so a renamed rule still carries forward. Findings of types without a usable ID (secrets, excessive access, end of life, supply chain, network exposure, data, vulnerabilities) keep matching by subscription and title, and older memory entries keep working that way. When a finding is restored through the rule ID but its title changed, it is marked as a loose match for the interface only; the marker never reaches the PDF or exports. After every import (single query, bulk, and the scheduled pipeline scan) the app computes the remembered entries of the scanned subscriptions that matched nothing, tells the interface so they can be reviewed, and lets an editor drop each stale entry. The aggregated vulnerability finding now carries forward on the pipeline path too.
 
 ---
 

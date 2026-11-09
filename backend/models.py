@@ -96,6 +96,7 @@ class ProductMemoryEntry(db.Model):
     __table_args__ = (
         db.UniqueConstraint("product_id", "subscription", "title"),
         db.CheckConstraint("source IN ('excepted','deleted','temp_excepted','acknowledged')", name="ck_memory_source"),
+        db.Index("ix_memory_product_rule_key", "product_id", "rule_key"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
@@ -105,6 +106,8 @@ class ProductMemoryEntry(db.Model):
     reason = db.Column(db.String(1000), nullable=True)
     source = db.Column(db.String(20), nullable=False, default="excepted")  # excepted, deleted, temp_excepted, acknowledged
     consumed_at = db.Column(db.DateTime, nullable=True)  # BL-12: tracks when temp action was applied (multi-worker safe)
+    # BL-24: stable rule-level match key "<queryType>|<rule id>"; NULL for legacy rows and for finding types with no stable id.
+    rule_key = db.Column(db.String(300), nullable=True)
 
     product = db.relationship("Product", back_populates="memory_entries")
 

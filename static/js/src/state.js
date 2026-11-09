@@ -23,5 +23,8 @@ export const state = {
   aiEnabled: false,
   // Snapshot hash of last saved state (for unsaved-changes detection).
   // Updated on successful save and on applySnapshot load.
-  lastSavedSnapshotHash: null
+  lastSavedSnapshotHash: null,
+  // BL-24: remembered exceptions/deletes that matched no finding in the last import.
+  // Written by memory-match.js publishUnmatchedMemory(); mirrored by the 'memory:unmatched' event.
+  unmatchedMemory: { entries: [], scope: null }
 };

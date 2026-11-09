@@ -25,6 +25,7 @@ _MAX_MEMORY_ENTRIES = 2000
 _MAX_SUBSCRIPTION_LEN = 200
 _MAX_TITLE_LEN = 500
 _MAX_REASON_LEN = 1000
+_MAX_RULE_KEY_LEN = 300  # BL-24: ProductMemoryEntry.rule_key column width
 _MEMORY_SOURCES = ("excepted", "deleted", "temp_excepted", "acknowledged")
 
 
@@ -795,6 +796,10 @@ def _memory_to_dict(product_id: str) -> dict:
                 "exception": True,
                 "reason": e.reason or "",
                 "source": e.source,
+                # BL-24: original (normalised) fields so clients can match by rule and drop stale entries
+                "subscription": e.subscription,
+                "title": e.title,
+                "rule_key": e.rule_key,
             }
             for e in entries
         },
@@ -829,6 +834,7 @@ def upsert_memory_entry(product_id: str):
     title = data.get("title", "")
     reason = data.get("reason", "")
     source = data.get("source", "excepted")
+    rule_key = data.get("rule_key")
 
     if not isinstance(subscription, str) or not subscription.strip():
         return jsonify({"error": "subscription: required non-empty string"}), 400
@@ -844,6 +850,16 @@ def upsert_memory_entry(product_id: str):
         return jsonify({"error": "source: must be one of " + ", ".join(_MEMORY_SOURCES)}), 400
     if _contains_traversal(subscription) or _contains_traversal(title):
         return jsonify({"error": "Invalid field value"}), 400
+    # BL-24: optional stable rule key ("<queryType>|<rule id>"); absent/blank = no key
+    if rule_key is not None:
+        if not isinstance(rule_key, str):
+            return jsonify({"error": "rule_key: must be a string"}), 400
+        rule_key = rule_key.lower().strip() or None
+        if rule_key is not None:
+            if len(rule_key) > _MAX_RULE_KEY_LEN:
+                return jsonify({"error": "rule_key: too long"}), 400
+            if _contains_traversal(rule_key):
+                return jsonify({"error": "Invalid field value"}), 400
 
     count = ProductMemoryEntry.query.filter_by(product_id=safe_id).count()
     if count >= _MAX_MEMORY_ENTRIES:
@@ -858,6 +874,8 @@ def upsert_memory_entry(product_id: str):
     if existing:
         existing.reason = reason
         existing.source = source
+        if rule_key is not None:
+            existing.rule_key = rule_key
     else:
         db.session.add(ProductMemoryEntry(
             product_id=safe_id,
@@ -865,6 +883,7 @@ def upsert_memory_entry(product_id: str):
             title=title.lower().strip(),
             reason=reason,
             source=source,
+            rule_key=rule_key,
         ))
 
     db.session.commit()
@@ -897,8 +916,19 @@ def delete_memory_entry(product_id: str):
 
     if entry:
         db.session.delete(entry)
-        db.session.commit()
 
+    # BL-24: when the client also sends the finding's rule_key, entries of the same rule in the
+    # same subscription (stored under an older title) are cleared too, so an un-excepted finding
+    # does not come back from a stale entry on the next scan.
+    rule_key = data.get("rule_key")
+    if isinstance(rule_key, str) and rule_key.strip() and len(rule_key) <= _MAX_RULE_KEY_LEN             and subscription.strip():
+        ProductMemoryEntry.query.filter_by(
+            product_id=safe_id,
+            subscription=subscription.lower().strip(),
+            rule_key=rule_key.lower().strip(),
+        ).delete(synchronize_session=False)
+
+    db.session.commit()
     return jsonify({"ok": True}), 200
 
 

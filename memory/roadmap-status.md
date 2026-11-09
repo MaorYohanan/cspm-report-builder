@@ -474,6 +474,10 @@ BL-23 follow-ups (fix/bl-23-followups): 🔍 ready to merge after QA
 - Tests: 346 passed (excluding tests/test_ssc_query.py). Cache-busters: builder.css v=191, main.js v=207.
 - Out of scope / left as-is: the 3 pre-existing inline-onclick CSP console errors on page load (findings.js empty-state buttons); findings table caption and some other findings.js strings are still hard-coded Hebrew.
 
+BL-24 (Carry-forward hardening): 🔍 awaiting merge approval (Part 2 backend + business-logic JS done 2026-11-09; designer UI part still to come)
+- Branch: feature/bl-24-carry-forward-hardening (not merged, not pushed). Stable rule key (`ProductMemoryEntry.rule_key`, Alembic c24b7e9f1a30 on top of b23a0c5d7e11) matched first, (subscription,title) fallback, `_matchedLoosely` UI marker, `memory:unmatched` event + `dropMemoryEntry` helper, pipeline `unmatched_memory` payload, VULN-001 pipeline carry-forward fix. ExcludeRule server-side split out as BL-37 (unscheduled). Cache-buster main.js v=208.
+- Tests: 420 passed (excluding tests/test_ssc_query.py), 0 skipped; migration verified up/down on temp DB copies only. The user's DB still needs `alembic upgrade head` (or an app start, which backfills the column in dev SQLite).
+
 ## Next session — where to resume (written 2026-11-08)
 
 - State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Follow-up branch fix/bl-23-followups merged to main locally 2026-11-09 (merge 6d8e994, NOT pushed). Tests: 346 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.

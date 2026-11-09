@@ -1,4 +1,5 @@
 import { showToast } from './core.js';
+import { publishUnmatchedMemory } from './memory-match.js';
 
 // ═══════════════════════════════════════════
 // Pipeline Dashboard — pipeline.js
@@ -424,6 +425,9 @@ export var PipelinePanel = {
                 if (job.status === 'done') {
                     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
                     showToast('הסריקה הושלמה — ' + (job.findings_count || 0) + ' ממצאים יובאו', 'success');
+                    // BL-24: remembered exceptions that matched no finding in this scan (always published;
+                    // an empty list hides the panel)
+                    publishUnmatchedMemory(job.unmatched_memory || [], { type: 'pipeline', productId: productId, snapshotId: snapshotId });
                     // TODO: wire a "View findings" action here that opens the product's
                     // snapshot in the Findings editor (full implementation: Roadmap 2.3).
                     self.load();

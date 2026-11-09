@@ -6,6 +6,7 @@ import { autoSave } from './export.js';
 import { t, carryForwardMessage } from './i18n.js';
 import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules } from './exclude_rules.js';
+import { buildRuleKey, memoryEntriesToList, applyMemoryToFindings, computeUnmatchedEntries, publishUnmatchedMemory } from './memory-match.js';
 
 // ── queryType → CSPM category assigned at import time ───────────────────────
 // Used by the exclude-rules filter to match on 'category' field.
@@ -1187,6 +1188,7 @@ function _resolveItemCategory(item, qt) {
           autoSave();
           switchToTab('tab-findings-list');
           showToast('יובאו ' + selected.length + ' פגיעויות כממצא מאוחד', 'success');
+          stampAndApplyMemory(beforeCount, subscription);
           return;
         }
 
@@ -1248,6 +1250,7 @@ function _resolveItemCategory(item, qt) {
           autoSave();
           switchToTab('tab-findings-list');
           showToast('יובאו ' + selected.length + ' ממצאות EOL כממצא מאוחד', 'success');
+          stampAndApplyMemory(beforeCount, subscription);
           return;
         }
 
@@ -1440,6 +1443,9 @@ function _resolveItemCategory(item, qt) {
           });
           
           var lastFinding = state.findings[state.findings.length - 1];
+          // BL-24: stable rule key for Product Memory matching (null for types without a rule id)
+          var _rk = buildRuleKey(firstItem, wiziQueryType);
+          if (_rk) lastFinding._ruleKey = _rk;
           
           // Set owner field to subscription(s) - works for single or multiple items
           if (allSubscriptions.length > 0) {
@@ -1583,13 +1589,7 @@ function _resolveItemCategory(item, qt) {
         showToast(msg, 'success');
 
         // Stamp source subscription and apply product memory
-        var newFindings = state.findings.slice(beforeCount);
-        if (subscription) {
-          newFindings.forEach(function(f) {
-            if (!f._sourceSubscription) f._sourceSubscription = subscription;
-          });
-        }
-        applyProductMemory(newFindings, subscription);
+        var newFindings = stampAndApplyMemory(beforeCount, subscription);
 
         // Enrich newly imported state.findings with AI remediation summaries
         if (newFindings.length) {
@@ -4180,6 +4180,9 @@ function _resolveItemCategory(item, qt) {
             imported++;
 
             var lastFinding = state.findings[state.findings.length - 1];
+            // BL-24: stable rule key for Product Memory matching (null for types without a rule id)
+            var _bulkRk = buildRuleKey(firstItem, queryType);
+            if (_bulkRk) lastFinding._ruleKey = _bulkRk;
 
             // Tag with Wiz source ID
             if (firstItem.id) {
@@ -4291,48 +4294,53 @@ function _resolveItemCategory(item, qt) {
         });
       }
 
-      // ── Product Memory: auto-except previously handled state.findings ──
-      function applyProductMemory(newFindings, subscription) {
-        if (!newFindings || !newFindings.length) return;
+      // BL-24: stamp the source subscription on the freshly imported findings, then apply memory.
+      // Used by the single-query import path (including its early-return aggregate branches).
+      function stampAndApplyMemory(beforeCount, subscription) {
+        var newFindings = state.findings.slice(beforeCount);
+        if (subscription) {
+          newFindings.forEach(function(f) {
+            if (!f._sourceSubscription) f._sourceSubscription = subscription;
+          });
+        }
+        applyProductMemory(newFindings, subscription, {
+          scopeType: 'single',
+          queryType: wiziQueryType,
+          // A paginated/limited fetch is only a window onto the subscription: with more pages
+          // available we cannot tell stale from not-yet-fetched, so no stale claims are made.
+          complete: !wiziHasNextPage,
+          seenNodes: (wiziIssues || []).map(function(item) {
+            return { title: getWiziItemTitle(item, wiziQueryType), ruleKey: buildRuleKey(item, wiziQueryType) };
+          })
+        });
+        return newFindings;
+      }
+
+      // ── Product Memory: auto-except previously handled state.findings (BL-24: rule key first,
+      // (subscription, title) fallback, loose marker, unmatched-entries event) ──
+      // ctx: { scopeType: 'single'|'bulk', queryType?, seenNodes: [{title, ruleKey}], complete: bool }
+      function applyProductMemory(newFindings, subscription, ctx) {
+        ctx = ctx || {};
         var product = ProductsPanel && ProductsPanel.selectedProduct;
-        if (!product || !product.id) return;
-        if (!subscription) return;
+        var scope = {
+          type: ctx.scopeType || 'single',
+          productId: (product && product.id) || null,
+          subscription: subscription || '',
+          queryType: ctx.queryType || null
+        };
+        // Always publish (an empty list hides the panel) — even when memory cannot be consulted.
+        if (!product || !product.id || !subscription) { publishUnmatchedMemory([], scope); return; }
+        newFindings = newFindings || [];
 
         fetch('/api/products/' + encodeURIComponent(product.id) + '/memory')
           .then(function(r) { return r.ok ? r.json() : null; })
           .then(function(data) {
-            if (!data || !data.entries) return;
-            var entries = data.entries;
-            var subKey = subscription.toLowerCase().trim();
-            var matched = 0;
-            var matchedAck = 0;
-            var tempFlagged = 0;
-            var tempToConsume = [];
-            newFindings.forEach(function(f) {
-              if (!f.title) return;
-              var key = subKey + '::' + f.title.toLowerCase().trim();
-              var entry = entries[key];
-              if (!entry) return;
-              // BL-12: temp exception was for the previous report only. The finding
-              // stays ACTIVE (counts toward risk), gets a UI-only reminder flag, and
-              // the temp memory entry is consumed once (skip if already flagged so a
-              // repeated call never fires a second DELETE).
-              if (entry.source === 'temp_excepted') {
-                if (f._wasTempActioned) return;
-                f._wasTempActioned = true;
-                f._tempActionReason = 'excepted';
-                tempFlagged++;
-                tempToConsume.push({ subscription: subKey, title: f.title.toLowerCase().trim() });
-                return;
-              }
-              if (!(f.exception && f.exception.active)) {
-                f.exception = { active: true, reason: entry.reason || '' };
-                // BL-23: carry the dismissal kind forward ('acknowledged' memory source -> kind
-                // 'acknowledge', hidden from the PDF). Legacy 'excepted' entries stay plain exclusions.
-                if (entry.source === 'acknowledged') { f.exception.kind = 'acknowledge'; matchedAck++; }
-                else matched++;
-              }
-            });
+            if (!data || !data.entries) { publishUnmatchedMemory([], scope); return; }
+            var list = memoryEntriesToList(data.entries);
+            var res = applyMemoryToFindings(newFindings, list, subscription);
+            var matched = res.matched;
+            var matchedAck = res.matchedAck;
+            var tempFlagged = res.tempFlagged;
             if (matched > 0 || matchedAck > 0 || tempFlagged > 0) {
               renderFindingsTable();
               if (typeof state.selectedFindingIndex === 'number' && state.findings[state.selectedFindingIndex]) {
@@ -4344,7 +4352,7 @@ function _resolveItemCategory(item, qt) {
               showToast(carryForwardMessage(matched, matchedAck), 'info');
             }
             // Consume temp entries now that the flagged findings are in state (non-blocking).
-            tempToConsume.forEach(function(body) {
+            res.tempToConsume.forEach(function(body) {
               try {
                 fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
                   method: 'DELETE',
@@ -4353,8 +4361,21 @@ function _resolveItemCategory(item, qt) {
                 }).catch(function() {});
               } catch (e) { /* swallow */ }
             });
+
+            var unmatched = [];
+            if (ctx.complete !== false) {
+              // Seen = everything fetched for this scan + every finding already in the report
+              // (skipped duplicates / earlier imports), so only truly absent entries are stale.
+              var seen = (ctx.seenNodes || []).slice();
+              state.findings.forEach(function(f) {
+                seen.push({ subscription: f._sourceSubscription || '', title: f.title, ruleKey: f._ruleKey });
+              });
+              unmatched = computeUnmatchedEntries(list, res.matchedKeys,
+                { subscription: subscription, queryType: ctx.queryType || null }, seen);
+            }
+            publishUnmatchedMemory(unmatched, scope);
           })
-          .catch(function() {});
+          .catch(function() { publishUnmatchedMemory([], scope); });
       }
 
       var btnBulkSelectAll = document.getElementById('btn-bulk-select-all');
@@ -4476,7 +4497,14 @@ function _resolveItemCategory(item, qt) {
                   if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;
                 });
               }
-              applyProductMemory(newFindings, bulkSubscription);
+              // BL-24: everything fetched for this subscription counts as "seen" (not only what was imported)
+              var bulkSeen = [];
+              Object.keys(state.bulkImportResults || {}).forEach(function(qt) {
+                (state.bulkImportResults[qt] || []).forEach(function(node) {
+                  bulkSeen.push({ title: getWiziItemTitle(node, qt), ruleKey: buildRuleKey(node, qt) });
+                });
+              });
+              applyProductMemory(newFindings, bulkSubscription, { scopeType: 'bulk', seenNodes: bulkSeen, complete: true });
 
               // Enrich newly imported findings with AI remediation summaries.
               if (newFindings.length) {
