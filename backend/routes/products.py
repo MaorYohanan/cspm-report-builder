@@ -758,7 +758,11 @@ def list_exceptions():
                         or fd.get("exceptionReason")
                         or (fd.get("exception") or {}).get("reason")
                     )
+                    exc_obj = fd.get("exception")
                     result.append({
+                        "temporary": bool(
+                            isinstance(exc_obj, dict) and exc_obj.get("source") == "temp_excepted"
+                        ),
                         "productName": p.name,
                         "productId": str(p.id),
                         "findingTitle": fd.get("title"),

@@ -224,6 +224,7 @@ const TRANSLATIONS = {
     // ── Exceptions panel ──
     'סוג': 'Type',
     'החרגה': 'Exclusion',
+    'זמני': 'Temporary',
     'אישור (מוסתר)': 'Acknowledged (hidden)',
     'לא ניתן להחיל פעולה זמנית על ממצא מאושר. בטל את האישור תחילה.': 'A temporary action cannot be applied to an acknowledged finding. Cancel the acknowledgement first.',
     // Auto-carry-forward toast: phrase (singular / plural) + suffix, composed in wizi.js
