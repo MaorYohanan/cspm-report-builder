@@ -476,7 +476,7 @@ BL-23 follow-ups (fix/bl-23-followups): 🔍 ready to merge after QA
 
 ## Next session — where to resume (written 2026-11-08)
 
-- State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Branch fix/bl-23-followups holds the follow-up work awaiting merge approval. Tests: 346 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.
+- State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Follow-up branch fix/bl-23-followups merged to main locally 2026-11-09 (merge 6d8e994, NOT pushed). Tests: 346 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.
 - User personally verified BL-23 checks 1-3: real Wiz import with product memory, live Gemini call, and a PDF page with an acknowledged finding.
 - Still unverified: the Postgres migration (Alembic b23a0c5d7e11). The user's local DB `alembic upgrade head` status is unknown; do not touch their DB, ask them to run it.
 - Next: **BL-24 is design-first — no code until a design session** (must be designed together with the shipped acknowledge/exclude split). Then BL-14 (webhooks), which starts Tier 4.
