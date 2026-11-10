@@ -99,6 +99,8 @@ const TRANSLATIONS = {
     // ── Finding form ──
     'תבנית מוכנה': 'Template',
     'קטגוריה': 'Category',
+    'נתיב': 'Path',
+    'נתיב (Path)': 'Path',
     'מזהה *': 'ID *',
     'כותרת ממצא *': 'Finding Title *',
     'חומרה': 'Severity',

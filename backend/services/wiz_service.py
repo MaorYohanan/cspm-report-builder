@@ -504,11 +504,23 @@ class WizService:
         ]
 
 
+# BL-38: the browser Wiz import always narrows vulnerabilityFindings to actionable
+# findings: exploit available, fix available, and verified running in runtime.
+# (Severity HIGH/CRITICAL is already the default.) Passed explicitly by the browser
+# import routes; the scheduled pipeline does not use it.
+VULN_ACTIONABLE_FILTERS: Dict[str, bool] = {
+    "hasExploit": True,
+    "hasFix": True,
+    "validatedInRuntime": True,
+}
+
+
 def build_bulk_filter(
     query_type: str,
     sub_ids: List[str],
     sub_ext_ids: List[str],
     sub_names: List[str] | None = None,
+    vuln_filters: Dict[str, bool] | None = None,
 ) -> Dict[str, Any]:
     """Build a filterBy dict for a given query type.
 
@@ -520,6 +532,8 @@ def build_bulk_filter(
       for endOfLifeFindings (schema-appropriate format per query type)
     - Status: OPEN + IN_PROGRESS (or FAIL for configurationFindings)
     - Subscription scope: correct filter field per query type
+    - vuln_filters (BL-38): extra hasExploit / hasFix / validatedInRuntime flags,
+      applied to vulnerabilityFindings only (never endOfLifeFindings, never the pipeline)
     """
     sub_names = sub_names or []
     filter_by: Dict[str, Any] = {}
@@ -591,5 +605,8 @@ def build_bulk_filter(
     # softwareSupplyChainFindings: Wiz's SSC filter type has no subscription scope field.
     elif query_type == "malwareFindings" and sub_ids:
         filter_by["cloudAccount"] = {"id": {"equals": sub_ids}}
+
+    if query_type == "vulnerabilityFindings" and vuln_filters:
+        filter_by.update(vuln_filters)
 
     return filter_by

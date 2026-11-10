@@ -42,12 +42,18 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | Order | ID | Feature | Effort | Note |
 |-------|----|---------|--------|------|
 | — | BL-31 | Product Memory for Pipeline-Scanned Findings | Medium | **UNSCHEDULED** — pipeline findings carry no `_sourceSubscription`; design question open |
-| — | BL-32 | Temporary Label in Exceptions Overview | Low | **UNSCHEDULED** — cosmetic: temp exceptions look permanent in `/api/exceptions` view |
+| — | BL-32 | Temporary Label in Exceptions Overview | Low | ✅ **DONE 2026-11-10** — `temporary` flag + "זמני" chip in the Exceptions list |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | **UNSCHEDULED** — nothing in the repo creates or reads `app.pid`/`app.log`; decide whether to keep, replace or remove |
-| — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | **UNSCHEDULED** — splitter drops `id="finding-F-xxx"` on chunked cards; many treatment-table links are dead in the PDF |
+| — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | ✅ **DONE 2026-11-10** — splitter keeps the anchor on the first chunk (needs a `qa` PDF geometry check) |
 | — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | **UNSCHEDULED** — critical 3.43, info 4.03, low 4.42 are below 4.5:1; needs PDF/visual check |
 | — | BL-36 | Translation Sweep for Remaining Hebrew in English Mode | Medium | **UNSCHEDULED** — several modules still show hard-coded Hebrew when the UI is English |
 | — | BL-37 | Server-Side Exclude Rules for Pipeline Scans | Medium | **UNSCHEDULED** — ExcludeRule is applied only in the browser import paths; pipeline scans ignore it |
+| — | BL-38 | Wiz Vulnerability Query Filters (Exploit / Fix+Runtime / High+Critical) | Medium | ✅ **DONE 2026-11-10** — filters always embedded in the browser vuln import; also resource cap (5 + "ועוד N..."), Wiz `Reference:` link and a `path` exclude-rule field |
+| — | BL-39 | Priority Default from Severity on All Creation Paths | Low | **UNSCHEDULED** — user priority; BL-21 already covers the manual form, verify Wiz/bulk/pipeline paths |
+| — | BL-40 | XLSX Export Instead of CSV | Medium | **UNSCHEDULED** — user priority: export a formatted XLSX table rather than CSV |
+| — | BL-41 | Pipeline Product Name Links to Product History | Low | **UNSCHEDULED** — user priority: product name in scan dashboard opens its history in Products page |
+| — | BL-42 | Return to Findings Page After Finding Edit | Low | **UNSCHEDULED** — user priority: finishing an edit navigates back to the findings list |
+| — | BL-43 | Filter / Sort in Interactive HTML Export | Medium | **UNSCHEDULED** — user priority: filter by category, sort by severity high→low |
 
 ### Tier 3 — Significant Features _(3 of 5 complete)_
 Heavier implementation, meaningful product depth.
@@ -307,7 +313,7 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Effort:** Medium
 **Notes:** `_transform_finding` in `backend/routes/pipeline.py` does not copy `_sourceSubscription` into the stored finding, and the memory-save calls in `findings.js` (`attachExceptionReasonButton*` / memory POST helpers) bail out when it is missing. Open design question: a merged multi-subscription finding has `owner` = comma-joined subscription names and no single subscription, so it is ambiguous which `(subscription, title)` key to write (all of them? the first? one entry per subscription?). Needs a decision, and must stay consistent with the matching in `_store_findings_with_memory` and with BL-24 (carry-forward hardening). Not implemented.
 
-### BL-32 · Temporary Label in Exceptions Overview (UNSCHEDULED)
+### BL-32 · Temporary Label in Exceptions Overview ✅ DONE 2026-11-10
 **Why:** A temporarily excepted finding in a published snapshot appears in the exceptions overview as an ordinary exception, so reviewers cannot tell it is due for review next cycle.
 **Effort:** Low
 **Notes:** Cosmetic. `GET /api/exceptions` (`backend/routes/products.py`) and `static/js/src/exceptions.js` do not read `exception.source`; add a `temporary` flag in the API response and a "זמני" badge in the list. Not implemented.
@@ -317,7 +323,7 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Effort:** Low
 **Notes:** Added to `.gitignore` on 2026-11-04 so they cannot be committed, but the underlying question is open. To check: (1) is there a documented way to start/stop the app in the background (a script, a Make target or a docs section) or is this ad-hoc; (2) should the PID/log live under `instance/` (already ignored) or a `logs/` folder instead of the project root; (3) should startup refuse or warn when `app.pid` points at a live process, and clean it up when the PID is stale; (4) note that the app's own logging is JSON to stdout (`backend/logging_config.py`), so `app.log` is only whatever the launching shell redirected. Not implemented.
 
-### BL-34 · Keep Finding Anchors After PDF Card Splitting (UNSCHEDULED)
+### BL-34 · Keep Finding Anchors After PDF Card Splitting ✅ DONE 2026-11-10
 **Why:** Found by BL-04 QA (2026-11-04, 75 mock findings): the card splitter in `pdf_service.py` rebuilds chunk cards as new `div.finding-card` elements without the `id="finding-F-xxx"` anchor. About 53 of 75 findings lost their anchor, and 159 of 231 internal `#` links pointed at missing ids, so those treatment-table links are dead in the PDF. Pre-existing, not caused by BL-04. Also blocks per-finding bookmarks.
 **Effort:** Medium
 **Notes:** Candidate fix: keep the id on the first chunk of each split card. Needs `qa` before/after and the PDF geometry check. Unrelated nits seen in the same pass: heading id `detailed-state.findings` (findings.js ~3689) looks like a typo; section numbering skips 3. Not implemented.
@@ -382,3 +388,33 @@ Features implemented outside the prioritized backlog, added by direct user reque
 **Why:** Exclude rules (title / category rules stored in `ExcludeRule`) filter findings only in the browser single-query and bulk import paths. Findings stored by the server-side pipeline scan (`_store_findings_with_memory`) never see them, so rules the user relies on silently stop working for scheduled scans. Split out of BL-24 (carry-forward hardening) as out of scope.
 **Effort:** Medium
 **Notes:** Apply the active rules in the pipeline store step with the same semantics as `isExcludedByRules` (fields `title` / `category`; operators `startsWith` / `contains` / `regex`, with the existing regex safety limits), before memory matching. Needs a shared definition of the category for a raw node (the browser resolves it via `_resolveItemCategory`). Decide whether excluded findings are dropped or stored and flagged. Not implemented.
+
+### BL-38 · Wiz Vulnerability Query Filters ✅ DONE 2026-11-10 (no UI toggle: always applied; AND of all three flags)
+**Why:** (User priority) The WIZI vulnerability query returns too much noise. Add filters for: exploit available (`hasExploit`), fix available AND verified running at runtime, and High + Critical severity.
+**Effort:** Medium
+**Notes:** Must be added to BOTH wizi.js import paths (single query and bulk) and to the backend filter allow-list in `wiz.py`. Check the Wiz `VulnerabilityFindingFilters` field names (use `wiz-researcher`: `hasExploit`, `hasFix`, runtime-verification field). Needs UI controls in the Wiz import panel.
+
+### BL-39 · Priority Default from Severity on All Creation Paths (UNSCHEDULED)
+**Why:** (User priority) Treatment priority should default from severity everywhere.
+**Effort:** Low
+**Notes:** BL-21 already auto-fills `#f-priority` on severity change in the manual form. Verify and cover the remaining paths: Wiz single/bulk import, pipeline-stored findings, JSON/CSV import, batch severity edit (BL-09).
+
+### BL-40 · XLSX Export Instead of CSV (UNSCHEDULED)
+**Why:** (User priority) A formatted XLSX table is easier to read and filter than CSV.
+**Effort:** Medium
+**Notes:** Keep the B.18 column set and ordering (Hebrew headers, severity sort, exception columns). Needs a library (e.g. openpyxl server-side, or SheetJS client-side, no build step), Excel table with header styling, filters and RTL sheet view. Decide whether to keep CSV as an option and keep import round-trip.
+
+### BL-41 · Pipeline Product Name Links to Product History (UNSCHEDULED)
+**Why:** (User priority) Jump from a product name in the scan dashboard to its timeline in the Products page.
+**Effort:** Low
+**Notes:** `pipeline.js` renders names; Products timeline opens via `products.js`. Make the name a link/button that switches tab and opens the timeline for that product id.
+
+### BL-42 · Return to Findings Page After Finding Edit (UNSCHEDULED)
+**Why:** (User priority) After saving an edit, the user should land back on the findings page.
+**Effort:** Low
+**Notes:** Use `switchToTab` in `findings.js` after a successful save/cancel of the edit form; keep scroll position and filters.
+
+### BL-43 · Filter / Sort in Interactive HTML Export (UNSCHEDULED)
+**Why:** (User priority) The interactive HTML export should let readers filter by category and sort by severity (high to low).
+**Effort:** Medium
+**Notes:** Edit `templates/interactive_export_template.html` (self-contained, inline JS/CSS, RTL). Must stay CSP-safe and keep acknowledged findings stripped. Not PDF path.

@@ -346,3 +346,52 @@ class TestExcludeRulesRoute:
         with unauth_app.app_context():
             resp = tc.delete("/api/wizi/exclude-rules/9999")
             assert resp.status_code == 404
+
+
+# ── Path rules (filter Path / Affected Paths of imported findings) ───────────
+def test_real_route_accepts_path_field():
+    from backend.routes.wiz import _VALID_FIELDS
+    assert "path" in _VALID_FIELDS
+
+
+def _node_rules(expr: str, rules: list):
+    import json
+    import shutil
+    import subprocess
+    from pathlib import Path
+    if shutil.which("node") is None:
+        pytest.skip("node not installed")
+    mod = (Path(__file__).resolve().parent.parent / "static" / "js" / "src" / "exclude_rules.js")
+    # exclude_rules.js touches the DOM/fetch at import time, so test the pure helpers via a stub
+    src = mod.read_text(encoding="utf-8")
+    start = src.index("export function isExcludedByRules")
+    end = src.index("// ── Fetch rules from server")
+    body = src[start:end].replace("export ", "")
+    script = (
+        "const _rules = " + json.dumps(rules) + ";"
+        "function getActiveExcludeRules(){return _rules.filter(r=>r.active);}"
+        + body + f"console.log(JSON.stringify({expr}));"
+    )
+    out = subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+def test_path_rule_matches_any_item_path_case_insensitive():
+    rules = [{"field": "path", "operator": "startsWith", "pattern": "/opt/app/test", "active": True}]
+    assert _node_rules("isExcludedByRules('t','SECR',['/OPT/app/test/key.pem'])", rules) is True
+    assert _node_rules("isExcludedByRules('t','SECR',['/etc/passwd','/opt/app/test/x'])", rules) is True
+    assert _node_rules("isExcludedByRules('t','SECR',['/etc/passwd'])", rules) is False
+    assert _node_rules("isExcludedByRules('t','SECR')", rules) is False  # no paths -> never matches
+
+
+def test_path_rule_does_not_touch_title_or_category_rules():
+    rules = [{"field": "path", "operator": "contains", "pattern": "title", "active": True}]
+    assert _node_rules("isExcludedByRules('my title','SECR',[])", rules) is False
+    rules = [{"field": "title", "operator": "contains", "pattern": "x", "active": True}]
+    assert _node_rules("isExcludedByRules('xyz','SECR',['/p'])", rules) is True
+
+
+def test_get_wiz_item_paths():
+    assert _node_rules("getWiziItemPaths({path:'/a', filePath:'/b', fileDetails:{path:'/c'}})", []) == ["/a", "/b", "/c"]
+    assert _node_rules("getWiziItemPaths({})", []) == []
+    assert _node_rules("getWiziItemPaths(null)", []) == []

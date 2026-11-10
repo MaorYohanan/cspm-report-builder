@@ -1415,6 +1415,8 @@ let priorityTouched = false;
           // BL-24: stable rule key (memory matching) and the UI-only "matched loosely" marker
           if (typeof f._ruleKey === 'string' && f._ruleKey) loaded._ruleKey = f._ruleKey;
           if (f._matchedLoosely) loaded._matchedLoosely = true;
+          // Full resource list behind the capped "ועוד N..." technical line
+          if (Array.isArray(f._resources) && f._resources.length) loaded._resources = f._resources.filter(function(r) { return typeof r === 'string'; });
           state.findings.push(loaded);
         });
 
