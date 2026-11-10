@@ -31,18 +31,28 @@ export function getActiveExcludeRules() {
 //
 // itemTitle    — result of getWiziItemTitle(item, qt)
 // itemCategory — the CSPM category the item would be assigned (CSPM, VULN, …)
+// itemPaths    — (optional) file / secret paths of the item, see getWiziItemPaths();
+//                a 'path' rule excludes the item when ANY of its paths matches
 //
-export function isExcludedByRules(itemTitle, itemCategory) {
+export function isExcludedByRules(itemTitle, itemCategory, itemPaths) {
   var active = getActiveExcludeRules();
   if (!active.length) return false;
   return active.some(function(rule) {
-    return _matchesRule(rule, itemTitle, itemCategory);
+    return _matchesRule(rule, itemTitle, itemCategory, itemPaths);
   });
 }
 
-function _matchesRule(rule, itemTitle, itemCategory) {
-  var value = (rule.field === 'title' ? itemTitle : itemCategory) || '';
-  value = value.toLowerCase();
+// Paths a raw Wiz node carries: secret instances (path), host configuration (filePath),
+// malware (fileDetails.path). These are what end up in the finding's Path / Affected Paths line.
+export function getWiziItemPaths(item) {
+  if (!item) return [];
+  return [item.path, item.filePath, (item.fileDetails || {}).path].filter(function(p) {
+    return typeof p === 'string' && p;
+  });
+}
+
+function _matchValue(rule, value) {
+  value = (value || '').toLowerCase();
   var pattern = (rule.pattern || '').toLowerCase();
   if (rule.operator === 'startsWith') return value.startsWith(pattern);
   if (rule.operator === 'contains')   return value.includes(pattern);
@@ -55,6 +65,13 @@ function _matchesRule(rule, itemTitle, itemCategory) {
     }
   }
   return false;
+}
+
+function _matchesRule(rule, itemTitle, itemCategory, itemPaths) {
+  if (rule.field === 'path') {
+    return (itemPaths || []).some(function(p) { return _matchValue(rule, p); });
+  }
+  return _matchValue(rule, rule.field === 'title' ? itemTitle : itemCategory);
 }
 
 // ── Fetch rules from server and refresh cache ────────────────────────────────
@@ -74,7 +91,7 @@ function _loadRules() {
 }
 
 // ── Render the rules table ───────────────────────────────────────────────────
-var _FIELD_LABELS = { title: 'כותרת', category: 'קטגוריה' };
+var _FIELD_LABELS = { title: 'כותרת', category: 'קטגוריה', path: 'נתיב' };
 var _OP_LABELS    = { startsWith: 'מתחיל ב-', contains: 'מכיל', regex: 'Regex' };
 
 function _render() {

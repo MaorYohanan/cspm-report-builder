@@ -41,7 +41,7 @@ from backend.graphql.queries import (
     SOFTWARE_SUPPLY_CHAIN_QUERY,
     VULN_FINDINGS_QUERY,
 )
-from backend.services.wiz_service import WizService, build_bulk_filter
+from backend.services.wiz_service import WizService, build_bulk_filter, VULN_ACTIONABLE_FILTERS
 from backend.services.auth_service import require_role
 from backend.database import db
 from backend.models import ExcludeRule
@@ -335,6 +335,7 @@ def api_wizi_issues():
             filter_by["subscriptionExternalId"] = resolved_sub_ext_ids
         if project_id:
             filter_by["projectIdV2"] = {"equals": as_list(project_id)}
+        filter_by.update(VULN_ACTIONABLE_FILTERS)
         gql = WIZI_VULN_FINDINGS_QUERY
         root_key = "vulnerabilityFindings"
 
@@ -547,7 +548,10 @@ def api_wizi_bulk_fetch():
 
     for query_type, (gql, root_key) in QUERY_TYPE_MAP.items():
         try:
-            filter_by = build_bulk_filter(query_type, resolved_sub_ids, resolved_sub_ext_ids, resolved_sub_names)
+            filter_by = build_bulk_filter(
+                query_type, resolved_sub_ids, resolved_sub_ext_ids, resolved_sub_names,
+                vuln_filters=VULN_ACTIONABLE_FILTERS,
+            )
 
             # Use paginated fetch to get ALL findings without 500 limit
             all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by)
@@ -604,7 +608,10 @@ def api_wizi_bulk_fetch_single():
         resolved_sub_names = resolved["names"]
 
         # --- Fetch single query type ---
-        filter_by = build_bulk_filter(query_type, resolved_sub_ids, resolved_sub_ext_ids, resolved_sub_names)
+        filter_by = build_bulk_filter(
+            query_type, resolved_sub_ids, resolved_sub_ext_ids, resolved_sub_names,
+            vuln_filters=VULN_ACTIONABLE_FILTERS,
+        )
 
         all_nodes = wiz.fetch_all_findings_paginated(query_type, filter_by)
 
@@ -864,7 +871,7 @@ def api_wizi_find_by_id():
     return jsonify({"error": "Finding not found", "id": finding_id}), 404
 
 
-_VALID_FIELDS    = {'title', 'category'}
+_VALID_FIELDS    = {'title', 'category', 'path'}
 _VALID_OPERATORS = {'startsWith', 'contains', 'regex'}
 
 

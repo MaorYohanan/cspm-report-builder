@@ -143,3 +143,18 @@ def test_ssc_has_no_severity_or_status_keys():
 # NOTE: endOfLifeFindings uses VulnerabilityFindingFilters (plain-list severity/status,
 # isEndOfLife=True, subscriptionExternalId). softwareSupplyChainFindings uses its own
 # filter type with no subscription scope field.
+
+
+# ── BL-38: actionable-vulnerability filters ──────────────────────────────────
+from backend.services.wiz_service import VULN_ACTIONABLE_FILTERS
+
+
+def test_vuln_filters_apply_to_vulnerability_findings_only():
+    vuln = build_bulk_filter("vulnerabilityFindings", SUB_IDS, SUB_EXT_IDS, vuln_filters=VULN_ACTIONABLE_FILTERS)
+    assert vuln["hasExploit"] is True and vuln["hasFix"] is True and vuln["validatedInRuntime"] is True
+    assert vuln["severity"] == ["CRITICAL", "HIGH"]
+    for qt in ("endOfLifeFindings", "configurationFindings", "issues"):
+        f = build_bulk_filter(qt, SUB_IDS, SUB_EXT_IDS, vuln_filters=VULN_ACTIONABLE_FILTERS)
+        assert "hasExploit" not in f and "hasFix" not in f and "validatedInRuntime" not in f
+    # default call (scheduled pipeline) is unchanged
+    assert "hasExploit" not in build_bulk_filter("vulnerabilityFindings", SUB_IDS, SUB_EXT_IDS)

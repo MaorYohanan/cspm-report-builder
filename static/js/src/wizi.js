@@ -5,7 +5,9 @@ import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
 import { t, carryForwardMessage } from './i18n.js';
 import { ProductsPanel } from './products.js';
-import { getActiveExcludeRules, isExcludedByRules } from './exclude_rules.js';
+import { getActiveExcludeRules, isExcludedByRules, getWiziItemPaths } from './exclude_rules.js';
+import { capResourceLines, capResourceLine, getFullResources } from './resource-cap.js';
+import { buildWizReference } from './wiz-reference.js';
 import { buildRuleKey, memoryEntriesToList, applyMemoryToFindings, computeUnmatchedEntries, publishUnmatchedMemory } from './memory-match.js';
 
 // ── queryType → CSPM category assigned at import time ───────────────────────
@@ -1000,7 +1002,7 @@ function _resolveItemCategory(item, qt) {
 
           // Apply exclude rules at display time (title-based rules only; category unknown pre-import)
           nodes = nodes.filter(function(item) {
-            return !isExcludedByRules(getWiziItemTitle(item, qt), '');
+            return !isExcludedByRules(getWiziItemTitle(item, qt), '', getWiziItemPaths(item));
           });
 
           if (append) {
@@ -1127,7 +1129,7 @@ function _resolveItemCategory(item, qt) {
           selected = selected.filter(function(item) {
             var _t = getWiziItemTitle(item, wiziQueryType);
             var _c = _resolveItemCategory(item, wiziQueryType);
-            return !isExcludedByRules(_t, _c);
+            return !isExcludedByRules(_t, _c, getWiziItemPaths(item));
           });
           var _excludedCount = _beforeExclude - selected.length;
           if (_excludedCount > 0) {
@@ -1182,7 +1184,9 @@ function _resolveItemCategory(item, qt) {
             owner: subscriptionNames.join(', '),
             evidence: []
           });
+          attachWizRef(state.findings[state.findings.length - 1], 'vulnerabilityFindings', selected);
 
+          capResourceLines(state.findings.slice(beforeCount));
           renderFindingsTable();
           prefillId();
           autoSave();
@@ -1245,6 +1249,7 @@ function _resolveItemCategory(item, qt) {
             notes: []
           });
 
+          capResourceLines(state.findings.slice(beforeCount));
           renderFindingsTable();
           prefillId();
           autoSave();
@@ -1352,6 +1357,7 @@ function _resolveItemCategory(item, qt) {
             }
             
             // Merge resources (avoid duplicates)
+            existingResources = getFullResources(existingFinding);
             var allResources = existingResources.slice();
             newResources.forEach(function(r) {
               if (allResources.indexOf(r) === -1) {
@@ -1375,9 +1381,11 @@ function _resolveItemCategory(item, qt) {
               if (entityLineIndex >= 0) {
                 var prefix = existingFinding.technical[entityLineIndex].split(':')[0];
                 existingFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+                capResourceLine(existingFinding, allResources);
               } else if (allResources.length > 0) {
                 // Entity line doesn't exist, create it at the beginning
                 existingFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+                capResourceLine(existingFinding, allResources);
               }
             }
             
@@ -1455,6 +1463,7 @@ function _resolveItemCategory(item, qt) {
           // If multiple items with same rule, consolidate resources
           if (items.length > 1) {
             consolidated += items.length - 1;
+            attachWizRef(lastFinding, wiziQueryType, items);
 
             // Extract all unique resource names
             var allResources = [];
@@ -1528,17 +1537,10 @@ function _resolveItemCategory(item, qt) {
 
               if (entityLineIndex >= 0) {
                 var prefix = lastFinding.technical[entityLineIndex].split(':')[0];
-                // Cap at 10 resources to prevent multi-page <li> blobs in the PDF (Issue 2)
-                var cappedResources = allResources.length > 10
-                  ? allResources.slice(0, 10).join(', ') + ' (+ ' + (allResources.length - 10) + ' more — see Wiz report)'
-                  : allResources.join(', ');
-                lastFinding.technical[entityLineIndex] = prefix + ': ' + cappedResources;
+                // Capped to 5 + "ועוד N..." by capResourceLines() at the end of the import
+                lastFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
               } else {
-                // Cap at 10 resources to prevent multi-page <li> blobs in the PDF (Issue 2)
-                var cappedResourcesFallback = allResources.length > 10
-                  ? allResources.slice(0, 10).join(', ') + ' (+ ' + (allResources.length - 10) + ' more — see Wiz report)'
-                  : allResources.join(', ');
-                lastFinding.technical.unshift('Affected Resources: ' + cappedResourcesFallback);
+                lastFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
               }
             }
             
@@ -1578,6 +1580,7 @@ function _resolveItemCategory(item, qt) {
           }
         });
 
+        capResourceLines(state.findings.slice(beforeCount));
         renderFindingsTable();
         prefillId();
         autoSave();
@@ -3661,7 +3664,7 @@ function _resolveItemCategory(item, qt) {
             selectedByType[qt] = selectedByType[qt].filter(function(item) {
               var _t = getWiziItemTitle(item, qt);
               var _c = _resolveItemCategory(item, qt);
-              return !isExcludedByRules(_t, _c);
+              return !isExcludedByRules(_t, _c, getWiziItemPaths(item));
             });
             _bulkExcludedTotal += before - selectedByType[qt].length;
           });
@@ -3860,6 +3863,7 @@ function _resolveItemCategory(item, qt) {
               owner: subscriptionNames.join(', '),
               evidence: []
             });
+            attachWizRef(state.findings[state.findings.length - 1], 'vulnerabilityFindings', newItems);
 
             // Tag with first item's source ID for duplicate detection
             if (newItems[0].id) {
@@ -4122,6 +4126,7 @@ function _resolveItemCategory(item, qt) {
               }
 
               // Merge resources
+              existingResources = getFullResources(existingFinding);
               var allResources = existingResources.slice();
               newResources.forEach(function(r) {
                 if (allResources.indexOf(r) === -1) allResources.push(r);
@@ -4141,8 +4146,10 @@ function _resolveItemCategory(item, qt) {
                 if (entityLineIndex >= 0) {
                   var prefix = existingFinding.technical[entityLineIndex].split(':')[0];
                   existingFinding.technical[entityLineIndex] = prefix + ': ' + allResources.join(', ');
+                  capResourceLine(existingFinding, allResources);
                 } else if (allResources.length > 0) {
                   existingFinding.technical.unshift('Affected Resources: ' + allResources.join(', '));
+                  capResourceLine(existingFinding, allResources);
                 }
               }
 
@@ -4207,6 +4214,7 @@ function _resolveItemCategory(item, qt) {
             // If multiple items with same rule, consolidate resources
             if (ruleItems.length > 1) {
               consolidated += ruleItems.length - 1;
+              attachWizRef(lastFinding, queryType, ruleItems);
 
               var allResources = [];
               ruleItems.forEach(function(item) {
@@ -4294,6 +4302,17 @@ function _resolveItemCategory(item, qt) {
             handleBulkImport();
           }
         });
+      }
+
+      // BL-38: remember a Wiz portal link on a consolidated finding; capResourceLines() adds it as a
+      // "Reference:" technical line only when the resource list ends up capped.
+      function attachWizRef(finding, qt, items) {
+        if (!finding) return;
+        var ref = buildWizReference(qt, items, {
+          subscriptionExternalId: selectedSubExternalId,
+          title: finding.title
+        });
+        if (ref) finding._wizRef = ref;
       }
 
       // BL-24: stamp the source subscription on the freshly imported findings, then apply memory.
@@ -4486,6 +4505,7 @@ function _resolveItemCategory(item, qt) {
               if (result.updated) message += ' (' + result.updated + ' ממצאים עודכנו)';
               if (result.skipped) message += ' (' + result.skipped + ' כפולים דולגו)';
               showToast(message, 'success');
+              capResourceLines(state.findings.slice(beforeCount));
               renderFindingsTable();
               updateStepper();
               prefillId();

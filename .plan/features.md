@@ -127,7 +127,9 @@ A "✨ שפר ניסוח" button appears beneath the exception-reason textarea i
 Two distinct import modes in `wizi.js`. "Keep Existing" (הוסף לקיים) appends Wiz findings to the current `state.findings` without clearing them. "Start Fresh" (דוח חדש) clears `state.findings` entirely before import, requiring a double confirmation (styledConfirm + danger confirmation) to prevent accidental data loss. Both modes apply the exclude-rules filter.
 
 ### Exclude-Rules Engine (Pattern-Based Suppression)
-`backend/models.py` defines the `ExcludeRule` ORM model (fields: `field` — title or category; `operator` — startsWith, contains, regex; `pattern`; `active`; `created_at`). Four CRUD routes at `/api/wizi/exclude-rules` (GET `viewer`, POST/PUT/DELETE `editor`) with allowlist validation on field and operator values. The `isExcludedByRules()` function in `exclude_rules.js` is called on every Wiz item in both the single-query path and the bulk import path before a finding is added to `state.findings`. The `[GovIL]` suppression rule previously hardcoded in `wizi.js` is now seeded as a DB row on app startup and managed through the UI.
+`backend/models.py` defines the `ExcludeRule` ORM model (fields: `field` — title, category or path; `operator` — startsWith, contains, regex; `pattern`; `active`; `created_at`). Four CRUD routes at `/api/wizi/exclude-rules` (GET `viewer`, POST/PUT/DELETE `editor`) with allowlist validation on field and operator values. The `isExcludedByRules()` function in `exclude_rules.js` is called on every Wiz item in both the single-query path and the bulk import path before a finding is added to `state.findings`. The `[GovIL]` suppression rule previously hardcoded in `wizi.js` is now seeded as a DB row on app startup and managed through the UI.
+
+A third rule field, `path` (UI label "נתיב (Path)"), matches the file / secret paths a Wiz item carries (secret instances `path`, host configuration `filePath`, malware `fileDetails.path`) using the same operators. It is applied per item before consolidation, so a matching path drops out of the finding's "Affected Paths" line and a finding whose paths all match is not created. `getWiziItemPaths()` in `exclude_rules.js` collects the paths. Not applied to server-side pipeline scans (BL-37).
 
 ---
 
@@ -237,7 +239,7 @@ All state file writes use the `tmp_path → os.replace(final_path)` pattern to p
 `ProductMemoryEntry` table: `id`, `product_id` (FK), `subscription` (string 200), `title` (string 500), `reason` (string 1000), `source` (excepted/deleted, DB check constraint). Unique constraint on `(product_id, subscription, title)`. Used to persist user decisions about findings across report cycles and automated scans.
 
 ### ExcludeRule Model
-`ExcludeRule` table: `id` (integer PK), `field` (title or category), `operator` (startsWith, contains, regex), `pattern` (string 500), `active` (boolean), `created_at`. Used by both the Wiz import UI and pipeline scans to suppress matching findings before they enter `state.findings`.
+`ExcludeRule` table: `id` (integer PK), `field` (title, category or path), `operator` (startsWith, contains, regex), `pattern` (string 500), `active` (boolean), `created_at`. Used by both the Wiz import UI and pipeline scans to suppress matching findings before they enter `state.findings`.
 
 ---
 
@@ -582,3 +584,12 @@ The acknowledged state is fully translated in Hebrew and English, and switching 
 
 ### Loose Match Review and Unmatched Memory Warning
 When an import restores a remembered exception by rule ID although the finding title changed, the finding gets an on-screen "matched loosely" badge in the list and a banner in the detail pane with a confirm button that clears the mark. After every import (single query, bulk, pipeline) a warning panel at the top of the main area lists remembered exceptions that matched no finding, with their type, subscription, title and reason; editors can remove stale entries from product memory, viewers see the list only, and the panel can be dismissed. Both are screen-only (never in PDF or exports) and switch language live.
+
+### Wiz Vulnerability Import Narrowed to Actionable Findings (BL-38)
+Every browser Wiz import of `vulnerabilityFindings` (single query and bulk) always adds `hasExploit`, `hasFix` and `validatedInRuntime` to the Wiz filter on top of the High + Critical severity default (`VULN_ACTIONABLE_FILTERS` in `wiz_service.py`, passed explicitly by the routes in `wiz.py`). There is no UI toggle. End-of-life findings and scheduled pipeline scans are unaffected. The field names were verified against the live Wiz schema.
+
+### Resource-List Cap and Wiz Reference Link (BL-38 follow-up)
+After an import, a finding whose Entity / Resource / Principal / Affected Resources technical line has more than 5 resources keeps the first 5 and ends with `ועוד N...`. The full list stays on `finding._resources` so later merges do not lose or double-count hidden resources (`resource-cap.js`, both import paths). When the list is capped a `Reference: <url>` technical line is added with a filtered Wiz portal link (`wiz-reference.js`): vulnerabilities and end-of-life filter on the selected subscription's external ID, configuration and host-configuration findings on the rule ID plus the subscription's Wiz account ID, issues on a title search. Other finding types get no link. The configuration and vulnerability link formats were confirmed against real portal links; the others follow real Reference links from existing reports.
+
+### Exceptions Overview and PDF Anchors (BL-32, BL-34)
+`GET /api/exceptions` returns a `temporary` flag and the Exceptions list shows a purple "זמני" chip for temporary exceptions. The PDF card splitter keeps the `finding-F-xxx` anchor on the first chunk of a split card so treatment-table links resolve; the section heading anchor is `detailed-findings`.

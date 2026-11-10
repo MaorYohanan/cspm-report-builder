@@ -44,7 +44,7 @@ query ConfigFindings($first: Int, $after: String, $filterBy: ConfigurationFindin
       rule { id name shortId description remediationInstructions }
       resource {
         name type region nativeType
-        subscription { name cloudProvider externalId }
+        subscription { id name cloudProvider externalId }
       }
       securitySubCategories { title category { name } }
       analyzedAt
@@ -94,7 +94,7 @@ query HostConfigFindings($first: Int, $after: String, $filterBy: HostConfigurati
       rule { id name description remediationInstructions }
       resource {
         name nativeType region cloudPlatform
-        subscription { name cloudProvider externalId }
+        subscription { id name cloudProvider externalId }
       }
     }
   }
