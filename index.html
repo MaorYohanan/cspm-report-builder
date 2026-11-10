@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=195">
+  <link rel="stylesheet" href="/static/css/builder.css?v=196">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -661,6 +661,7 @@
                   <!-- BL-23: exclude = legacy exception button (keeps id btn-detail-exception); acknowledge = new, hides finding from the report -->
                   <button role="menuitem" class="btn btn-sm btn-exception" id="btn-detail-exception" data-exception-kind="exclude" data-i18n-title="החרג — נשאר בדו&quot;ח כחריגה מאושרת" title="החרג — נשאר בדו&quot;ח כחריגה מאושרת" data-i18n="⚠ החרג">⚠ החרג</button>
                   <button role="menuitem" class="btn btn-sm btn-acknowledge" id="btn-detail-acknowledge" data-exception-kind="acknowledge" data-i18n-title="אשר — הממצא מוסתר לחלוטין מהדו&quot;ח" title="אשר — הממצא מוסתר לחלוטין מהדו&quot;ח" data-i18n="✓ אשר והסתר">✓ אשר והסתר</button>
+                  <button role="menuitem" class="btn btn-secondary btn-sm" id="btn-detail-add-rule" data-i18n-title="הוסף כלל סינון לרשימת הסינון (חל על ייבואי Wiz הבאים)" title="הוסף כלל סינון לרשימת הסינון (חל על ייבואי Wiz הבאים)" data-i18n="➕ כלל סינון">➕ כלל סינון</button>
                   <button role="menuitem" class="btn btn-sm btn-temp-action" id="btn-detail-temp" data-i18n-title="פעולה זמנית — לדו&quot;ח זה בלבד" title="פעולה זמנית — לדו&quot;ח זה בלבד" data-i18n="⏱ פעולה זמנית">⏱ פעולה זמנית</button>
                 </div>
               </div>
@@ -963,14 +964,16 @@
           <select id="exclude-rule-field">
             <option value="title" data-i18n="כותרת">כותרת</option>
             <option value="category" data-i18n="קטגוריה">קטגוריה</option>
-            <option value="path" data-i18n="נתיב (Path)">נתיב (Path)</option>
+            <option value="title_path" data-i18n="כותרת + נתיב">כותרת + נתיב</option>
+            <option value="title_resource" data-i18n="כותרת + משאב">כותרת + משאב</option>
           </select>
           <select id="exclude-rule-operator">
             <option value="startsWith" data-i18n="מתחיל ב-">מתחיל ב-</option>
             <option value="contains" data-i18n="מכיל">מכיל</option>
             <option value="regex" data-i18n="ביטוי רגולרי">ביטוי רגולרי</option>
           </select>
-          <input type="text" id="exclude-rule-pattern" placeholder="תבנית..." maxlength="500" dir="ltr" />
+          <input type="text" id="exclude-rule-pattern" placeholder="תבנית (כותרת)..." maxlength="500" dir="ltr" />
+          <input type="text" id="exclude-rule-pattern-resource" placeholder="תבנית משאב..." maxlength="500" dir="ltr" hidden />
           <label class="exclude-rule-active-label">
             <input type="checkbox" id="exclude-rule-active" checked />
             <span data-i18n="פעיל">פעיל</span>
@@ -1017,6 +1020,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=219"></script>
+  <script type="module" src="/static/js/src/main.js?v=223"></script>
 </body>
 </html>

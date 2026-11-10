@@ -437,16 +437,7 @@ let priorityTouched = false;
         if (state.selectedFindingIndex !== null) startEditFinding(state.selectedFindingIndex);
       });
       if (btnDetailDelete) btnDetailDelete.addEventListener('click', function() {
-        if (state.selectedFindingIndex !== null) {
-          var _f = state.findings[state.selectedFindingIndex];
-          saveToProductMemory(_f, 'deleted', (_f.exception && _f.exception.reason) || '');
-          state.findings.splice(state.selectedFindingIndex, 1);
-          state.selectedFindingIndex = null;
-          showFindingDetail(null);
-          renderFindingsTable();
-          showToast(t('ממצא נמחק'), 'info');
-          promptReorderAfterDelete();
-        }
+        if (state.selectedFindingIndex !== null) removeFinding(state.findings[state.selectedFindingIndex], true);
       });
 
       // ── Fullscreen toggle (#btn-detail-expand) ──
@@ -521,6 +512,15 @@ let priorityTouched = false;
           if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
           if (blockTempActionIfAcknowledged(state.findings[state.selectedFindingIndex])) return;
           document.dispatchEvent(new CustomEvent('openTempActionModal', { detail: { findingIndex: state.selectedFindingIndex } }));
+        });
+      }
+
+      // ── Add filter rule shortcut (opens the dialog in rule-dialog.js) ──
+      var btnDetailAddRule = document.getElementById('btn-detail-add-rule');
+      if (btnDetailAddRule) {
+        btnDetailAddRule.addEventListener('click', function() {
+          if (state.selectedFindingIndex === null || !state.findings[state.selectedFindingIndex]) return;
+          document.dispatchEvent(new CustomEvent('openAddRuleDialog', { detail: { findingIndex: state.selectedFindingIndex } }));
         });
       }
 
@@ -936,6 +936,22 @@ let priorityTouched = false;
           counters[prefix]++;
           f.id = prefix + '-' + String(counters[prefix]).padStart(3, '0');
         });
+      }
+
+      // Delete a finding (the detail "מחק" button and the "add filter rule" follow-up share this).
+      // remember=false skips the product-memory 'deleted' entry — used when a filter rule already
+      // keeps the finding out of future imports.
+      export function removeFinding(finding, remember) {
+        var idx = state.findings.indexOf(finding);
+        if (idx < 0) return false;
+        if (remember) saveToProductMemory(finding, 'deleted', (finding.exception && finding.exception.reason) || '');
+        state.findings.splice(idx, 1);
+        state.selectedFindingIndex = null;
+        showFindingDetail(null);
+        renderFindingsTable();
+        showToast(t('ממצא נמחק'), 'info');
+        promptReorderAfterDelete();
+        return true;
       }
 
       export function promptReorderAfterDelete() {

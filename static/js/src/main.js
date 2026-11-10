@@ -8,6 +8,7 @@ import './export.js';
 import './wizi.js';
 import './pipeline.js';
 import './exceptions.js';
+import './rule-dialog.js';
 import { ExcludeRulesPanel } from './exclude_rules.js';
 import { initDuplicates } from './duplicates.js';
 import { getLang, setLang } from './i18n.js';

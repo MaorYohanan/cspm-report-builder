@@ -501,3 +501,11 @@ Exclude-rule field `path` (2026-11-10, merged with BL-38): new רשימת סינ
 
 Exclude rules seeded 2026-11-09: 29 startsWith title rules added to the Windows instance/app.db via scripts/seed_exclude_rules.py (backup instance/backups/pre-exclude-seed-*); the WSL app's own DB needs the script run separately (user did it).
 Note: browser tests against a temp DB must use a Windows path (cygpath -m "$TEMP"), not git-bash /tmp.
+
+Exclude-rule field `title_resource` (2026-11-10, on main, NOT yet committed/pushed): new רשימת סינון option "כותרת + משאב" — item excluded only if title pattern AND resource-name pattern both match (same operator for both). Pattern stored as JSON in the existing column (no migration), backend `_pattern_error()` validation, second input in the add form, table shows both patterns. Runs on raw items before consolidation/aggregation (same 3 filter points). main.js v=220. 456 tests passed; add-form verified in browser. Not applied to pipeline scans (BL-37).
+
+"Add filter rule" shortcut (2026-11-10, on main, NOT yet committed/pushed): finding footer "עוד" menu button ➕ כלל סינון opens a pre-filled dialog (new rule-dialog.js) to create a title / category / path / title+resource exclude rule; applies to future imports only. Cache-busters builder.css v=196, main.js v=221. Verified in browser (dialog, prefill, rule saved); 456 tests.
+
+Exclude-rule path option changed to "כותרת + נתיב" (field `title_path`, 2026-11-10, on main, NOT yet committed/pushed): title pattern AND any path pattern must match; JSON in the pattern column, no migration; legacy plain `path` rules still match but are no longer offered; the finding-footer dialog and the rules form use it. main.js v=222. 461 tests passed; both forms verified in browser.
+
+Add-filter-rule follow-up question (2026-11-10, on main, NOT yet committed/pushed): after creating a rule from the finding footer dialog, a confirm asks whether to delete the current finding too (`removeFinding(finding, remember)` extracted in findings.js; yes = no product-memory 'deleted' entry). main.js v=223. 461 tests; both answers verified in browser.

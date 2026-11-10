@@ -5,6 +5,7 @@ Handles all /api/wizi/* endpoints for Wiz integration.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -871,8 +872,33 @@ def api_wizi_find_by_id():
     return jsonify({"error": "Finding not found", "id": finding_id}), 404
 
 
-_VALID_FIELDS    = {'title', 'category', 'path'}
+# 'path' is legacy (plain path rules created before title_path existed); the UI now offers title_path
+_VALID_FIELDS    = {'title', 'category', 'path', 'title_resource', 'title_path'}
+_PAIR_KEYS       = {'title_resource': 'resource', 'title_path': 'path'}
 _VALID_OPERATORS = {'startsWith', 'contains', 'regex'}
+
+
+def _pattern_error(field: str, pattern: str):
+    """Return an error message for an invalid field/pattern combination, else None.
+
+    A 'title_resource' / 'title_path' rule stores its two patterns as JSON in the single pattern
+    column: {"title": "...", "resource": "..."} / {"title": "...", "path": "..."} — both must be
+    non-empty strings (no schema change).
+    """
+    if not pattern:
+        return 'pattern must be non-empty'
+    if len(pattern) > 500:
+        return 'pattern must be ≤500 characters'
+    if field in _PAIR_KEYS:
+        second = _PAIR_KEYS[field]
+        try:
+            parts = json.loads(pattern)
+        except ValueError:
+            parts = None
+        if (not isinstance(parts, dict) or set(parts) != {'title', second}
+                or not all(isinstance(v, str) and v.strip() for v in parts.values())):
+            return f'{field} pattern must be {{"title": ..., "{second}": ...}} with both non-empty'
+    return None
 
 
 def _rule_to_dict(rule: ExcludeRule) -> dict:
@@ -912,10 +938,9 @@ def api_exclude_rules_create():
         return jsonify({'error': f"field must be one of {sorted(_VALID_FIELDS)}"}), 400
     if operator not in _VALID_OPERATORS:
         return jsonify({'error': f"operator must be one of {sorted(_VALID_OPERATORS)}"}), 400
-    if not pattern:
-        return jsonify({'error': 'pattern must be non-empty'}), 400
-    if len(pattern) > 500:
-        return jsonify({'error': 'pattern must be ≤500 characters'}), 400
+    err = _pattern_error(field, pattern)
+    if err:
+        return jsonify({'error': err}), 400
 
     try:
         rule = ExcludeRule(field=field, operator=operator, pattern=pattern, active=active)
@@ -951,12 +976,12 @@ def api_exclude_rules_update(rule_id: int):
         rule.operator = operator
 
     if 'pattern' in data:
-        pattern = (data['pattern'] or '').strip()
-        if not pattern:
-            return jsonify({'error': 'pattern must be non-empty'}), 400
-        if len(pattern) > 500:
-            return jsonify({'error': 'pattern must be ≤500 characters'}), 400
-        rule.pattern = pattern
+        rule.pattern = (data['pattern'] or '').strip()
+
+    err = _pattern_error(rule.field, rule.pattern)
+    if err:
+        db.session.rollback()
+        return jsonify({'error': err}), 400
 
     if 'active' in data:
         rule.active = bool(data['active'])
