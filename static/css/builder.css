@@ -2047,6 +2047,19 @@ tr[style*="opacity"] .badge-loose-match { color: oklch(0.97 0.05 85); }
   .badge-loose-match, .loose-match-banner, .memory-unmatched-panel { display: none; }
 }
 
+/* ── "Add filter rule" dialog (rule-dialog.js) ── */
+.rule-dialog { text-align: start; min-width: 420px; }
+.rule-dialog .confirm-dialog-icon, .rule-dialog .confirm-dialog-title { text-align: center; }
+.rule-dialog-finding { text-align: center; font-size: 13px; opacity: .85; margin-bottom: 14px; word-break: break-word; }
+.rule-dialog-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.rule-dialog-row[hidden] { display: none; }
+.rule-dialog-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.rule-dialog select, .rule-dialog input[type="text"] {
+  width: 100%; box-sizing: border-box; padding: 6px 8px; font: inherit; font-size: 13px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-input); color: var(--text);
+}
+.rule-dialog-hint { font-size: 12px; color: var(--text-muted); margin: 4px 0 14px; line-height: 1.5; }
+
 @media (max-width: 900px) {
   .sidebar { width: 52px; }
   .sidebar-brand-text, .sidebar-new-sub, .sidebar-section-label,

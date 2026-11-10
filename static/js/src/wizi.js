@@ -1002,7 +1002,7 @@ function _resolveItemCategory(item, qt) {
 
           // Apply exclude rules at display time (title-based rules only; category unknown pre-import)
           nodes = nodes.filter(function(item) {
-            return !isExcludedByRules(getWiziItemTitle(item, qt), '', getWiziItemPaths(item));
+            return !isExcludedByRules(getWiziItemTitle(item, qt), '', getWiziItemPaths(item), extractResourceName(item, qt));
           });
 
           if (append) {
@@ -1129,7 +1129,7 @@ function _resolveItemCategory(item, qt) {
           selected = selected.filter(function(item) {
             var _t = getWiziItemTitle(item, wiziQueryType);
             var _c = _resolveItemCategory(item, wiziQueryType);
-            return !isExcludedByRules(_t, _c, getWiziItemPaths(item));
+            return !isExcludedByRules(_t, _c, getWiziItemPaths(item), extractResourceName(item, wiziQueryType));
           });
           var _excludedCount = _beforeExclude - selected.length;
           if (_excludedCount > 0) {
@@ -3664,7 +3664,7 @@ function _resolveItemCategory(item, qt) {
             selectedByType[qt] = selectedByType[qt].filter(function(item) {
               var _t = getWiziItemTitle(item, qt);
               var _c = _resolveItemCategory(item, qt);
-              return !isExcludedByRules(_t, _c, getWiziItemPaths(item));
+              return !isExcludedByRules(_t, _c, getWiziItemPaths(item), extractResourceName(item, qt));
             });
             _bulkExcludedTotal += before - selectedByType[qt].length;
           });

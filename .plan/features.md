@@ -127,9 +127,13 @@ A "✨ שפר ניסוח" button appears beneath the exception-reason textarea i
 Two distinct import modes in `wizi.js`. "Keep Existing" (הוסף לקיים) appends Wiz findings to the current `state.findings` without clearing them. "Start Fresh" (דוח חדש) clears `state.findings` entirely before import, requiring a double confirmation (styledConfirm + danger confirmation) to prevent accidental data loss. Both modes apply the exclude-rules filter.
 
 ### Exclude-Rules Engine (Pattern-Based Suppression)
-`backend/models.py` defines the `ExcludeRule` ORM model (fields: `field` — title, category or path; `operator` — startsWith, contains, regex; `pattern`; `active`; `created_at`). Four CRUD routes at `/api/wizi/exclude-rules` (GET `viewer`, POST/PUT/DELETE `editor`) with allowlist validation on field and operator values. The `isExcludedByRules()` function in `exclude_rules.js` is called on every Wiz item in both the single-query path and the bulk import path before a finding is added to `state.findings`. The `[GovIL]` suppression rule previously hardcoded in `wizi.js` is now seeded as a DB row on app startup and managed through the UI.
+`backend/models.py` defines the `ExcludeRule` ORM model (fields: `field` — title, category, title_resource, title_path (or legacy path); `operator` — startsWith, contains, regex; `pattern`; `active`; `created_at`). Four CRUD routes at `/api/wizi/exclude-rules` (GET `viewer`, POST/PUT/DELETE `editor`) with allowlist validation on field and operator values. The `isExcludedByRules()` function in `exclude_rules.js` is called on every Wiz item in both the single-query path and the bulk import path before a finding is added to `state.findings`. The `[GovIL]` suppression rule previously hardcoded in `wizi.js` is now seeded as a DB row on app startup and managed through the UI.
 
-A third rule field, `path` (UI label "נתיב (Path)"), matches the file / secret paths a Wiz item carries (secret instances `path`, host configuration `filePath`, malware `fileDetails.path`) using the same operators. It is applied per item before consolidation, so a matching path drops out of the finding's "Affected Paths" line and a finding whose paths all match is not created. `getWiziItemPaths()` in `exclude_rules.js` collects the paths. Not applied to server-side pipeline scans (BL-37).
+A path rule (UI label now "כותרת + נתיב", field `title_path`; the original plain `path` field is kept only so rules created before the change keep working and is no longer offered in the UI) excludes an item only when its title pattern AND any of its paths match. The original description of path matching follows:
+
+A plain path rule (`path`, "נתיב (Path)"), matches the file / secret paths a Wiz item carries (secret instances `path`, host configuration `filePath`, malware `fileDetails.path`) using the same operators. It is applied per item before consolidation, so a matching path drops out of the finding's "Affected Paths" line and a finding whose paths all match is not created. `getWiziItemPaths()` in `exclude_rules.js` collects the paths. Not applied to server-side pipeline scans (BL-37).
+
+`title_path` stores `{"title":…,"path":…}` in the pattern column exactly like `title_resource` below. A further field, `title_resource` (UI "כותרת + משאב"), excludes an item only when BOTH its title pattern and its resource-name pattern match (the one operator applies to both). The two patterns are stored as JSON `{"title":…,"resource":…}` in the existing `pattern` column (no schema change; the backend `_pattern_error()` validates it). The resource name comes from `extractResourceName()` in `wizi.js`. All rule fields run on the raw Wiz items at the three browser filter points, i.e. BEFORE items are consolidated or aggregated into findings, so excluded items never contribute resources, paths or counts.
 
 ---
 
@@ -239,7 +243,7 @@ All state file writes use the `tmp_path → os.replace(final_path)` pattern to p
 `ProductMemoryEntry` table: `id`, `product_id` (FK), `subscription` (string 200), `title` (string 500), `reason` (string 1000), `source` (excepted/deleted, DB check constraint). Unique constraint on `(product_id, subscription, title)`. Used to persist user decisions about findings across report cycles and automated scans.
 
 ### ExcludeRule Model
-`ExcludeRule` table: `id` (integer PK), `field` (title, category or path), `operator` (startsWith, contains, regex), `pattern` (string 500), `active` (boolean), `created_at`. Used by both the Wiz import UI and pipeline scans to suppress matching findings before they enter `state.findings`.
+`ExcludeRule` table: `id` (integer PK), `field` (title, category, title_resource, title_path or legacy path), `operator` (startsWith, contains, regex), `pattern` (string 500), `active` (boolean), `created_at`. Used by both the Wiz import UI and pipeline scans to suppress matching findings before they enter `state.findings`.
 
 ---
 
@@ -593,3 +597,6 @@ After an import, a finding whose Entity / Resource / Principal / Affected Resour
 
 ### Exceptions Overview and PDF Anchors (BL-32, BL-34)
 `GET /api/exceptions` returns a `temporary` flag and the Exceptions list shows a purple "זמני" chip for temporary exceptions. The PDF card splitter keeps the `finding-F-xxx` anchor on the first chunk of a split card so treatment-table links resolve; the section heading anchor is `detailed-findings`.
+
+### Add Filter Rule Shortcut on a Finding
+The finding detail footer "עוד" menu has "➕ כלל סינון", which opens a dialog (`rule-dialog.js`, event `openAddRuleDialog`) pre-filled from the open finding: rule type (title, category, title + path when the finding has Path / Affected Paths lines, title + resource when it has resources), operator, and the pattern(s) with the finding's paths / resources offered as suggestions. It creates the rule through `addExcludeRule()` in `exclude_rules.js` and refreshes the rule cache. The rule applies to future Wiz imports only. After the rule is created the dialog asks (danger-style confirm, so Enter does not accept) whether to delete the open finding too; "yes" removes it via `removeFinding(finding, false)` in `findings.js` without writing a product-memory `deleted` entry, since the rule already keeps it out of future imports; "no" keeps it. Needs the editor role (the API enforces it).

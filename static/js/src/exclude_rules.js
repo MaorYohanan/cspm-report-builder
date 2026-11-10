@@ -32,14 +32,38 @@ export function getActiveExcludeRules() {
 // itemTitle    — result of getWiziItemTitle(item, qt)
 // itemCategory — the CSPM category the item would be assigned (CSPM, VULN, …)
 // itemPaths    — (optional) file / secret paths of the item, see getWiziItemPaths();
-//                a 'path' rule excludes the item when ANY of its paths matches
+//                a 'title_path' rule needs its title pattern AND any path pattern match; a legacy
+//                'path' rule excludes the item when ANY of its paths matches
+// itemResource — (optional) the item's resource name (extractResourceName() in wizi.js);
+//                a 'title_resource' rule needs BOTH its title and resource patterns to match
 //
-export function isExcludedByRules(itemTitle, itemCategory, itemPaths) {
+// Callers run this on RAW Wiz items, before they are consolidated into findings, so a rule
+// removes individual items (and their resources / paths) from the aggregation.
+export function isExcludedByRules(itemTitle, itemCategory, itemPaths, itemResource) {
   var active = getActiveExcludeRules();
   if (!active.length) return false;
   return active.some(function(rule) {
-    return _matchesRule(rule, itemTitle, itemCategory, itemPaths);
+    return _matchesRule(rule, itemTitle, itemCategory, itemPaths, itemResource);
   });
+}
+
+// title_resource / title_path rules keep their two patterns as JSON in `pattern`:
+// {"title":…,"resource":…} / {"title":…,"path":…}. Returns {title, second} or null.
+function _parsePair(pattern, key) {
+  try {
+    var p = JSON.parse(pattern);
+    if (p && typeof p.title === 'string' && typeof p[key] === 'string' && p.title && p[key]) {
+      return { title: p.title, second: p[key] };
+    }
+  } catch (e) { /* not JSON */ }
+  return null;
+}
+
+var _PAIR_KEYS = { title_resource: 'resource', title_path: 'path' };
+
+export function parseRulePair(rule) {
+  var key = _PAIR_KEYS[rule && rule.field];
+  return key ? _parsePair(rule.pattern, key) : null;
 }
 
 // Paths a raw Wiz node carries: secret instances (path), host configuration (filePath),
@@ -51,23 +75,34 @@ export function getWiziItemPaths(item) {
   });
 }
 
-function _matchValue(rule, value) {
+function _matchValue(rule, value, rawPattern) {
   value = (value || '').toLowerCase();
-  var pattern = (rule.pattern || '').toLowerCase();
+  rawPattern = rawPattern != null ? rawPattern : (rule.pattern || '');
+  var pattern = rawPattern.toLowerCase();
   if (rule.operator === 'startsWith') return value.startsWith(pattern);
   if (rule.operator === 'contains')   return value.includes(pattern);
   if (rule.operator === 'regex') {
     try {
-      return new RegExp(rule.pattern, 'i').test(value);
+      return new RegExp(rawPattern, 'i').test(value);
     } catch (e) {
-      console.warn('Invalid exclude rule regex:', rule.pattern, e);
+      console.warn('Invalid exclude rule regex:', rawPattern, e);
       return false;
     }
   }
   return false;
 }
 
-function _matchesRule(rule, itemTitle, itemCategory, itemPaths) {
+function _matchesRule(rule, itemTitle, itemCategory, itemPaths, itemResource) {
+  if (rule.field === 'title_resource') {
+    var tr = parseRulePair(rule);
+    if (!tr || !itemResource) return false;
+    return _matchValue(rule, itemTitle, tr.title) && _matchValue(rule, itemResource, tr.second);
+  }
+  if (rule.field === 'title_path') {
+    var tp = parseRulePair(rule);
+    if (!tp || !_matchValue(rule, itemTitle, tp.title)) return false;
+    return (itemPaths || []).some(function(p) { return _matchValue(rule, p, tp.second); });
+  }
   if (rule.field === 'path') {
     return (itemPaths || []).some(function(p) { return _matchValue(rule, p); });
   }
@@ -90,8 +125,25 @@ function _loadRules() {
     });
 }
 
+// Create a rule from elsewhere in the UI (e.g. the finding "add filter rule" shortcut) and refresh
+// the cache so it applies to the very next import. Resolves {ok, error}.
+export function addExcludeRule(field, operator, pattern) {
+  return _apiFetch(_BASE, {
+    method: 'POST',
+    body: JSON.stringify({ field: field, operator: operator, pattern: pattern, active: true }),
+  })
+    .then(function(r) {
+      return r.json().then(function(data) { return { ok: r.ok, error: data && data.error }; });
+    })
+    .then(function(res) {
+      if (res.ok) return _loadRules().then(function() { return res; });
+      return res;
+    })
+    .catch(function() { return { ok: false, error: 'שגיאת רשת' }; });
+}
+
 // ── Render the rules table ───────────────────────────────────────────────────
-var _FIELD_LABELS = { title: 'כותרת', category: 'קטגוריה', path: 'נתיב' };
+var _FIELD_LABELS = { title: 'כותרת', category: 'קטגוריה', path: 'נתיב', title_resource: 'כותרת + משאב', title_path: 'כותרת + נתיב' };
 var _OP_LABELS    = { startsWith: 'מתחיל ב-', contains: 'מכיל', regex: 'Regex' };
 
 function _render() {
@@ -109,7 +161,10 @@ function _render() {
     var toggleLabel = isActive ? 'השבת' : 'הפעל';
     var rowClass = isActive ? '' : 'exclude-rule-inactive';
     html += '<tr class="' + rowClass + '" data-rule-id="' + rule.id + '">';
-    html += '<td><code dir="ltr">' + escapeHtml(rule.pattern) + '</code></td>';
+    var _tr = parseRulePair(rule);
+    html += '<td><code dir="ltr">' + (_tr
+      ? escapeHtml(_tr.title) + '</code> <span class="muted">+</span> <code dir="ltr">' + escapeHtml(_tr.second)
+      : escapeHtml(rule.pattern)) + '</code></td>';
     html += '<td>' + escapeHtml(_FIELD_LABELS[rule.field] || rule.field) + '</td>';
     html += '<td>' + escapeHtml(_OP_LABELS[rule.operator] || rule.operator) + '</td>';
     html += '<td>';
@@ -159,11 +214,23 @@ function _handleAdd() {
   var operator = opEl       ? opEl.value.trim()       : '';
   var pattern  = patternEl  ? patternEl.value.trim()  : '';
   var active   = activeEl   ? activeEl.checked         : true;
+  var resourceEl = _el('exclude-rule-pattern-resource');
 
   if (!pattern) {
     _setStatus('יש להזין תבנית', true);
     if (patternEl) patternEl.focus();
     return;
+  }
+  if (_PAIR_KEYS[field]) {
+    var secondPattern = resourceEl ? resourceEl.value.trim() : '';
+    if (!secondPattern) {
+      _setStatus(field === 'title_path' ? 'יש להזין תבנית לנתיב' : 'יש להזין תבנית למשאב', true);
+      if (resourceEl) resourceEl.focus();
+      return;
+    }
+    var pairObj = { title: pattern };
+    pairObj[_PAIR_KEYS[field]] = secondPattern;
+    pattern = JSON.stringify(pairObj);
   }
 
   var addBtn = _el('btn-add-exclude-rule');
@@ -183,6 +250,7 @@ function _handleAdd() {
         return;
       }
       if (patternEl) patternEl.value = '';
+      if (resourceEl) resourceEl.value = '';
       _setStatus('הכלל נוסף בהצלחה');
       showToast('כלל סינון נוסף', 'success');
       return _loadRules();
@@ -253,6 +321,18 @@ function _wireEvents() {
   var addBtn = _el('btn-add-exclude-rule');
   if (addBtn) {
     addBtn.addEventListener('click', _handleAdd);
+  }
+
+  // Second pattern input (resource / path) only for the title + … rules
+  var fieldSel = _el('exclude-rule-field');
+  var resourceInput = _el('exclude-rule-pattern-resource');
+  if (fieldSel && resourceInput) {
+    var syncResourceInput = function() {
+      resourceInput.hidden = !_PAIR_KEYS[fieldSel.value];
+      resourceInput.placeholder = fieldSel.value === 'title_path' ? 'תבנית נתיב...' : 'תבנית משאב...';
+    };
+    fieldSel.addEventListener('change', syncResourceInput);
+    syncResourceInput();
   }
 
   // Table row buttons — delegated to tbody

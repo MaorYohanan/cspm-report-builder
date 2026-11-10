@@ -395,3 +395,81 @@ def test_get_wiz_item_paths():
     assert _node_rules("getWiziItemPaths({path:'/a', filePath:'/b', fileDetails:{path:'/c'}})", []) == ["/a", "/b", "/c"]
     assert _node_rules("getWiziItemPaths({})", []) == []
     assert _node_rules("getWiziItemPaths(null)", []) == []
+
+
+# ── title + resource rules ───────────────────────────────────────────────────
+def test_pattern_error_title_resource_validation():
+    import json as _json
+    from backend.routes.wiz import _pattern_error, _VALID_FIELDS
+    assert "title_resource" in _VALID_FIELDS
+    ok = _json.dumps({"title": "AWS excessive access", "resource": "role-x"})
+    assert _pattern_error("title_resource", ok) is None
+    assert _pattern_error("title_resource", "plain text") is not None
+    assert _pattern_error("title_resource", _json.dumps({"title": "a"})) is not None
+    assert _pattern_error("title_resource", _json.dumps({"title": "a", "resource": "  "})) is not None
+    assert _pattern_error("title_resource", _json.dumps({"title": "a", "resource": "b", "x": "c"})) is not None
+    assert _pattern_error("title", "plain text") is None            # other fields unchanged
+    assert _pattern_error("title", "") is not None
+    assert _pattern_error("title", "x" * 501) is not None
+
+
+def _tr(operator="contains", title="excessive access", resource="dynatrace"):
+    import json as _json
+    return [{"field": "title_resource", "operator": operator, "active": True,
+             "pattern": _json.dumps({"title": title, "resource": resource})}]
+
+
+def test_title_resource_needs_both_to_match():
+    r = _tr()
+    assert _node_rules("isExcludedByRules('AWS excessive access for role X','CSPM',[],'DynatraceRole-1')", r) is True
+    assert _node_rules("isExcludedByRules('AWS excessive access for role X','CSPM',[],'other-role')", r) is False
+    assert _node_rules("isExcludedByRules('Something else','CSPM',[],'DynatraceRole-1')", r) is False
+    assert _node_rules("isExcludedByRules('AWS excessive access','CSPM',[])", r) is False  # no resource known
+
+
+def test_title_resource_operators_apply_to_both_parts():
+    r = _tr(operator="startsWith", title="aws excessive", resource="dyna")
+    assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'DynatraceRole')", r) is True
+    assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'my-Dynatrace')", r) is False
+    r = _tr(operator="regex", title="^aws .* access$", resource="role-\d+$")
+    assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'role-42')", r) is True
+    assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'role-x')", r) is False
+
+
+def test_title_resource_malformed_rule_never_matches():
+    bad = [{"field": "title_resource", "operator": "contains", "active": True, "pattern": "not json"}]
+    assert _node_rules("isExcludedByRules('anything','C',[],'anything')", bad) is False
+
+
+# ── title + path rules ───────────────────────────────────────────────────────
+def _tp(operator="contains", title="secret found", path="/opt/app/test"):
+    import json as _json
+    return [{"field": "title_path", "operator": operator, "active": True,
+             "pattern": _json.dumps({"title": title, "path": path})}]
+
+
+def test_pattern_error_title_path_validation():
+    import json as _json
+    from backend.routes.wiz import _pattern_error, _VALID_FIELDS
+    assert "title_path" in _VALID_FIELDS and "path" in _VALID_FIELDS  # path kept for legacy rules
+    assert _pattern_error("title_path", _json.dumps({"title": "a", "path": "/p"})) is None
+    assert _pattern_error("title_path", _json.dumps({"title": "a", "resource": "/p"})) is not None
+    assert _pattern_error("title_path", _json.dumps({"title": "a"})) is not None
+    assert _pattern_error("title_path", "plain") is not None
+    assert _pattern_error("title_resource", _json.dumps({"title": "a", "path": "/p"})) is not None
+
+
+def test_title_path_needs_title_and_any_path():
+    r = _tp()
+    assert _node_rules("isExcludedByRules('Secret found in X','SECR',['/etc/a','/opt/app/test/k'])", r) is True
+    assert _node_rules("isExcludedByRules('Secret found in X','SECR',['/etc/a'])", r) is False       # path misses
+    assert _node_rules("isExcludedByRules('Other title','SECR',['/opt/app/test/k'])", r) is False    # title misses
+    assert _node_rules("isExcludedByRules('Secret found in X','SECR',[])", r) is False               # no paths
+
+
+def test_title_path_operator_applies_to_both_and_legacy_path_rule_still_works():
+    r = _tp(operator="startsWith", title="secret", path="/opt")
+    assert _node_rules("isExcludedByRules('Secret found','C',['/opt/x'])", r) is True
+    assert _node_rules("isExcludedByRules('Secret found','C',['/var/opt/x'])", r) is False
+    legacy = [{"field": "path", "operator": "startsWith", "pattern": "/opt", "active": True}]
+    assert _node_rules("isExcludedByRules('anything','C',['/opt/x'])", legacy) is True
