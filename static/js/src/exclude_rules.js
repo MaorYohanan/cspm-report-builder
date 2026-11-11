@@ -125,18 +125,48 @@ function _loadRules() {
     });
 }
 
-// Create a rule from elsewhere in the UI (e.g. the finding "add filter rule" shortcut) and refresh
-// the cache so it applies to the very next import. Resolves {ok, error}.
-export function addExcludeRule(field, operator, pattern) {
-  return _apiFetch(_BASE, {
-    method: 'POST',
-    body: JSON.stringify({ field: field, operator: operator, pattern: pattern, active: true }),
-  })
+// An existing rule (active OR disabled) with the same field + operator + pattern, ignoring case —
+// matching is case-insensitive, so 'Dynatrace' and 'dynatrace' are the same rule.
+export function findDuplicateRule(field, operator, pattern) {
+  var wanted = String(pattern || '').trim().toLowerCase();
+  for (var i = 0; i < _rules.length; i++) {
+    var r = _rules[i];
+    if (r.field === field && r.operator === operator && String(r.pattern || '').trim().toLowerCase() === wanted) return r;
+  }
+  return null;
+}
+
+// Switch a disabled rule back on and refresh the cache. Resolves {ok, error}.
+export function enableExcludeRule(ruleId) {
+  return _apiFetch(_BASE + '/' + ruleId, { method: 'PUT', body: JSON.stringify({ active: true }) })
     .then(function(r) {
       return r.json().then(function(data) { return { ok: r.ok, error: data && data.error }; });
     })
     .then(function(res) {
       if (res.ok) return _loadRules().then(function() { return res; });
+      return res;
+    })
+    .catch(function() { return { ok: false, error: 'שגיאת רשת' }; });
+}
+
+// Create a rule from elsewhere in the UI (e.g. the finding "add filter rule" shortcut) and refresh
+// the cache so it applies to the very next import. Resolves {ok, error} or, when an identical
+// rule already exists (found locally or reported by the server with 409), {ok:false, duplicate: rule}.
+export function addExcludeRule(field, operator, pattern) {
+  var local = findDuplicateRule(field, operator, pattern);
+  if (local) return Promise.resolve({ ok: false, duplicate: local });
+  return _apiFetch(_BASE, {
+    method: 'POST',
+    body: JSON.stringify({ field: field, operator: operator, pattern: pattern, active: true }),
+  })
+    .then(function(r) {
+      return r.json().then(function(data) {
+        if (r.status === 409 && data && data.rule) return { ok: false, duplicate: data.rule };
+        return { ok: r.ok, error: data && data.error };
+      });
+    })
+    .then(function(res) {
+      if (res.ok || res.duplicate) return _loadRules().then(function() { return res; });
       return res;
     })
     .catch(function() { return { ok: false, error: 'שגיאת רשת' }; });
@@ -203,6 +233,23 @@ function _setStatus(msg, isError) {
   }
 }
 
+// An identical rule already exists: say so, and offer to switch it on if it is disabled.
+function _handleDuplicate(rule) {
+  if (rule.active) {
+    _setStatus('כלל זהה כבר קיים', true);
+    return;
+  }
+  styledConfirm('קיים כלל זהה אך הוא מושבת. להפעיל אותו?', {
+    icon: '♻️', title: 'כלל זהה קיים', confirmText: 'הפעל', cancelText: 'ביטול',
+  }).then(function(yes) {
+    if (!yes) return;
+    enableExcludeRule(rule.id).then(function(res) {
+      if (res.ok) showToast('הכלל הופעל', 'success');
+      else _setStatus(res.error || 'שגיאה', true);
+    });
+  });
+}
+
 // ── Add-rule handler ─────────────────────────────────────────────────────────
 function _handleAdd() {
   var fieldEl    = _el('exclude-rule-field');
@@ -233,6 +280,9 @@ function _handleAdd() {
     pattern = JSON.stringify(pairObj);
   }
 
+  var dup = findDuplicateRule(field, operator, pattern);
+  if (dup) { _handleDuplicate(dup); return; }
+
   var addBtn = _el('btn-add-exclude-rule');
   if (addBtn) addBtn.disabled = true;
   _setStatus('');
@@ -245,6 +295,10 @@ function _handleAdd() {
       return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
     })
     .then(function(res) {
+      if (res.status === 409 && res.data && res.data.rule) {
+        _handleDuplicate(res.data.rule);
+        return _loadRules();
+      }
       if (!res.ok) {
         _setStatus(res.data.error || 'שגיאה', true);
         return;

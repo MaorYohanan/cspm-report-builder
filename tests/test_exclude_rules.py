@@ -431,7 +431,7 @@ def test_title_resource_operators_apply_to_both_parts():
     r = _tr(operator="startsWith", title="aws excessive", resource="dyna")
     assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'DynatraceRole')", r) is True
     assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'my-Dynatrace')", r) is False
-    r = _tr(operator="regex", title="^aws .* access$", resource="role-\d+$")
+    r = _tr(operator="regex", title="^aws .* access$", resource=r"role-\d+$")
     assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'role-42')", r) is True
     assert _node_rules("isExcludedByRules('AWS excessive access','C',[],'role-x')", r) is False
 
@@ -473,3 +473,63 @@ def test_title_path_operator_applies_to_both_and_legacy_path_rule_still_works():
     assert _node_rules("isExcludedByRules('Secret found','C',['/var/opt/x'])", r) is False
     legacy = [{"field": "path", "operator": "startsWith", "pattern": "/opt", "active": True}]
     assert _node_rules("isExcludedByRules('anything','C',['/opt/x'])", legacy) is True
+
+
+# ── duplicate rules (real route) ─────────────────────────────────────────────
+@pytest.fixture
+def real_client():
+    """The real wiz blueprint on an in-memory DB (auth is open when no OAuth / APP_TOKEN is configured)."""
+    from flask import Flask
+    from backend.database import db as _db
+    from backend.routes.wiz import wiz_bp
+    import backend.models  # noqa: F401
+    app = Flask(__name__)
+    app.config.update(TESTING=True, SQLALCHEMY_DATABASE_URI="sqlite:///:memory:", SQLALCHEMY_TRACK_MODIFICATIONS=False)
+    _db.init_app(app)
+    app.register_blueprint(wiz_bp)
+    with app.app_context():
+        _db.create_all()
+        yield app.test_client()
+        _db.session.remove()
+        _db.drop_all()
+
+
+def _post(c, **kw):
+    body = {"field": "title", "operator": "contains", "pattern": "Dynatrace"}
+    body.update(kw)
+    return c.post("/api/wizi/exclude-rules", json=body)
+
+
+def test_duplicate_rule_rejected_ignoring_case(real_client):
+    first = _post(real_client)
+    assert first.status_code == 201, first.get_data(as_text=True)
+    rid = first.get_json()["rule"]["id"]
+    dup = _post(real_client, pattern="  dynatrace ")
+    assert dup.status_code == 409
+    body = dup.get_json()
+    assert body["error"] == "duplicate" and body["rule"]["id"] == rid and body["rule"]["active"] is True
+    assert len(real_client.get("/api/wizi/exclude-rules").get_json()["rules"]) == 1
+
+
+def test_duplicate_detection_includes_disabled_rules(real_client):
+    rid = _post(real_client).get_json()["rule"]["id"]
+    assert real_client.put(f"/api/wizi/exclude-rules/{rid}", json={"active": False}).status_code == 200
+    dup = _post(real_client)
+    assert dup.status_code == 409 and dup.get_json()["rule"]["active"] is False
+
+
+def test_same_pattern_different_field_or_operator_is_not_a_duplicate(real_client):
+    assert _post(real_client).status_code == 201
+    assert _post(real_client, field="category").status_code == 201
+    assert _post(real_client, operator="startsWith").status_code == 201
+
+
+def test_update_into_a_duplicate_is_rejected_and_not_applied(real_client):
+    _post(real_client)
+    other = _post(real_client, pattern="Other").get_json()["rule"]["id"]
+    resp = real_client.put(f"/api/wizi/exclude-rules/{other}", json={"pattern": "DYNATRACE"})
+    assert resp.status_code == 409
+    rules = {r["id"]: r["pattern"] for r in real_client.get("/api/wizi/exclude-rules").get_json()["rules"]}
+    assert rules[other] == "Other"
+    # editing a rule to its own value is fine
+    assert real_client.put(f"/api/wizi/exclude-rules/{other}", json={"pattern": "Other"}).status_code == 200

@@ -9,7 +9,7 @@ import { state } from './state.js';
 import { showToast, styledConfirm } from './core.js';
 import { removeFinding } from './findings.js';
 import { t } from './i18n.js';
-import { addExcludeRule, getActiveExcludeRules } from './exclude_rules.js';
+import { addExcludeRule, enableExcludeRule } from './exclude_rules.js';
 import { getFullResources } from './resource-cap.js';
 
 // Paths shown in the finding's technical lines: "Path: x", "File Path: x", "Affected Paths (n): a, b"
@@ -166,16 +166,13 @@ function openDialog(finding) {
       pattern = JSON.stringify(pairObj);
     }
     var operator = opSel.value;
-    var dup = getActiveExcludeRules().some(function(r) {
-      return r.field === field && r.operator === operator && r.pattern === pattern;
-    });
-    if (dup) { showToast(t('כלל זהה כבר קיים'), 'info'); return; }
     addBtn.disabled = true;
-    addExcludeRule(field, operator, pattern).then(function(res) {
-      if (!res.ok) { showToast(res.error || t('שגיאה'), 'error'); addBtn.disabled = false; return; }
-      showToast(t('כלל סינון נוסף'), 'success');
+
+    // The rule is in effect (just created, or an identical disabled one switched on):
+    // it only affects future imports, so ask whether the open finding should go too.
+    function ruleInEffect(message) {
+      showToast(message, 'success');
       close();
-      // The rule only affects future imports — ask whether the open finding should go too.
       styledConfirm(t('הכלל נוסף. האם למחוק גם את הממצא הנוכחי מהדו"ח?'), {
         icon: '🗑️',
         title: t('מחיקת הממצא'),
@@ -184,6 +181,26 @@ function openDialog(finding) {
         danger: true
       }).then(function(yes) {
         if (yes) removeFinding(finding, false);
+      });
+    }
+
+    addExcludeRule(field, operator, pattern).then(function(res) {
+      if (res.ok) { ruleInEffect(t('כלל סינון נוסף')); return; }
+      if (!res.duplicate) { showToast(res.error || t('שגיאה'), 'error'); addBtn.disabled = false; return; }
+      // An identical rule (any capitalisation, active or disabled) already exists
+      if (res.duplicate.active) {
+        showToast(t('כלל זהה כבר קיים'), 'info');
+        addBtn.disabled = false;
+        return;
+      }
+      styledConfirm(t('קיים כלל זהה אך הוא מושבת. להפעיל אותו?'), {
+        icon: '♻️', title: t('כלל זהה קיים'), confirmText: t('הפעל'), cancelText: t('ביטול')
+      }).then(function(yes) {
+        if (!yes) { addBtn.disabled = false; return; }
+        enableExcludeRule(res.duplicate.id).then(function(r2) {
+          if (r2.ok) ruleInEffect(t('הכלל הופעל'));
+          else { showToast(r2.error || t('שגיאה'), 'error'); addBtn.disabled = false; }
+        });
       });
     });
   });

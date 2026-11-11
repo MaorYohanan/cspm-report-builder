@@ -550,7 +550,12 @@ def build_bulk_filter(
         # nothing is silently dropped. Bulk import has no per-import severity
         # override — this is the canonical default for this query type.
         filter_by["severity"] = ["MEDIUM", "HIGH", "CRITICAL"]
-    elif query_type in ("networkExposures", "excessiveAccessFindings", "softwareSupplyChainFindings"):
+    elif query_type == "excessiveAccessFindings":
+        # ExcessiveAccessFindingFilters.severity exists but is a wrapped {equals: [...]} filter
+        # (verified against the live schema); a plain list was what used to be rejected.
+        # Status is left out on purpose: every excessive-access finding is already open.
+        filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}
+    elif query_type in ("networkExposures", "softwareSupplyChainFindings"):
         pass  # Non-standard filter schemas — no severity/status fields
     elif query_type == "malwareFindings":
         filter_by["severity"] = {"equals": ["CRITICAL", "HIGH"]}

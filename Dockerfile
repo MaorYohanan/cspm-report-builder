@@ -10,6 +10,16 @@ RUN apt-get update && \
         libc-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Corporate TLS-inspection CA (e.g. Netskope): put the root/intermediate .crt files in ./certs
+# (git-ignored) and they are trusted by apt, pip, Node (Playwright download) and Python requests.
+# With no .crt in ./certs this is a no-op, so CI / production builds are unaffected.
+COPY certs/ /usr/local/share/ca-certificates/corp/
+RUN update-ca-certificates
+ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
 # Copy and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
@@ -23,6 +33,16 @@ LABEL maintainer="CSPM Report Builder Team" \
       description="A self-hosted tool for building cloud security reports with Wiz integration and Hebrew PDF export"
 
 WORKDIR /app
+
+# Corporate TLS-inspection CA (e.g. Netskope): put the root/intermediate .crt files in ./certs
+# (git-ignored) and they are trusted by apt, pip, Node (Playwright download) and Python requests.
+# With no .crt in ./certs this is a no-op, so CI / production builds are unaffected.
+COPY certs/ /usr/local/share/ca-certificates/corp/
+RUN update-ca-certificates
+ENV PIP_CERT=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 # Install only runtime system dependencies for Playwright Chromium + Hebrew fonts.
 # libatk/libcups/libasound were renamed with a "t64" suffix in Debian 13 (Trixie)

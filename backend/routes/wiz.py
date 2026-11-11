@@ -901,6 +901,22 @@ def _pattern_error(field: str, pattern: str):
     return None
 
 
+def _find_duplicate(field: str, operator: str, pattern: str, exclude_id=None):
+    """An existing rule (active or not) with the same field + operator + pattern, ignoring case.
+
+    Matching is case-insensitive, so 'Dynatrace' and 'dynatrace' are the same rule.
+    """
+    wanted = pattern.strip().lower()
+    for r in ExcludeRule.query.filter_by(field=field, operator=operator).all():
+        if r.id != exclude_id and (r.pattern or '').strip().lower() == wanted:
+            return r
+    return None
+
+
+def _duplicate_response(rule: ExcludeRule):
+    return jsonify({'error': 'duplicate', 'rule': _rule_to_dict(rule)}), 409
+
+
 def _rule_to_dict(rule: ExcludeRule) -> dict:
     return {
         'id':         rule.id,
@@ -942,6 +958,10 @@ def api_exclude_rules_create():
     if err:
         return jsonify({'error': err}), 400
 
+    dup = _find_duplicate(field, operator, pattern)
+    if dup is not None:
+        return _duplicate_response(dup)
+
     try:
         rule = ExcludeRule(field=field, operator=operator, pattern=pattern, active=active)
         db.session.add(rule)
@@ -982,6 +1002,10 @@ def api_exclude_rules_update(rule_id: int):
     if err:
         db.session.rollback()
         return jsonify({'error': err}), 400
+    dup = _find_duplicate(rule.field, rule.operator, rule.pattern, exclude_id=rule.id)
+    if dup is not None:
+        db.session.rollback()
+        return _duplicate_response(dup)
 
     if 'active' in data:
         rule.active = bool(data['active'])

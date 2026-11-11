@@ -243,3 +243,6 @@ gcloud run deploy cspm-report-builder --image PREVIOUS_IMAGE_TAG --region REGION
 ```
 
 Database schema changes that added columns are generally safe to leave in place during a rollback. Destructive changes (dropping columns/tables) should be applied only after the new code is confirmed stable.
+
+## Docker build behind a TLS-inspecting proxy (e.g. Netskope)
+If `pip install` / `playwright install` fail with `SSL: CERTIFICATE_VERIFY_FAILED ... self-signed certificate in certificate chain`, the network re-signs HTTPS traffic with a corporate root CA the build container does not trust. Put the root (and intermediate) CA as PEM `.crt` files in `./certs/` (git-ignored; export them from the Windows certificate store). The Dockerfile copies `certs/` into both stages, runs `update-ca-certificates` and points pip, Python requests and Node (Playwright) at the system bundle. With no `.crt` files in `certs/` it changes nothing, so CI / cloud builds are unaffected.
