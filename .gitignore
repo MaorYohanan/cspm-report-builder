@@ -67,3 +67,7 @@ coverage/
 
 # Kiro configuration and workflows
 .kiro/
+
+# Corporate TLS-inspection CA used only for local Docker builds (see Dockerfile)
+certs/*.crt
+certs/*.pem

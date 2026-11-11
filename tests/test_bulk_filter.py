@@ -69,8 +69,8 @@ CASES = [
     ),
     (
         "excessiveAccessFindings",
-        # Custom filter schema — NO severity/status keys, uses sub_ids (not ext_ids)
-        {"scope": {"id": {"equals": SUB_IDS}}},
+        # Wrapped severity filter (High and above); NO status key; scope uses sub_ids (not ext_ids)
+        {"severity": {"equals": ["CRITICAL", "HIGH"]}, "scope": {"id": {"equals": SUB_IDS}}},
     ),
     (
         "networkExposures",
@@ -126,10 +126,10 @@ def test_build_bulk_filter_per_query_type(query_type, expected):
     assert actual == expected
 
 
-def test_excessive_access_has_no_severity_or_status_keys():
-    """excessiveAccessFindings uses a custom Wiz filter type that rejects severity/status."""
+def test_excessive_access_severity_is_high_and_above_without_status():
+    """excessiveAccessFindings takes a wrapped severity filter ({equals: [...]}), not a plain list."""
     actual = build_bulk_filter("excessiveAccessFindings", SUB_IDS, SUB_EXT_IDS)
-    assert "severity" not in actual
+    assert actual["severity"] == {"equals": ["CRITICAL", "HIGH"]}
     assert "status" not in actual
 
 
