@@ -4066,6 +4066,10 @@ tr.drag-over-bottom { border-bottom: 2px solid var(--accent); }
 }
 
 
+/* Exclude rules: row being edited + hidden cancel button */
+.exclude-rules-table tr.exclude-rule-editing td { background: var(--accent-glow, rgba(59, 130, 246, 0.12)); }
+#btn-cancel-edit-exclude-rule[hidden] { display: none; }
+
 
 /* ══════════════════════════════════════════════════════
    Product Registry — UI components
