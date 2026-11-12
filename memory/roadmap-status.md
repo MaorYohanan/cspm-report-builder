@@ -506,7 +506,7 @@ Exclude-rule field `title_resource` (2026-11-10, merged to main and pushed): new
 
 "Add filter rule" shortcut (2026-11-10, merged to main and pushed): finding footer "עוד" menu button ➕ כלל סינון opens a pre-filled dialog (new rule-dialog.js) to create a title / category / path / title+resource exclude rule; applies to future imports only. Cache-busters builder.css v=196, main.js v=221. Verified in browser (dialog, prefill, rule saved); 456 tests.
 
-Exclude-rule path option changed to "כותרת + נתיב" (field `title_path`, 2026-11-10, on main, NOT yet committed/pushed): title pattern AND any path pattern must match; JSON in the pattern column, no migration; legacy plain `path` rules still match but are no longer offered; the finding-footer dialog and the rules form use it. main.js v=222. 461 tests passed; both forms verified in browser.
+Exclude-rule path option changed to "כותרת + נתיב" (field `title_path`, 2026-11-10, merged to main and pushed): title pattern AND any path pattern must match; JSON in the pattern column, no migration; legacy plain `path` rules still match but are no longer offered; the finding-footer dialog and the rules form use it. main.js v=222. 461 tests passed; both forms verified in browser.
 
 Add-filter-rule follow-up question (2026-11-10, merged to main and pushed): after creating a rule from the finding footer dialog, a confirm asks whether to delete the current finding too (`removeFinding(finding, remember)` extracted in findings.js; yes = no product-memory 'deleted' entry). main.js v=223. 461 tests; both answers verified in browser.
 
