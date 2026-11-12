@@ -515,3 +515,19 @@ Duplicate exclude-rule check (2026-11-10, merged to main and pushed): server rej
 EAPM bulk severity (2026-11-11, merged to main and pushed): build_bulk_filter now sends severity {equals:[CRITICAL,HIGH]} for excessiveAccessFindings (it used to send no severity, i.e. everything; the old comment that Wiz rejects severity was wrong — it needs the wrapped form). Verified against the live Wiz API. Shared by bulk import and the scheduled pipeline, so pipeline EAPM scans narrow too. Backend only, no cache-buster change.
 
 Docker build SSL fix (2026-11-11, merged to main and pushed): cause = Netskope TLS inspection (pypi.org chain ends in caadmin.netskope.com root) not trusted inside Docker Desktop build containers. Fix: Dockerfile trusts optional ./certs/*.crt in both stages (update-ca-certificates + PIP_CERT / SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS); certs/.gitkeep tracked, certs/*.crt git-ignored; local certs/netskope-ca.crt exported from the Windows store (root + intermediate). Verified: full docker build exits 0 and https works at runtime. PRODUCTION_DEPLOY.md updated.
+
+EOLM Reference link (2026-11-11, merged to main and pushed): the aggregated EOLM finding always gets `Reference: <Wiz EOL view filtered by subscription externalId(s)>` in its technical details (single + bulk import). wiz-reference.js now accepts subscriptionExternalIds[]. Link shape = user's existing manual EOL links (not opened in Wiz). main.js v=225. Tests pass; page loads without errors.
+
+EOLM bulk severity (2026-11-11, merged to main and pushed): build_bulk_filter sends severity [CRITICAL,HIGH] for endOfLifeFindings (was MEDIUM+HIGH+CRITICAL). Shared with the pipeline. Backend only, no cache-buster change.
+
+Reference-last (2026-11-11/12, merged to main and pushed): the `Reference:` line is always the last technical-details line (moveReferenceToEnd in resource-cap.js, applied on cap/merge/import). main.js v=226. Tests pass.
+
+EAPM templates (2026-11-12, merged to main and pushed): two built-in add-finding templates (GCP service account, GCP group) added to findingTemplates in findings.js, based on the published Flow report (read-only from instance/app.db, snapshot 27; DB untouched). main.js v=227. Verified in browser (dropdown + fill).
+
+EAPM smart templates (2026-11-12, merged to main and pushed): replaced the two static EAPM templates with three data-driven ones (GCP SA, GCP group, AWS role) via new static/js/src/template-fill.js; user decisions: keep the finding's severity, replace all original recs, variants = SA + group + AWS role. Verified on 68 real findings (read-only) and in browser edit mode (id, severity, technical/Reference kept). main.js v=229. 8 new tests in tests/test_template_fill.py.
+
+EAPM smart templates: GCP user variant added (2026-11-12, merged to main and pushed) — both real user findings fill fully. main.js v=230.
+
+EAPM template recs wording changed (2026-11-12, merged to main and pushed): SA and user templates now open with the user's three Hebrew lines (GCP_ROLE_REVIEW_RECS) instead of the three old lines. main.js v=231. Tests updated.
+
+Edit exclude rule (2026-11-12, merged to main and pushed): ערוך button per rule in the רשימת סינון table reusing the add form (PUT), duplicate-safe, handles pair rules and legacy path. main.js v=232, builder.css v=197. Verified in browser; PUT test added.

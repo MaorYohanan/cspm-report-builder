@@ -7,10 +7,12 @@
 
 import { escapeHtml, showToast, styledConfirm } from './core.js';
 import { switchToTab } from './findings.js';
+import { t } from './i18n.js';
 
 // ── Module-level rule cache ──────────────────────────────────────────────────
 var _rules = [];        // full list, refreshed after every mutation
 var _loaded = false;    // true once the first successful fetch completes
+var _editingId = null;  // id of the rule loaded into the form for editing (null = adding a new rule)
 
 // ── DOM refs (resolved lazily on first use) ──────────────────────────────────
 function _el(id) { return document.getElementById(id); }
@@ -127,10 +129,11 @@ function _loadRules() {
 
 // An existing rule (active OR disabled) with the same field + operator + pattern, ignoring case —
 // matching is case-insensitive, so 'Dynatrace' and 'dynatrace' are the same rule.
-export function findDuplicateRule(field, operator, pattern) {
+export function findDuplicateRule(field, operator, pattern, excludeId) {
   var wanted = String(pattern || '').trim().toLowerCase();
   for (var i = 0; i < _rules.length; i++) {
     var r = _rules[i];
+    if (excludeId != null && r.id === excludeId) continue;
     if (r.field === field && r.operator === operator && String(r.pattern || '').trim().toLowerCase() === wanted) return r;
   }
   return null;
@@ -181,7 +184,7 @@ function _render() {
   if (!tbody) return;
 
   if (!_rules.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:16px;">אין כללי סינון</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">אין כללי סינון</td></tr>';
     return;
   }
 
@@ -189,7 +192,7 @@ function _render() {
   _rules.forEach(function(rule) {
     var isActive = !!rule.active;
     var toggleLabel = isActive ? 'השבת' : 'הפעל';
-    var rowClass = isActive ? '' : 'exclude-rule-inactive';
+    var rowClass = (isActive ? '' : 'exclude-rule-inactive') + (rule.id === _editingId ? ' exclude-rule-editing' : '');
     html += '<tr class="' + rowClass + '" data-rule-id="' + rule.id + '">';
     var _tr = parseRulePair(rule);
     html += '<td><code dir="ltr">' + (_tr
@@ -201,6 +204,9 @@ function _render() {
     html +=   '<button class="btn btn-sm exclude-rule-toggle-btn" data-rule-id="' + rule.id + '" data-active="' + isActive + '">';
     html +=     escapeHtml(toggleLabel);
     html +=   '</button>';
+    html += '</td>';
+    html += '<td>';
+    html +=   '<button class="btn btn-sm exclude-rule-edit-btn" data-rule-id="' + rule.id + '">' + escapeHtml(t('ערוך')) + '</button>';
     html += '</td>';
     html += '<td>';
     html +=   '<button class="btn btn-sm btn-danger exclude-rule-delete-btn" data-rule-id="' + rule.id + '">';
@@ -250,6 +256,75 @@ function _handleDuplicate(rule) {
   });
 }
 
+// ── Edit mode: the add-rule form is reused to change an existing rule ────────
+function _setAddButtonLabel(editing) {
+  var btn = _el('btn-add-exclude-rule');
+  if (!btn) return;
+  // data-i18n: a later language switch re-translates from this key
+  btn.setAttribute('data-i18n', editing ? 'שמור שינויים' : 'הוסף כלל');
+  btn.textContent = editing ? t('שמור שינויים') : t('הוסף כלל');
+}
+
+function _handleEdit(ruleId) {
+  var rule = null;
+  for (var i = 0; i < _rules.length; i++) if (_rules[i].id === ruleId) rule = _rules[i];
+  if (!rule) return;
+
+  var fieldEl = _el('exclude-rule-field');
+  var opEl = _el('exclude-rule-operator');
+  var patternEl = _el('exclude-rule-pattern');
+  var resourceEl = _el('exclude-rule-pattern-resource');
+  var activeEl = _el('exclude-rule-active');
+  if (!fieldEl || !opEl || !patternEl) return;
+
+  // A legacy plain-path rule has no option in the select any more: add a temporary one
+  if (!Array.prototype.some.call(fieldEl.options, function(o) { return o.value === rule.field; })) {
+    var legacy = document.createElement('option');
+    legacy.value = rule.field;
+    legacy.textContent = _FIELD_LABELS[rule.field] || rule.field;
+    legacy.setAttribute('data-legacy', '1');
+    fieldEl.appendChild(legacy);
+  }
+  fieldEl.value = rule.field;
+  fieldEl.dispatchEvent(new Event('change'));   // shows / hides the second input
+  opEl.value = rule.operator;
+  var pair = parseRulePair(rule);
+  patternEl.value = pair ? pair.title : rule.pattern;
+  if (resourceEl) resourceEl.value = pair ? pair.second : '';
+  if (activeEl) activeEl.checked = !!rule.active;
+
+  _editingId = ruleId;
+  _setAddButtonLabel(true);
+  var cancelBtn = _el('btn-cancel-edit-exclude-rule');
+  if (cancelBtn) cancelBtn.hidden = false;
+  _setStatus('');
+  _render();
+  patternEl.focus();
+  if (patternEl.scrollIntoView) patternEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function _exitEditMode() {
+  _editingId = null;
+  var fieldEl = _el('exclude-rule-field');
+  if (fieldEl) {
+    Array.prototype.slice.call(fieldEl.options).forEach(function(o) {
+      if (o.getAttribute('data-legacy')) fieldEl.removeChild(o);
+    });
+    fieldEl.value = 'title';
+    fieldEl.dispatchEvent(new Event('change'));
+  }
+  var patternEl = _el('exclude-rule-pattern');
+  var resourceEl = _el('exclude-rule-pattern-resource');
+  if (patternEl) patternEl.value = '';
+  if (resourceEl) resourceEl.value = '';
+  var activeEl = _el('exclude-rule-active');
+  if (activeEl) activeEl.checked = true;
+  _setAddButtonLabel(false);
+  var cancelBtn = _el('btn-cancel-edit-exclude-rule');
+  if (cancelBtn) cancelBtn.hidden = true;
+  _render();
+}
+
 // ── Add-rule handler ─────────────────────────────────────────────────────────
 function _handleAdd() {
   var fieldEl    = _el('exclude-rule-field');
@@ -280,23 +355,30 @@ function _handleAdd() {
     pattern = JSON.stringify(pairObj);
   }
 
-  var dup = findDuplicateRule(field, operator, pattern);
-  if (dup) { _handleDuplicate(dup); return; }
+  var editingId = _editingId;
+  var dup = findDuplicateRule(field, operator, pattern, editingId);
+  if (dup) {
+    if (editingId !== null) _setStatus('כלל זהה כבר קיים', true);   // editing: never merge into another rule
+    else _handleDuplicate(dup);
+    return;
+  }
 
   var addBtn = _el('btn-add-exclude-rule');
   if (addBtn) addBtn.disabled = true;
   _setStatus('');
 
-  _apiFetch(_BASE, {
-    method: 'POST',
-    body: JSON.stringify({ field: field, operator: operator, pattern: pattern, active: active }),
+  var body = JSON.stringify({ field: field, operator: operator, pattern: pattern, active: active });
+  _apiFetch(editingId !== null ? _BASE + '/' + editingId : _BASE, {
+    method: editingId !== null ? 'PUT' : 'POST',
+    body: body,
   })
     .then(function(r) {
       return r.json().then(function(data) { return { ok: r.ok, status: r.status, data: data }; });
     })
     .then(function(res) {
       if (res.status === 409 && res.data && res.data.rule) {
-        _handleDuplicate(res.data.rule);
+        if (editingId !== null) _setStatus('כלל זהה כבר קיים', true);
+        else _handleDuplicate(res.data.rule);
         return _loadRules();
       }
       if (!res.ok) {
@@ -305,8 +387,14 @@ function _handleAdd() {
       }
       if (patternEl) patternEl.value = '';
       if (resourceEl) resourceEl.value = '';
-      _setStatus('הכלל נוסף בהצלחה');
-      showToast('כלל סינון נוסף', 'success');
+      if (editingId !== null) {
+        _exitEditMode();
+        _setStatus('הכלל עודכן בהצלחה');
+        showToast('כלל סינון עודכן', 'success');
+      } else {
+        _setStatus('הכלל נוסף בהצלחה');
+        showToast('כלל סינון נוסף', 'success');
+      }
       return _loadRules();
     })
     .catch(function(e) {
@@ -360,6 +448,7 @@ function _handleDelete(ruleId) {
           return;
         }
         showToast('הכלל נמחק', 'success');
+        if (_editingId === ruleId) _exitEditMode();
         return _loadRules();
       })
       .catch(function(e) {
@@ -375,6 +464,10 @@ function _wireEvents() {
   var addBtn = _el('btn-add-exclude-rule');
   if (addBtn) {
     addBtn.addEventListener('click', _handleAdd);
+  }
+  var cancelEditBtn = _el('btn-cancel-edit-exclude-rule');
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener('click', _exitEditMode);
   }
 
   // Second pattern input (resource / path) only for the title + … rules
@@ -398,6 +491,11 @@ function _wireEvents() {
         var rid     = parseInt(toggleBtn.getAttribute('data-rule-id'), 10);
         var curAct  = toggleBtn.getAttribute('data-active') === 'true';
         _handleToggle(rid, curAct);
+        return;
+      }
+      var editBtn = e.target.closest('.exclude-rule-edit-btn');
+      if (editBtn) {
+        _handleEdit(parseInt(editBtn.getAttribute('data-rule-id'), 10));
         return;
       }
       var deleteBtn = e.target.closest('.exclude-rule-delete-btn');

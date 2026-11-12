@@ -39,6 +39,16 @@ export function getFullResources(finding) {
   return parseResourceValue(line.slice(line.indexOf(':') + 1));
 }
 
+// "Reference: <wiz link>" is always the LAST technical-details line (any existing Reference line,
+// whatever its case, is moved to the end).
+export function moveReferenceToEnd(finding) {
+  if (!finding || !Array.isArray(finding.technical)) return;
+  var refs = finding.technical.filter(function(l) { return typeof l === 'string' && /^Reference:/i.test(l); });
+  if (!refs.length) return;
+  finding.technical = finding.technical.filter(function(l) { return !(typeof l === 'string' && /^Reference:/i.test(l)); })
+    .concat(refs);
+}
+
 // Rewrite the resource line of `finding` from `names` (default: its current full list).
 export function capResourceLine(finding, names) {
   if (!finding || !Array.isArray(finding.technical)) return;
@@ -49,6 +59,7 @@ export function capResourceLine(finding, names) {
   if (all.length > RESOURCE_CAP) finding._resources = all.slice();
   else delete finding._resources;
   if (all.length) finding.technical[idx] = prefix + ': ' + formatResourceValue(all);
+  moveReferenceToEnd(finding);
 }
 
 // When the list was capped and a Wiz reference URL was attached at import time
@@ -59,10 +70,9 @@ function applyReference(finding) {
   if (!url || !Array.isArray(finding.technical)) return;
   if (!finding._resources || finding._resources.length <= RESOURCE_CAP) return;
   finding.technical = finding.technical.filter(function(l) { return !(typeof l === 'string' && /^Reference:/i.test(l)); });
-  var idx = findResourceLineIndex(finding.technical);
-  if (idx >= 0) finding.technical.splice(idx + 1, 0, 'Reference: ' + url);
+  finding.technical.push('Reference: ' + url);
 }
 
 export function capResourceLines(findings) {
-  (findings || []).forEach(function(f) { capResourceLine(f); applyReference(f); });
+  (findings || []).forEach(function(f) { capResourceLine(f); applyReference(f); moveReferenceToEnd(f); });
 }

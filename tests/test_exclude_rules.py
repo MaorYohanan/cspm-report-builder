@@ -533,3 +533,19 @@ def test_update_into_a_duplicate_is_rejected_and_not_applied(real_client):
     assert rules[other] == "Other"
     # editing a rule to its own value is fine
     assert real_client.put(f"/api/wizi/exclude-rules/{other}", json={"pattern": "Other"}).status_code == 200
+
+
+def test_put_can_change_field_operator_pattern_and_active(real_client):
+    rid = _post(real_client, pattern="Old").get_json()["rule"]["id"]
+    import json as _json
+    pair = _json.dumps({"title": "T", "resource": "R"})
+    resp = real_client.put(f"/api/wizi/exclude-rules/{rid}",
+                           json={"field": "title_resource", "operator": "regex", "pattern": pair, "active": False})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    rule = resp.get_json()["rule"]
+    assert (rule["field"], rule["operator"], rule["pattern"], rule["active"]) == ("title_resource", "regex", pair, False)
+    # changing the field without a matching pattern is rejected and not applied
+    bad = real_client.put(f"/api/wizi/exclude-rules/{rid}", json={"field": "title_path"})
+    assert bad.status_code == 400
+    again = [r for r in real_client.get("/api/wizi/exclude-rules").get_json()["rules"] if r["id"] == rid][0]
+    assert again["field"] == "title_resource"

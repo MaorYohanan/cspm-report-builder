@@ -79,7 +79,8 @@ def _ref(expr: str, data):
 def test_reference_added_only_when_capped():
     capped = {"technical": ["Resource: " + ", ".join(_names(8)), "Other"], "_wizRef": "https://app.wiz.io/x"}
     out = _ref("(m.capResourceLines([d]), d)", capped)
-    assert out["technical"][1] == "Reference: https://app.wiz.io/x"
+    assert out["technical"][-1] == "Reference: https://app.wiz.io/x"   # always the last line
+    assert out["technical"][1] == "Other"
     assert "_wizRef" not in out
     small = {"technical": ["Resource: a, b"], "_wizRef": "https://app.wiz.io/x"}
     out = _ref("(m.capResourceLines([d]), d)", small)
@@ -129,3 +130,27 @@ def test_host_config_link_includes_subscription_filter():
     url = _ref("r.buildWizReference('hostConfigurationRuleAssessments', d, {})", items)
     assert unquote(url.split("#", 1)[1]) == (
         "~(filters~(status~(equals~(~'OPEN))~hostConfigurationRule~(equals~(~'r1))~cloudAccount~(equals~(~'s1~'s2))))")
+
+
+def test_eol_reference_matches_real_portal_link_shape():
+    from urllib.parse import unquote
+    one = _ref("r.buildWizReference('endOfLifeFindings', [], {subscriptionExternalId: '706193894390'})", {})
+    assert one.startswith("https://app.wiz.io/findings/end-of-life-findings?filters=")
+    # same filters / groupBy as the end-of-life Reference link already used in real reports
+    assert unquote(one.split("?", 1)[1]) == 'filters={"cloudAccount":{"equals":["706193894390"]}}&groupBy=["VULNERABLE_ASSET"]'
+    many = _ref("r.buildWizReference('endOfLifeFindings', [], {subscriptionExternalIds: ['1','2','1']})", {})
+    assert '"equals":["1","2"]' in unquote(many)
+    assert _ref("r.buildWizReference('endOfLifeFindings', [], {})", {}) is None  # no external id -> no link
+    vuln = _ref("r.buildWizReference('vulnerabilityFindings', [], {subscriptionExternalIds: ['9']})", {})
+    assert '"cloudAccount":{"equals":["9"]}' in unquote(vuln)
+
+
+def test_reference_is_always_last_even_when_not_capped_or_added_earlier():
+    f = {"technical": ["Reference: https://old", "Resource: a, b", "Subscription: s", "reference: https://manual"]}
+    out = _ref("(m.capResourceLines([d]), d)", f)
+    assert out["technical"] == ["Resource: a, b", "Subscription: s", "Reference: https://old", "reference: https://manual"]
+    # merging more resources into a capped finding keeps Reference last too
+    g = {"technical": ["Resource: " + ", ".join(_names(8)), "Reference: https://x", "Subscription: s"]}
+    out = _ref("(m.capResourceLine(d, m.getFullResources(d).concat(['r9'])), d)", g)
+    assert out["technical"][-1] == "Reference: https://x"
+    assert out["technical"][0].endswith("ועוד 4...")

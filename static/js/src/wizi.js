@@ -1228,6 +1228,8 @@ function _resolveItemCategory(item, qt) {
 
           var eolTechnical = eolTechLines.slice();
           if (eolSubscriptions.length) eolTechnical.push('Subscription: ' + eolSubscriptions.join(', '));
+          var eolRefLine = eolReferenceLine(eolSubscriptions);
+          if (eolRefLine) eolTechnical.push(eolRefLine);
 
           state.findings.push({
             id: eolId, category: 'EOLM',
@@ -3752,6 +3754,8 @@ function _resolveItemCategory(item, qt) {
 
           var eolTechnical = eolTechLines.slice();
           if (eolSubs.length) eolTechnical.push('Subscription: ' + eolSubs.join(', '));
+          var eolRefLineBulk = eolReferenceLine(eolSubs);
+          if (eolRefLineBulk) eolTechnical.push(eolRefLineBulk);
 
           var eolTitle = 'רכיבים בסוף חיים (End of Life)';
           var eolTitleLower = eolTitle.toLowerCase();
@@ -4313,6 +4317,24 @@ function _resolveItemCategory(item, qt) {
           title: finding.title
         });
         if (ref) finding._wizRef = ref;
+      }
+
+      // EOLM findings are always one aggregated finding, so unlike the capped-resource findings they
+      // always get a "Reference:" line: the Wiz end-of-life view filtered to the imported subscription(s).
+      // External ids come from the autocomplete pick, else from the subscription list by name.
+      function eolReferenceLine(subscriptionNames) {
+        var ids = [];
+        if (selectedSubExternalId) ids.push(selectedSubExternalId);
+        else (subscriptionNames || []).forEach(function(name) {
+          for (var i = 0; i < wiziSubscriptions.length; i++) {
+            if (wiziSubscriptions[i].label === name && wiziSubscriptions[i].externalId) {
+              ids.push(wiziSubscriptions[i].externalId);
+              break;
+            }
+          }
+        });
+        var url = buildWizReference('endOfLifeFindings', [], { subscriptionExternalIds: ids });
+        return url ? 'Reference: ' + url : null;
       }
 
       // BL-24: stamp the source subscription on the freshly imported findings, then apply memory.

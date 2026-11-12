@@ -90,12 +90,11 @@ CASES = [
         # The filter type is VulnerabilityFindingFilters — uses plain-list severity/status
         # and subscriptionExternalId (NOT resource.subscriptionId which belongs to
         # inventory-type filters). isEndOfLife=True narrows to EOL findings only.
-        # Severity defaults to MEDIUM+HIGH+CRITICAL (Medium-and-above) because most
-        # actionable EOL signals surface at MEDIUM; other query types default to
-        # CRITICAL+HIGH only. Bulk import has no per-import severity override.
+        # Severity is CRITICAL+HIGH (High-and-above), like the other query types.
+        # Bulk import has no per-import severity override.
         "endOfLifeFindings",
         {
-            "severity": ["MEDIUM", "HIGH", "CRITICAL"],
+            "severity": ["CRITICAL", "HIGH"],
             "status": ["OPEN", "IN_PROGRESS"],
             "isEndOfLife": True,
             "subscriptionExternalId": SUB_EXT_IDS,

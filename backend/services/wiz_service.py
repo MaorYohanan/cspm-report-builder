@@ -528,8 +528,8 @@ def build_bulk_filter(
     and _run_wiz_fetch (pipeline.py) so both flows produce identical Wiz API filters.
 
     Applies:
-    - Severity: CRITICAL + HIGH for most query types; MEDIUM + HIGH + CRITICAL
-      for endOfLifeFindings (schema-appropriate format per query type)
+    - Severity: CRITICAL + HIGH for every query type that supports it, including
+      endOfLifeFindings (schema-appropriate format per query type)
     - Status: OPEN + IN_PROGRESS (or FAIL for configurationFindings)
     - Subscription scope: correct filter field per query type
     - vuln_filters (BL-38): extra hasExploit / hasFix / validatedInRuntime flags,
@@ -542,14 +542,11 @@ def build_bulk_filter(
     if query_type in (
         "issues", "configurationFindings", "vulnerabilityFindings",
         "hostConfigurationRuleAssessments",
+        # EOL findings use VulnerabilityFindingFilters (plain-list severity). They used to
+        # default to Medium-and-above; High-and-above is now the canonical default.
+        "endOfLifeFindings",
     ):
         filter_by["severity"] = ["CRITICAL", "HIGH"]
-    elif query_type == "endOfLifeFindings":
-        # EOL findings default to Medium-and-above because most actionable EOL
-        # signals surface at MEDIUM severity; Critical/High are included so
-        # nothing is silently dropped. Bulk import has no per-import severity
-        # override — this is the canonical default for this query type.
-        filter_by["severity"] = ["MEDIUM", "HIGH", "CRITICAL"]
     elif query_type == "excessiveAccessFindings":
         # ExcessiveAccessFindingFilters.severity exists but is a wrapped {equals: [...]} filter
         # (verified against the live schema); a plain list was what used to be rejected.

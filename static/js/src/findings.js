@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { extractEapmData, buildEapmFinding } from './template-fill.js';
 import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
@@ -831,6 +832,11 @@ let priorityTouched = false;
         { category: 'NEXP', title: 'Database חשוף לאינטרנט', severity: 'critical', description: 'שירות Database (RDS/SQL/CosmosDB) נגיש ישירות מהאינטרנט.', impact: 'חשיפה ישירה של בסיס הנתונים לתקיפות Brute Force, SQL Injection ודליפת מידע.', recs: 'להעביר את ה-Database ל-Private Subnet\nלבטל Public Accessibility\nלהגדיר גישה דרך VPN או Private Endpoint בלבד' },
         { category: 'VULN', title: 'ספריות עם פגיעויות ידועות (CVE)', severity: 'high', description: 'זוהו ספריות / חבילות תוכנה עם פגיעויות ידועות ברמת חומרה גבוהה.', impact: 'ניצול פגיעויות ידועות עלול לאפשר הרצת קוד מרחוק, דליפת מידע או השבתת שירות.', recs: 'לעדכן את הספריות לגרסאות מתוקנות\nלהפעיל סריקת פגיעויות אוטומטית ב-CI/CD\nלהגדיר מדיניות חסימה לפגיעויות Critical/High' },
         { category: 'DSPM', title: 'נתונים רגישים ללא סיווג או הגנה', severity: 'medium', description: 'זוהו מאגרי נתונים המכילים מידע רגיש (PII/PHI/PCI) ללא סיווג או בקרות הגנה מתאימות.', impact: 'חוסר סיווג מקשה על אכיפת מדיניות הגנת מידע ועמידה ברגולציה.', recs: 'לבצע סריקת Data Discovery וסיווג אוטומטי\nלהגדיר תגיות סיווג (Classification Tags)\nליישם בקרות גישה מבוססות סיווג' },
+        // EAPM "smart" templates: the text is rebuilt from the data of the open finding (see template-fill.js)
+        { category: 'EAPM', smart: 'gcp-sa', title: 'GCP excessive access for service account <SERVICE_ACCOUNT_EMAIL>', severity: 'high' },
+        { category: 'EAPM', smart: 'gcp-user', title: 'GCP excessive access for user <USER_EMAIL>', severity: 'high' },
+        { category: 'EAPM', smart: 'gcp-group', title: 'GCP excessive access for group <GROUP_NAME>', severity: 'high' },
+        { category: 'EAPM', smart: 'aws-role', title: 'AWS excessive access for role <ROLE_NAME>', severity: 'high' },
       ];
 
       // Populate template dropdown
@@ -889,6 +895,11 @@ let priorityTouched = false;
           console.warn('Failed to load custom templates:', err);
         });
 
+      function t_filled() { return 'התבנית הופעלה — כל הנתונים הושלמו מהממצא'; }
+      function t_missing(names) {
+        return 'התבנית הופעלה — לא נמצאו נתונים עבור: ' + names.map(function(n) { return '<' + n + '>'; }).join(', ') + ' (יש להשלים ידנית)';
+      }
+
       templateSelect.addEventListener('change', function() {
         if (this.value === '') return;
         var idx = parseInt(this.value);
@@ -902,6 +913,34 @@ let priorityTouched = false;
         var descEl = document.getElementById('f-description');
         var impactEl = document.getElementById('f-impact');
         var recsEl = document.getElementById('f-recs');
+
+        // Smart template: take the data out of the finding that is open in the form and write it
+        // into the template text. The severity of an existing finding is kept (Wiz's own rating).
+        if (t.smart) {
+          var techEl = document.getElementById('f-technical');
+          var built = buildEapmFinding(t.smart, extractEapmData({
+            title: titleEl ? titleEl.value : '',
+            description: descEl ? descEl.value : '',
+            impact: impactEl ? impactEl.value : '',
+            technical: techEl ? techEl.value : '',
+            recs: recsEl ? recsEl.value : ''
+          }));
+          if (categoryEl) categoryEl.value = t.category || 'EAPM';
+          prefillId();
+          if (titleEl) titleEl.value = built.fields.title;
+          if (descEl) descEl.value = built.fields.description;
+          if (impactEl) impactEl.value = built.fields.impact;
+          if (recsEl) recsEl.value = built.fields.recs;
+          if (severityEl && state.editingIndex === null) severityEl.value = t.severity || 'high';
+          this.value = '';
+          if (built.missing.length) {
+            showToast(t_missing(built.missing), 'warning');
+          } else {
+            showToast(t_filled(), 'success');
+          }
+          if (titleEl) titleEl.focus();
+          return;
+        }
 
         if (categoryEl) categoryEl.value = t.category || 'CSPM';
         prefillId();

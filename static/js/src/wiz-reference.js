@@ -42,9 +42,22 @@ function firstRuleId(items, qt) {
   return null;
 }
 
+// Subscription external ids for the cloudAccount filter: ctx.subscriptionExternalIds (array) and/or
+// ctx.subscriptionExternalId (single), de-duplicated.
+function externalIds(ctx) {
+  var raw = [].concat(ctx.subscriptionExternalIds || [], ctx.subscriptionExternalId || []);
+  var out = [];
+  raw.forEach(function(id) {
+    id = String(id || '').trim();
+    if (id && out.indexOf(id) === -1) out.push(id);
+  });
+  return out;
+}
+
 export function buildWizReference(qt, items, ctx) {
   ctx = ctx || {};
-  var acct = ctx.subscriptionExternalId ? String(ctx.subscriptionExternalId).trim() : '';
+  var accts = externalIds(ctx);
+  var acct = accts.length ? accts : null;
 
   if (qt === 'vulnerabilityFindings') {
     if (!acct) return null;
@@ -52,14 +65,14 @@ export function buildWizReference(qt, items, ctx) {
       severity: { equals: ['HIGH', 'CRITICAL'] },
       hasFix: { equals: true },
       hasExploit: { equals: true },
-      cloudAccount: { equals: [acct] },
+      cloudAccount: { equals: acct },
       validatedInRuntime: { equals: true }
     }) + '&groupBy=' + encodeURIComponent('["VULNERABLE_ASSET"]');
   }
   if (qt === 'endOfLifeFindings') {
     if (!acct) return null;
     return BASE + '/findings/end-of-life-findings?filters=' + jsonFilters({
-      cloudAccount: { equals: [acct] }
+      cloudAccount: { equals: acct }
     }) + '&groupBy=' + encodeURIComponent('["VULNERABLE_ASSET"]');
   }
   if (qt === 'configurationFindings') {

@@ -203,6 +203,9 @@ const TRANSLATIONS = {
     '⏱ פעולה זמנית': '⏱ Temporary action',
     'פעולה זמנית — לדו"ח זה בלבד': 'Temporary action — this report only',
     'ערוך': 'Edit',
+    'עריכה': 'Edit',
+    'שמור שינויים': 'Save changes',
+    'ביטול עריכה': 'Cancel edit',
     'מחק': 'Delete',
     // ── Export panel ──
     '📤 ייצוא דו"ח': '📤 Export Report',
