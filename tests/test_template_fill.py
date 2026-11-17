@@ -112,7 +112,7 @@ def test_aws_policy_replace_with_only_permissions():
     d, f = r["data"], r["built"]["fields"]
     assert (d["roleName"], d["policy"], d["services"], d["permissions"]) == \
         ("ecr-secret-updater-govforms-preprod-eks-2", "ecr-secret-updater-govforms-preprod-eks-2", None, 4)
-    assert "4 הרשאות שאינם בשימוש" in f["description"] and "custom policy" in f["description"]
+    assert "4 הרשאות שאינן בשימוש" in f["description"] and "custom policy" in f["description"]
     assert r["built"]["missing"] == []          # no services is normal for AWS policies
 
 

@@ -531,3 +531,18 @@ EAPM smart templates: GCP user variant added (2026-11-12, merged to main and pus
 EAPM template recs wording changed (2026-11-12, merged to main and pushed): SA and user templates now open with the user's three Hebrew lines (GCP_ROLE_REVIEW_RECS) instead of the three old lines. main.js v=231. Tests updated.
 
 Edit exclude rule (2026-11-12, merged to main and pushed): ערוך button per rule in the רשימת סינון table reusing the add form (PUT), duplicate-safe, handles pair rules and legacy path. main.js v=232, builder.css v=197. Verified in browser; PUT test added.
+
+SECR smart templates (2026-11-12): ✅ merged 2026-11-17 with the branch above (browser-verified by QA) — Git credentials + exposed-secret templates (private key, cloud key, GCP refresh token, API token) in new secret-fill.js, modelled on the latest saved reports (read-only DB). VPC NACL and Shielded VM skipped (already filter rules).
+
+Template spell guard (2026-11-12): tests/test_template_spelling.py renders every EAPM + SECR template and checks a misspelling list plus Hebrew writing patterns; fixed "קובץים" (private key rec) and "ו-הרשאה אחת" (EAPM). main.js v=234. Part of the SECR templates task, still awaiting merge approval.
+
+Private Key template recs replaced with the user's two Hebrew lines (2026-11-12, uncommitted, same task). main.js v=235.
+
+Import popup now offers smart templates instead of the AI improver (2026-11-15, uncommitted, same task): offerSmartTemplates + apply-templates.js; AI improver stays on the findings page. main.js v=236. Awaiting browser QA.
+
+VPC firewall MULTIPLE template (2026-11-15, uncommitted): aggregated "VPC firewall rules should restrict MULTIPLE accesses" finding now gets fixed Hebrew impact + two recs (description unchanged) in wizi.js. main.js v=238. Not browser-verified.
+
+VPC MULTIPLE template reworked as a smart template (2026-11-15, uncommitted): new vpc-fill.js, dropdown entry is smart, planTemplates applies it on "yes" in the import popup (title + description kept); earlier wizi.js aggregation edit reverted. main.js v=240. Tests added, not browser-verified.
+
+
+Smart templates for CSPM / HSPM / EOLM (2026-11-17): ✅ merged to main (local, not pushed) — branch feature/smart-templates-secr-config, includes SECR templates, VPC MULTIPLE template and the import popup offering smart templates. 12 templates in config-fill.js; browser QA passed with notes (placeholders in command examples are intentional, user decision). main.js v=243.

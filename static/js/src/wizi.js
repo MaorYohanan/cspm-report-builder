@@ -8,6 +8,7 @@ import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules, getWiziItemPaths } from './exclude_rules.js';
 import { capResourceLines, capResourceLine, getFullResources } from './resource-cap.js';
 import { buildWizReference } from './wiz-reference.js';
+import { planTemplates, applyPlan } from './apply-templates.js';
 import { buildRuleKey, memoryEntriesToList, applyMemoryToFindings, computeUnmatchedEntries, publishUnmatchedMemory } from './memory-match.js';
 
 // ── queryType → CSPM category assigned at import time ───────────────────────
@@ -1596,14 +1597,8 @@ function _resolveItemCategory(item, qt) {
         // Stamp source subscription and apply product memory
         var newFindings = stampAndApplyMemory(beforeCount, subscription);
 
-        // Enrich newly imported state.findings with AI remediation summaries
-        if (newFindings.length) {
-          styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
-            icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
-          }).then(function(yes) {
-            if (yes) enrichFindingsWithAiSummaries(newFindings);
-          });
-        }
+        // Smart EAPM / SECR templates for the newly imported findings (the AI improver stays on the findings page)
+        offerSmartTemplates(newFindings);
       });
 
       // ── Fetch by Wizi finding ID ──
@@ -2381,6 +2376,22 @@ function _resolveItemCategory(item, qt) {
             return data.summary;
           }
           return null;
+        });
+      }
+
+      // Ask once after an import whether to rewrite the EAPM / SECR / VPC findings from the smart templates.
+      // Only findings a template fits completely are offered; the rest keep the Wiz text.
+      export function offerSmartTemplates(newFindings) {
+        var plan = planTemplates(newFindings);
+        if (!plan.length) return Promise.resolve();
+        return styledConfirm('נמצאו ' + plan.length + ' ממצאים (EAPM / SECR / CSPM / HSPM / EOLM) שאפשר לעדכן לפי התבניות החכמות. התיאור, ההשפעה וההמלצות יוחלפו בנוסח התבנית, והכותרת והפרטים הטכניים יישארו. להחיל?', {
+          icon: '🧩', title: 'החלת תבניות חכמות', confirmText: 'כן', cancelText: 'לא'
+        }).then(function(yes) {
+          if (!yes) return;
+          var n = applyPlan(plan);
+          renderFindingsTable();
+          autoSave();
+          showToast('הוחלו תבניות על ' + n + ' ממצאים', 'success');
         });
       }
 
@@ -4551,14 +4562,8 @@ function _resolveItemCategory(item, qt) {
               applyProductMemory(newFindings, bulkSubscription, { scopeType: 'bulk', seenNodes: bulkSeen, complete: true,
                 failedTypes: (state.bulkFailedQueryTypes || []).slice() });
 
-              // Enrich newly imported findings with AI remediation summaries.
-              if (newFindings.length) {
-                styledConfirm('האם ברצונך להפעיל את כלי שיפור ההמלצות?', {
-                  icon: '🤖', title: 'שיפור המלצות באמצעות AI', confirmText: 'כן', cancelText: 'לא'
-                }).then(function(yes) {
-                  if (yes) enrichFindingsWithAiSummaries(newFindings);
-                });
-              }
+              // Smart EAPM / SECR templates for the newly imported findings (the AI improver stays on the findings page).
+              offerSmartTemplates(newFindings);
             });
           });
         });

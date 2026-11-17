@@ -1,5 +1,8 @@
 import { state } from './state.js';
 import { extractEapmData, buildEapmFinding } from './template-fill.js';
+import { VPC_MULTI, buildVpcFinding } from './vpc-fill.js';
+import { CONFIG_VARIANTS, configDropdownEntries, extractConfigData, buildConfigFinding } from './config-fill.js';
+import { extractSecretData, buildSecretFinding } from './secret-fill.js';
 import { showToast, styledConfirm, isValidDataUrl, sanitizeDataUrl, escapeHtml } from './core.js';
 import { updateStepper, renderDashboard, pinSectionForTab } from './ui.js';
 import { autoSave } from './export.js';
@@ -837,7 +840,17 @@ let priorityTouched = false;
         { category: 'EAPM', smart: 'gcp-user', title: 'GCP excessive access for user <USER_EMAIL>', severity: 'high' },
         { category: 'EAPM', smart: 'gcp-group', title: 'GCP excessive access for group <GROUP_NAME>', severity: 'high' },
         { category: 'EAPM', smart: 'aws-role', title: 'AWS excessive access for role <ROLE_NAME>', severity: 'high' },
+        // VPC "smart" template: fixed impact + recs, description of the open finding is kept (see vpc-fill.js)
+        { category: 'CSPM', smart: 'vpc-multi', title: 'VPC firewall rules should restrict MULTIPLE accesses', severity: 'high' },
+        // SECR "smart" templates: same idea for exposed secrets (see secret-fill.js)
+        { category: 'SECR', smart: 'secret-git', title: 'Git Credentials (<REPO_URL>)', severity: 'high' },
+        { category: 'SECR', smart: 'secret-private-key', title: 'Private Key', severity: 'high' },
+        { category: 'SECR', smart: 'secret-cloud-key', title: 'Cloud access key (AWS / GCP service account)', severity: 'high' },
+        { category: 'SECR', smart: 'secret-gcp-refresh', title: 'GCP Refresh Token', severity: 'high' },
+        { category: 'SECR', smart: 'secret-api-token', title: 'API token / PAT / secret key', severity: 'high' },
       ];
+      // CSPM / HSPM / EOLM "smart" templates (see config-fill.js)
+      configDropdownEntries().forEach(function(e) { findingTemplates.push(e); });
 
       // Populate template dropdown
       var templateSelect = document.getElementById('f-template');
@@ -918,13 +931,20 @@ let priorityTouched = false;
         // into the template text. The severity of an existing finding is kept (Wiz's own rating).
         if (t.smart) {
           var techEl = document.getElementById('f-technical');
-          var built = buildEapmFinding(t.smart, extractEapmData({
+          var smartSrc = {
             title: titleEl ? titleEl.value : '',
             description: descEl ? descEl.value : '',
             impact: impactEl ? impactEl.value : '',
             technical: techEl ? techEl.value : '',
             recs: recsEl ? recsEl.value : ''
-          }));
+          };
+          var built = t.category === 'SECR'
+            ? buildSecretFinding(t.smart, extractSecretData(smartSrc), smartSrc.title)
+            : t.smart === VPC_MULTI
+              ? buildVpcFinding(smartSrc.description)
+              : CONFIG_VARIANTS.indexOf(t.smart) > -1
+                ? buildConfigFinding(t.smart, extractConfigData(smartSrc), smartSrc.title)
+                : buildEapmFinding(t.smart, extractEapmData(smartSrc));
           if (categoryEl) categoryEl.value = t.category || 'EAPM';
           prefillId();
           if (titleEl) titleEl.value = built.fields.title;

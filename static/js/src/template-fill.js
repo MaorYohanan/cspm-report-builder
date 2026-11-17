@@ -20,7 +20,7 @@ function firstMatch(text, regexes) {
   return null;
 }
 
-function techValue(technical, key) {
+export function techValue(technical, key) {
   var lines = Array.isArray(technical) ? technical : String(technical || '').split('\n');
   for (var i = 0; i < lines.length; i++) {
     var m = new RegExp('^\\s*' + key + '\\s*:\\s*(.+)$', 'i').exec(String(lines[i]));
@@ -29,7 +29,7 @@ function techValue(technical, key) {
   return null;
 }
 
-function toText(v) {
+export function toText(v) {
   return Array.isArray(v) ? v.join('\n') : String(v || '');
 }
 
@@ -103,7 +103,7 @@ export function extractEapmData(src) {
   return out;
 }
 
-function pick(value, placeholder, missing) {
+export function pick(value, placeholder, missing) {
   if (value !== null && value !== undefined && value !== '') return value;
   if (missing.indexOf(placeholder) === -1) missing.push(placeholder);
   return '<' + placeholder + '>';
@@ -119,7 +119,15 @@ function unusedPhrase(d, missing) {
     missing.push('UNUSED_SERVICES', 'UNUSED_PERMISSIONS');
     return '<UNUSED_SERVICES> שירותים ו-<UNUSED_PERMISSIONS> הרשאות';
   }
-  return parts.join(' ו-');
+  // 'ו-' before a number, plain 'ו' before a Hebrew word ("והרשאה אחת")
+  return parts.length === 1 ? parts[0] : parts[0] + (/^\d/.test(parts[1]) ? ' ו-' : ' ו') + parts[1];
+}
+
+// "not in use" agrees with the noun: permissions are feminine, services masculine; a mix takes the masculine plural
+function unusedNot(d) {
+  if (d.services > 0 && !(d.permissions > 0)) return d.services === 1 ? 'שאינו' : 'שאינם';
+  if (d.permissions > 0 && !(d.services > 0)) return d.permissions === 1 ? 'שאינה' : 'שאינן';
+  return 'שאינם';
 }
 
 // Opening recommendations shared by the GCP service account and user templates
@@ -164,7 +172,7 @@ export function buildEapmFinding(variant, data) {
     f = {
       title: 'GCP excessive access for service account ' + sa,
       description: 'ל-service account `' + sa + '` מוקצה ה-role `' + role + '`. role זה כולל ' + unusedPhrase(d, missing) +
-        ' שאינם בשימוש, המעידים על הרשאות עודפות (over-privilege) ועל חריגה מעקרון ה-Least Privilege. ' + gcpRemediation(d) +
+        ' ' + unusedNot(d) + ' בשימוש, המעידים על הרשאות עודפות (over-privilege) ועל חריגה מעקרון ה-Least Privilege. ' + gcpRemediation(d) +
         '\n\nההמלצה מבוססת על ה-GCP IAM Recommender וכוללת הסרת הרשאות בהתאם להמלצות GCP.',
       impact: 'ה-SA מחזיק בהרשאות יתר מורחבות, דבר העלול לאפשר לתוקף שישיג שליטה על ה-SA גישה נרחבת למשאבים בפרויקט.',
       recs: recs.join('\n')
@@ -181,7 +189,7 @@ export function buildEapmFinding(variant, data) {
     f = {
       title: 'GCP excessive access for user ' + usr,
       description: 'למשתמש `' + usr + '`' + (d.displayName ? ' (' + d.displayName + ')' : '') + ' מוקצה ה-role `' + urole +
-        '`. role זה כולל ' + unusedPhrase(d, missing) + ' שאינם בשימוש, המעידים על הרשאות עודפות (over-privilege) ועל חריגה מעקרון ה-Least Privilege. ' +
+        '`. role זה כולל ' + unusedPhrase(d, missing) + ' ' + unusedNot(d) + ' בשימוש, המעידים על הרשאות עודפות (over-privilege) ועל חריגה מעקרון ה-Least Privilege. ' +
         gcpRemediation(d) + '\n\nההמלצה מבוססת על ה-GCP IAM Recommender וכוללת הסרת הרשאות בהתאם להמלצות GCP.',
       impact: 'למשתמש הרשאות יתר מורחבות - תוקף שישיג שליטה על ההזדהות של המשתמש (כגון באמצעות Info stealer או Phishing) יקבל גישה נרחבת למשאבי הפרויקט.',
       recs: urecs.join('\n')
@@ -191,7 +199,7 @@ export function buildEapmFinding(variant, data) {
     var grole = pick(d.role, 'ROLE', missing);
     f = {
       title: 'GCP excessive access for group ' + grp,
-      description: 'לקבוצה `' + grp + '` מוקצה תפקיד `' + grole + '` הכולל ' + unusedPhrase(d, missing) + ' שאינם בשימוש. ' +
+      description: 'לקבוצה `' + grp + '` מוקצה תפקיד `' + grole + '` הכולל ' + unusedPhrase(d, missing) + ' ' + unusedNot(d) + ' בשימוש. ' +
         (d.remediation === 'DETACH_POLICY'
           ? 'ניתן להסיר את התפקיד במלואו ללא פגיעה בפונקציונליות.'
           : 'מומלץ להחליף תפקיד זה בתפקיד מותאם אישית (custom role) המכיל רק את ההרשאות הנדרשות, ובכך לצמצם הרשאות עודפות.'),
@@ -210,7 +218,7 @@ export function buildEapmFinding(variant, data) {
     } else {
       var pol = pick(d.policy, 'POLICY_NAME', missing);
       var detach = d.remediation === 'DETACH_POLICY';
-      descAws = 'ל-role `' + rname + '` מצורפת המדיניות `' + pol + '`, הכוללת ' + unusedPhrase(d, missing) + ' שאינם בשימוש. ' +
+      descAws = 'ל-role `' + rname + '` מצורפת המדיניות `' + pol + '`, הכוללת ' + unusedPhrase(d, missing) + ' ' + unusedNot(d) + ' בשימוש. ' +
         (detach ? 'ניתן להסיר (detach) את המדיניות במלואה ללא פגיעה בפונקציונליות.'
                 : 'ניתן להחליף את המדיניות ב-custom policy המצומצמת להרשאות בשימוש, ללא פגיעה בפונקציונליות.');
       recsAws.push(detach
@@ -231,3 +239,13 @@ export function buildEapmFinding(variant, data) {
 }
 
 export var EAPM_VARIANTS = ['gcp-sa', 'gcp-user', 'gcp-group', 'aws-role'];
+
+/** Which EAPM variant fits the data of a finding (null when it cannot be told). */
+export function pickEapmVariant(d) {
+  d = d || {};
+  if (/^AWS$/i.test(d.cloud || '')) return 'aws-role';
+  if (d.principalType === 'SERVICE_ACCOUNT') return 'gcp-sa';
+  if (d.principalType === 'USER_ACCOUNT') return 'gcp-user';
+  if (d.principalType === 'GROUP') return 'gcp-group';
+  return null;
+}
