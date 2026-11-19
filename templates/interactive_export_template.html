@@ -142,6 +142,89 @@
       accent-color: #3182ce;
     }
 
+
+    /* ─── BL-43: category filter chips + severity sort ─────────────────── */
+    .filter-group {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex: 1 1 100%;
+    }
+
+    .filter-group[hidden] { display: none; }
+
+    .filter-group-label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #4a5568;
+    }
+
+    .chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .cat-chip-btn,
+    .sort-btn {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      padding: 4px 12px;
+      border-radius: 14px;
+      border: 1px solid #90cdf4;
+      background: #ebf4ff;
+      color: #2b6cb0;
+      cursor: pointer;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      text-align: right;
+    }
+
+    .cat-chip-btn[aria-pressed="true"] {
+      background: #2b6cb0;
+      border-color: #2b6cb0;
+      color: #fff;
+    }
+
+    .cat-chip-btn .chip-count {
+      /* digits are LTR; keep the count isolated from Hebrew text */
+      unicode-bidi: isolate;
+      margin-inline-start: 4px;
+    }
+
+    .sort-btn {
+      border-color: #cbd5e0;
+      background: #f9fafb;
+      color: #1a202c;
+    }
+
+    .cat-chip-btn:focus-visible,
+    .sort-btn:focus-visible,
+    .controls-bar input:focus-visible,
+    .controls-bar select:focus-visible {
+      outline: 2px solid #1a56db;
+      outline-offset: 2px;
+    }
+
+    .result-count {
+      font-size: 14px;
+      color: #2d3748;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 600px) {
+      .page-wrapper { padding: 16px 12px 40px; }
+      .report-header { padding: 20px 16px 16px; }
+      .controls-bar { padding: 12px; gap: 10px; }
+      .controls-bar input[type="text"] { width: 100%; }
+      .controls-bar > label:first-child { flex: 1 1 100%; }
+      .finding-card-header { flex-wrap: wrap; }
+    }
+
     /* ─── Summary bar ──────────────────────────────────────────────────── */
     .summary-bar {
       background: #fff;
@@ -438,7 +521,15 @@
       <input type="checkbox" id="show-excepted-cb" />
       הצג חריגות
     </label>
+    <button type="button" class="sort-btn" id="sort-btn" data-dir="desc"
+            aria-label="מיון לפי חומרה: מחמור לקל. לחץ להיפוך הסדר">מיון חומרה: ↓ מחמור לקל</button>
+    <div class="filter-group" id="category-group" role="group" aria-labelledby="category-label" hidden>
+      <span class="filter-group-label" id="category-label">קטגוריה:</span>
+      <div class="chip-list" id="category-chips"></div>
+    </div>
   </div>
+
+  <div class="result-count" id="result-count" role="status" aria-live="polite"></div>
 
   <!-- Live summary bar -->
   <div class="summary-bar" id="summary-bar">
@@ -554,6 +645,7 @@
     card.dataset.title    = String(f.title       || '').toLowerCase();
     card.dataset.desc     = String(f.description || '').toLowerCase();
     card.dataset.category = String(f.category    || '').toLowerCase();
+    card._cat             = catKey(f);
 
     /* ── Header ── */
     var header = document.createElement('div');
@@ -757,11 +849,102 @@
     });
   }
 
+  /* ─── BL-43: category filter + severity sort ───────────────────────── */
+  var NO_CAT = '\u0000none';           /* key for findings without a category */
+  var selectedCats = [];               /* empty = all categories */
+  var sortDir = 'desc';                /* desc = Critical first */
+  var catKeys = [];                    /* categories present in data, first-seen order */
+  var chipEls = {};
+
+  function catKey(f) {
+    var c = f && f.category != null ? String(f.category).trim() : '';
+    return c || NO_CAT;
+  }
+
+  function catLabel(k) { return k === NO_CAT ? 'ללא קטגוריה' : k; }
+
+  function buildCategoryChips() {
+    var group = document.getElementById('category-group');
+    var box   = document.getElementById('category-chips');
+    findings.forEach(function (f) {
+      var k = catKey(f);
+      if (catKeys.indexOf(k) === -1) catKeys.push(k);
+    });
+    if (!catKeys.length) return;
+    group.hidden = false;
+    function mk(key, text) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cat-chip-btn';
+      b.setAttribute('aria-pressed', 'false');
+      var t = document.createElement('span');
+      t.className = 'chip-label';
+      t.textContent = text;
+      var n = document.createElement('span');
+      n.className = 'chip-count';
+      n.textContent = '(0)';
+      b.appendChild(t);
+      b.appendChild(n);
+      b.addEventListener('click', function () { toggleCat(key); });
+      box.appendChild(b);
+      chipEls[key] = b;
+    }
+    mk('', 'הכל');
+    catKeys.forEach(function (k) { mk(k, catLabel(k)); });
+  }
+
+  function toggleCat(key) {
+    if (key === '') {
+      selectedCats = [];
+    } else {
+      var i = selectedCats.indexOf(key);
+      if (i === -1) selectedCats.push(key); else selectedCats.splice(i, 1);
+    }
+    applyFilters();
+  }
+
+  function updateCategoryChips(catCounts, total) {
+    Object.keys(chipEls).forEach(function (k) {
+      var b = chipEls[k];
+      var c = k === '' ? total : (catCounts[k] || 0);
+      b.querySelector('.chip-count').textContent = '(' + c + ')';
+      b.setAttribute('aria-pressed',
+        (k === '' ? selectedCats.length === 0 : selectedCats.indexOf(k) !== -1) ? 'true' : 'false');
+    });
+  }
+
+  function sortCards() {
+    var list = document.getElementById('findings-list');
+    var dir = sortDir === 'desc' ? 1 : -1;
+    var sorted = cardEls.slice().sort(function (a, b) {
+      var d = (SEV_ORDER.indexOf(a.dataset.sev) - SEV_ORDER.indexOf(b.dataset.sev)) * dir;
+      return d || (Number(a.dataset.idx) - Number(b.dataset.idx)); /* stable */
+    });
+    var frag = document.createDocumentFragment();
+    sorted.forEach(function (c) { frag.appendChild(c); });
+    list.appendChild(frag);
+  }
+
+  function updateSortButton() {
+    var btn = document.getElementById('sort-btn');
+    btn.dataset.dir = sortDir;
+    if (sortDir === 'desc') {
+      btn.textContent = 'מיון חומרה: ↓ מחמור לקל';
+      btn.setAttribute('aria-label', 'מיון לפי חומרה: מחמור לקל. לחץ להיפוך הסדר');
+    } else {
+      btn.textContent = 'מיון חומרה: ↑ מקל לחמור';
+      btn.setAttribute('aria-label', 'מיון לפי חומרה: מקל לחמור. לחץ להיפוך הסדר');
+    }
+  }
+
   /* ─── Filter & summary logic ────────────────────────────────────────── */
   function applyFilters() {
     var searchVal    = document.getElementById('search-input').value.toLowerCase();
     var sevVal       = document.getElementById('severity-select').value;
     var showExcepted = document.getElementById('show-excepted-cb').checked;
+    var catCounts    = {};   /* category counts under all OTHER filters */
+    var catTotal     = 0;
+    var shown        = 0;
 
     var counts = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
     var visibleTotal = 0;
@@ -793,8 +976,19 @@
         }
       }
 
+      /* Category facet counts ignore the category filter itself */
+      catCounts[card._cat] = (catCounts[card._cat] || 0) + 1;
+      catTotal++;
+
+      /* Category filter (multi-select, OR within categories) */
+      if (selectedCats.length && selectedCats.indexOf(card._cat) === -1) {
+        card.style.display = 'none';
+        return;
+      }
+
       /* Card is visible */
       card.style.display = '';
+      shown++;
 
       /* Accumulate counts for non-excepted visible findings only */
       if (!isExc) {
@@ -811,6 +1005,11 @@
     document.getElementById('sum-low').textContent      = counts.low;
     document.getElementById('sum-info').textContent     = counts.info;
     document.getElementById('sum-label').textContent = showExcepted ? 'ממצאים' : 'ממצאים פעילים';
+
+    updateCategoryChips(catCounts, catTotal);
+    document.getElementById('result-count').textContent = findings.length
+      ? 'מוצגים ' + shown + ' מתוך ' + findings.length + ' ממצאים'
+      : '';
 
     /* Show/hide empty state if all cards are hidden */
     var list   = document.getElementById('findings-list');
@@ -838,12 +1037,21 @@
 
     document.getElementById('show-excepted-cb')
       .addEventListener('change', applyFilters);
+
+    document.getElementById('sort-btn').addEventListener('click', function () {
+      sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+      updateSortButton();
+      sortCards();
+      applyFilters();
+    });
   }
 
   /* ─── Bootstrap ─────────────────────────────────────────────────────── */
   renderHeader();
   renderCards();
+  buildCategoryChips();
   wireControls();
+  sortCards();
   applyFilters(); /* initial pass to hide excepted findings (checkbox unchecked) */
 
 })();

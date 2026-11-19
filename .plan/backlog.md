@@ -53,7 +53,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-40 | XLSX Export Instead of CSV | Medium | ✅ **DONE 2026-11-20** (branch feature/bl-40-xlsx-export) — server-side openpyxl XLSX export added beside CSV; CSV export/import kept |
 | — | BL-41 | Pipeline Product Name Links to Product History | Low | ✅ **DONE 2026-11-20** (branch feature/bl-41-42-navigation) — pipeline product name is a button that opens the product timeline in the Products tab |
 | — | BL-42 | Return to Findings Page After Finding Edit | Low | ✅ **DONE 2026-11-20** (branch feature/bl-41-42-navigation) — edit save/cancel returns to the findings tab, scroll/filters/selection kept; add-new unchanged |
-| — | BL-43 | Filter / Sort in Interactive HTML Export | Medium | **UNSCHEDULED** — user priority: filter by category, sort by severity high→low |
+| — | BL-43 | Filter / Sort in Interactive HTML Export | Medium | ✅ **DONE 2026-11-20** (branch feature/bl-43-html-export-filter-sort) — category chips + severity sort in the HTML export |
 
 ### Tier 3 — Significant Features _(3 of 5 complete)_
 Heavier implementation, meaningful product depth.
@@ -434,7 +434,7 @@ Features implemented outside the prioritized backlog, added by direct user reque
 **Effort:** Low
 **Notes:** Use `switchToTab` in `findings.js` after a successful save/cancel of the edit form; keep scroll position and filters.
 
-### BL-43 · Filter / Sort in Interactive HTML Export (UNSCHEDULED)
+### BL-43 · Filter / Sort in Interactive HTML Export (✅ DONE 2026-11-20)
 **Why:** (User priority) The interactive HTML export should let readers filter by category and sort by severity (high to low).
 **Effort:** Medium
 **Notes:** Edit `templates/interactive_export_template.html` (self-contained, inline JS/CSS, RTL). Must stay CSP-safe and keep acknowledged findings stripped. Not PDF path.
