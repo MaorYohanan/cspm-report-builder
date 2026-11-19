@@ -9,6 +9,7 @@ import { autoSave } from './export.js';
 import { t, tFormat, countPhrase, LANG_CHANGE_EVENT } from './i18n.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
+import { memorySubscriptionsForSave, memorySubscriptionsForRemove, snapshotMemoryEntries, rollbackMemoryWrites } from './memory-match.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
 
 const addBtn        = document.getElementById('btn-add-finding');
@@ -363,27 +364,35 @@ let priorityTouched = false;
 
       // Product Memory helpers — fire-and-forget, only for Wiz-sourced findings
       export function saveToProductMemory(f, source, reason) {
-        if (!f || !f._sourceSubscription || !f.title) return;
+        if (!f || !f.title) return;
+        var subs = memorySubscriptionsForSave(f); // BL-31: one entry per contributing subscription
+        if (!subs.length) return;
         var product = ProductsPanel && ProductsPanel.selectedProduct;
         if (!product || !product.id) return;
-        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // BL-24: rule_key (stable id) travels with every entry so the next scan can match by rule
-          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, reason: reason || '', source: source || 'excepted', rule_key: f._ruleKey || undefined })
-        }).catch(function() {});
+        subs.forEach(function(sub) {
+          fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // BL-24: rule_key (stable id) travels with every entry so the next scan can match by rule
+            body: JSON.stringify({ subscription: sub, title: f.title, reason: reason || '', source: source || 'excepted', rule_key: f._ruleKey || undefined })
+          }).catch(function() {});
+        });
       }
 
       export function removeFromProductMemory(f) {
-        if (!f || !f._sourceSubscription || !f.title) return;
+        if (!f || !f.title) return;
+        var subs = memorySubscriptionsForRemove(f);
+        if (!subs.length) return;
         var product = ProductsPanel && ProductsPanel.selectedProduct;
         if (!product || !product.id) return;
-        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          // BL-24: rule_key also clears entries stored under an older title of the same rule
-          body: JSON.stringify({ subscription: f._sourceSubscription, title: f.title, rule_key: f._ruleKey || undefined })
-        }).catch(function() {});
+        subs.forEach(function(sub) {
+          fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            // BL-24: rule_key also clears entries stored under an older title of the same rule
+            body: JSON.stringify({ subscription: sub, title: f.title, rule_key: f._ruleKey || undefined, clear_siblings: f._pipelineScan === true ? true : undefined }) // BL-31: pipeline fan-out only
+          }).catch(function() {});
+        });
       }
 
       // Wire detail footer buttons
@@ -1487,6 +1496,11 @@ let priorityTouched = false;
           if (typeof f._sourceSubscription === 'string' && f._sourceSubscription) {
             loaded._sourceSubscription = f._sourceSubscription;
           }
+          if (f._pipelineScan === true) loaded._pipelineScan = true; // BL-31
+          // BL-31: merged pipeline finding -> every contributing subscription (one memory entry each)
+          if (Array.isArray(f._sourceSubscriptions) && f._sourceSubscriptions.length) {
+            loaded._sourceSubscriptions = f._sourceSubscriptions.filter(function(x) { return typeof x === 'string' && x; });
+          }
           // BL-24: stable rule key (memory matching) and the UI-only "matched loosely" marker
           if (typeof f._ruleKey === 'string' && f._ruleKey) loaded._ruleKey = f._ruleKey;
           if (f._matchedLoosely) loaded._matchedLoosely = true;
@@ -2356,6 +2370,8 @@ let priorityTouched = false;
           if (state.editingIndex !== null) {
             var prevF = state.findings[state.editingIndex] || {};
             if (prevF._sourceSubscription) newFinding._sourceSubscription = prevF._sourceSubscription;
+            if (prevF._sourceSubscriptions) newFinding._sourceSubscriptions = prevF._sourceSubscriptions; // BL-31
+            if (prevF._pipelineScan) newFinding._pipelineScan = true; // BL-31
             if (prevF._ruleKey) newFinding._ruleKey = prevF._ruleKey; // BL-24
             if (prevF._matchedLoosely && newFinding.exception.active) newFinding._matchedLoosely = true; // BL-24
             if (newFinding.exception.active) {
@@ -4185,8 +4201,10 @@ ${draftWatermarkStyle}
         if (!finding) return;
         if (blockTempActionIfAcknowledged(finding)) return;
 
-        // _sourceSubscription is stamped only by browser Wiz import; pipeline-stored findings lack it (BL-31)
-        var subscription = finding._sourceSubscription || finding.subscription || '';
+        // BL-31: browser import and pipeline scans both stamp _sourceSubscription(s); merged findings list several
+        var subscriptions = memorySubscriptionsForSave(finding);
+        if (!subscriptions.length && finding.subscription) subscriptions = [finding.subscription];
+        var subscription = subscriptions[0] || '';
         var title = finding.title || '';
         var product = ProductsPanel && ProductsPanel.selectedProduct;
 
@@ -4213,18 +4231,32 @@ ${draftWatermarkStyle}
           return;
         }
 
-        fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: subscription, title: title, reason: '', source: action, rule_key: finding._ruleKey || undefined })
-        })
-        .then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
-        })
-        .then(function(data) {
-          if (data.error) throw new Error(data.error);
-          applyLocally('');
+        // BL-31: one entry per subscription. The POST upserts, so snapshot any pre-existing entries first;
+        // allSettled so a partial failure is rolled back (restore what existed, delete what did not)
+        // instead of leaving a half-saved merged finding or destroying a permanent entry.
+        var wrote = [];
+        var pid = product.id;
+        snapshotMemoryEntries(pid, subscriptions, title).then(function(snapshot) {
+          return Promise.allSettled(subscriptions.map(function(sub) {
+            return fetch('/api/products/' + encodeURIComponent(pid) + '/memory/entry', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subscription: sub, title: title, reason: '', source: action, rule_key: finding._ruleKey || undefined })
+            }).then(function(r) {
+              if (!r.ok) throw new Error('HTTP ' + r.status);
+              return r.json();
+            }).then(function(data) {
+              if (data.error) throw new Error(data.error);
+              wrote.push(sub);
+            });
+          })).then(function(results) {
+            var failed = results.filter(function(r) { return r.status === 'rejected'; })[0];
+            if (!failed) { applyLocally(''); return; }
+            // The finding is NOT marked locally; undo what this call wrote.
+            return rollbackMemoryWrites(pid, title, wrote, snapshot).then(function() {
+              throw (failed.reason || new Error('error'));
+            });
+          });
         })
         .catch(function(err) {
           showToast(tFormat('שגיאה בפעולה זמנית: {e}', { e: err.message }), 'error');

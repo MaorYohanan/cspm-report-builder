@@ -966,6 +966,10 @@ def delete_memory_entry(product_id: str):
     if marker is not None and marker not in _MEMORY_REMOVE_MARKERS:
         return jsonify({"error": "reason: must be one of " + ", ".join(sorted(_MEMORY_REMOVE_MARKERS))}), 400
 
+    # BL-31: only a strict boolean true opts in (pipeline-scanned findings, where one finding
+    # is stored as one entry per contributing subscription).
+    clear_siblings = data.get("clear_siblings") is True
+
     sub_norm = subscription.lower().strip()
     entry = ProductMemoryEntry.query.filter_by(
         product_id=safe_id,
@@ -992,6 +996,20 @@ def delete_memory_entry(product_id: str):
                 ProductMemoryEntry.source == entry_source,
                 ProductMemoryEntry.id != entry_id,
             ).delete(synchronize_session=False)
+        if clear_siblings:
+            # BL-31: the finding shrank (e.g. 2 subscriptions -> 1), so the sibling entries the
+            # pipeline fan-out wrote under other subscriptions are the same decision: clear
+            # them too (same product + source, same rule key, else same title).
+            sibling_q = ProductMemoryEntry.query.filter(
+                ProductMemoryEntry.product_id == safe_id,
+                ProductMemoryEntry.source == entry_source,
+                ProductMemoryEntry.id != entry_id,
+            )
+            if rule_key:
+                sibling_q = sibling_q.filter(ProductMemoryEntry.rule_key == rule_key)
+            else:
+                sibling_q = sibling_q.filter(ProductMemoryEntry.title == title.lower().strip())
+            sibling_q.delete(synchronize_session=False)
 
     db.session.commit()
     # BL-16: the system marker is honoured only when the stored entry is a temp exception

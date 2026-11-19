@@ -37,6 +37,32 @@ export function buildRuleKey(item, qt) {
   return (qt + '|' + String(rid).trim()).toLowerCase();
 }
 
+/**
+ * BL-31: subscriptions a finding's Product Memory entries are written under.
+ * A merged pipeline finding lists every contributor in _sourceSubscriptions (one entry each);
+ * otherwise the single _sourceSubscription (browser import, single-subscription pipeline finding).
+ * Returns [] when the finding has no source subscription (nothing can be remembered).
+ */
+export function memorySubscriptionsForSave(f) {
+  if (!f) return [];
+  var out = [];
+  var list = Array.isArray(f._sourceSubscriptions) ? f._sourceSubscriptions : [];
+  list.forEach(function(s) {
+    if (typeof s === 'string' && s && out.indexOf(s) === -1) out.push(s);
+  });
+  if (!out.length && typeof f._sourceSubscription === 'string' && f._sourceSubscription) out.push(f._sourceSubscription);
+  return out;
+}
+
+/** Same as the save list plus the single _sourceSubscription (clears legacy comma-joined entries too). */
+export function memorySubscriptionsForRemove(f) {
+  var out = memorySubscriptionsForSave(f);
+  if (f && typeof f._sourceSubscription === 'string' && f._sourceSubscription && out.indexOf(f._sourceSubscription) === -1) {
+    out.push(f._sourceSubscription);
+  }
+  return out;
+}
+
 /** GET /memory response ({entries:{key:{...}}}) -> array of entries with normalised fields. */
 export function memoryEntriesToList(entriesObj) {
   return Object.keys(entriesObj || {}).map(function(key) {
@@ -202,17 +228,85 @@ export function publishUnmatchedMemory(entries, scope) {
  */
 export function dropMemoryEntry(productId, entry) {
   if (!productId || !entry) return Promise.reject(new Error('productId and entry required'));
-  return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry?reason=stale_dropped', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: entry.subscription, title: entry.title, rule_key: entry.ruleKey || undefined })
-  }).then(function(r) {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    var cur = state.unmatchedMemory || { entries: [], scope: null };
-    var remaining = cur.entries.filter(function(e) {
-      return !(norm(e.subscription) === norm(entry.subscription) && norm(e.title) === norm(entry.title));
+  // BL-31: a collapsed unmatched row of one merged finding lists every (subscription, title) it covers;
+  // titles can differ per subscription (rule renamed between saves), so delete each exact pair.
+  var pairs;
+  if (Array.isArray(entry.entries) && entry.entries.length) {
+    pairs = entry.entries.map(function(p) { return { subscription: p.subscription, title: p.title }; });
+  } else {
+    var subs = Array.isArray(entry.subscriptions) && entry.subscriptions.length ? entry.subscriptions : [entry.subscription];
+    pairs = subs.map(function(sub) { return { subscription: sub, title: entry.title }; });
+  }
+  return Promise.allSettled(pairs.map(function(p) {
+    return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry?reason=stale_dropped', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: p.subscription, title: p.title, rule_key: entry.ruleKey || undefined })
+    }).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
     });
-    publishUnmatchedMemory(remaining, cur.scope);
-    return { ok: true };
+  })).then(function(results) {
+    var cur = state.unmatchedMemory || { entries: [], scope: null };
+    var failedPairs = pairs.filter(function(_, i) { return results[i].status === 'rejected'; });
+    var isRow = function(e) { return norm(e.subscription) === norm(entry.subscription) && norm(e.title) === norm(entry.title); };
+    if (!failedPairs.length) {
+      publishUnmatchedMemory(cur.entries.filter(function(e) { return !isRow(e); }), cur.scope);
+      return { ok: true };
+    }
+    if (failedPairs.length < pairs.length) {
+      // Partial success: the deleted pairs are gone server-side, so shrink the row to what is left.
+      var left = Object.assign({}, entry, {
+        subscription: failedPairs.map(function(p) { return p.subscription; }).join(', '),
+        title: failedPairs[0].title,
+        subscriptions: failedPairs.map(function(p) { return p.subscription; }),
+        entries: failedPairs
+      });
+      publishUnmatchedMemory(cur.entries.map(function(e) { return isRow(e) ? left : e; }), cur.scope);
+    }
+    var firstErr = results.filter(function(r) { return r.status === 'rejected'; })[0].reason;
+    var err = new Error((firstErr && firstErr.message) || 'error');
+    err.failed = failedPairs.length;
+    err.total = pairs.length;
+    throw err;
   });
+}
+
+/**
+ * Capture the existing Product Memory entries for (subscriptions x title) so a failed multi-write can be
+ * undone without destroying a pre-existing entry. Resolves { sub: {source, reason, ruleKey} } (subs with
+ * no entry are absent). Rejects when memory cannot be read.
+ */
+export function snapshotMemoryEntries(productId, subscriptions, title) {
+  return fetch('/api/products/' + encodeURIComponent(productId) + '/memory').then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data) {
+    var snap = {};
+    memoryEntriesToList(data && data.entries).forEach(function(e) {
+      subscriptions.forEach(function(sub) {
+        if (e.subscription === norm(sub) && e.title === norm(title)) {
+          snap[sub] = { source: e.source, reason: e.reason, ruleKey: e.ruleKey };
+        }
+      });
+    });
+    return snap;
+  });
+}
+
+/**
+ * Undo entries written for `title` under `wrote` subscriptions: restore the pre-existing entry from
+ * `snapshot` (re-POST its source/reason/rule key) or DELETE it when none existed. Never rejects;
+ * resolves the allSettled results.
+ */
+export function rollbackMemoryWrites(productId, title, wrote, snapshot) {
+  var url = '/api/products/' + encodeURIComponent(productId) + '/memory/entry';
+  var hdr = { 'Content-Type': 'application/json' };
+  return Promise.allSettled(wrote.map(function(sub) {
+    var prev = snapshot && snapshot[sub];
+    var req = prev
+      ? fetch(url, { method: 'POST', headers: hdr, body: JSON.stringify({
+          subscription: sub, title: title, reason: prev.reason || '', source: prev.source, rule_key: prev.ruleKey || undefined }) })
+      : fetch(url, { method: 'DELETE', headers: hdr, body: JSON.stringify({ subscription: sub, title: title }) });
+    return req;
+  }));
 }

@@ -296,6 +296,18 @@ def _first_sentence(text: str) -> str:
     return lines[0] if lines else ""
 
 
+def _contributing_subscriptions(f: dict) -> list:
+    """BL-31: ordered, de-duplicated subscription names behind a raw node.
+
+    The fetching subscription first, then every subscription merged into the node
+    by the cross-subscription aggregation (``_subscriptions``)."""
+    out: list = []
+    for name in [f.get("_sourceSubscription") or ""] + list(f.get("_subscriptions") or []):
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 def _transform_finding(f: dict, cat_counters: dict) -> dict:
     """Transform a raw Wiz API node into the enriched finding format.
 
@@ -787,7 +799,20 @@ def _transform_finding(f: dict, cat_counters: dict) -> dict:
     cat_counters[cat] = cat_counters.get(cat, 0) + 1
     finding_id = f"{cat}-{cat_counters[cat]:03d}"
 
+    # BL-31: stamp the Product Memory source subscription(s) so the editor can save
+    # exceptions / deletes / temp exceptions for pipeline findings. One name ->
+    # single _sourceSubscription; a merged finding keeps the first name there and
+    # lists every contributor in _sourceSubscriptions (one memory entry each).
+    contributing = _contributing_subscriptions(f)
+    provenance: dict = {}
+    if contributing:
+        provenance["_pipelineScan"] = True  # BL-31: lets the editor clear sibling memory entries
+        provenance["_sourceSubscription"] = contributing[0]
+        if len(contributing) > 1:
+            provenance["_sourceSubscriptions"] = contributing
+
     return {
+        **provenance,
         "id": finding_id,
         "category": cat,
         "title": title,
@@ -856,7 +881,11 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
     if subscription_names:
         technical.append(f"Subscriptions: {', '.join(subscription_names)}")
 
+    agg_extra = {"_pipelineScan": True} if subscription_names else {}
+    if len(subscription_names) > 1:
+        agg_extra["_sourceSubscriptions"] = list(subscription_names)
     return {
+        **agg_extra,
         "id": "VULN-001",
         "category": "VULN",
         "title": "Multiple vulnerabilities with high and above severity",
