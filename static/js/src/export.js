@@ -169,7 +169,7 @@ const dateInput       = document.getElementById('report-date');
             applySnapshot(snapshot);
           } catch (e) {
             console.error(e);
-            alert('קריאת קובץ JSON נכשלה. ודא שהקובץ נוצר מהמחולל.');
+            alert(t('קריאת קובץ JSON נכשלה. ודא שהקובץ נוצר מהמחולל.'));
           } finally {
             importJsonInput.value = ''; // לנקות לחיצה הבאה
           }
@@ -253,7 +253,7 @@ const dateInput       = document.getElementById('report-date');
         reader.onload = function(ev) {
           try {
             var rows = parseCSV(ev.target.result);
-            if (rows.length < 2) { alert('קובץ CSV ריק או ללא שורות נתונים.'); return; }
+            if (rows.length < 2) { alert(t('קובץ CSV ריק או ללא שורות נתונים.')); return; }
             var headers = rows[0].map(function(h) { return h.toLowerCase().trim(); });
 
             // Detect Wiz cloud configuration format
@@ -361,7 +361,7 @@ const dateInput       = document.getElementById('report-date');
               var colOwner = headers.findIndex(function(h) { return h === 'owner' || h === 'בעלים' || h === 'team' || h === 'צוות'; });
 
               if (colTitle === -1) {
-                alert('לא נמצאה עמודת כותרת (title/name/issue) ב-CSV.');
+                alert(t('לא נמצאה עמודת כותרת (title/name/issue) ב-CSV.'));
                 return;
               }
 
@@ -396,7 +396,7 @@ const dateInput       = document.getElementById('report-date');
             showToast(tFormat('יובאו {n} ממצאים מ-CSV', { n: count }), 'success');
           } catch (e) {
             console.error(e);
-            alert('שגיאה בקריאת CSV.');
+            alert(t('שגיאה בקריאת CSV.'));
           } finally {
             importCsvInput.value = '';
           }
@@ -940,7 +940,7 @@ const dateInput       = document.getElementById('report-date');
               '<td>' + Math.round(s.size / 1024) + ' KB</td>' +
               '<td>' +
                 '<button class="btn btn-secondary btn-sm" data-cloud-action="load" data-cloud-id="' + escapeHtml(s.id) + '">' + t('טען') + '</button> ' +
-                '<a class="btn btn-secondary btn-sm" href="/api/download-state/' + encodeURIComponent(s.id) + '" download>הורד</a> ' +
+                '<a class="btn btn-secondary btn-sm" href="/api/download-state/' + encodeURIComponent(s.id) + '" download>' + escapeHtml(t('הורד')) + '</a> ' +
                 '<button class="btn btn-danger btn-sm" data-cloud-action="delete-state" data-cloud-id="' + escapeHtml(s.id) + '">' + t('מחק') + '</button>' +
               '</td></tr>';
           });
@@ -980,7 +980,7 @@ const dateInput       = document.getElementById('report-date');
               '<td>' + escapeHtml(String(f.type).toUpperCase()) + '</td>' +
               '<td>' + Math.round(f.size / 1024) + ' KB</td>' +
               '<td>' +
-                '<a class="btn btn-secondary btn-sm" href="/api/download-output/' + encodeURIComponent(f.filename) + '" download>הורד</a> ' +
+                '<a class="btn btn-secondary btn-sm" href="/api/download-output/' + encodeURIComponent(f.filename) + '" download>' + escapeHtml(t('הורד')) + '</a> ' +
                 '<button class="btn btn-danger btn-sm" data-cloud-action="delete-output" data-cloud-id="' + escapeHtml(f.filename) + '">' + t('מחק') + '</button>' +
               '</td></tr>';
           });

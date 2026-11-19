@@ -12,6 +12,13 @@ import { ProductsPanel } from './products.js';
 import { memorySubscriptionsForSave, memorySubscriptionsForRemove, snapshotMemoryEntries, rollbackMemoryWrites } from './memory-match.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
 
+// Shared batch-delete confirmation (bulk bar button and the actions menu use the same dialog).
+function confirmBatchDelete(count) {
+  return styledConfirm(tFormat('למחוק {n} ממצאים?', { n: count }), {
+    icon: '🗑️', title: t('מחיקת ממצאים'), confirmText: t('מחק'), cancelText: t('ביטול'), danger: true
+  });
+}
+
 const addBtn        = document.getElementById('btn-add-finding');
 const cancelEditBtn = document.getElementById('btn-cancel-edit');
 const genBtn        = document.getElementById('btn-generate');
@@ -922,9 +929,11 @@ let priorityTouched = false;
           console.warn('Failed to load custom templates:', err);
         });
 
-      function t_filled() { return 'התבנית הופעלה — כל הנתונים הושלמו מהממצא'; }
+      function t_filled() { return t('התבנית הופעלה — כל הנתונים הושלמו מהממצא'); }
       function t_missing(names) {
-        return 'התבנית הופעלה — לא נמצאו נתונים עבור: ' + names.map(function(n) { return '<' + n + '>'; }).join(', ') + ' (יש להשלים ידנית)';
+        return tFormat('התבנית הופעלה — לא נמצאו נתונים עבור: {names} (יש להשלים ידנית)', {
+          names: names.map(function(n) { return '<' + n + '>'; }).join(', ')
+        });
       }
 
       templateSelect.addEventListener('change', function() {
@@ -1945,9 +1954,7 @@ let priorityTouched = false;
       document.getElementById('btn-batch-delete').addEventListener('click', function() {
         var indices = getSelectedFindingIndices().sort(function(a, b) { return b - a; });
         if (!indices.length) return;
-        styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
-          icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
-        }).then(function(yes) {
+        confirmBatchDelete(indices.length).then(function(yes) {
           if (!yes) return;
           indices.forEach(function(idx) {
             saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
@@ -2479,9 +2486,7 @@ let priorityTouched = false;
             showToast(t('לא נבחרו ממצאים'), 'warning');
             return;
           }
-          styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
-            icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
-          }).then(function(yes) {
+          confirmBatchDelete(indices.length).then(function(yes) {
             if (!yes) return;
             indices.forEach(function(idx) {
               saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
@@ -4013,7 +4018,7 @@ ${draftWatermarkStyle}
 
       genBtn.addEventListener('click', function() {
         if (!state.findings.length) {
-          alert('אין ממצאים לייצוא.');
+          alert(t('אין ממצאים לייצוא.'));
           return;
         }
         const severitySortChk = document.getElementById('chk-severity-sort');
@@ -4032,7 +4037,7 @@ ${draftWatermarkStyle}
 
       dlBtn.addEventListener('click', function() {
         if (!state.findings.length) {
-          alert('אין ממצאים לייצוא.');
+          alert(t('אין ממצאים לייצוא.'));
           return;
         }
         const severitySortChk = document.getElementById('chk-severity-sort');

@@ -58,3 +58,68 @@ def test_modules_import_translation_helpers():
         assert re.search(r"import\s*\{[^}]*\bt\b[^}]*\}\s*from\s*'\./i18n\.js'", text), name
         # no accidental duplicate import of the same helper
         assert len(re.findall(r"from\s*'\./i18n\.js'", text)) == 1, name
+
+
+# ── Dialog / toast sinks across every UI module (BL-36 QA leftovers) ──────────
+DIALOG_SINK = re.compile(r"\balert\(|\bconfirm\(|styledConfirm\(|showToast\(|confirmText|cancelText")
+# admin.js drives the separate admin page, which is Hebrew-only by design (no i18n module).
+DIALOG_EXCLUDED_FILES = {"admin.js"}
+
+
+# t(cond ? 'he a' : 'he b') - both branches are keys, translated by the surrounding t().
+TERNARY_WRAPPED = re.compile(r"\bt\([^()?]*\?\s*'(?:[^'\\]|\\.)*'\s*:\s*'(?:[^'\\]|\\.)*'\)")
+
+
+def _dialog_offenders(name):
+    offenders = []
+    for no, line in _code_lines(name):
+        if not DIALOG_SINK.search(line):
+            continue
+        rest = re.sub(r"countPhrase\([^)]*\)", "", WRAPPED.sub("", TERNARY_WRAPPED.sub("", line)))
+        if HEBREW.search(rest):
+            offenders.append("%s:%d: %s" % (name, no, line.strip()[:140]))
+    return offenders
+
+
+def test_dialog_and_toast_sinks_have_no_raw_hebrew_in_any_module():
+    offenders = []
+    for path in sorted(SRC.glob("*.js")):
+        if path.name in DIALOG_EXCLUDED_FILES:
+            continue
+        offenders += _dialog_offenders(path.name)
+    assert not offenders, "raw Hebrew in alert/confirm/toast sinks:\n" + "\n".join(offenders)
+
+
+def test_dialog_scanner_flags_raw_alert(tmp_path):
+    line = "alert('" + "אין" + "');"
+    assert HEBREW.search(re.sub(r"countPhrase\([^)]*\)", "", WRAPPED.sub("", line)))
+    ok = "alert(t('" + "אין" + "'));"
+    assert not HEBREW.search(WRAPPED.sub("", ok))
+
+
+def test_batch_delete_confirm_uses_shared_translated_helper():
+    text = (SRC / "findings.js").read_text(encoding="utf-8")
+    assert text.count("function confirmBatchDelete(") == 1
+    assert text.count("confirmBatchDelete(indices.length)") == 2
+    helper = text[text.index("function confirmBatchDelete("):]
+    helper = helper[: helper.index("\n}\n")]
+    for needle in ("tFormat(", "title: t(", "confirmText: t(", "cancelText: t("):
+        assert needle in helper, needle
+
+
+def test_smart_template_toast_and_download_links_are_translated():
+    findings = (SRC / "findings.js").read_text(encoding="utf-8")
+    start = findings.index("function t_filled()")
+    block = findings[start: findings.index("templateSelect.addEventListener('change'", start)]
+    assert "return t(" in block and "tFormat(" in block
+    export = (SRC / "export.js").read_text(encoding="utf-8")
+    assert "download>' + escapeHtml(t('" in export
+    assert "download>הורד</a>" not in export
+
+
+def test_ltr_progress_lines_restore_direction():
+    css = (SRC.parent.parent / "css" / "src" / "ltr-overrides.css").read_text(encoding="utf-8")
+    m = re.search(r'\[dir="ltr"\] \.sidebar-progress-label[^{]*\{([^}]*)\}', css)
+    assert m and "direction: ltr" in m.group(1)
+    built = (SRC.parent.parent / "css" / "builder.css").read_text(encoding="utf-8")
+    assert '[dir="ltr"] .sidebar-progress-label' in built
