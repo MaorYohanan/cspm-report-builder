@@ -879,12 +879,15 @@ _PAIR_KEYS       = {'title_resource': 'resource', 'title_path': 'path'}
 _VALID_OPERATORS = {'startsWith', 'contains', 'regex'}
 
 
-def _pattern_error(field: str, pattern: str):
+def _pattern_error(field: str, pattern: str, operator: str = None):
     """Return an error message for an invalid field/pattern combination, else None.
 
     A 'title_resource' / 'title_path' rule stores its two patterns as JSON in the single pattern
     column: {"title": "...", "resource": "..."} / {"title": "...", "path": "..."} — both must be
     non-empty strings (no schema change).
+
+    BL-37: for the 'regex' operator every pattern (both parts of a pair rule) must pass the
+    same static validator the server-side pipeline matcher uses (compile + ReDoS/dialect checks).
     """
     if not pattern:
         return 'pattern must be non-empty'
@@ -899,6 +902,13 @@ def _pattern_error(field: str, pattern: str):
         if (not isinstance(parts, dict) or set(parts) != {'title', second}
                 or not all(isinstance(v, str) and v.strip() for v in parts.values())):
             return f'{field} pattern must be {{"title": ..., "{second}": ...}} with both non-empty'
+    if operator == 'regex':
+        from backend.services.exclude_matching import regex_error
+        parts = list(parts.values()) if field in _PAIR_KEYS else [pattern]
+        for part in parts:
+            reason = regex_error(part)
+            if reason:
+                return 'ביטוי רגולרי לא תקין או לא בטוח (קינון כמתים, חלופות תחת כמת, הסתכלות/הפניה לאחור או יותר מדי כמתים); פשטו את הביטוי'
     return None
 
 
@@ -960,7 +970,7 @@ def api_exclude_rules_create():
         return jsonify({'error': f"field must be one of {sorted(_VALID_FIELDS)}"}), 400
     if operator not in _VALID_OPERATORS:
         return jsonify({'error': f"operator must be one of {sorted(_VALID_OPERATORS)}"}), 400
-    err = _pattern_error(field, pattern)
+    err = _pattern_error(field, pattern, operator)
     if err:
         return jsonify({'error': err}), 400
 
@@ -1007,7 +1017,7 @@ def api_exclude_rules_update(rule_id: int):
     if 'pattern' in data:
         rule.pattern = (data['pattern'] or '').strip()
 
-    err = _pattern_error(rule.field, rule.pattern)
+    err = _pattern_error(rule.field, rule.pattern, rule.operator)
     if err:
         db.session.rollback()
         return jsonify({'error': err}), 400

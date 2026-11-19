@@ -18,6 +18,9 @@ from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 from backend.scan_state import scan_jobs as _scan_jobs, scan_jobs_lock as _lock
 from backend.services.audit_service import record_event
 from backend.services.auth_service import require_role
+from backend.services.exclude_matching import (
+    load_active_matcher, map_category_from_entity as _map_category_from_entity,
+)
 from backend.services.memory_matching import MemoryIndex, compute_unmatched, rule_key_for
 from backend.graphql.queries import QUERY_TYPE_MAP
 from backend.services.wiz_service import WizService, build_bulk_filter
@@ -242,25 +245,6 @@ _SEV_LABELS = {
 
 def _map_severity(sev: str) -> str:
     return _SEV_MAP.get((sev or "").upper(), "medium")
-
-
-def _map_category_from_entity(entity: dict) -> str:
-    """Mirror mapWiziCategory() from wizi.js."""
-    t = (entity.get("type") or "").lower()
-    nt = (entity.get("nativeType") or "").lower()
-    if "kubernetes" in t or "k8s" in nt or "kube" in nt:
-        return "KSPM"
-    if "database" in t or "storage" in t or "rds" in nt or "s3" in nt:
-        return "DSPM"
-    if "network" in t or "firewall" in t or "security_group" in t or "securitygroup" in nt:
-        return "NEXP"
-    if "iam" in t or "role" in t or "policy" in t or "iam" in nt:
-        return "EAPM"
-    if "virtual_machine" in t or "host" in t or "ec2" in nt or "vm" in nt:
-        return "HSPM"
-    if "secret" in t or "secret" in nt:
-        return "SECR"
-    return "CSPM"
 
 
 def _extract_recs(rule: dict, sev_label: str) -> list:
@@ -910,7 +894,8 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
 
 def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_store: list,
                                 scope_subs: list | None = None, unmatched_out: list | None = None,
-                                failed_types: set | None = None, consumed_out: list | None = None):
+                                failed_types: set | None = None, consumed_out: list | None = None,
+                                rule_excluded: list | None = None):
     """Add Finding rows for a snapshot, applying Product Memory. Does NOT commit.
 
     BL-24 matching: a stable rule key (``_ruleKey``, derived from the raw node)
@@ -926,6 +911,11 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
 
     When ``unmatched_out`` is a list, it receives the remembered entries (all
     sources) in ``scope_subs`` that matched no finding in this scan.
+
+    ``rule_excluded`` (BL-37): probes ``{"title", "rule_key", "subs"}`` of raw nodes that an
+    ExcludeRule dropped before this call. Their memory entries count as "seen" for the
+    unmatched report only (the finding exists in Wiz, the user chose to hide it), and are
+    never consumed or applied: temp entries are only consumed by findings actually stored.
 
     Returns (risk, written_count).
     """
@@ -1028,8 +1018,13 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
             })
 
     if unmatched_out is not None:
+        seen_ids = set(matched_ids)
+        for probe in rule_excluded or []:
+            seen_ids.update(
+                e.id for e in index.resolve(probe["title"], probe["rule_key"], probe["subs"]).matched
+            )
         unmatched_out.extend(compute_unmatched(
-            all_entries, matched_ids, scope_subs or [], failed_types,
+            all_entries, seen_ids, scope_subs or [], failed_types,
         ))
 
     return risk, written_count
@@ -1043,6 +1038,16 @@ def _audit_consumed_temp(product_id: str, consumed: list) -> None:
     for c in consumed:
         record_event("exception.temporary_consumed", "finding", c["title"],
                      product_id=product_id, details={**c, "reason": "consumed"})
+
+
+def _excluded_probe(node: dict, sub_name: str) -> dict:
+    """BL-37: identity of a rule-excluded raw node for Product Memory bookkeeping."""
+    try:
+        title = _transform_finding(node, {}).get("title", "")
+    except Exception:  # noqa: BLE001 - best-effort; falls back to rule key matching only
+        title = ""
+    return {"title": title, "rule_key": rule_key_for(node),
+            "subs": [sub_name, node.get("_sourceSubscription") or ""]}
 
 
 def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
@@ -1075,12 +1080,25 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
         # without racing on the OAuth refresh path.
         wiz._get_token()
 
+        excluded_by_rules = 0
+        rules_load_failed = False
+        skipped_rules: list = []
         try:
             # Aggregate by (queryType, ruleId) across all subscriptions.
             # Same rule in multiple subscriptions → one Finding record with
             # all contributing subscriptions listed in _subscriptions.
             aggregated: dict = {}
             failed_types: set = set()  # BL-24: query types that failed for any subscription
+            # BL-37: active ExcludeRules drop raw nodes BEFORE consolidation (same as the browser)
+            excluder = load_active_matcher()
+            rules_load_failed = excluder.load_failed
+            skipped_rules = list(excluder.skipped_ids)
+            rule_excluded: list = []
+            _probe_seen: set = set()
+            with _lock:
+                if snapshot_id in _scan_jobs:
+                    _scan_jobs[snapshot_id].update(
+                        rules_load_failed=rules_load_failed, skipped_rules=skipped_rules)
 
             for sub_name in selected_subs:
                 resolved = wiz.resolve_subscription(sub_name)
@@ -1114,6 +1132,14 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                         try:
                             _, nodes = fut.result()
                             for n in nodes:
+                                if excluder.is_excluded(n):
+                                    excluded_by_rules += 1
+                                    probe = _excluded_probe(n, sub_name)
+                                    pk = (probe["rule_key"], probe["title"], sub_name)
+                                    if pk not in _probe_seen:
+                                        _probe_seen.add(pk)
+                                        rule_excluded.append(probe)
+                                    continue
                                 key = (qtype, _extract_rule_id(n))
                                 if key in aggregated:
                                     subs = aggregated[key]["_subscriptions"]
@@ -1132,7 +1158,8 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                         with _lock:
                             if snapshot_id in _scan_jobs:
                                 _scan_jobs[snapshot_id].update(
-                                    done=done, total=scan_total
+                                    done=done, total=scan_total,
+                                    excluded_by_rules=excluded_by_rules,
                                 )
 
             raw_findings = list(aggregated.values())
@@ -1166,6 +1193,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 snapshot_id, snap.product_id, findings_to_store,
                 scope_subs=list(selected_subs), unmatched_out=unmatched_memory,
                 failed_types=failed_types, consumed_out=consumed_temp,
+                rule_excluded=rule_excluded,
             )
 
             # Final commit + update snapshot metadata
@@ -1174,6 +1202,9 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             snap_data = dict(snap.snapshot_data or {})
             snap_data["findings_count"] = written_count
             snap_data["_scan_status"] = "done"
+            snap_data["_excluded_by_rules"] = excluded_by_rules  # BL-37
+            snap_data["_rules_load_failed"] = rules_load_failed
+            snap_data["_skipped_rules"] = skipped_rules
             snap_data["_unmatched_memory"] = unmatched_memory  # BL-24 (multi-worker status fallback)
             snap.snapshot_data = snap_data
 
@@ -1192,6 +1223,9 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                     _scan_jobs[snapshot_id]["status"] = "done"
                     _scan_jobs[snapshot_id]["findings_count"] = written_count
                     _scan_jobs[snapshot_id]["unmatched_memory"] = unmatched_memory
+                    _scan_jobs[snapshot_id]["excluded_by_rules"] = excluded_by_rules
+                    _scan_jobs[snapshot_id]["rules_load_failed"] = rules_load_failed
+                    _scan_jobs[snapshot_id]["skipped_rules"] = skipped_rules
                     _scan_jobs[snapshot_id]["completed_at"] = time.monotonic()
 
         except Exception as exc:
@@ -1208,6 +1242,9 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                     _d = dict(snap.snapshot_data or {})
                     _d["_scan_status"] = "error"
                     _d["_scan_error"] = str(exc)
+                    _d["_excluded_by_rules"] = excluded_by_rules
+                    _d["_rules_load_failed"] = rules_load_failed
+                    _d["_skipped_rules"] = skipped_rules
                     snap.snapshot_data = _d
                     db.session.commit()
             except Exception:
@@ -1354,6 +1391,9 @@ def start_scan(product_id):
             "done": 0,
             "total": scan_total,
             "findings_count": 0,
+            "excluded_by_rules": 0,
+            "rules_load_failed": False,
+            "skipped_rules": [],
             "error": None,
             "product_id": safe_id,  # cached for ownership check without a DB round-trip
         }
@@ -1397,16 +1437,21 @@ def get_scan_status(product_id, snapshot_id):
     scan_status = scan_data.get("_scan_status")
     total = scan_data.get("_scan_total", 0)
 
+    rules_info = {"excluded_by_rules": scan_data.get("_excluded_by_rules", 0),
+                  "rules_load_failed": scan_data.get("_rules_load_failed", False),
+                  "skipped_rules": scan_data.get("_skipped_rules", [])}
     if scan_status == "fetching":
         return jsonify({"status": "fetching", "done": 0, "total": total,
-                        "findings_count": 0, "error": None}), 200
+                        "findings_count": 0, "error": None, **rules_info}), 200
     elif scan_status == "done":
         return jsonify({"status": "done", "done": total, "total": total,
                         "findings_count": scan_data.get("findings_count", 0), "error": None,
-                        "unmatched_memory": scan_data.get("_unmatched_memory", [])}), 200
+                        "unmatched_memory": scan_data.get("_unmatched_memory", []),
+                        **rules_info}), 200
     elif scan_status == "error":
         return jsonify({"status": "error", "done": 0, "total": total,
                         "findings_count": 0,
-                        "error": scan_data.get("_scan_error", "שגיאה לא ידועה")}), 200
+                        "error": scan_data.get("_scan_error", "שגיאה לא ידועה"),
+                        **rules_info}), 200
     else:
         return jsonify({"error": "Job not found"}), 404
