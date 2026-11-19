@@ -51,8 +51,8 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-38 | Wiz Vulnerability Query Filters (Exploit / Fix+Runtime / High+Critical) | Medium | ✅ **DONE 2026-11-10** — filters always embedded in the browser vuln import; also resource cap (5 + "ועוד N..."), Wiz `Reference:` link and a `path` exclude-rule field |
 | — | BL-39 | Priority Default from Severity on All Creation Paths | Low | ✅ **DONE 2026-11-20** (branch feature/bl-39-priority-defaults) — one shared severity→priority map on every creation path |
 | — | BL-40 | XLSX Export Instead of CSV | Medium | ✅ **DONE 2026-11-20** (branch feature/bl-40-xlsx-export) — server-side openpyxl XLSX export added beside CSV; CSV export/import kept |
-| — | BL-41 | Pipeline Product Name Links to Product History | Low | **UNSCHEDULED** — user priority: product name in scan dashboard opens its history in Products page |
-| — | BL-42 | Return to Findings Page After Finding Edit | Low | **UNSCHEDULED** — user priority: finishing an edit navigates back to the findings list |
+| — | BL-41 | Pipeline Product Name Links to Product History | Low | ✅ **DONE 2026-11-20** (branch feature/bl-41-42-navigation) — pipeline product name is a button that opens the product timeline in the Products tab |
+| — | BL-42 | Return to Findings Page After Finding Edit | Low | ✅ **DONE 2026-11-20** (branch feature/bl-41-42-navigation) — edit save/cancel returns to the findings tab, scroll/filters/selection kept; add-new unchanged |
 | — | BL-43 | Filter / Sort in Interactive HTML Export | Medium | **UNSCHEDULED** — user priority: filter by category, sort by severity high→low |
 
 ### Tier 3 — Significant Features _(3 of 5 complete)_
@@ -424,12 +424,12 @@ Features implemented outside the prioritized backlog, added by direct user reque
 - Formula-like text (starting = + - @ tab CR) is stored as a plain string with the quotePrefix cell style (no apostrophe in the value, no formula element).
 - Needs a human check in desktop Excel: row auto-height for wrapped multi-line cells (openpyxl sets no explicit row heights).
 
-### BL-41 · Pipeline Product Name Links to Product History (UNSCHEDULED)
+### BL-41 · Pipeline Product Name Links to Product History (DONE 2026-11-20)
 **Why:** (User priority) Jump from a product name in the scan dashboard to its timeline in the Products page.
 **Effort:** Low
 **Notes:** `pipeline.js` renders names; Products timeline opens via `products.js`. Make the name a link/button that switches tab and opens the timeline for that product id.
 
-### BL-42 · Return to Findings Page After Finding Edit (UNSCHEDULED)
+### BL-42 · Return to Findings Page After Finding Edit (DONE 2026-11-20)
 **Why:** (User priority) After saving an edit, the user should land back on the findings page.
 **Effort:** Low
 **Notes:** Use `switchToTab` in `findings.js` after a successful save/cancel of the edit form; keep scroll position and filters.
