@@ -328,7 +328,9 @@ python app.py
 Nothing in the repo creates or reads `app.pid` or `app.log`. If they appear in the project root, a shell launched the app in the background with its output redirected (the app logs JSON to stdout) and wrote the PID by hand. Both are gitignored and safe to delete. A leftover `app.pid` is often stale, so check before trusting it:
 
 ```bash
-kill -0 "$(cat app.pid)" 2>/dev/null && echo running || echo "stale - delete app.pid"
+if [ ! -f app.pid ]; then echo "no app.pid"
+elif kill -0 "$(cat app.pid)" 2>/dev/null; then echo running
+else echo "stale - delete app.pid"; fi
 ```
 
 Prefer running in the foreground (`python app.py`) or Docker (`docker compose up -d` / `docker compose down`, logs via `docker compose logs`).

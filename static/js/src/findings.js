@@ -9,7 +9,7 @@ import { autoSave } from './export.js';
 import { t, tFormat, countPhrase, LANG_CHANGE_EVENT } from './i18n.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
-import { memorySubscriptionsForSave, memorySubscriptionsForRemove } from './memory-match.js';
+import { memorySubscriptionsForSave, memorySubscriptionsForRemove, snapshotMemoryEntries, rollbackMemoryWrites } from './memory-match.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
 
 const addBtn        = document.getElementById('btn-add-finding');
@@ -4231,34 +4231,32 @@ ${draftWatermarkStyle}
           return;
         }
 
-        // BL-31: one entry per subscription. allSettled so a partial failure is rolled back (the
-        // entries this call wrote are deleted) instead of leaving a half-saved merged finding.
+        // BL-31: one entry per subscription. The POST upserts, so snapshot any pre-existing entries first;
+        // allSettled so a partial failure is rolled back (restore what existed, delete what did not)
+        // instead of leaving a half-saved merged finding or destroying a permanent entry.
         var wrote = [];
-        Promise.allSettled(subscriptions.map(function(sub) {
-          return fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subscription: sub, title: title, reason: '', source: action, rule_key: finding._ruleKey || undefined })
-          }).then(function(r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            return r.json();
-          }).then(function(data) {
-            if (data.error) throw new Error(data.error);
-            wrote.push(sub);
-          });
-        }))
-        .then(function(results) {
-          var failed = results.filter(function(r) { return r.status === 'rejected'; })[0];
-          if (!failed) { applyLocally(''); return; }
-          // Roll back what was written; the finding is NOT marked locally.
-          wrote.forEach(function(sub) {
-            fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
-              method: 'DELETE',
+        var pid = product.id;
+        snapshotMemoryEntries(pid, subscriptions, title).then(function(snapshot) {
+          return Promise.allSettled(subscriptions.map(function(sub) {
+            return fetch('/api/products/' + encodeURIComponent(pid) + '/memory/entry', {
+              method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ subscription: sub, title: title })
-            }).catch(function() {});
+              body: JSON.stringify({ subscription: sub, title: title, reason: '', source: action, rule_key: finding._ruleKey || undefined })
+            }).then(function(r) {
+              if (!r.ok) throw new Error('HTTP ' + r.status);
+              return r.json();
+            }).then(function(data) {
+              if (data.error) throw new Error(data.error);
+              wrote.push(sub);
+            });
+          })).then(function(results) {
+            var failed = results.filter(function(r) { return r.status === 'rejected'; })[0];
+            if (!failed) { applyLocally(''); return; }
+            // The finding is NOT marked locally; undo what this call wrote.
+            return rollbackMemoryWrites(pid, title, wrote, snapshot).then(function() {
+              throw (failed.reason || new Error('error'));
+            });
           });
-          throw (failed.reason || new Error('error'));
         })
         .catch(function(err) {
           showToast(tFormat('שגיאה בפעולה זמנית: {e}', { e: err.message }), 'error');

@@ -209,3 +209,85 @@ def test_clear_siblings_is_inert_when_exact_entry_missing(client):
 def test_pipeline_findings_carry_marker():
     assert _transform_finding(_cfg("T", "R-1"), {})["_pipelineScan"] is True
     assert _aggregate_vulns([_vuln("CVE-1", "sub-a")])["_pipelineScan"] is True
+
+
+# ---------------------------------------------------------------------------
+# QA cycle 2: rename-safe collapsed rows, accurate partial drop, non-destructive temp rollback
+# ---------------------------------------------------------------------------
+
+def test_collapsed_row_carries_per_subscription_titles(app):
+    """One rule saved under two titles (renamed between saves): the row lists each exact pair."""
+    _product()
+    _mem("Old Title", "excepted", rule_key="configurationfindings|gone", sub=SUB)
+    _mem("New Title", "excepted", rule_key="configurationfindings|gone", sub=OTHER)
+    _, unmatched, _, _ = _store([], scope=[SUB, OTHER])
+    assert len(unmatched) == 1
+    assert unmatched[0]["title"] == "old title"  # existing fields kept
+    assert unmatched[0]["subscriptions"] == [SUB, OTHER]
+    assert unmatched[0]["entries"] == [{"subscription": SUB, "title": "old title"},
+                                       {"subscription": OTHER, "title": "new title"}]
+
+
+def _node_script(body: str) -> dict:
+    script = f"""
+    import * as m from {json.dumps((JS / 'memory-match.js').as_uri())};
+    import {{ state }} from {json.dumps((JS / 'state.js').as_uri())};
+    globalThis.CustomEvent = class {{ constructor(t, o) {{ this.type = t; this.detail = o.detail; }} }};
+    globalThis.document = {{ dispatchEvent: () => {{}} }};
+    const calls = [];
+    {body}
+    """
+    out = subprocess.run(["node", "--input-type=module", "-e", script],
+                         capture_output=True, text=True, check=True, timeout=30)
+    return json.loads(out.stdout)
+
+
+@needs_node
+def test_js_drop_deletes_each_subscription_title_pair():
+    res = _node_script("""
+    globalThis.fetch = async (u, o) => { calls.push(JSON.parse(o.body)); return { ok: true }; };
+    const row = { subscription: 'a, b', title: 'old', ruleKey: 'issues|r', subscriptions: ['a', 'b'],
+                  entries: [{subscription: 'a', title: 'old'}, {subscription: 'b', title: 'new'}] };
+    m.publishUnmatchedMemory([row], {});
+    await m.dropMemoryEntry('p', row);
+    console.log(JSON.stringify({ calls, left: state.unmatchedMemory.entries }));
+    """)
+    assert [(c["subscription"], c["title"]) for c in res["calls"]] == [("a", "old"), ("b", "new")]
+    assert res["left"] == []
+
+
+@needs_node
+def test_js_drop_partial_failure_reports_and_shrinks_row():
+    res = _node_script("""
+    globalThis.fetch = async (u, o) => ({ ok: JSON.parse(o.body).subscription !== 'b', status: 500 });
+    const row = { subscription: 'a, b', title: 'old', ruleKey: null, subscriptions: ['a', 'b'],
+                  entries: [{subscription: 'a', title: 'old'}, {subscription: 'b', title: 'new'}] };
+    m.publishUnmatchedMemory([row], {});
+    let err = null;
+    try { await m.dropMemoryEntry('p', row); } catch (x) { err = { msg: x.message, failed: x.failed, total: x.total }; }
+    console.log(JSON.stringify({ err, left: state.unmatchedMemory.entries }));
+    """)
+    assert res["err"] == {"msg": "HTTP 500", "failed": 1, "total": 2}
+    assert len(res["left"]) == 1
+    assert res["left"][0]["entries"] == [{"subscription": "b", "title": "new"}]
+    assert res["left"][0]["subscription"] == "b"
+
+
+@needs_node
+def test_js_temp_rollback_restores_preexisting_and_deletes_new():
+    """sub-a had a permanent excepted entry, sub-b had none: rollback restores a, deletes b."""
+    res = _node_script("""
+    const mem = { entries: { 'sub-a::t': { subscription: 'sub-a', title: 't', source: 'excepted', reason: 'why', rule_key: 'issues|r' } } };
+    globalThis.fetch = async (u, o) => {
+      if (!o) return { ok: true, json: async () => mem };
+      calls.push({ method: o.method, body: JSON.parse(o.body) });
+      return { ok: true };
+    };
+    const snap = await m.snapshotMemoryEntries('p', ['sub-a', 'sub-b'], 'T');
+    await m.rollbackMemoryWrites('p', 'T', ['sub-a', 'sub-b'], snap);
+    console.log(JSON.stringify({ snap, calls }));
+    """)
+    assert res["snap"] == {"sub-a": {"source": "excepted", "reason": "why", "ruleKey": "issues|r"}}
+    assert res["calls"][0] == {"method": "POST", "body": {
+        "subscription": "sub-a", "title": "T", "reason": "why", "source": "excepted", "rule_key": "issues|r"}}
+    assert res["calls"][1] == {"method": "DELETE", "body": {"subscription": "sub-b", "title": "T"}}

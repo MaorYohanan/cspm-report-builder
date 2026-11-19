@@ -228,22 +228,85 @@ export function publishUnmatchedMemory(entries, scope) {
  */
 export function dropMemoryEntry(productId, entry) {
   if (!productId || !entry) return Promise.reject(new Error('productId and entry required'));
-  // BL-31: a collapsed unmatched row of one merged finding lists every subscription it covers
-  var subs = Array.isArray(entry.subscriptions) && entry.subscriptions.length ? entry.subscriptions : [entry.subscription];
-  return Promise.all(subs.map(function(sub) {
+  // BL-31: a collapsed unmatched row of one merged finding lists every (subscription, title) it covers;
+  // titles can differ per subscription (rule renamed between saves), so delete each exact pair.
+  var pairs;
+  if (Array.isArray(entry.entries) && entry.entries.length) {
+    pairs = entry.entries.map(function(p) { return { subscription: p.subscription, title: p.title }; });
+  } else {
+    var subs = Array.isArray(entry.subscriptions) && entry.subscriptions.length ? entry.subscriptions : [entry.subscription];
+    pairs = subs.map(function(sub) { return { subscription: sub, title: entry.title }; });
+  }
+  return Promise.allSettled(pairs.map(function(p) {
     return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry?reason=stale_dropped', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subscription: sub, title: entry.title, rule_key: entry.ruleKey || undefined })
+      body: JSON.stringify({ subscription: p.subscription, title: p.title, rule_key: entry.ruleKey || undefined })
     }).then(function(r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
     });
-  })).then(function() {
+  })).then(function(results) {
     var cur = state.unmatchedMemory || { entries: [], scope: null };
-    var remaining = cur.entries.filter(function(e) {
-      return !(norm(e.subscription) === norm(entry.subscription) && norm(e.title) === norm(entry.title));
-    });
-    publishUnmatchedMemory(remaining, cur.scope);
-    return { ok: true };
+    var failedPairs = pairs.filter(function(_, i) { return results[i].status === 'rejected'; });
+    var isRow = function(e) { return norm(e.subscription) === norm(entry.subscription) && norm(e.title) === norm(entry.title); };
+    if (!failedPairs.length) {
+      publishUnmatchedMemory(cur.entries.filter(function(e) { return !isRow(e); }), cur.scope);
+      return { ok: true };
+    }
+    if (failedPairs.length < pairs.length) {
+      // Partial success: the deleted pairs are gone server-side, so shrink the row to what is left.
+      var left = Object.assign({}, entry, {
+        subscription: failedPairs.map(function(p) { return p.subscription; }).join(', '),
+        title: failedPairs[0].title,
+        subscriptions: failedPairs.map(function(p) { return p.subscription; }),
+        entries: failedPairs
+      });
+      publishUnmatchedMemory(cur.entries.map(function(e) { return isRow(e) ? left : e; }), cur.scope);
+    }
+    var firstErr = results.filter(function(r) { return r.status === 'rejected'; })[0].reason;
+    var err = new Error((firstErr && firstErr.message) || 'error');
+    err.failed = failedPairs.length;
+    err.total = pairs.length;
+    throw err;
   });
+}
+
+/**
+ * Capture the existing Product Memory entries for (subscriptions x title) so a failed multi-write can be
+ * undone without destroying a pre-existing entry. Resolves { sub: {source, reason, ruleKey} } (subs with
+ * no entry are absent). Rejects when memory cannot be read.
+ */
+export function snapshotMemoryEntries(productId, subscriptions, title) {
+  return fetch('/api/products/' + encodeURIComponent(productId) + '/memory').then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data) {
+    var snap = {};
+    memoryEntriesToList(data && data.entries).forEach(function(e) {
+      subscriptions.forEach(function(sub) {
+        if (e.subscription === norm(sub) && e.title === norm(title)) {
+          snap[sub] = { source: e.source, reason: e.reason, ruleKey: e.ruleKey };
+        }
+      });
+    });
+    return snap;
+  });
+}
+
+/**
+ * Undo entries written for `title` under `wrote` subscriptions: restore the pre-existing entry from
+ * `snapshot` (re-POST its source/reason/rule key) or DELETE it when none existed. Never rejects;
+ * resolves the allSettled results.
+ */
+export function rollbackMemoryWrites(productId, title, wrote, snapshot) {
+  var url = '/api/products/' + encodeURIComponent(productId) + '/memory/entry';
+  var hdr = { 'Content-Type': 'application/json' };
+  return Promise.allSettled(wrote.map(function(sub) {
+    var prev = snapshot && snapshot[sub];
+    var req = prev
+      ? fetch(url, { method: 'POST', headers: hdr, body: JSON.stringify({
+          subscription: sub, title: title, reason: prev.reason || '', source: prev.source, rule_key: prev.ruleKey || undefined }) })
+      : fetch(url, { method: 'DELETE', headers: hdr, body: JSON.stringify({ subscription: sub, title: title }) });
+    return req;
+  }));
 }

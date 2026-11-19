@@ -180,7 +180,13 @@ def compute_unmatched(entries: Iterable[Any], matched_ids: set, scope_subs: Iter
             out.append(row)
         else:
             subs = row.setdefault("subscriptions", [row["subscription"]])
+            # Per-subscription (subscription, title) pairs: entries of one rule can carry
+            # different titles (rule renamed between saves), so Drop needs each exact pair.
+            pairs = row.setdefault("entries", [{"subscription": row["subscription"], "title": row["title"]}])
             if e.subscription not in subs:
                 subs.append(e.subscription)
                 row["subscription"] = ", ".join(subs)
+            pair = {"subscription": e.subscription, "title": e.title}
+            if pair not in pairs:
+                pairs.append(pair)
     return out
