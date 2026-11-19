@@ -648,3 +648,6 @@ In the pipeline dashboard each product name is a link-styled button. Clicking it
 
 ### Return to Findings After Edit
 Saving or cancelling the edit of an existing finding returns the user to the findings list, with the scroll position, filters, sort and selection as they were; the detail pane shows the updated finding. Adding a new finding behaves as before and stays on the form.
+
+### Interactive HTML Export: Category Filter and Severity Sort
+Readers of the downloaded interactive HTML report can filter findings by category using toggle chips (All plus each category in the report, with live counts, multi-select) and sort by severity, Critical to Info by default with a button to reverse. Filters combine with the existing search, severity and exceptions controls; a result count and empty state update live.
