@@ -21,6 +21,7 @@ from backend.services.auth_service import require_role
 from backend.services.exclude_matching import (
     load_active_matcher, map_category_from_entity as _map_category_from_entity,
 )
+from backend.services.priority_defaults import default_priority_for_severity
 from backend.services.memory_matching import MemoryIndex, compute_unmatched, rule_key_for
 from backend.graphql.queries import QUERY_TYPE_MAP
 from backend.services.wiz_service import WizService, build_bulk_filter
@@ -806,7 +807,7 @@ def _transform_finding(f: dict, cat_counters: dict) -> dict:
         "technical": technical,
         "policies": policies,
         "recs": recs,
-        "priority": "",
+        "priority": default_priority_for_severity(sev),  # BL-39
         "owner": owner,
         "evidence": [],
         "exception": {"active": False, "reason": ""},
@@ -879,7 +880,7 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
         "technical": technical,
         "policies": [],
         "recs": ["לטפל בפגיעויות בהתאם לרמת החומרה ולעדכן את הרכיבים הפגיעים"],
-        "priority": "",
+        "priority": default_priority_for_severity(highest_sev),  # BL-39
         "owner": ", ".join(subscription_names),
         "evidence": [],
         "exception": {"active": False, "reason": ""},

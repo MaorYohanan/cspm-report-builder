@@ -9,6 +9,7 @@ import {
 } from './findings.js';
 import { updateStepper } from './ui.js';
 import { t, tFormat, LANG_CHANGE_EVENT } from './i18n.js';
+import { fillPriorityDefaults, applyPriorityDefault, hasPriority } from './priority-defaults.js';
 import { stripInternalExportFields, omitAcknowledgedFindings } from './export-sanitize.js';
 
 const importJsonBtn   = document.getElementById('btn-import-json');
@@ -166,6 +167,9 @@ const dateInput       = document.getElementById('report-date');
         reader.onload = function(ev) {
           try {
             const snapshot = JSON.parse(ev.target.result);
+            // BL-39: findings without a priority get the severity default (a set priority is kept).
+            // Done here, not in applySnapshot, so autosave/cloud restores never rewrite stored data.
+            if (snapshot && Array.isArray(snapshot.findings)) fillPriorityDefaults(snapshot.findings);
             applySnapshot(snapshot);
           } catch (e) {
             console.error(e);
@@ -344,6 +348,7 @@ const dateInput       = document.getElementById('report-date');
                   owner: '',
                   evidence: []
                 });
+                applyPriorityDefault(state.findings[state.findings.length - 1]); // BL-39
                 count++;
               }
             } else {
@@ -381,10 +386,13 @@ const dateInput       = document.getElementById('report-date');
                   technical: colTech >= 0 ? splitLines(r[colTech] || '') : [],
                   policies: colPolicies >= 0 ? splitLines(r[colPolicies] || '') : [],
                   recs: colRec >= 0 ? splitLines(r[colRec] || '') : [],
-                  priority: colPriority >= 0 ? (r[colPriority] || '') : '',
+                  // BL-39: an explicit priority cell is kept (trimmed; any non-blank text is valid, the
+                  // form allows custom priorities); a blank cell gets the severity default below
+                  priority: colPriority >= 0 && hasPriority(r[colPriority]) ? r[colPriority].trim() : '',
                   owner: colOwner >= 0 ? (r[colOwner] || '') : '',
                   evidence: []
                 });
+                applyPriorityDefault(state.findings[state.findings.length - 1]); // BL-39
                 count++;
               }
             }
