@@ -139,6 +139,7 @@ db.init_app(app)
 if not os.environ.get("DATABASE_URL"):
     with app.app_context():
         import backend.models  # noqa: F401 — registers models with SQLAlchemy
+        # create_all also creates any missing table (e.g. BL-16 audit_events) with its indexes.
         db.create_all()
         # Backfill columns added after initial schema creation (existing SQLite DBs).
         from sqlalchemy import text as _text
@@ -147,6 +148,8 @@ if not os.environ.get("DATABASE_URL"):
                 "ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly'",
                 "ALTER TABLE findings ADD COLUMN exception_kind VARCHAR(20)",
                 "ALTER TABLE product_memory_entries ADD COLUMN rule_key VARCHAR(300)",
+                "ALTER TABLE audit_events ADD COLUMN source_ip VARCHAR(64)",
+                "ALTER TABLE audit_events ADD COLUMN user_agent VARCHAR(300)",
                 "CREATE INDEX IF NOT EXISTS ix_memory_product_rule_key ON product_memory_entries (product_id, rule_key)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_status ON report_snapshots (status)",
                 "CREATE INDEX IF NOT EXISTS ix_report_snapshots_published_at ON report_snapshots (published_at)",
@@ -274,13 +277,9 @@ _rate_store_lock = threading.Lock()
 
 
 def _get_client_key() -> str:
-    # Only trust X-Forwarded-For when a proxy is explicitly configured.
-    # Without TRUSTED_PROXY, clients could spoof their IP and bypass rate limiting.
-    if os.environ.get("TRUSTED_PROXY"):
-        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-        ip = ip.split(",")[0].strip()
-        return ip or "unknown"
-    return request.remote_addr or "unknown"
+    # Only trusts X-Forwarded-For when TRUSTED_PROXY is set (see services/client_ip.py).
+    from backend.services.client_ip import get_client_ip
+    return get_client_ip() or "unknown"
 
 
 def check_rate_limit() -> bool:

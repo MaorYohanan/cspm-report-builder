@@ -4408,7 +4408,7 @@ function _resolveItemCategory(item, qt) {
             // Consume temp entries now that the flagged findings are in state (non-blocking).
             res.tempToConsume.forEach(function(body) {
               try {
-                fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+                fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry?reason=consumed', {
                   method: 'DELETE',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(body)

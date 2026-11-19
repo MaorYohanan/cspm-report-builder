@@ -16,6 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.database import db
 from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 from backend.scan_state import scan_jobs as _scan_jobs, scan_jobs_lock as _lock
+from backend.services.audit_service import record_event
 from backend.services.auth_service import require_role
 from backend.services.memory_matching import MemoryIndex, compute_unmatched, rule_key_for
 from backend.graphql.queries import QUERY_TYPE_MAP
@@ -880,7 +881,7 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
 
 def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_store: list,
                                 scope_subs: list | None = None, unmatched_out: list | None = None,
-                                failed_types: set | None = None):
+                                failed_types: set | None = None, consumed_out: list | None = None):
     """Add Finding rows for a snapshot, applying Product Memory. Does NOT commit.
 
     BL-24 matching: a stable rule key (``_ruleKey``, derived from the raw node)
@@ -945,7 +946,8 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
             # A rule-only temp match does not set the loose flag: the finding stays active.
             for e in res.matched:
                 if e.source == "temp_excepted":
-                    temp_entries_to_delete[e.id] = e
+                    # BL-16: remember the original (un-lowercased) title for the audit row
+                    temp_entries_to_delete[e.id] = (e, title)
 
         # DEV-CRIT-2: skip findings that the user has permanently deleted -- only on an
         # EXACT (subscription, title) match. A rule-only deleted match never drops silently;
@@ -983,11 +985,18 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
 
     # Consume temp entries in the same transaction as the findings. Guard
     # against another worker having already removed the row.
-    for entry_id in temp_entries_to_delete:
+    for entry_id, (entry_obj, orig_title) in temp_entries_to_delete.items():
         # Query-level DELETE: a row already removed by another worker is a no-op.
-        ProductMemoryEntry.query.filter_by(id=entry_id).delete(
+        deleted = ProductMemoryEntry.query.filter_by(id=entry_id).delete(
             synchronize_session=False
         )
+        # BL-16: collect only rows THIS call removed; the caller logs them after commit.
+        if deleted and consumed_out is not None:
+            consumed_out.append({
+                "title": orig_title or entry_obj.title,
+                "subscription": entry_obj.subscription,
+                "source": entry_obj.source,
+            })
 
     if unmatched_out is not None:
         unmatched_out.extend(compute_unmatched(
@@ -995,6 +1004,16 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
         ))
 
     return risk, written_count
+
+
+def _audit_consumed_temp(product_id: str, consumed: list) -> None:
+    """BL-16: log one exception.temporary_consumed row per temp entry removed by a scan.
+
+    Call after the commit that removed the rows. Outside a request the actor is
+    ``system`` / ``system``."""
+    for c in consumed:
+        record_event("exception.temporary_consumed", "finding", c["title"],
+                     product_id=product_id, details={**c, "reason": "consumed"})
 
 
 def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
@@ -1113,10 +1132,11 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                     db.session.commit()
                 return
             unmatched_memory: list = []
+            consumed_temp: list = []
             risk, written_count = _store_findings_with_memory(
                 snapshot_id, snap.product_id, findings_to_store,
                 scope_subs=list(selected_subs), unmatched_out=unmatched_memory,
-                failed_types=failed_types,
+                failed_types=failed_types, consumed_out=consumed_temp,
             )
 
             # Final commit + update snapshot metadata
@@ -1133,6 +1153,10 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                 product.latest_risk_score = risk
 
             db.session.commit()
+
+            # BL-16: one audit row per temp entry consumed by this scan (system actor,
+            # best-effort, after the commit that actually removed the rows).
+            _audit_consumed_temp(snap.product_id, consumed_temp)
 
             with _lock:
                 if snapshot_id in _scan_jobs:

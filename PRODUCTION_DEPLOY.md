@@ -232,6 +232,14 @@ Before deploying this image, run the following on the Cloud SQL PostgreSQL insta
 ALTER TABLE products ADD COLUMN scan_frequency VARCHAR(20) NOT NULL DEFAULT 'quarterly';
 ```
 
+### BL-16 — Audit Log
+
+The `audit_events` table is created by Alembic revision `d16a1c4e8b52` (`python -m alembic upgrade head`); revision `e17b2d5f9a63` adds the nullable `source_ip` and `user_agent` columns.
+
+Source IP: the audit log records the client IP. Behind a reverse proxy or load balancer it is only accurate when `TRUSTED_PROXY` is set (the first `X-Forwarded-For` entry is then used, the same rule as the rate limiter); otherwise the proxy's address is stored and a client-supplied `X-Forwarded-For` is ignored. With `TRUSTED_PROXY` the first `X-Forwarded-For` entry is client-controllable unless the proxy overwrites (not appends to) the header, so configure the proxy to overwrite it; the stored value is validated as an IP address (invalid values fall back to the socket address, else NULL). Behind Docker or WSL locally the IP will be the gateway address, not the real client.
+
+Note: the log is append-only at the ORM level only (SQLAlchemy mapper listeners block update/delete). There is no database trigger and no `REVOKE`, so anyone with direct database access can still change or delete rows. In production, add DB-level protection, for example revoke `UPDATE`/`DELETE` on `audit_events` from the application's database role, or add a trigger that rejects them.
+
 ---
 
 ## Rollback

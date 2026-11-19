@@ -645,11 +645,11 @@ Full specs: `.plan/backlog.md`.
 Full specs: `.plan/backlog.md`.
 
 ── WAVE 11 — Enterprise & Integration (Tier 4 backlog) ───────────────────
-⬜  58. BL-14  Webhook on Scan / Publish Events (build first — establishes event infrastructure)
-⬜  59. BL-13  Email Report Delivery on Publish (reuses BL-14 publish event hook)
-⬜  60. BL-15  Monday.com Finding-to-Task Export
-⬜  61. BL-16  Full Audit Log (append-only AuditEvent model + admin view)
-⬜  62. BL-18  Scheduled Auto-Scan (APScheduler or cloud-scheduler; multi-worker guards)
+⏸️  58. BL-14  Webhook on Scan / Publish Events — deferred by user 2026-11-17 (open question: destination; see backlog.md)
+⏸️  59. BL-13  Email Report Delivery on Publish — deferred by user 2026-11-17
+⏭️  60. BL-15  Monday.com Finding-to-Task Export — removed by user 2026-11-17
+✅  61. BL-16  Full Audit Log (append-only AuditEvent model + admin view)
+⏸️  62. BL-18  Scheduled Auto-Scan — deferred by user 2026-11-17 (open questions: notification channel, draft-only; see backlog.md)
 ⬜  63. BL-08  AI Remediation Priority Ranker (highest AI effort — schedule last)
 Full specs: `.plan/backlog.md`.
 ```

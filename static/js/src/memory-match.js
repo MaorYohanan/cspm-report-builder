@@ -202,7 +202,7 @@ export function publishUnmatchedMemory(entries, scope) {
  */
 export function dropMemoryEntry(productId, entry) {
   if (!productId || !entry) return Promise.reject(new Error('productId and entry required'));
-  return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry', {
+  return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry?reason=stale_dropped', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ subscription: entry.subscription, title: entry.title, rule_key: entry.ruleKey || undefined })

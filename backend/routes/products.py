@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.database import db
 from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 from backend.scan_state import scan_jobs as _scan_jobs, scan_jobs_lock as _scan_jobs_lock
+from backend.services.audit_service import record_event
 from backend.services.auth_service import require_role
 
 _log = logging.getLogger(__name__)
@@ -349,7 +350,11 @@ def create_product():
         created_at=datetime.now(UTC),
     )
     db.session.add(product)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "מוצר בשם זה כבר קיים"}), 409
 
     return jsonify(_product_to_dict(product)), 201
 
@@ -428,8 +433,10 @@ def delete_product(product_id: str):
     if product is None:
         return jsonify({"error": "Product not found"}), 404
 
+    product_name = product.name
     db.session.delete(product)
     db.session.commit()
+    record_event("product.delete", "product", safe_id, product_id=safe_id, details={"name": product_name})
     return jsonify({"deleted": True, "id": safe_id}), 200
 
 
@@ -671,6 +678,7 @@ def delete_version(product_id: str, ver: str):
         return jsonify({"error": "סריקה פעילה — המתן לסיומה לפני מחיקה"}), 409
 
     summary = _version_summary(snap)
+    snap_status = snap.status
 
     # Bulk-delete findings first to avoid issuing thousands of individual
     # row-level DELETEs via SQLAlchemy's cascade, which holds the write lock
@@ -682,6 +690,8 @@ def delete_version(product_id: str, ver: str):
     _refresh_product_latest(product)
 
     db.session.commit()
+    record_event("version.delete", "version", ver, product_id=safe_id,
+                 details={"version": ver, "status": snap_status})
     return jsonify(summary), 200
 
 
@@ -708,6 +718,8 @@ def publish_version(product_id: str, ver: str):
     snap.status = "published"
     snap.published_at = datetime.now(UTC)
     db.session.commit()
+    record_event("version.publish", "version", ver, product_id=safe_id,
+                 details={"version": ver, "risk_score": snap.risk_score})
 
     return jsonify(_version_summary(snap)), 200
 
@@ -790,6 +802,18 @@ def list_exceptions():
 # ---------------------------------------------------------------------------
 # Product Memory endpoints
 # ---------------------------------------------------------------------------
+
+# BL-16: Product Memory source -> audit action ("deleted" = a finding removed from the report).
+_MEMORY_AUDIT_ACTIONS = {
+    "deleted": "finding.delete",
+    "excepted": "exception.add",
+    "temp_excepted": "exception.temporary",
+    "acknowledged": "exception.acknowledge",
+}
+
+# BL-16: allowlisted ?reason= markers on DELETE memory/entry (auto-consumed temp / stale drop).
+_MEMORY_REMOVE_MARKERS = frozenset({"consumed", "stale_dropped"})
+
 
 def _memory_key(subscription: str, title: str) -> str:
     return subscription.lower().strip() + "::" + title.lower().strip()
@@ -880,7 +904,9 @@ def upsert_memory_entry(product_id: str):
         title=title.lower().strip(),
     ).first()
 
+    changed = True
     if existing:
+        changed = existing.reason != reason or existing.source != source
         existing.reason = reason
         existing.source = source
         if rule_key is not None:
@@ -896,6 +922,12 @@ def upsert_memory_entry(product_id: str):
         ))
 
     db.session.commit()
+    if changed:  # BL-16: idempotent re-sends of the same entry are not new actions
+        record_event(
+            _MEMORY_AUDIT_ACTIONS[source], "finding", title.strip(), product_id=safe_id,
+            details={"title": title.strip(), "subscription": subscription.strip(), "source": source,
+                     "reason": reason},
+        )
     key = _memory_key(subscription, title)
     return jsonify({"ok": True, "key": key}), 200
 
@@ -929,6 +961,11 @@ def delete_memory_entry(product_id: str):
             if _contains_traversal(rule_key):
                 return jsonify({"error": "rule_key: invalid"}), 400
 
+    # BL-16: optional system marker (query param) for auto-consumed / stale-dropped entries.
+    marker = request.args.get("reason")
+    if marker is not None and marker not in _MEMORY_REMOVE_MARKERS:
+        return jsonify({"error": "reason: must be one of " + ", ".join(sorted(_MEMORY_REMOVE_MARKERS))}), 400
+
     sub_norm = subscription.lower().strip()
     entry = ProductMemoryEntry.query.filter_by(
         product_id=safe_id,
@@ -936,7 +973,9 @@ def delete_memory_entry(product_id: str):
         title=title.lower().strip(),
     ).first()
 
+    removed_entry = None
     if entry:
+        removed_entry = (entry.source, entry.title, entry.subscription)
         # BL-24: entries of the same rule in the same subscription AND of the same memory
         # source (stored under an older title) are cleared too, so an un-excepted finding does
         # not come back from a stale entry. Entries of other sources (deleted / acknowledged /
@@ -955,6 +994,22 @@ def delete_memory_entry(product_id: str):
             ).delete(synchronize_session=False)
 
     db.session.commit()
+    # BL-16: the system marker is honoured only when the stored entry is a temp exception
+    # (source temp_excepted); on any other source it is ignored so it cannot disguise a real
+    # removal. A real user removal is exception.remove, and removing a "deleted"-source entry
+    # (un-delete or stale drop) is not a listed action, so nothing is logged for it.
+    # Prefer the client-sent original title/subscription over the stored lowercased values.
+    if removed_entry:
+        orig_title = title.strip() or removed_entry[1]
+        orig_sub = subscription.strip() or removed_entry[2]
+        details = {"title": orig_title, "subscription": orig_sub, "source": removed_entry[0]}
+        if marker and removed_entry[0] == "temp_excepted":
+            details["reason"] = marker
+            record_event("exception.temporary_consumed", "finding", orig_title,
+                         product_id=safe_id, details=details)
+        elif removed_entry[0] != "deleted":
+            record_event("exception.remove", "finding", orig_title, product_id=safe_id,
+                         details=details)
     return jsonify({"ok": True}), 200
 
 

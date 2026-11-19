@@ -529,6 +529,41 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('backup-file-input').addEventListener('change', restoreFromBackup);
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Audit Log (BL-16) — read-only; rendering lives in audit-log.js (window.auditLog)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  const AUDIT_PAGE_SIZE = 25;
+  let auditRequestSeq = 0;
+
+  function buildAuditUrl(f) {
+    const params = new URLSearchParams();
+    ['actor', 'action', 'entity_type', 'entity_id', 'product_id', 'source_ip'].forEach(k => { if (f[k]) params.set(k, f[k]); });
+    if (f.from) params.set('date_from', f.from);
+    if (f.to) params.set('date_to', f.to);
+    params.set('page', String(f.page || 1));
+    params.set('page_size', String(AUDIT_PAGE_SIZE));
+    return '/api/admin/audit-log?' + params.toString();
+  }
+
+  async function loadAuditLog(filters) {
+    const ui = window.auditLog;
+    if (!ui) return;
+    const seq = ++auditRequestSeq;  // ignore out-of-order responses
+    ui.setAuditLogLoading(true);
+    try {
+      const res = await fetch(buildAuditUrl(filters));
+      const body = await res.json().catch(() => ({}));
+      if (seq !== auditRequestSeq) return;
+      if (!res.ok) { ui.setAuditLogError(body && body.error); return; }
+      ui.renderAuditLog(body);
+    } catch (e) {
+      if (seq === auditRequestSeq) ui.setAuditLogError();
+    }
+  }
+
+  if (window.auditLog) window.auditLog.onAuditFilterChange(loadAuditLog);
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Initial Load
   // ──────────────────────────────────────────────────────────────────────────
 

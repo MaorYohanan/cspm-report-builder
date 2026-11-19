@@ -73,7 +73,7 @@ Integration and compliance work. BL-14 (Webhook) should be implemented before BL
 |-------|----|---------|--------|------|
 | 1 | BL-14 | Webhook on Scan / Publish Events | Medium | Build this first — establishes event-dispatch infrastructure |
 | 2 | BL-13 | Email Report Delivery on Publish | Medium | Can reuse publish-event hook from BL-14 |
-| 3 | BL-15 | Monday.com Finding-to-Task Export | High | Monday.com is the team's project management system |
+| 3 | BL-15 | ~~Monday.com Finding-to-Task Export~~ | — | Removed by user 2026-11-17 |
 | 4 | BL-16 | Full Audit Log | High | Append-only DB log; needed for regulated environments |
 | 5 | BL-18 | Scheduled Auto-Scan | High | APScheduler or cloud-scheduler; add guards for multi-worker |
 | 6 | BL-08 | AI Remediation Priority Ranker | High | Highest AI effort; schedule last |
@@ -192,11 +192,15 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** After publishing, distributing the PDF and HTML manually is an extra step; automated email delivery on publish would close the loop for product owners.
 **Effort:** Medium
 **Notes:** No email-sending code exists anywhere in the codebase. Requires SMTP/SES configuration, a recipient list field on `Product`, and a post-publish hook in `products.py`.
+**Status (2026-11-17):** Deferred by user — do not start. Reuses the BL-14 publish event hook.
+**Open question:** Is email wanted for BL-18 scan results as well as publish?
 
 ### BL-14 · Webhook on Scan / Publish Events
 **Why:** Downstream systems (CI/CD gates, ticketing) have no way to react to scan completion or report publication without polling the API.
 **Effort:** Medium
 **Notes:** No outgoing webhook infrastructure exists. Requires a webhook configuration model (URL, events, secret), a dispatch utility, and hooks in the pipeline scan completion path and the publish route.
+**Status (2026-11-17):** Deferred by user — do not start.
+**Open question:** What is the webhook destination? Candidates: Teams/Slack incoming-webhook URL (likely most useful), own CI/CD or ticketing tooling, or build the mechanism only and add destinations later.
 
 ### BL-15 · Monday.com Finding-to-Task Export
 **Why:** Security teams that track remediation in Monday.com currently copy finding data manually; a direct push action would eliminate that step.
@@ -221,6 +225,8 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Why:** The pipeline dashboard tracks due dates but cannot trigger scans automatically, forcing consultants to initiate each cycle manually.
 **Effort:** High
 **Notes:** No scheduling library or cloud-scheduler endpoint exists. The `POST /api/pipeline/<id>/start-scan` route already handles scan logic; this idea adds a trigger mechanism (APScheduler or a cloud-scheduler HTTP endpoint), persistence of the next scheduled scan time, and guards against double-firing in multi-worker deployments.
+**Status (2026-11-17):** Deferred by user — do not start. Depends on BL-14 (and optionally BL-13) for notifications.
+**Open questions:** (1) Who is told about automated scan results, and how: in-app only (BL-27 badge + last-auto-scan status on the Pipeline row), webhook to the team channel (BL-14), email (BL-13)? (2) Proposed rules: auto-scan saves a DRAFT only and never publishes; failures (expired Wiz token, timeout) must alert loudly. (3) Production runs multi-worker/Cloud Run: needs a lock or an external trigger endpoint to avoid double-firing.
 
 ### BL-19 · Risk Score Color Tiers
 **Why:** Products with different risk levels look identical on the Products/Pipeline page; consultants must open each product individually to judge whether its score is acceptable.
