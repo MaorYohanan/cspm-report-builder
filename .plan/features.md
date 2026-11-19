@@ -639,3 +639,6 @@ Note (BL-31): removing the exception of a pipeline-sourced merged finding clears
 
 ### Priority Default from Severity
 A new finding gets a treatment priority from its severity (critical, high, medium, low) on every creation path: manual form and template dropdown, Wiz single and bulk import, pipeline scans, and JSON or CSV import. A priority already set (including custom text) is never overwritten; changing severity in bulk moves the priority only if it was empty or still the old default.
+
+### XLSX Export
+From the export panel, an XLSX button downloads the findings as a formatted Excel table: Hebrew headers in the same order as the CSV export, severity-sorted, colour-coded severity cells, filters, a frozen header row and a right-to-left sheet. List fields appear one item per line, cells that could be read as formulas are neutralised, and acknowledged findings are left out. CSV export and import are unchanged.

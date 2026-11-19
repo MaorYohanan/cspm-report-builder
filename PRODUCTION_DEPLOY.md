@@ -39,6 +39,8 @@ docker build -t REGION-docker.pkg.dev/YOUR_PROJECT/REPO/cspm-report-builder:late
 docker push REGION-docker.pkg.dev/YOUR_PROJECT/REPO/cspm-report-builder:latest
 ```
 
+> **BL-40 (XLSX export):** `requirements.txt` now includes `openpyxl>=3.1,<3.2`. The Docker image must be rebuilt (and redeployed) for `/api/export/xlsx` to work; an old image returns an export error for XLSX only.
+
 ---
 
 ### 2. Create the PostgreSQL database and user
