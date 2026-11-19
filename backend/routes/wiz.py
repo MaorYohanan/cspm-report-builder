@@ -43,6 +43,7 @@ from backend.graphql.queries import (
     VULN_FINDINGS_QUERY,
 )
 from backend.services.wiz_service import WizService, build_bulk_filter, VULN_ACTIONABLE_FILTERS
+from backend.services.audit_service import record_event
 from backend.services.auth_service import require_role
 from backend.database import db
 from backend.models import ExcludeRule
@@ -917,6 +918,11 @@ def _duplicate_response(rule: ExcludeRule):
     return jsonify({'error': 'duplicate', 'rule': _rule_to_dict(rule)}), 409
 
 
+def _rule_audit_state(rule: ExcludeRule) -> dict:
+    """BL-16: compact before/after snapshot of an exclude rule."""
+    return {'field': rule.field, 'operator': rule.operator, 'pattern': rule.pattern, 'active': rule.active}
+
+
 def _rule_to_dict(rule: ExcludeRule) -> dict:
     return {
         'id':         rule.id,
@@ -966,6 +972,8 @@ def api_exclude_rules_create():
         rule = ExcludeRule(field=field, operator=operator, pattern=pattern, active=active)
         db.session.add(rule)
         db.session.commit()
+        record_event('exclude_rule.create', 'exclude_rule', rule.id,
+                     details={'after': _rule_audit_state(rule)})
         return jsonify({'rule': _rule_to_dict(rule)}), 201
     except SQLAlchemyError:
         db.session.rollback()
@@ -982,6 +990,7 @@ def api_exclude_rules_update(rule_id: int):
         return jsonify({'error': 'Rule not found'}), 404
 
     data = request.get_json(silent=True) or {}
+    before = _rule_audit_state(rule)
 
     if 'field' in data:
         field = (data['field'] or '').strip()
@@ -1010,8 +1019,13 @@ def api_exclude_rules_update(rule_id: int):
     if 'active' in data:
         rule.active = bool(data['active'])
 
+    after = _rule_audit_state(rule)
     try:
         db.session.commit()
+        if before != after:
+            only_active = {k for k in after if before[k] != after[k]} == {'active'}
+            record_event('exclude_rule.toggle' if only_active else 'exclude_rule.update',
+                         'exclude_rule', rule.id, details={'before': before, 'after': after})
         return jsonify({'rule': _rule_to_dict(rule)})
     except SQLAlchemyError:
         db.session.rollback()
@@ -1028,8 +1042,10 @@ def api_exclude_rules_delete(rule_id: int):
         return jsonify({'error': 'Rule not found'}), 404
 
     try:
+        before = _rule_audit_state(rule)
         db.session.delete(rule)
         db.session.commit()
+        record_event('exclude_rule.delete', 'exclude_rule', rule_id, details={'before': before})
         return jsonify({'deleted': rule_id})
     except SQLAlchemyError:
         db.session.rollback()

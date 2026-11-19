@@ -2846,6 +2846,96 @@ table caption {
 .env-chip:has(input:checked) { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
 
 
+/* ── Admin Audit Log (read-only view) ── */
+.audit-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.audit-filters .form-group { min-width: 0; }
+/* --text-dim / --text-muted fail 4.5:1 in one of the themes; --text with reduced opacity passes in both */
+.audit-panel label, .audit-panel .card-title { color: var(--text); opacity: 0.85; }
+.audit-filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.audit-filter-error { color: var(--danger); font-size: 13px; min-height: 18px; margin-top: 10px; }
+
+.audit-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+[data-theme="light"] .audit-input[type="date"] { color-scheme: light; }
+.audit-input:focus-visible,
+.audit-expand-btn:focus-visible,
+.audit-panel .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.audit-panel .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.audit-state { text-align: center; padding: 40px; color: var(--text); font-size: 14px; }
+.audit-state[hidden], .audit-table-wrap[hidden], .audit-pagination[hidden], .audit-detail-row[hidden] { display: none; }
+.audit-state-error { color: var(--danger); }
+.audit-retry { margin-top: 14px; }
+
+.audit-table-wrap { overflow-x: auto; }
+.audit-table th, .audit-table td { text-align: start; vertical-align: top; }
+.audit-table { table-layout: auto; max-width: 100%; }
+.audit-table td { color: var(--text); overflow-wrap: break-word; min-width: 0; }
+/* Long unbroken ids/titles may break at any character so they never widen the table */
+.audit-col-id, .audit-col-id .audit-ltr, .audit-detail-key .audit-ltr { overflow-wrap: anywhere; word-break: break-word; }
+.audit-table td.audit-col-id { min-width: 84px; }
+.audit-detail-meta .audit-ltr { display: inline; overflow-wrap: anywhere; word-break: break-word; } /* long User-Agent wraps in the cell */
+.audit-help { font-size: 13px; color: var(--text); opacity: 0.8; margin: 12px 0 0; }
+.audit-detail-key { margin-bottom: 8px; font-size: 13px; }
+.audit-detail-key .audit-detail-label { display: inline; margin: 0; }
+.audit-table th { color: var(--text); opacity: 0.8; }
+.audit-row { cursor: pointer; }
+.audit-row-open td { background: var(--bg-card-hover); }
+.audit-col-toggle { width: 36px; padding-inline: 6px; }
+.audit-time { white-space: nowrap; }
+/* IDs, e-mails, timestamps and JSON are LTR technical values inside RTL text */
+.audit-ltr { direction: ltr; unicode-bidi: isolate; display: inline-block; max-width: 100%; text-align: left; overflow-wrap: break-word; }
+
+.audit-expand-btn {
+  width: 24px; height: 24px; padding: 0;
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1;
+}
+.audit-expand-btn::before { content: "+"; }
+.audit-expand-btn[aria-expanded="true"]::before { content: "\2212"; }
+.audit-expand-btn:hover { border-color: var(--border-hover); background: var(--bg-card-hover); }
+
+.audit-detail-row td { background: var(--bg-card-hover); }
+.audit-detail-label { font-size: 12px; font-weight: 600; color: var(--text); opacity: 0.8; margin-bottom: 6px; }
+.audit-detail-pre {
+  margin: 0; padding: 10px 12px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 320px; overflow: auto;
+  text-align: left; /* LTR: JSON / technical event data */
+}
+
+.audit-pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-top: 16px;
+}
+.audit-total { font-size: 13px; color: var(--text); opacity: 0.8; }
+.audit-pager { display: flex; align-items: center; gap: 12px; }
+.audit-page-indicator { font-size: 13px; color: var(--text); }
+.audit-sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
 /* ── Wizi multi-select ── */
 select[multiple] {
   padding: 4px;

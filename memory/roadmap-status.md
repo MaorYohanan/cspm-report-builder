@@ -478,6 +478,13 @@ BL-24 (Carry-forward hardening): ✅ merged to main — branch feature/bl-24-car
 - Branch: feature/bl-24-carry-forward-hardening (not merged, not pushed). Stable rule key (`ProductMemoryEntry.rule_key`, Alembic c24b7e9f1a30 on top of b23a0c5d7e11) matched first, (subscription,title) fallback, `_matchedLoosely` UI marker, `memory:unmatched` event + `dropMemoryEntry` helper, pipeline `unmatched_memory` payload, VULN-001 pipeline carry-forward fix. ExcludeRule server-side split out as BL-37 (unscheduled). Cache-buster main.js v=208.
 - Tests: 420 passed (excluding tests/test_ssc_query.py), 0 skipped; migration verified up/down on temp DB copies only. The user's DB still needs `alembic upgrade head` (or an app start, which backfills the column in dev SQLite).
 
+## User decisions 2026-11-17
+- BL-15 (Monday.com) ⏭️ skipped — removed by user.
+- BL-16 (audit log) approved, good to go.
+- BL-31..BL-43 approved, good to go (now scheduled).
+- BL-13, BL-14, BL-18 ⏸️ deferred by user — do not start; open questions recorded in .plan/backlog.md (webhook destination; scan-result notification channel; draft-only auto-scan).
+- BL-16 (Full Audit Log): ✅ merged to main and pushed — branch feature/bl-16-audit-log, 2026-11-19. Append-only AuditEvent (Alembic d16a1c4e8b52 + e17b2d5f9a63 adds source_ip/user_agent), audit_service.record_event (never raises, sanitises), admin-only GET /api/admin/audit-log + Audit Log tab (he/en, filters incl. product/IP). Logs publish, deletes, exceptions (incl. temporary_consumed), exclude rules, role change, backup/restore. Finding delete logged only for Wiz-sourced findings (documented). Draft saves deliberately not logged. Actor is 'anonymous' until login exists. 582 tests passed. User DB backed up (instance/backups/pre-bl16*) and migrated to e17b2d5f9a63. Known: stale-drop rows store lowercased title (needs DB change to fix); i18n.js has no ?v=.
+
 ## Next session — where to resume (written 2026-11-08)
 
 - State: BL-23 merged to main 2026-11-08 (merge 3562db6, status commit a168673, pushed). Follow-up branch fix/bl-23-followups merged to main locally 2026-11-09 (merge 6d8e994, NOT pushed). Tests: 346 passed (excluding tests/test_ssc_query.py). Tier 3 is 4/5.

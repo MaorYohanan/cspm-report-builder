@@ -30,6 +30,7 @@ from backend.models import (
     ReportSnapshot,
     User,
 )
+from backend.services.audit_service import list_events, record_event
 from backend.services.auth_service import require_role
 
 _log = logging.getLogger(__name__)
@@ -223,6 +224,28 @@ def _reset_sequences() -> None:
     db.session.commit()
 
 
+def _audit_restore(metadata: dict) -> None:
+    """BL-16: log the restore itself. The audit table is not part of _MODELS, so earlier
+    audit rows survive the overwrite."""
+    record_event("system.restore", "system", None, details={
+        "backup_timestamp": metadata.get("timestamp"),
+        "row_counts": metadata.get("row_counts"),
+    })
+
+
+@admin_bp.route("/audit-log", methods=["GET"])
+@require_role("admin")
+def audit_log():
+    """BL-16: read-only, paged list of audit events (newest first). No mutating verbs exist."""
+    try:
+        return jsonify(list_events(request.args)), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except SQLAlchemyError:
+        _log.error("Audit log query failed", exc_info=True)
+        return jsonify({"error": "שגיאה בטעינת יומן הביקורת"}), 500
+
+
 @admin_bp.route("/backup", methods=["GET"])
 @require_role("admin")
 def backup():
@@ -272,6 +295,7 @@ def backup():
         filename = f"cspm-backup-{timestamp_str}.zip"
 
         _log.info(f"Backup created: {filename} ({sum(row_counts.values())} total rows)")
+        record_event("system.backup", "system", filename, details={"row_counts": row_counts})
 
         return send_file(
             zip_buffer,
@@ -393,6 +417,7 @@ def restore():
                 _reset_sequences()
             except Exception as e:
                 _log.error("Sequence reset failed after successful restore", exc_info=True)
+                _audit_restore(metadata)  # the data WAS restored, so the event is still real
                 return jsonify({"error": "שחזור הושלם אך איפוס מספרים סידוריים נכשל"}), 500
 
             _log.info(
@@ -400,6 +425,7 @@ def restore():
                 f"({sum(metadata['row_counts'].values())} total rows)"
             )
 
+            _audit_restore(metadata)
             return jsonify({"status": "success"}), 200
 
         except SQLAlchemyError as e:

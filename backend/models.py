@@ -145,3 +145,25 @@ class FindingTemplate(db.Model):
     recommendations = db.Column(db.Text, nullable=True)
     active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class AuditEvent(db.Model):
+    """BL-16: append-only record of significant actions (who did what, when).
+
+    Rows are only ever inserted (see ``backend/services/audit_service.py``); there is
+    no update or delete path in the application. ``actor`` / ``actor_role`` are plain
+    strings, not foreign keys, so rows survive user and product deletion.
+    """
+    __tablename__ = "audit_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)  # UTC
+    actor = db.Column(db.String(254), nullable=False, index=True)
+    actor_role = db.Column(db.String(20), nullable=False)
+    action = db.Column(db.String(60), nullable=False, index=True)
+    entity_type = db.Column(db.String(40), nullable=False)
+    entity_id = db.Column(db.String(300), nullable=True)
+    product_id = db.Column(db.String(100), nullable=True, index=True)
+    details = db.Column(db.Text, nullable=True)  # compact JSON text
+    source_ip = db.Column(db.String(64), nullable=True)     # NULL for system events
+    user_agent = db.Column(db.String(300), nullable=True)   # inert text; NULL for system events

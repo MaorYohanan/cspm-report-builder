@@ -186,7 +186,26 @@ def _findings_dismiss_keys() -> set[str]:
 # Dynamic t(<expr>) calls that are allowed, each with the finite set of keys it can produce.
 # Anything not listed fails test_no_unlisted_dynamic_t_calls: use a literal key, or add the expression
 # and its key source here.
+def _audit_panel_i18n_keys() -> set[str]:
+    """audit-log.js translates every data-i18n attribute inside #tab-audit (templates/admin.html)."""
+    html = (ROOT / "templates" / "admin.html").read_text(encoding="utf-8")
+    panel = html[html.index('id="tab-audit"'):]
+    return set(re.findall(r'data-i18n="([^"]+)"', panel))
+
+
+def _audit_action_label_values() -> set[str]:
+    """audit-log.js actionLabel() translates every ACTION_LABELS value; each must have an en key."""
+    text = (SRC / "audit-log.js").read_text(encoding="utf-8")
+    m = re.search(r"const ACTION_LABELS = \{([^}]*)\}", text)
+    assert m, "audit-log.js ACTION_LABELS map not found - update the i18n test allowlist"
+    found = set(re.findall(r":\s*'([^']+)'", m.group(1)))
+    assert found, "audit-log.js ACTION_LABELS is empty - update the i18n test allowlist"
+    return found
+
+
 DYNAMIC_ALLOWED = {
+    ("audit-log.js", "ACTION_LABELS[k]"): _audit_action_label_values,  # all values must have i18n keys
+    ("audit-log.js", "n.getAttribute('data-i18n')"): _audit_panel_i18n_keys,
     ("i18n.js", "key"): lambda: set(),       # t() / tFormat() own parameter
     ("i18n.js", "oneKey"): lambda: set(),    # countPhrase() own parameters; its callers are scanned
     ("i18n.js", "manyKey"): lambda: set(),

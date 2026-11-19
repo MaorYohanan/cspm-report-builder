@@ -639,7 +639,10 @@ def test_migration_chain_has_single_head_after_b23():
     cfg = Config(str(ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(ROOT / "migrations"))
     script = ScriptDirectory.from_config(cfg)
-    assert script.get_heads() == ["c24b7e9f1a30"]
+    # BL-16 added d16a1c4e8b52 (+ e17b2d5f9a63 source_ip/user_agent) on top of c24b7e9f1a30; the chain must stay linear (single head).
+    assert script.get_heads() == ["e17b2d5f9a63"]
+    assert script.get_revision("e17b2d5f9a63").down_revision == "d16a1c4e8b52"
+    assert script.get_revision("d16a1c4e8b52").down_revision == "c24b7e9f1a30"
     assert script.get_revision("c24b7e9f1a30").down_revision == "b23a0c5d7e11"
 
 
@@ -850,7 +853,7 @@ def test_js_publish_and_drop_helpers():
     assert [e["title"] for e in out["last"]["entries"]] == ["b"]
     assert out["last"]["scope"] == {"type": "bulk"}
     assert out["r"] == {"ok": True}
-    assert out["url"] == "/api/products/prod%201/memory/entry" and out["method"] == "DELETE"
+    assert out["url"] == "/api/products/prod%201/memory/entry?reason=stale_dropped" and out["method"] == "DELETE"
     assert out["body"] == {"subscription": "s", "title": "a"}
     assert out["err"] == "HTTP 403"
     assert [e["title"] for e in out["state"]["entries"]] == ["b"]  # failed drop leaves state untouched

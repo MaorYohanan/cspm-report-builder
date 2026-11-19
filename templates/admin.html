@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — ניהול מערכת</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=49">
+  <link rel="stylesheet" href="/static/css/builder.css?v=200">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <script src="/static/js/src/admin-theme.js?v=1"></script>
   <style>
     body { padding: 0; }
 
@@ -309,6 +310,8 @@
       <button class="admin-tab-btn active" data-tab="users">ניהול משתמשים</button>
       <button class="admin-tab-btn" data-tab="templates">ניהול תבניות</button>
       <button class="admin-tab-btn" data-tab="backup">גיבוי ושחזור</button>
+      <!-- Audit log: this page is served only to admins (require_role("admin") on /admin) -->
+      <button class="admin-tab-btn" data-tab="audit" id="audit-tab-btn" data-i18n="יומן ביקורת">יומן ביקורת</button>
     </div>
 
     <!-- User Management Tab Panel -->
@@ -432,9 +435,85 @@
       </div>
     </div>
 
+
+    <!-- Audit Log Tab Panel (read-only: no edit/delete controls) -->
+    <div class="admin-tab-panel audit-panel" id="tab-audit">
+      <div class="card">
+        <div class="card-title" data-i18n="יומן ביקורת">יומן ביקורת</div>
+        <form class="audit-filters" id="audit-filter-form" autocomplete="off" novalidate>
+          <div class="form-group">
+            <label for="audit-filter-actor" data-i18n="משתמש מבצע">משתמש מבצע</label>
+            <input type="text" class="audit-input" id="audit-filter-actor" data-audit-ph="user@company.com" dir="auto">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-action" data-i18n="סוג פעולה">סוג פעולה</label>
+            <input type="text" class="audit-input" id="audit-filter-action" dir="auto">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-from" data-i18n="מתאריך">מתאריך</label>
+            <input type="date" class="audit-input" id="audit-filter-from">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-to" data-i18n="עד תאריך">עד תאריך</label>
+            <input type="date" class="audit-input" id="audit-filter-to">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-entity-type" data-i18n="סוג ישות">סוג ישות</label>
+            <input type="text" class="audit-input" id="audit-filter-entity-type" dir="auto">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-entity-id" data-i18n="מזהה ישות">מזהה ישות</label>
+            <input type="text" class="audit-input" id="audit-filter-entity-id" dir="auto">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-product-id" data-i18n="מזהה מוצר">מזהה מוצר</label>
+            <input type="text" class="audit-input" id="audit-filter-product-id" dir="auto">
+          </div>
+          <div class="form-group">
+            <label for="audit-filter-source-ip" data-i18n="כתובת IP">כתובת IP</label>
+            <input type="text" class="audit-input" id="audit-filter-source-ip" dir="ltr" inputmode="text" maxlength="64" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="audit-filter-actions">
+            <button type="submit" class="btn btn-primary" id="audit-filter-apply" data-i18n="סנן">סנן</button>
+            <button type="button" class="btn btn-secondary" id="audit-filter-reset" data-i18n="נקה סינון">נקה סינון</button>
+          </div>
+        </form>
+        <p class="audit-help" id="audit-help" data-i18n="מחיקת ממצאים נרשמת רק עבור ממצאים שמקורם ב-Wiz (אלה שנשמרו בזיכרון המוצר). אירועי הביקורת הם הוספה-בלבד ואינם ניתנים לעריכה או למחיקה.">מחיקת ממצאים נרשמת רק עבור ממצאים שמקורם ב-Wiz (אלה שנשמרו בזיכרון המוצר). אירועי הביקורת הם הוספה-בלבד ואינם ניתנים לעריכה או למחיקה.</p>
+        <div class="audit-filter-error" id="audit-filter-error" role="alert"></div>
+      </div>
+
+      <div class="card">
+        <div class="audit-state" id="audit-state" role="status" aria-live="polite"></div>
+        <div class="audit-table-wrap" id="audit-table-wrap" hidden>
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th class="audit-col-toggle"><span class="audit-sr-only" data-i18n="פרטים">פרטים</span></th>
+                <th data-i18n="זמן">זמן</th>
+                <th data-i18n="משתמש מבצע">משתמש מבצע</th>
+                <th data-i18n="סוג פעולה">סוג פעולה</th>
+                <th data-i18n="סוג ישות">סוג ישות</th>
+                <th data-i18n="מזהה ישות">מזהה ישות</th>
+                <th data-i18n="מזהה מוצר">מזהה מוצר</th>
+              </tr>
+            </thead>
+            <tbody id="audit-tbody"></tbody>
+          </table>
+        </div>
+        <div class="audit-pagination" id="audit-pagination" hidden>
+          <span class="audit-total" id="audit-total"></span>
+          <div class="audit-pager">
+            <button type="button" class="btn btn-secondary" id="audit-prev" data-i18n="הקודם" disabled>הקודם</button>
+            <span class="audit-page-indicator" id="audit-page-indicator"></span>
+            <button type="button" class="btn btn-secondary" id="audit-next" data-i18n="הבא" disabled>הבא</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script type="module" src="/static/js/src/admin.js?v=176"></script>
+  <script type="module" src="/static/js/src/admin.js?v=180"></script>
+  <script type="module" src="/static/js/src/audit-log.js?v=3"></script>
 
 </body>
 </html>

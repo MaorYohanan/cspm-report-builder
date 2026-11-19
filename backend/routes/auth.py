@@ -18,6 +18,7 @@ from flask import (
 from backend.database import db
 from backend.models import FindingTemplate, User
 from backend.oauth import oauth
+from backend.services.audit_service import record_event
 from backend.services.auth_service import get_or_create_user, require_role
 
 _log = logging.getLogger(__name__)
@@ -175,8 +176,12 @@ def update_user(user_id: int):
     if user.email == session.get("user_email") and new_role != "admin":
         return jsonify({"error": "Cannot change your own role"}), 400
 
+    old_role = user.role
     user.role = new_role
     db.session.commit()
+    if old_role != new_role:
+        record_event("user.role_change", "user", user.id,
+                     details={"email": user.email, "before": old_role, "after": new_role})
     return jsonify({"id": user.id, "email": user.email, "role": user.role})
 
 
