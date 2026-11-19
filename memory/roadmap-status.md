@@ -485,7 +485,7 @@ BL-24 (Carry-forward hardening): ✅ merged to main — branch feature/bl-24-car
 - BL-13, BL-14, BL-18 ⏸️ deferred by user — do not start; open questions recorded in .plan/backlog.md (webhook destination; scan-result notification channel; draft-only auto-scan).
 - BL-16 (Full Audit Log): ✅ merged to main and pushed — branch feature/bl-16-audit-log, 2026-11-19. Append-only AuditEvent (Alembic d16a1c4e8b52 + e17b2d5f9a63 adds source_ip/user_agent), audit_service.record_event (never raises, sanitises), admin-only GET /api/admin/audit-log + Audit Log tab (he/en, filters incl. product/IP). Logs publish, deletes, exceptions (incl. temporary_consumed), exclude rules, role change, backup/restore. Finding delete logged only for Wiz-sourced findings (documented). Draft saves deliberately not logged. Actor is 'anonymous' until login exists. 582 tests passed. User DB backed up (instance/backups/pre-bl16*) and migrated to e17b2d5f9a63. Known: stale-drop rows store lowercased title (needs DB change to fix); i18n.js has no ?v=.
 
-- BL-31..BL-43 remaining (31,33,35,36,37,39,40,41,42,43): 🔄 in progress — user delegated 2026-11-19, done sequentially one branch each; BL-31 started.
+- BL-31..BL-43 remaining (31,33,35,36,37,39,40,41,42,43): 🔄 in progress — user delegated 2026-11-19, done sequentially one branch each; BL-31 implemented on feature/bl-31-pipeline-memory (awaiting merge approval, 2026-11-19).
 - BL-33 (app.pid/app.log leftovers): 🔍 awaiting merge approval — branch bl-33-pid-log-leftovers, 2026-11-19. Decision: document + gitignore only (README section with stale-PID check); no script/code. QA pending.
 
 ## Next session — where to resume (written 2026-11-08)

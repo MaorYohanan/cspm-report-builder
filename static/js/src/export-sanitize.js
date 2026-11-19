@@ -16,6 +16,7 @@ export function stripInternalExportFields(findings) {
     delete copy._wasTempActioned;
     delete copy._tempActionReason;
     delete copy._sourceSubscription;
+    delete copy._sourceSubscriptions; // BL-31
     delete copy._matchedLoosely; // BL-24: UI-only loose-match marker
     delete copy._ruleKey; // BL-24: internal memory key
     if (copy.exception && typeof copy.exception === 'object') {

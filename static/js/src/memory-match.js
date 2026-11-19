@@ -37,6 +37,32 @@ export function buildRuleKey(item, qt) {
   return (qt + '|' + String(rid).trim()).toLowerCase();
 }
 
+/**
+ * BL-31: subscriptions a finding's Product Memory entries are written under.
+ * A merged pipeline finding lists every contributor in _sourceSubscriptions (one entry each);
+ * otherwise the single _sourceSubscription (browser import, single-subscription pipeline finding).
+ * Returns [] when the finding has no source subscription (nothing can be remembered).
+ */
+export function memorySubscriptionsForSave(f) {
+  if (!f) return [];
+  var out = [];
+  var list = Array.isArray(f._sourceSubscriptions) ? f._sourceSubscriptions : [];
+  list.forEach(function(s) {
+    if (typeof s === 'string' && s && out.indexOf(s) === -1) out.push(s);
+  });
+  if (!out.length && typeof f._sourceSubscription === 'string' && f._sourceSubscription) out.push(f._sourceSubscription);
+  return out;
+}
+
+/** Same as the save list plus the single _sourceSubscription (clears legacy comma-joined entries too). */
+export function memorySubscriptionsForRemove(f) {
+  var out = memorySubscriptionsForSave(f);
+  if (f && typeof f._sourceSubscription === 'string' && f._sourceSubscription && out.indexOf(f._sourceSubscription) === -1) {
+    out.push(f._sourceSubscription);
+  }
+  return out;
+}
+
 /** GET /memory response ({entries:{key:{...}}}) -> array of entries with normalised fields. */
 export function memoryEntriesToList(entriesObj) {
   return Object.keys(entriesObj || {}).map(function(key) {

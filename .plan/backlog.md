@@ -41,7 +41,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 
 | Order | ID | Feature | Effort | Note |
 |-------|----|---------|--------|------|
-| — | BL-31 | Product Memory for Pipeline-Scanned Findings | Medium | **UNSCHEDULED** — pipeline findings carry no `_sourceSubscription`; design question open |
+| — | BL-31 | Product Memory for Pipeline-Scanned Findings | Medium | ✅ **DONE 2026-11-19** — pipeline findings now carry `_sourceSubscription` (+ `_sourceSubscriptions` when merged); memory saved per subscription |
 | — | BL-32 | Temporary Label in Exceptions Overview | Low | ✅ **DONE 2026-11-10** — `temporary` flag + "זמני" chip in the Exceptions list |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | ✅ **DONE 2026-11-19** — document + gitignore only; no code/script added |
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | ✅ **DONE 2026-11-10** — splitter keeps the anchor on the first chunk (needs a `qa` PDF geometry check) |
@@ -314,7 +314,7 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Effort:** Low-Medium
 **Notes:** NET-NEW. `renderDiff` in `static/js/src/products.js` (line 855) generates a color-coded diff table (added/resolved/changed rows) and a numeric risk delta display but contains no AI call and no narrative paragraph. No `GeminiService` method, no backend route, and no `features.md` entry for a diff narrative exist anywhere in the codebase. Net-new work: (1) a new `GeminiService.generate_diff_summary()` method that receives added/resolved/changed counts, the risk delta value, version strings, and a representative sample of affected finding titles; (2) a new backend route `POST /api/generate-diff-summary` (`require_role("viewer")`) that validates inputs and delegates to the new Gemini method; (3) in `renderDiff`, after computing the diff data and before closing the `diff-panel` div, fire an async fetch to the route with the counts and sample titles, show a "מייצר סיכום..." loading placeholder while the call is in flight, then inject the returned Hebrew narrative paragraph above the diff row list; (4) degrade gracefully — if the Gemini call fails or returns empty, hide the narrative section entirely without surfacing an error to the user.
 
-### BL-31 · Product Memory for Pipeline-Scanned Findings (UNSCHEDULED)
+### BL-31 · Product Memory for Pipeline-Scanned Findings ✅ DONE 2026-11-19
 **Why:** Findings loaded from a backend pipeline scan cannot be saved to Product Memory from the editor, so an exception or delete set on them is not carried forward to the next cycle. This affects temporary exceptions (BL-12) and permanent exceptions and deletes alike.
 **Effort:** Medium
 **Notes:** `_transform_finding` in `backend/routes/pipeline.py` does not copy `_sourceSubscription` into the stored finding, and the memory-save calls in `findings.js` (`attachExceptionReasonButton*` / memory POST helpers) bail out when it is missing. Open design question: a merged multi-subscription finding has `owner` = comma-joined subscription names and no single subscription, so it is ambiguous which `(subscription, title)` key to write (all of them? the first? one entry per subscription?). Needs a decision, and must stay consistent with the matching in `_store_findings_with_memory` and with BL-24 (carry-forward hardening). Not implemented.
