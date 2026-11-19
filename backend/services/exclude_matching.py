@@ -1,4 +1,4 @@
-"""BL-37: server-side ExcludeRule matching for pipeline scans.
+r"""BL-37: server-side ExcludeRule matching for pipeline scans.
 
 Mirrors ``isExcludedByRules`` / ``getWiziItemPaths`` in ``static/js/src/exclude_rules.js``
 and the raw-item helpers in ``static/js/src/wizi.js`` (``getWiziItemTitle``,
@@ -20,13 +20,29 @@ Semantics (identical to the JS unless listed under "Differences"):
 Differences from the JS (all on the safe side, none change a valid rule's result):
 
 * A rule that cannot be applied (unknown field/operator, malformed pair JSON, empty or
-  >500-char pattern, invalid regex) is SKIPPED and logged once by id. The browser skips
-  an invalid regex per call too, but treats an unknown field as a ``category`` rule.
-* Regex dialect: Python ``re`` with ``re.ASCII | re.IGNORECASE`` (ASCII ``\\w``/``\\d`` like
-  JS). Syntax valid in JS but not in Python (e.g. ``(?<name>...)``) is skipped. Python
-  cannot time out a regex, so (a) the matched text is capped at ``MAX_MATCH_TEXT`` chars and
-  (b) a regex with a quantified group that itself holds an unbounded quantifier, e.g.
-  ``(a+)+``, is skipped as a catastrophic-backtracking risk.
+  >500-char pattern, invalid or UNSAFE regex) is SKIPPED and logged once by id. The browser
+  skips an invalid regex per call too, but treats an unknown field as a ``category`` rule.
+  The same validator (``regex_error``) rejects such rules when they are saved
+  (``_pattern_error`` in ``backend/routes/wiz.py``), so skipping only affects legacy rows.
+* Regex safety. Python ``re`` cannot be interrupted and holds the GIL, so one runaway match
+  would freeze the whole process. ``regex_error`` therefore parses the pattern with the
+  stdlib parser (fails closed if the parser is unavailable) and REJECTS: a repeat whose body
+  holds another repeat or an alternation, unless it is just ``?`` (``(a+)+``, ``(a|aa)+``, ``(.*a){12}``, also bounded
+  ``{n}``), lookaround, backreferences, atomic/possessive/conditional constructs, ``(?P<..>)``,
+  adjacent unbounded repeats (``.*.*x``), more than 3 wide repeats in a ``^``-anchored pattern (2 when
+  unanchored, because ``search`` retries at every offset; worst case measured ~1.5 s at 1024 chars), and anything outside a small whitelist of parser opcodes. The matched text is also
+  capped at ``MAX_MATCH_TEXT`` (1024) characters: titles, resource names and paths are short.
+* Regex dialect: Python ``re`` with ``re.ASCII | re.IGNORECASE``. Remaining differences
+  from JS ``RegExp``:
+
+  - ``\w`` / ``\d`` / ``\s`` are ASCII-only here (``re.ASCII``); in JS ``\s`` also
+    matches Unicode spaces (NBSP, etc.), ``\w`` / ``\d`` are ASCII in both;
+  - ``$`` also matches just before a trailing newline in Python (JS: only at the very end);
+  - ``{,n}`` means ``{0,n}`` in Python but is a literal in JS;
+  - possessive quantifiers / atomic groups (3.11+) and inline flags such as ``(?i)`` are
+    Python-only syntax; lookaround and backreferences exist in both but are rejected here;
+  - named groups: JS ``(?<name>..)`` is a Python syntax error, Python ``(?P<name>..)`` is a
+    JS syntax error (both rejected).
 """
 from __future__ import annotations
 
@@ -40,7 +56,9 @@ VALID_OPERATORS = frozenset({"startsWith", "contains", "regex"})
 PAIR_KEYS = {"title_resource": "resource", "title_path": "path"}
 VALID_FIELDS = frozenset({"title", "category", "path"}) | frozenset(PAIR_KEYS)
 MAX_PATTERN_LEN = 500       # same cap the exclude-rule API enforces
-MAX_MATCH_TEXT = 4096       # regex haystack cap (ReDoS bound; titles/paths are far shorter)
+MAX_MATCH_TEXT = 1024       # regex haystack cap (ReDoS bound; titles/resources/paths are far shorter)
+MAX_WIDE_REPEATS = 3        # wide (unbounded / large) repeats allowed in a ^-anchored regex
+MAX_WIDE_REPEATS_UNANCHORED = 2  # search() retries at every offset (one extra power of n)
 
 # queryType -> category assigned at import time (mirror of _QUERY_TYPE_TO_CAT in wizi.js).
 QUERY_TYPE_TO_CAT = {
@@ -182,12 +200,104 @@ def _parse_pair(pattern: str, key: str):
     return None
 
 
-# A group containing an unbounded quantifier that is itself quantified, e.g. (a+)+ or (.*)*:
-# the classic catastrophic-backtracking shape. Python's re cannot be interrupted, so such rules
-# are skipped rather than risk hanging the scan thread (heuristic; the browser has no equivalent).
-_NESTED_QUANTIFIER = re.compile(
-    r"\((?:[^()\\]|\\.)*(?:[+*]|\{\d+,\d*\})(?:[^()\\]|\\.)*\)(?:[+*]|\{\d+,\d*\})"
-)
+# ── Regex safety validator (static analysis only; never runs the regex) ─────────
+
+try:  # stdlib parser; module moved in 3.11. Fail closed if neither import works.
+    from re import _constants as _sc, _parser as _sp  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - Python < 3.11
+    try:
+        import sre_constants as _sc  # type: ignore[no-redef]
+        import sre_parse as _sp  # type: ignore[no-redef]
+    except ImportError:
+        _sc = _sp = None
+
+_WIDE_MIN_SPAN = 64   # a bounded repeat spanning more than this counts as wide
+
+
+def _op(name: str):
+    return getattr(_sc, name, None) if _sc is not None else None
+
+
+def _allowed_ops() -> frozenset:
+    names = ("LITERAL", "NOT_LITERAL", "IN", "ANY", "AT", "CATEGORY", "BRANCH",
+             "SUBPATTERN", "MAX_REPEAT", "MIN_REPEAT")
+    return frozenset(o for o in (_op(n) for n in names) if o is not None)
+
+
+def _is_repeat(op) -> bool:
+    return op is not None and op in (_op("MAX_REPEAT"), _op("MIN_REPEAT"))
+
+
+def _is_wide(lo, hi) -> bool:
+    return hi == _sc.MAXREPEAT or (hi != lo and hi - lo > _WIDE_MIN_SPAN)
+
+
+def _contains(sub, pred) -> bool:
+    """True when any node in the sub-pattern (recursively) satisfies ``pred(op)``."""
+    for op, av in sub:
+        if pred(op):
+            return True
+        for child in _children(op, av):
+            if _contains(child, pred):
+                return True
+    return False
+
+
+def _children(op, av):
+    if op == _op("SUBPATTERN"):
+        return [av[3]]
+    if op == _op("BRANCH"):
+        return list(av[1])
+    if _is_repeat(op):
+        return [av[2]]
+    return []
+
+
+def _walk(sub, allowed, counts, limit) -> None:
+    prev_unbounded = False
+    for op, av in sub:
+        if op not in allowed:
+            raise ValueError("unsupported regex construct")
+        unbounded = False
+        if _is_repeat(op):
+            lo, hi, body = av
+            # An optional group (``(..)?``, max 1) cannot multiply paths; anything repeating more can.
+            if hi > 1 and _contains(body, lambda o: _is_repeat(o) or o == _op("BRANCH")):
+                raise ValueError("nested quantifier or alternation under a quantifier")
+            if _is_wide(lo, hi):
+                counts[0] += 1
+                unbounded = True
+                if counts[0] > limit:
+                    raise ValueError("too many unbounded quantifiers")
+                if prev_unbounded:
+                    raise ValueError("adjacent unbounded quantifiers")
+        prev_unbounded = unbounded
+        for child in _children(op, av):
+            _walk(child, allowed, counts, limit)
+
+
+def regex_error(pattern: str):
+    """Return a short reason when ``pattern`` is not a safe, JS-compatible regex, else None.
+
+    Pure static analysis of the stdlib parse tree: the pattern is never matched here, so it
+    is safe to call on hostile input (save time and load time)."""
+    if not isinstance(pattern, str) or not pattern or len(pattern) > MAX_PATTERN_LEN:
+        return "pattern empty or too long"
+    if _sp is None or _sc is None:
+        return "regex parser unavailable"
+    if "(?P" in pattern:
+        return "named groups are not supported"
+    try:
+        tree = _sp.parse(pattern, re.IGNORECASE | re.ASCII)
+        first = tree[0] if len(tree) else None
+        anchored = bool(first) and first[0] == _op("AT") and first[1] == _op("AT_BEGINNING")
+        _walk(tree, _allowed_ops(), [0], MAX_WIDE_REPEATS if anchored else MAX_WIDE_REPEATS_UNANCHORED)
+        re.compile(pattern, re.IGNORECASE | re.ASCII)
+    except ValueError as e:
+        return str(e) or "invalid regex"
+    except (re.error, RecursionError, OverflowError, TypeError, AttributeError, IndexError):
+        return "invalid regex"
+    return None
 
 
 def _compile_one(operator: str, raw_pattern: str):
@@ -195,8 +305,9 @@ def _compile_one(operator: str, raw_pattern: str):
     if not raw_pattern or len(raw_pattern) > MAX_PATTERN_LEN:
         raise ValueError("pattern empty or too long")
     if operator == "regex":
-        if _NESTED_QUANTIFIER.search(raw_pattern):
-            raise ValueError("nested quantifier (catastrophic backtracking risk)")
+        reason = regex_error(raw_pattern)
+        if reason:
+            raise ValueError(reason)
         rx = re.compile(raw_pattern, re.IGNORECASE | re.ASCII)
         return lambda v: rx.search(v[:MAX_MATCH_TEXT]) is not None
     low = raw_pattern.lower()
@@ -231,6 +342,7 @@ class ExcludeMatcher:
         """``rules``: iterable of objects/dicts with id, field, operator, pattern, active."""
         self._rules: list = []
         self.skipped_ids: list = []
+        self.load_failed = False   # True when the rules could not be read from the DB
         for r in rules or []:
             get = (lambda k, r=r: r.get(k)) if isinstance(r, dict) else (lambda k, r=r: getattr(r, k, None))
             if not get("active"):
@@ -276,7 +388,7 @@ class ExcludeMatcher:
 
 
 def load_active_matcher() -> ExcludeMatcher:
-    """Build a matcher from the active ExcludeRule rows. A DB error degrades to 'no rules'."""
+    """Build a matcher from the active ExcludeRule rows. A DB error degrades to 'no rules' (``load_failed`` is set)."""
     from backend.models import ExcludeRule
     try:
         rows = ExcludeRule.query.filter_by(active=True).order_by(ExcludeRule.id).all()
@@ -286,5 +398,8 @@ def load_active_matcher() -> ExcludeMatcher:
     except Exception:  # noqa: BLE001 - never fail a scan because rules could not be read
         from backend.database import db
         db.session.rollback()
-        _log.warning("exclude rules could not be loaded; scan continues without them")
-        return ExcludeMatcher([])
+        _log.warning("exclude rules could not be loaded; scan continues WITHOUT exclude rules",
+                     exc_info=True)
+        m = ExcludeMatcher([])
+        m.load_failed = True
+        return m
