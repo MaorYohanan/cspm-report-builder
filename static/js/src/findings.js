@@ -2157,8 +2157,40 @@ let priorityTouched = false;
         prefillId();
       }
 
+      // BL-42: remember where the user was in the findings list so save/cancel can put them back.
+      // display:none on the inactive tab panel discards element scroll offsets, so restore explicitly.
+      var editReturnView = null;
+      var EDIT_RETURN_SCROLLERS = ['.findings-list-scroll', '.findings-detail-body', '.content-body'];
+
+      function captureFindingsView() {
+        var listTab = document.getElementById('tab-findings-list');
+        if (!listTab || !listTab.classList.contains('active')) return null;   // editing started elsewhere: nothing to restore
+        var view = { win: window.scrollY, els: [] };
+        EDIT_RETURN_SCROLLERS.forEach(function(sel) {
+          var el = document.querySelector(sel);
+          if (el) view.els.push({ el: el, top: el.scrollTop });
+        });
+        return view;
+      }
+
+      // Back to the findings tab after an edit save/cancel. Filters, sort and page live in DOM/state and are
+      // not touched; only scroll offsets (lost while the panel was hidden) are restored.
+      export function returnToFindingsAfterEdit() {
+        var view = editReturnView;
+        editReturnView = null;
+        switchToTab('tab-findings-list');
+        if (!view) return;
+        var restore = function() {
+          view.els.forEach(function(o) { o.el.scrollTop = o.top; });
+          window.scrollTo(0, view.win);
+        };
+        restore();
+        requestAnimationFrame(restore);
+      }
+
       export function startEditFinding(idx) {
         const f = state.findings[idx];
+        editReturnView = captureFindingsView();   // overwrite: never keep a stale view from an earlier edit
         state.editingIndex = idx;
 
         const idField = document.getElementById('f-id');
@@ -2355,6 +2387,7 @@ let priorityTouched = false;
         const readerNeeded = pendingEvidenceList.length;
 
         const applyFinding = () => {
+          let wasEdit = false;
           let evidence = pendingEvidenceList.length ? pendingEvidenceList.slice() : [];
 
           if (!evidence.length && state.editingIndex !== null) {
@@ -2416,10 +2449,20 @@ let priorityTouched = false;
             state.findings[state.editingIndex] = newFinding;
             showToast(tFormat('עודכן ממצא {id}', { id: newFinding.id }), 'success');
             resetEditState();
+            wasEdit = true;
           }
 
           clearFindingForm();
           renderFindingsTable();
+
+          if (wasEdit) {
+            // BL-42: land back on the findings list; refresh the open detail pane (it still shows the old data)
+            if (state.selectedFindingIndex !== null && state.findings[state.selectedFindingIndex]) {
+              showFindingDetail(state.selectedFindingIndex);
+            }
+            returnToFindingsAfterEdit();
+            return;
+          }
 
           // Auto-focus title for quick next entry
           setTimeout(() => document.getElementById('f-title').focus(), 100);
@@ -2431,7 +2474,9 @@ let priorityTouched = false;
       addBtn.addEventListener('click', handleAddOrUpdateFinding);
 
       cancelEditBtn.addEventListener('click', function() {
+        var wasEditing = state.editingIndex !== null;
         resetEditState();
+        if (wasEditing) returnToFindingsAfterEdit();   // BL-42
       });
 
       // Sort state.findings dropdown

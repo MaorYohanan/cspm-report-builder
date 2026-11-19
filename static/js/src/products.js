@@ -479,6 +479,28 @@ export var ProductsPanel = {
       .catch(function(err){ showToast(err.message || t('שגיאת רשת'), 'error'); });
   },
 
+  // BL-41: open a product's timeline from anywhere (pipeline dashboard). Switches to the Products tab
+  // via switchToTab (pins the sidebar accordion) and loads the product by id, so it works whether or
+  // not the products grid was ever loaded. Unknown id -> toast, tab left unchanged.
+  openTimelineById: function(productId) {
+    var self = this;
+    return fetch('/api/products/' + encodeURIComponent(productId))
+      .then(function(r) {
+        if (r.status === 404) { var e = new Error(t('המוצר לא נמצא')); e.handled = true; throw e; }
+        if (!r.ok) throw new Error(t('שגיאת רשת'));
+        return r.json();
+      })
+      .then(function(product) {
+        switchToTab('tab-products');
+        self.showTimeline(product);
+        return true;
+      })
+      .catch(function(err) {
+        showToast((err && err.message) || t('שגיאת רשת'), 'error');
+        return false;
+      });
+  },
+
   _loadProductAndEdit: function(productId) {
     var self = this;
     fetch('/api/products/' + encodeURIComponent(productId))

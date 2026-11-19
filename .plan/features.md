@@ -642,3 +642,9 @@ A new finding gets a treatment priority from its severity (critical, high, mediu
 
 ### XLSX Export
 From the export panel, an XLSX button downloads the findings as a formatted Excel table: Hebrew headers in the same order as the CSV export, severity-sorted, colour-coded severity cells, filters, a frozen header row and a right-to-left sheet. List fields appear one item per line, cells that could be read as formulas are neutralised, and acknowledged findings are left out. CSV export and import are unchanged.
+
+### Pipeline Product Name Opens History
+In the pipeline dashboard each product name is a link-styled button. Clicking it (or pressing Enter or Space) switches to the Products tab and opens that product's version timeline, even if the Products page was never opened. An unknown product shows an error message instead.
+
+### Return to Findings After Edit
+Saving or cancelling the edit of an existing finding returns the user to the findings list, with the scroll position, filters, sort and selection as they were; the detail pane shows the updated finding. Adding a new finding behaves as before and stays on the form.

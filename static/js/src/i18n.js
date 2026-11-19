@@ -691,6 +691,8 @@ const TRANSLATIONS = {
     'סיכון': 'Risk',
     'אין גרסאות': 'No versions',
     'היסטוריה': 'History',
+    'פתח היסטוריית גרסאות של {name}': 'Open version history of {name}',
+    'המוצר לא נמצא': 'Product not found',
     'האם למחוק את המוצר "{name}" וכל גרסאותיו?': 'Delete the product "{name}" and all its versions?',
     'שם מוצר': 'Product Name',
     'תאריך אחרון': 'Last Date',

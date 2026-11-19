@@ -1,5 +1,6 @@
 import { showToast } from './core.js';
 import { publishUnmatchedMemory } from './memory-match.js';
+import { ProductsPanel } from './products.js';
 import { t, tFormat, countPhrase, getLang, LANG_CHANGE_EVENT } from './i18n.js';
 
 // ═══════════════════════════════════════════
@@ -225,7 +226,7 @@ export var PipelinePanel = {
                 }
 
                 html += '<tr>'
-                    + '<td><strong>' + _esc(p.name) + '</strong>' + ver + '</td>'
+                    + '<td><button type="button" class="pipeline-product-link" data-product-id="' + _esc(p.id) + '" data-product-name="' + _esc(p.name) + '" aria-label="' + _esc(tFormat('פתח היסטוריית גרסאות של {name}', { name: p.name })) + '"><strong>' + _esc(p.name) + '</strong></button>' + ver + '</td>'
                     + '<td>' + _esc(p.env) + '</td>'
                     + '<td>' + _esc(freq) + '</td>'
                     + '<td>' + riskDisplay + '</td>'
@@ -254,6 +255,13 @@ export var PipelinePanel = {
             card.addEventListener('click', function() {
                 self._filter = card.dataset.kpiFilter;
                 self.render();
+            });
+        });
+
+        // BL-41: product name opens that product's timeline in the Products tab
+        container.querySelectorAll('.pipeline-product-link').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                ProductsPanel.openTimelineById(btn.dataset.productId);
             });
         });
 
