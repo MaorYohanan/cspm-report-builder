@@ -18,6 +18,9 @@ from backend.models import Finding, Product, ProductMemoryEntry, ReportSnapshot
 from backend.scan_state import scan_jobs as _scan_jobs, scan_jobs_lock as _lock
 from backend.services.audit_service import record_event
 from backend.services.auth_service import require_role
+from backend.services.exclude_matching import (
+    load_active_matcher, map_category_from_entity as _map_category_from_entity,
+)
 from backend.services.memory_matching import MemoryIndex, compute_unmatched, rule_key_for
 from backend.graphql.queries import QUERY_TYPE_MAP
 from backend.services.wiz_service import WizService, build_bulk_filter
@@ -242,25 +245,6 @@ _SEV_LABELS = {
 
 def _map_severity(sev: str) -> str:
     return _SEV_MAP.get((sev or "").upper(), "medium")
-
-
-def _map_category_from_entity(entity: dict) -> str:
-    """Mirror mapWiziCategory() from wizi.js."""
-    t = (entity.get("type") or "").lower()
-    nt = (entity.get("nativeType") or "").lower()
-    if "kubernetes" in t or "k8s" in nt or "kube" in nt:
-        return "KSPM"
-    if "database" in t or "storage" in t or "rds" in nt or "s3" in nt:
-        return "DSPM"
-    if "network" in t or "firewall" in t or "security_group" in t or "securitygroup" in nt:
-        return "NEXP"
-    if "iam" in t or "role" in t or "policy" in t or "iam" in nt:
-        return "EAPM"
-    if "virtual_machine" in t or "host" in t or "ec2" in nt or "vm" in nt:
-        return "HSPM"
-    if "secret" in t or "secret" in nt:
-        return "SECR"
-    return "CSPM"
 
 
 def _extract_recs(rule: dict, sev_label: str) -> list:
@@ -1081,6 +1065,9 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             # all contributing subscriptions listed in _subscriptions.
             aggregated: dict = {}
             failed_types: set = set()  # BL-24: query types that failed for any subscription
+            # BL-37: active ExcludeRules drop raw nodes BEFORE consolidation (same as the browser)
+            excluder = load_active_matcher()
+            excluded_by_rules = 0
 
             for sub_name in selected_subs:
                 resolved = wiz.resolve_subscription(sub_name)
@@ -1114,6 +1101,9 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                         try:
                             _, nodes = fut.result()
                             for n in nodes:
+                                if excluder.is_excluded(n):
+                                    excluded_by_rules += 1
+                                    continue
                                 key = (qtype, _extract_rule_id(n))
                                 if key in aggregated:
                                     subs = aggregated[key]["_subscriptions"]
@@ -1174,6 +1164,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
             snap_data = dict(snap.snapshot_data or {})
             snap_data["findings_count"] = written_count
             snap_data["_scan_status"] = "done"
+            snap_data["_excluded_by_rules"] = excluded_by_rules  # BL-37
             snap_data["_unmatched_memory"] = unmatched_memory  # BL-24 (multi-worker status fallback)
             snap.snapshot_data = snap_data
 
@@ -1192,6 +1183,7 @@ def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:
                     _scan_jobs[snapshot_id]["status"] = "done"
                     _scan_jobs[snapshot_id]["findings_count"] = written_count
                     _scan_jobs[snapshot_id]["unmatched_memory"] = unmatched_memory
+                    _scan_jobs[snapshot_id]["excluded_by_rules"] = excluded_by_rules
                     _scan_jobs[snapshot_id]["completed_at"] = time.monotonic()
 
         except Exception as exc:
@@ -1354,6 +1346,7 @@ def start_scan(product_id):
             "done": 0,
             "total": scan_total,
             "findings_count": 0,
+            "excluded_by_rules": 0,
             "error": None,
             "product_id": safe_id,  # cached for ownership check without a DB round-trip
         }
@@ -1403,7 +1396,8 @@ def get_scan_status(product_id, snapshot_id):
     elif scan_status == "done":
         return jsonify({"status": "done", "done": total, "total": total,
                         "findings_count": scan_data.get("findings_count", 0), "error": None,
-                        "unmatched_memory": scan_data.get("_unmatched_memory", [])}), 200
+                        "unmatched_memory": scan_data.get("_unmatched_memory", []),
+                        "excluded_by_rules": scan_data.get("_excluded_by_rules", 0)}), 200
     elif scan_status == "error":
         return jsonify({"status": "error", "done": 0, "total": total,
                         "findings_count": 0,

@@ -131,14 +131,17 @@ Two distinct import modes in `wizi.js`. "Keep Existing" (הוסף לקיים) ap
 
 A path rule (UI label now "כותרת + נתיב", field `title_path`; the original plain `path` field is kept only so rules created before the change keep working and is no longer offered in the UI) excludes an item only when its title pattern AND any of its paths match. The original description of path matching follows:
 
-A plain path rule (`path`, "נתיב (Path)"), matches the file / secret paths a Wiz item carries (secret instances `path`, host configuration `filePath`, malware `fileDetails.path`) using the same operators. It is applied per item before consolidation, so a matching path drops out of the finding's "Affected Paths" line and a finding whose paths all match is not created. `getWiziItemPaths()` in `exclude_rules.js` collects the paths. Not applied to server-side pipeline scans (BL-37).
+A plain path rule (`path`, "נתיב (Path)"), matches the file / secret paths a Wiz item carries (secret instances `path`, host configuration `filePath`, malware `fileDetails.path`) using the same operators. It is applied per item before consolidation, so a matching path drops out of the finding's "Affected Paths" line and a finding whose paths all match is not created. `getWiziItemPaths()` in `exclude_rules.js` collects the paths. Also applied by server-side pipeline scans (see below).
 
-`title_path` stores `{"title":…,"path":…}` in the pattern column exactly like `title_resource` below. A further field, `title_resource` (UI "כותרת + משאב"), excludes an item only when BOTH its title pattern and its resource-name pattern match (the one operator applies to both). The two patterns are stored as JSON `{"title":…,"resource":…}` in the existing `pattern` column (no schema change; the backend `_pattern_error()` validates it). The resource name comes from `extractResourceName()` in `wizi.js`. All rule fields run on the raw Wiz items at the three browser filter points, i.e. BEFORE items are consolidated or aggregated into findings, so excluded items never contribute resources, paths or counts.
+`title_path` stores `{"title":…,"path":…}` in the pattern column exactly like `title_resource` below. A further field, `title_resource` (UI "כותרת + משאב"), excludes an item only when BOTH its title pattern and its resource-name pattern match (the one operator applies to both). The two patterns are stored as JSON `{"title":…,"resource":…}` in the existing `pattern` column (no schema change; the backend `_pattern_error()` validates it). The resource name comes from `extractResourceName()` in `wizi.js`. All rule fields run on the raw Wiz items at the three browser filter points and in the pipeline scan, i.e. BEFORE items are consolidated or aggregated into findings, so excluded items never contribute resources, paths or counts.
 
 ---
 
 ## 5. Product Registry (Backend)
 
+
+### Exclude Rules in Pipeline Scans
+Active exclude rules now also filter server-side pipeline scans, so scheduled scans honour the same rules (including the seeded [govil] rule) as the browser imports. Each raw Wiz node is tested before consolidation and before Product Memory matching with the same case-insensitive semantics as the browser; a matching node is dropped and never stored. A rule that is invalid (bad regex, malformed pair pattern, risky nested-quantifier regex) is skipped with a warning that logs only the rule id, and the scan result reports how many nodes the rules removed.
 ### Product CRUD
 `GET /api/products` (`viewer`) lists all products with latest version and risk score. `POST /api/products` (`editor`) creates a product with a Hebrew-aware slug generator (`_slugify()` includes a transliteration table for all Hebrew letters) and collision-safe suffix deduplication. `GET /api/products/<id>` (`viewer`) returns a single product. `PUT /api/products/<id>` (`editor`) updates mutable fields (name, owner, ownerEmail, env, subscriptionIds, scanFrequency). `DELETE /api/products/<id>` (`admin`) cascades to all snapshots and memory entries.
 
@@ -243,7 +246,7 @@ All state file writes use the `tmp_path → os.replace(final_path)` pattern to p
 `ProductMemoryEntry` table: `id`, `product_id` (FK), `subscription` (string 200), `title` (string 500), `reason` (string 1000), `source` (excepted/deleted, DB check constraint). Unique constraint on `(product_id, subscription, title)`. Used to persist user decisions about findings across report cycles and automated scans.
 
 ### ExcludeRule Model
-`ExcludeRule` table: `id` (integer PK), `field` (title, category, title_resource, title_path or legacy path), `operator` (startsWith, contains, regex), `pattern` (string 500), `active` (boolean), `created_at`. Used by both the Wiz import UI and pipeline scans to suppress matching findings before they enter `state.findings`.
+`ExcludeRule` table: `id` (integer PK), `field` (title, category, title_resource, title_path or legacy path), `operator` (startsWith, contains, regex), `pattern` (string 500), `active` (boolean), `created_at`. Used by both the Wiz import UI and pipeline scans to suppress matching findings before they enter `state.findings` or the stored snapshot.
 
 ---
 

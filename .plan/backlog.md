@@ -47,7 +47,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | ✅ **DONE 2026-11-10** — splitter keeps the anchor on the first chunk (needs a `qa` PDF geometry check) |
 | — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | ✅ **DONE 2026-11-19** — dark-theme critical/low/info chips and the ID cell lightened to >= 4.5:1 (hue kept); screen UI only, PDF unaffected |
 | — | BL-36 | Translation Sweep for Remaining Hebrew in English Mode | Medium | ✅ **DONE 2026-11-19** — ~420 UI strings routed through `t()` (he byte-identical); live language switch; leftovers listed in the entry |
-| — | BL-37 | Server-Side Exclude Rules for Pipeline Scans | Medium | **UNSCHEDULED** — ExcludeRule is applied only in the browser import paths; pipeline scans ignore it |
+| — | BL-37 | Server-Side Exclude Rules for Pipeline Scans | Medium | **DONE 2026-11-19** — active ExcludeRules now drop raw nodes in pipeline scans (before consolidation and memory matching) |
 | — | BL-38 | Wiz Vulnerability Query Filters (Exploit / Fix+Runtime / High+Critical) | Medium | ✅ **DONE 2026-11-10** — filters always embedded in the browser vuln import; also resource cap (5 + "ועוד N..."), Wiz `Reference:` link and a `path` exclude-rule field |
 | — | BL-39 | Priority Default from Severity on All Creation Paths | Low | **UNSCHEDULED** — user priority; BL-21 already covers the manual form, verify Wiz/bulk/pipeline paths |
 | — | BL-40 | XLSX Export Instead of CSV | Medium | **UNSCHEDULED** — user priority: export a formatted XLSX table rather than CSV |
@@ -396,7 +396,7 @@ Features implemented outside the prioritized backlog, added by direct user reque
 - `static/js/src/findings.js` — updated both truncation messages (lines 2527, 2531)
 - `index.html` — JS cache-buster v=171 → v=172
 
-### BL-37 · Server-Side Exclude Rules for Pipeline Scans (UNSCHEDULED)
+### BL-37 · Server-Side Exclude Rules for Pipeline Scans ✅ DONE 2026-11-19 (excluded nodes dropped, not stored; `backend/services/exclude_matching.py`)
 **Why:** Exclude rules (title / category rules stored in `ExcludeRule`) filter findings only in the browser single-query and bulk import paths. Findings stored by the server-side pipeline scan (`_store_findings_with_memory`) never see them, so rules the user relies on silently stop working for scheduled scans. Split out of BL-24 (carry-forward hardening) as out of scope.
 **Effort:** Medium
 **Notes:** Apply the active rules in the pipeline store step with the same semantics as `isExcludedByRules` (fields `title` / `category`; operators `startsWith` / `contains` / `regex`, with the existing regex safety limits), before memory matching. Needs a shared definition of the category for a raw node (the browser resolves it via `_resolveItemCategory`). Decide whether excluded findings are dropped or stored and flagged. Not implemented.
