@@ -4,6 +4,7 @@ Reports Blueprint - PDF rendering and HTML upload routes.
 Routes:
   POST /api/render-pdf       → accepts JSON state, returns PDF
   POST /api/upload-html      → upload an HTML report file
+  POST /api/export/xlsx      → findings as formatted XLSX workbook (BL-40)
   POST /api/export-zip       → renders PDF + findings JSON, returns ZIP bundle
 """
 
@@ -23,6 +24,7 @@ import json as _json
 from flask import Blueprint, Response, jsonify, render_template, request, send_file
 
 from backend.services.pdf_service import PDFService
+from backend.services.xlsx_service import build_findings_xlsx
 from backend.services.auth_service import require_role
 from backend.utils import drop_acknowledged_findings
 
@@ -76,6 +78,11 @@ def _build_report_name(meta: dict) -> str:
 def _build_pdf_filename(meta: dict) -> str:
     """Build a descriptive PDF download filename from report metadata."""
     return f"{_build_report_name(meta)}.pdf"
+
+
+def _build_xlsx_filename(meta: dict) -> str:
+    """Build a descriptive XLSX download filename from report metadata."""
+    return f"{_build_report_name(meta)}.xlsx"
 
 
 def _build_zip_filename(meta: dict) -> str:
@@ -214,6 +221,51 @@ def api_export_html():
     except Exception:
         _log.exception("HTML export failed")
         return jsonify({"error": "Export failed"}), 500
+
+
+@reports_bp.route("/api/export/xlsx", methods=["POST"])
+@require_role("editor")
+def api_export_xlsx():
+    """
+    BL-40: accept { meta, findings } and return the findings as a formatted
+    XLSX workbook (B.18 column set).  Acknowledged findings are dropped.
+
+    Body size cap: 20 MB (matching /api/export/html).  Built in memory.
+    """
+    raw = request.get_data()
+    if len(raw) > 20 * 1024 * 1024:
+        return jsonify({"error": "Request body too large (max 20 MB)"}), 413
+
+    try:
+        data = _json.loads(raw)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object"}), 400
+
+    findings = data.get("findings")
+    if not isinstance(findings, list):
+        return jsonify({"error": "'findings' must be a list"}), 400
+    findings = drop_acknowledged_findings([f for f in findings if isinstance(f, dict)])
+    if not findings:
+        return jsonify({"error": "No findings to export"}), 400
+
+    meta = data.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+
+    try:
+        xlsx_bytes = build_findings_xlsx(findings)
+        filename = _build_xlsx_filename(meta)
+    except Exception:
+        _log.exception("XLSX export failed")
+        return jsonify({"error": "Export failed"}), 500
+
+    return Response(
+        xlsx_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @reports_bp.route("/api/export-zip", methods=["POST"])

@@ -652,6 +652,7 @@ const dateInput       = document.getElementById('report-date');
       const renderPdfBtn = document.getElementById('btn-render-pdf');
       const exportHtmlBtn = document.getElementById('btn-export-html');
       const exportZipBtn = document.getElementById('btn-export-zip');
+      const exportXlsxBtn = document.getElementById('btn-export-xlsx');
       const saveStateCloudBtn = document.getElementById('btn-save-state-cloud');
       const cloudUploadStateInput = document.getElementById('cloud-upload-state');
 
@@ -660,6 +661,7 @@ const dateInput       = document.getElementById('report-date');
         if (renderPdfBtn) renderPdfBtn.disabled = !state.findings.length;
         if (exportHtmlBtn) exportHtmlBtn.disabled = !state.findings.length;
         if (exportZipBtn) exportZipBtn.disabled = !state.findings.length;
+        if (exportXlsxBtn) exportXlsxBtn.disabled = !state.findings.length;
       }
 
       // Override the renderFindingsTable to also update cloud buttons
@@ -824,6 +826,45 @@ const dateInput       = document.getElementById('report-date');
             showToast(t('שגיאה בייצוא HTML אינטראקטיבי'), 'error');
           } finally {
             exportHtmlBtn.disabled = !state.findings.length;
+          }
+        });
+      }
+
+      // --- BL-40: Export formatted XLSX via server (CSV export/import stay as they are) ---
+      if (exportXlsxBtn) {
+        exportXlsxBtn.addEventListener('click', async function() {
+          if (!state.findings.length) { showToast(t('אין ממצאים לייצוא'), 'warning'); return; }
+          statusMsg.textContent = t('מייצר קובץ XLSX...');
+          exportXlsxBtn.disabled = true;
+          exportXlsxBtn.classList.add('btn-loading');
+          try {
+            const snapshot = buildSnapshot();
+            const resp = await fetch('/api/export/xlsx', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ meta: snapshot.meta, findings: stripInternalExportFields(omitAcknowledgedFindings(snapshot.findings)) })
+            });
+            if (!resp.ok) {
+              const err = await resp.json().catch(() => ({}));
+              throw new Error(err.error || t('שגיאת שרת'));
+            }
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = buildFilename('xlsx');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            statusMsg.textContent = t('קובץ XLSX הורד בהצלחה.');
+            showToast(t('קובץ XLSX הורד בהצלחה'), 'success');
+          } catch (e) {
+            statusMsg.textContent = tFormat('שגיאה בייצוא XLSX: {msg}', { msg: e.message });
+            showToast(t('שגיאה בייצוא XLSX'), 'error');
+          } finally {
+            exportXlsxBtn.classList.remove('btn-loading');
+            exportXlsxBtn.disabled = !state.findings.length;
           }
         });
       }

@@ -50,7 +50,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-37 | Server-Side Exclude Rules for Pipeline Scans | Medium | **DONE 2026-11-19** — active ExcludeRules now drop raw nodes in pipeline scans (before consolidation and memory matching) |
 | — | BL-38 | Wiz Vulnerability Query Filters (Exploit / Fix+Runtime / High+Critical) | Medium | ✅ **DONE 2026-11-10** — filters always embedded in the browser vuln import; also resource cap (5 + "ועוד N..."), Wiz `Reference:` link and a `path` exclude-rule field |
 | — | BL-39 | Priority Default from Severity on All Creation Paths | Low | ✅ **DONE 2026-11-20** (branch feature/bl-39-priority-defaults) — one shared severity→priority map on every creation path |
-| — | BL-40 | XLSX Export Instead of CSV | Medium | **UNSCHEDULED** — user priority: export a formatted XLSX table rather than CSV |
+| — | BL-40 | XLSX Export Instead of CSV | Medium | ✅ **DONE 2026-11-20** (branch feature/bl-40-xlsx-export) — server-side openpyxl XLSX export added beside CSV; CSV export/import kept |
 | — | BL-41 | Pipeline Product Name Links to Product History | Low | **UNSCHEDULED** — user priority: product name in scan dashboard opens its history in Products page |
 | — | BL-42 | Return to Findings Page After Finding Edit | Low | **UNSCHEDULED** — user priority: finishing an edit navigates back to the findings list |
 | — | BL-43 | Filter / Sort in Interactive HTML Export | Medium | **UNSCHEDULED** — user priority: filter by category, sort by severity high→low |
@@ -414,7 +414,7 @@ Features implemented outside the prioritized backlog, added by direct user reque
 **Notes:** BL-21 already auto-fills `#f-priority` on severity change in the manual form. Verify and cover the remaining paths: Wiz single/bulk import, pipeline-stored findings, JSON/CSV import, batch severity edit (BL-09).
 **Done:** shared map in `static/js/src/priority-defaults.js` (backend mirror `backend/services/priority_defaults.py`, parity test). Fills only empty priorities (never overwrites a set/custom one); `info` has no default. Batch severity edit: priority follows only if empty or equal to the old severity's default. CSV: non-blank cell kept, blank defaulted. Template dropdown now fills priority too (programmatic severity set fires no change event). No migration of stored data.
 
-### BL-40 · XLSX Export Instead of CSV (UNSCHEDULED)
+### BL-40 · XLSX Export Instead of CSV (DONE 2026-11-20)
 **Why:** (User priority) A formatted XLSX table is easier to read and filter than CSV.
 **Effort:** Medium
 **Notes:** Keep the B.18 column set and ordering (Hebrew headers, severity sort, exception columns). Needs a library (e.g. openpyxl server-side, or SheetJS client-side, no build step), Excel table with header styling, filters and RTL sheet view. Decide whether to keep CSV as an option and keep import round-trip.
