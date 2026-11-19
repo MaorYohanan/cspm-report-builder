@@ -3,7 +3,7 @@ import { showToast, styledConfirm } from './core.js';
 import { renderFindingsTable, prefillId, switchToTab, generateNextId, escapeHtml, getTodayDDMMYYYY, showFindingDetail } from './findings.js';
 import { updateStepper } from './ui.js';
 import { autoSave } from './export.js';
-import { t, carryForwardMessage } from './i18n.js';
+import { t, tFormat, carryForwardMessage } from './i18n.js';
 import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules, getWiziItemPaths } from './exclude_rules.js';
 import { capResourceLines, capResourceLine, getFullResources } from './resource-cap.js';
@@ -235,12 +235,12 @@ function _resolveItemCategory(item, qt) {
         } else {
           wiziStatusSelect.disabled = true;
           var opt = document.createElement('option');
-          opt.textContent = '— לא רלוונטי —';
+          opt.textContent = t('— לא רלוונטי —');
           wiziStatusSelect.appendChild(opt);
         }
         var statusLabel = wiziStatusSelect.previousElementSibling;
         if (statusLabel && statusLabel.tagName === 'LABEL') {
-          statusLabel.textContent = qt === 'configurationFindings' ? 'תוצאה (Result)' : 'סטטוס';
+          statusLabel.textContent = qt === 'configurationFindings' ? t('תוצאה (Result)') : t('סטטוס');
         }
         // Update severity
         var sevOpts = wiziSeverityOptions[qt] || wiziSeverityOptions.issues;
@@ -257,7 +257,7 @@ function _resolveItemCategory(item, qt) {
         } else {
           wiziSeveritySelect.disabled = true;
           var opt = document.createElement('option');
-          opt.textContent = '— לא רלוונטי —';
+          opt.textContent = t('— לא רלוונטי —');
           wiziSeveritySelect.appendChild(opt);
         }
         
@@ -431,21 +431,21 @@ function _resolveItemCategory(item, qt) {
           .then(function(data) {
             if (data.enabled) {
               wiziEnabled = true;
-              wiziStatusMsg.textContent = '✓ Wizi מחובר — ' + (data.totalIssues || 0) + ' issues בסה"כ';
+              wiziStatusMsg.textContent = tFormat('✓ Wizi מחובר — {n} issues בסה"כ', { n: data.totalIssues || 0 });
               loadWiziFilters();
               // Update status after filters load
               setTimeout(function() {
-                wiziStatusMsg.textContent = '✓ Wizi מחובר · ' + data.totalIssues + ' issues';
+                wiziStatusMsg.textContent = tFormat('✓ Wizi מחובר · {n} issues', { n: data.totalIssues });
               }, 1000);
             } else {
-              wiziStatusMsg.textContent = 'Wizi לא מוגדר — הגדר WIZI_CLIENT_ID ו-WIZI_CLIENT_SECRET ב-.env';
+              wiziStatusMsg.textContent = t('Wizi לא מוגדר — הגדר WIZI_CLIENT_ID ו-WIZI_CLIENT_SECRET ב-.env');
             }
           })
           .catch(function() {
-            wiziStatusMsg.textContent = 'לא ניתן להתחבר לשרת.';
+            wiziStatusMsg.textContent = t('לא ניתן להתחבר לשרת.');
           });
       } else {
-        wiziStatusMsg.textContent = 'Wizi זמין רק בהרצה דרך Docker.';
+        wiziStatusMsg.textContent = t('Wizi זמין רק בהרצה דרך Docker.');
       }
 
       function getSelectedValues(selectEl) {
@@ -477,12 +477,12 @@ function _resolveItemCategory(item, qt) {
       function updateWiziSelectedCount() {
         var total = document.querySelectorAll('.wizi-check').length;
         var checked = document.querySelectorAll('.wizi-check:checked').length;
-        wiziSelectedCount.textContent = checked + ' / ' + total + ' נבחרו';
+        wiziSelectedCount.textContent = tFormat('{checked} / {total} נבחרו', { checked: checked, total: total });
       }
 
       function renderWiziTable() {
         if (!wiziIssues.length) {
-          wiziResults.innerHTML = '<p class="muted">לא נמצאו ממצאים.</p>';
+          wiziResults.innerHTML = '<p class="muted">' + t('לא נמצאו ממצאים.') + '</p>';
           wiziActionsDiv.style.display = 'none';
           return;
         }
@@ -514,7 +514,7 @@ function _resolveItemCategory(item, qt) {
 
       function doWizIgnore(wizId, btn, queryType) {
         queryType = queryType || wiziQueryType;
-        var reason = prompt('הזן סיבת ההתעלמות (אופציונלי):', '');
+        var reason = prompt(t('הזן סיבת ההתעלמות (אופציונלי):'), '');
         if (reason === null) return; // user cancelled
         btn.disabled = true;
         btn.textContent = '⏳';
@@ -526,23 +526,23 @@ function _resolveItemCategory(item, qt) {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.notSupported) {
-            showToast(data.message || 'ניהול ממצאים מסוג זה אינו נתמך ישירות — נהל מ-Wiz Portal.', 'info');
+            showToast(data.message || t('ניהול ממצאים מסוג זה אינו נתמך ישירות — נהל מ-Wiz Portal.'), 'info');
             btn.disabled = false;
             btn.textContent = '🚫';
           } else if (data.error) {
-            showToast('שגיאה: ' + data.error, 'error');
+            showToast(tFormat('שגיאה: {err}', { err: data.error }), 'error');
             btn.disabled = false;
             btn.textContent = '🚫';
           } else {
             var tr = btn.closest('tr');
             if (tr) { tr.style.opacity = '0.4'; tr.style.textDecoration = 'line-through'; }
             btn.textContent = '✓';
-            btn.title = 'הוחרג ב-Wiz';
-            showToast('הממצא הוחרג ב-Wiz בהצלחה', 'success');
+            btn.title = t('הוחרג ב-Wiz');
+            showToast(t('הממצא הוחרג ב-Wiz בהצלחה'), 'success');
           }
         })
         .catch(function(err) {
-          showToast('שגיאת רשת: ' + err.message, 'error');
+          showToast(tFormat('שגיאת רשת: {msg}', { msg: err.message }), 'error');
           btn.disabled = false;
           btn.textContent = '🚫';
         });
@@ -569,9 +569,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziIssuesTable() {
-        var html = '<table><caption>ממצאי Wizi — Issues — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Issues — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>Control ID</th><th>חומרה</th><th>Entity</th><th>Subscription</th><th>Cloud</th><th>Region</th><th>סטטוס</th><th></th>' +
+          '<th>Rule</th><th>Control ID</th><th>' + t('חומרה') + '</th><th>Entity</th><th>Subscription</th><th>Cloud</th><th>Region</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(issue, idx) {
@@ -585,7 +585,7 @@ function _resolveItemCategory(item, qt) {
           html += '<tr>' +
             '<td><input type="checkbox" class="wizi-check" data-idx="' + idx + '" checked></td>' +
             '<td title="' + (ruleDesc).replace(/"/g, '&quot;') + '">' + ruleName + '</td>' +
-            '<td><span class="muted" style="font-family:monospace;font-size:10px;cursor:pointer;user-select:all;" title="לחץ להעתקה">' + controlId + '</span></td>' +
+            '<td><span class="muted" style="font-family:monospace;font-size:10px;cursor:pointer;user-select:all;" title="' + t('לחץ להעתקה') + '">' + controlId + '</span></td>' +
             '<td><span class="severity-chip ' + sevClass + '">' + sev + '</span></td>' +
             '<td>' + (entity.name || 'N/A') + '<br><span class="muted">' + (entity.nativeType || entity.type || '') + '</span></td>' +
             '<td>' + (entity.subscriptionName || '') + '</td>' +
@@ -603,9 +603,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziConfigTable() {
-        var html = '<table><caption>ממצאי Wizi — Configuration Findings — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Configuration Findings — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>ID</th><th>חומרה</th><th>תוצאה</th><th>Resource</th><th>Subscription</th><th>Region</th><th></th>' +
+          '<th>Rule</th><th>ID</th><th>' + t('חומרה') + '</th><th>' + t('תוצאה') + '</th><th>Resource</th><th>Subscription</th><th>Region</th><th></th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(item, idx) {
@@ -637,16 +637,16 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziVulnTable() {
-        var html = '<table><caption>ממצאי Wizi — Vulnerability Findings — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Vulnerability Findings — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>CVE / Name</th><th>חומרה</th><th>Score</th><th>משאב</th><th>סוג משאב</th><th>Exploit</th><th>Fix</th><th>Fixed Version</th><th>סטטוס</th><th></th>' +
+          '<th>CVE / Name</th><th>' + t('חומרה') + '</th><th>Score</th><th>' + t('משאב') + '</th><th>' + t('סוג משאב') + '</th><th>Exploit</th><th>Fix</th><th>Fixed Version</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
 
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
           var sevClass = 'sev-' + mapWiziSeverity(sev);
-          var exploitBadge = item.hasExploit ? '<span class="severity-chip sev-critical">כן</span>' : '<span class="muted">לא</span>';
-          var fixBadge = item.hasFix ? '<span class="severity-chip sev-low">כן</span>' : '<span class="muted">לא</span>';
+          var exploitBadge = item.hasExploit ? '<span class="severity-chip sev-critical">' + t('כן') + '</span>' : '<span class="muted">' + t('לא') + '</span>';
+          var fixBadge = item.hasFix ? '<span class="severity-chip sev-low">' + t('כן') + '</span>' : '<span class="muted">' + t('לא') + '</span>';
           var asset = item.vulnerableAsset || {};
           var assetName = asset.name || '—';
           var assetType = asset.type || '—';
@@ -672,9 +672,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziHostConfigTable() {
-        var html = '<table><caption>ממצאי Wizi — Host Configuration — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Host Configuration — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>חומרה</th><th>תוצאה</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th></th>' +
+          '<th>Rule</th><th>' + t('חומרה') + '</th><th>' + t('תוצאה') + '</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -703,9 +703,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziDataTable() {
-        var html = '<table><caption>ממצאי Wizi — Data Findings — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Data Findings — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Classifier</th><th>חומרה</th><th>Entity</th><th>Cloud Account</th><th>סטטוס</th><th></th>' +
+          '<th>Classifier</th><th>' + t('חומרה') + '</th><th>Entity</th><th>Cloud Account</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -730,9 +730,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziSecretTable() {
-        var html = '<table><caption>ממצאי Wizi — Secrets — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Secrets — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Secret</th><th>חומרה</th><th>Type</th><th>Resource</th><th>Path</th><th>סטטוס</th><th></th>' +
+          '<th>Secret</th><th>' + t('חומרה') + '</th><th>Type</th><th>Resource</th><th>Path</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -757,9 +757,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziExcessiveAccessTable() {
-        var html = '<table><caption>ממצאי Wizi — Excessive Access — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Excessive Access — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Finding</th><th>חומרה</th><th>Principal</th><th>Cloud</th><th>Remediation</th><th>סטטוס</th><th></th>' +
+          '<th>Finding</th><th>' + t('חומרה') + '</th><th>Principal</th><th>Cloud</th><th>Remediation</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -785,7 +785,7 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziNetworkTable() {
-        var html = '<table><caption>ממצאי Wizi — Network Exposure — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Network Exposure — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
           '<th>Exposed Entity</th><th>Type</th><th>Source IP</th><th>Port Range</th><th>Exposure Type</th><th></th>' +
           '</tr></thead><tbody>';
@@ -808,9 +808,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziInventoryTable() {
-        var html = '<table><caption>ממצאי Wizi — Inventory / EOL — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Inventory / EOL — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Rule</th><th>חומרה</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th>סטטוס</th><th></th>' +
+          '<th>Rule</th><th>' + t('חומרה') + '</th><th>Resource</th><th>Type</th><th>Cloud</th><th>Region</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -837,9 +837,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziEolTable() {
-        var html = '<table><caption>ממצאי Wizi — End of Life Findings — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — End of Life Findings — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Technology / Finding</th><th>חומרה</th><th>Asset</th><th>Type</th><th>Subscription</th><th>Fix</th><th>סטטוס</th><th></th>' +
+          '<th>Technology / Finding</th><th>' + t('חומרה') + '</th><th>Asset</th><th>Type</th><th>Subscription</th><th>Fix</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -856,7 +856,7 @@ function _resolveItemCategory(item, qt) {
           var subName = asset.subscriptionName || ca.name || res.cloudPlatform || '';
           var eolDate = tech.endOfLifeDate || '';
           var fixBadge = item.hasFix != null
-            ? (item.hasFix ? '<span class="severity-chip sev-low">יש תיקון</span>' : '<span class="muted">אין</span>')
+            ? (item.hasFix ? '<span class="severity-chip sev-low">' + t('יש תיקון') + '</span>' : '<span class="muted">' + t('אין') + '</span>')
             : (eolDate ? '<span class="muted">' + escapeHtml(eolDate) + '</span>' : '');
           html += '<tr>' +
             '<td><input type="checkbox" class="wizi-check" data-idx="' + idx + '" checked></td>' +
@@ -877,9 +877,9 @@ function _resolveItemCategory(item, qt) {
       }
 
       function renderWiziSscTable() {
-        var html = '<table><caption>ממצאי Wizi — Software Supply Chain — סמן לייבוא</caption><thead><tr>' +
+        var html = '<table><caption>' + t('ממצאי Wizi — Software Supply Chain — סמן לייבוא') + '</caption><thead><tr>' +
           '<th><input type="checkbox" id="wizi-check-all" checked></th>' +
-          '<th>Package</th><th>Version</th><th>חומרה</th><th>Resource</th><th>Cloud</th><th>Region</th><th>סטטוס</th><th></th>' +
+          '<th>Package</th><th>Version</th><th>' + t('חומרה') + '</th><th>Resource</th><th>Cloud</th><th>Region</th><th>' + t('סטטוס') + '</th><th></th>' +
           '</tr></thead><tbody>';
         wiziIssues.forEach(function(item, idx) {
           var sev = (item.severity || 'MEDIUM').toUpperCase();
@@ -943,11 +943,11 @@ function _resolveItemCategory(item, qt) {
         var subscription = projectFieldValue || freeTextSub;
 
         wiziFetchBtn.disabled = true;
-        wiziStatusMsg.textContent = 'שולף ממצאים מ-Wizi...';
+        wiziStatusMsg.textContent = t('שולף ממצאים מ-Wizi...');
         var wiziProg = document.getElementById('wizi-progress');
         var wiziProgFill = document.getElementById('wizi-progress-fill');
         var wiziProgText = document.getElementById('wizi-progress-text');
-        if (wiziProg) { wiziProg.classList.add('active'); wiziProgFill.style.width = '30%'; wiziProgText.textContent = 'שולף ממצאים מ-Wizi...'; }
+        if (wiziProg) { wiziProg.classList.add('active'); wiziProgFill.style.width = '30%'; wiziProgText.textContent = t('שולף ממצאים מ-Wizi...'); }
 
         var body = { queryType: qt, first: limit, severity: sevFilter, status: statusFilter };
         // Send subscription filter (from either subscription field or project field)
@@ -969,7 +969,7 @@ function _resolveItemCategory(item, qt) {
         .then(function(data) {
           if (data.error) {
             if (!append) { wiziResults.innerHTML = ''; }
-            wiziStatusMsg.textContent = 'שגיאה: ' + data.error;
+            wiziStatusMsg.textContent = tFormat('שגיאה: {err}', { err: data.error });
             return;
           }
           
@@ -997,7 +997,7 @@ function _resolveItemCategory(item, qt) {
               return subName.toLowerCase().indexOf(subFilter) >= 0;
             });
             if (beforeFilter !== nodes.length) {
-              showToast('סונן ' + (beforeFilter - nodes.length) + ' ממצאים לפי subscription', 'info');
+              showToast(tFormat('סונן {n} ממצאים לפי subscription', { n: beforeFilter - nodes.length }), 'info');
             }
           }
 
@@ -1025,9 +1025,9 @@ function _resolveItemCategory(item, qt) {
             networkExposures: 'network exposures', inventoryFindings: 'inventory state.findings',
             endOfLifeFindings: 'end of life state.findings'
           };
-          var countText = 'נמצאו ' + wiziIssues.length + ' ' + (typeLabels[qt] || 'ממצאים');
-          if (resultSet.totalCount) countText += ' (מתוך ' + resultSet.totalCount + ')';
-          if (wiziHasNextPage) countText += ' — יש עוד';
+          var countText = tFormat('נמצאו {n} {label}', { n: wiziIssues.length, label: typeLabels[qt] || t('ממצאים') });
+          if (resultSet.totalCount) countText += ' ' + tFormat('(מתוך {n})', { n: resultSet.totalCount });
+          if (wiziHasNextPage) countText += ' — ' + t('יש עוד');
           wiziStatusMsg.textContent = countText;
 
           renderWiziTable();
@@ -1045,7 +1045,7 @@ function _resolveItemCategory(item, qt) {
         })
         .catch(function(e) {
           if (!append) { wiziResults.innerHTML = ''; }
-          wiziStatusMsg.textContent = 'שגיאת רשת: ' + e.message;
+          wiziStatusMsg.textContent = tFormat('שגיאת רשת: {msg}', { msg: e.message });
         })
         .finally(function() {
           wiziFetchBtn.disabled = false;
@@ -1118,7 +1118,7 @@ function _resolveItemCategory(item, qt) {
         });
 
         if (!selected.length) {
-          wiziStatusMsg.textContent = 'לא נבחרו ממצאים לייבוא.';
+          wiziStatusMsg.textContent = t('לא נבחרו ממצאים לייבוא.');
           return;
         }
 
@@ -1134,12 +1134,12 @@ function _resolveItemCategory(item, qt) {
           });
           var _excludedCount = _beforeExclude - selected.length;
           if (_excludedCount > 0) {
-            showToast('סוננו ' + _excludedCount + ' ממצאים לפי כללי סינון', 'info');
+            showToast(tFormat('סוננו {n} ממצאים לפי כללי סינון', { n: _excludedCount }), 'info');
           }
         }
 
         if (!selected.length) {
-          wiziStatusMsg.textContent = 'כל הממצאים שנבחרו סוננו על ידי כללי הסינון.';
+          wiziStatusMsg.textContent = t('כל הממצאים שנבחרו סוננו על ידי כללי הסינון.');
           return;
         }
 
@@ -1192,7 +1192,7 @@ function _resolveItemCategory(item, qt) {
           prefillId();
           autoSave();
           switchToTab('tab-findings-list');
-          showToast('יובאו ' + selected.length + ' פגיעויות כממצא מאוחד', 'success');
+          showToast(tFormat('יובאו {n} פגיעויות כממצא מאוחד', { n: selected.length }), 'success');
           stampAndApplyMemory(beforeCount, subscription);
           return;
         }
@@ -1257,7 +1257,7 @@ function _resolveItemCategory(item, qt) {
           prefillId();
           autoSave();
           switchToTab('tab-findings-list');
-          showToast('יובאו ' + selected.length + ' ממצאות EOL כממצא מאוחד', 'success');
+          showToast(tFormat('יובאו {n} ממצאות EOL כממצא מאוחד', { n: selected.length }), 'success');
           stampAndApplyMemory(beforeCount, subscription);
           return;
         }
@@ -1588,10 +1588,10 @@ function _resolveItemCategory(item, qt) {
         prefillId();
         autoSave();
         switchToTab('tab-findings-list');
-        var msg = 'יובאו ' + imported + ' ממצאים מ-Wizi';
-        if (consolidated) msg += ' (' + consolidated + ' משאבים נוספים אוחדו)';
-        if (updated) msg += ' (' + updated + ' ממצאים עודכנו)';
-        if (skipped) msg += ' (' + skipped + ' כפולים דולגו)';
+        var msg = tFormat('יובאו {n} ממצאים מ-Wizi', { n: imported });
+        if (consolidated) msg += ' ' + tFormat('({n} משאבים נוספים אוחדו)', { n: consolidated });
+        if (updated) msg += ' ' + tFormat('({n} ממצאים עודכנו)', { n: updated });
+        if (skipped) msg += ' ' + tFormat('({n} כפולים דולגו)', { n: skipped });
         showToast(msg, 'success');
 
         // Stamp source subscription and apply product memory
@@ -1653,20 +1653,20 @@ function _resolveItemCategory(item, qt) {
           wiziFindIdInput.value = '';
           wiziFindIdResults.innerHTML = '';
           var label = typeLabels[qt] || qt;
-          wiziFindIdStatus.textContent = '✓ יובא ממצא ' + label + ' — ' + (nodes[0].name || nodes[0].id || '');
-          showToast('ממצא ' + label + ' יובא בהצלחה', 'success');
+          wiziFindIdStatus.textContent = tFormat('✓ יובא ממצא {label} — {name}', { label: label, name: nodes[0].name || nodes[0].id || '' });
+          showToast(tFormat('ממצא {label} יובא בהצלחה', { label: label }), 'success');
           return;
         }
 
         // Multiple results — show selection table
         var startIdx = pg * (data.pageSize || 5);
-        var html = '<div style="margin-bottom:6px;color:var(--text-muted);font-size:12px;">נמצאו <strong>' + total + '</strong> תוצאות (' + (typeLabels[qt] || qt) + ') — עמוד ' + (pg + 1) + '</div>';
+        var html = '<div style="margin-bottom:6px;color:var(--text-muted);font-size:12px;">' + tFormat('נמצאו <strong>{total}</strong> תוצאות ({label}) — עמוד {page}', { total: total, label: (typeLabels[qt] || qt), page: pg + 1 }) + '</div>';
         html += '<table><thead><tr>';
         html += '<th style="width:40px;"></th>';
-        html += '<th>שם / כותרת</th>';
-        html += '<th>חומרה</th>';
+        html += '<th>' + t('שם / כותרת') + '</th>';
+        html += '<th>' + t('חומרה') + '</th>';
         html += '<th>Subscription</th>';
-        html += '<th>סטטוס</th>';
+        html += '<th>' + t('סטטוס') + '</th>';
         html += '</tr></thead><tbody>';
 
         nodes.forEach(function(node, i) {
@@ -1680,7 +1680,7 @@ function _resolveItemCategory(item, qt) {
           var status = node.status || (node.result || '') || '-';
 
           html += '<tr>';
-          html += '<td><button class="btn btn-primary btn-sm find-id-import-btn" data-idx="' + i + '" style="margin:0;padding:3px 8px;font-size:11px;">ייבא</button></td>';
+          html += '<td><button class="btn btn-primary btn-sm find-id-import-btn" data-idx="' + i + '" style="margin:0;padding:3px 8px;font-size:11px;">' + t('ייבא') + '</button></td>';
           html += '<td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(title) + '">' + escapeHtml(title || node.id || '-') + '</td>';
           html += '<td><span class="severity-chip sev-' + sevClass + '">' + escapeHtml(sevDisplay) + '</span></td>';
           html += '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeHtml(subName) + '">' + escapeHtml(subName || '-') + '</td>';
@@ -1693,12 +1693,12 @@ function _resolveItemCategory(item, qt) {
         // Pagination buttons
         html += '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">';
         if (pg > 0) {
-          html += '<button class="btn btn-secondary btn-sm" id="find-id-prev-page" style="margin:0;">← הקודם</button>';
+          html += '<button class="btn btn-secondary btn-sm" id="find-id-prev-page" style="margin:0;">' + t('← הקודם') + '</button>';
         }
         if (hasMore) {
-          html += '<button class="btn btn-secondary btn-sm" id="find-id-next-page" style="margin:0;">הבא →</button>';
+          html += '<button class="btn btn-secondary btn-sm" id="find-id-next-page" style="margin:0;">' + t('הבא →') + '</button>';
         }
-        html += '<button class="btn btn-danger btn-sm" id="find-id-clear" style="margin:0;">✕ סגור</button>';
+        html += '<button class="btn btn-danger btn-sm" id="find-id-clear" style="margin:0;">' + t('✕ סגור') + '</button>';
         html += '</div>';
 
         wiziFindIdResults.innerHTML = html;
@@ -1730,7 +1730,7 @@ function _resolveItemCategory(item, qt) {
             btn.disabled = true;
             btn.textContent = '✓';
             var label = typeLabels[qt] || qt;
-            showToast('ממצא ' + label + ' יובא בהצלחה', 'success');
+            showToast(tFormat('ממצא {label} יובא בהצלחה', { label: label }), 'success');
           });
         });
 
@@ -1761,16 +1761,16 @@ function _resolveItemCategory(item, qt) {
         var findingId = (wiziFindIdInput.value || '').trim();
         var subFilter = (wiziFindIdSubInput.value || '').trim();
         if (!findingId) {
-          wiziFindIdStatus.textContent = 'הזן מזהה ממצא.';
+          wiziFindIdStatus.textContent = t('הזן מזהה ממצא.');
           return;
         }
 
         wiziFindIdBtn.disabled = true;
-        wiziFindIdStatus.textContent = 'מחפש ממצאים...';
+        wiziFindIdStatus.textContent = t('מחפש ממצאים...');
         var wiziProg = document.getElementById('wizi-progress');
         var wiziProgFill = document.getElementById('wizi-progress-fill');
         var wiziProgText = document.getElementById('wizi-progress-text');
-        if (wiziProg) { wiziProg.classList.add('active'); wiziProgFill.style.width = '50%'; wiziProgText.textContent = 'מחפש ממצאים...'; }
+        if (wiziProg) { wiziProg.classList.add('active'); wiziProgFill.style.width = '50%'; wiziProgText.textContent = t('מחפש ממצאים...'); }
 
         var payload = { id: findingId, page: page || 0, pageSize: 5 };
         if (subFilter) payload.subscription = subFilter;
@@ -1784,18 +1784,18 @@ function _resolveItemCategory(item, qt) {
         .then(function(r) { return r.json(); })
         .then(function(data) {
           if (data.error) {
-            wiziFindIdStatus.textContent = 'לא נמצא: ' + data.error;
+            wiziFindIdStatus.textContent = tFormat('לא נמצא: {err}', { err: data.error });
             wiziFindIdResults.innerHTML = '';
-            showToast('ממצא לא נמצא', 'warning');
+            showToast(t('ממצא לא נמצא'), 'warning');
             return;
           }
           wiziFindIdStatus.textContent = '';
           renderFindIdResults(data);
         })
         .catch(function(e) {
-          wiziFindIdStatus.textContent = 'שגיאת רשת: ' + e.message;
+          wiziFindIdStatus.textContent = tFormat('שגיאת רשת: {msg}', { msg: e.message });
           wiziFindIdResults.innerHTML = '';
-          showToast('שגיאה בשליפת ממצא', 'error');
+          showToast(t('שגיאה בשליפת ממצא'), 'error');
         })
         .finally(function() {
           wiziFindIdBtn.disabled = false;
@@ -2154,10 +2154,10 @@ function _resolveItemCategory(item, qt) {
       function showWiziAutoFillBanner(data) {
         pendingAutoFill = data;
         var parts = [];
-        if (data.subscription) parts.push('לקוח: ' + data.subscription);
-        if (data.cloud) parts.push('ענן: ' + data.cloud);
-        if (data.keyTopics) parts.push('נושאים: ' + data.keyTopics.split('\n').length);
-        wiziAutoFillText.textContent = '💡 זוהו פרטים — ' + parts.join(' | ');
+        if (data.subscription) parts.push(tFormat('לקוח: {name}', { name: data.subscription }));
+        if (data.cloud) parts.push(tFormat('ענן: {name}', { name: data.cloud }));
+        if (data.keyTopics) parts.push(tFormat('נושאים: {n}', { n: data.keyTopics.split('\n').length }));
+        wiziAutoFillText.textContent = '💡 ' + t('זוהו פרטים') + ' — ' + parts.join(' | ');
         wiziAutoFillBanner.style.display = '';
       }
 
@@ -2182,7 +2182,7 @@ function _resolveItemCategory(item, qt) {
         }
         wiziAutoFillBanner.style.display = 'none';
         pendingAutoFill = null;
-        showToast('פרטי דו"ח מולאו אוטומטית', 'success');
+        showToast(t('פרטי דו"ח מולאו אוטומטית'), 'success');
         updateStepper();
       });
 
@@ -2199,7 +2199,7 @@ function _resolveItemCategory(item, qt) {
       function loadWiziPresets() {
         try {
           var presets = JSON.parse(localStorage.getItem(WIZI_PRESETS_KEY) || '[]');
-          wiziPresetSelect.innerHTML = '<option value="">📌 טען פריסט...</option>';
+          wiziPresetSelect.innerHTML = '<option value="">📌 ' + t('טען פריסט...') + '</option>';
           presets.forEach(function(p, i) {
             var opt = document.createElement('option');
             opt.value = i;
@@ -2214,7 +2214,7 @@ function _resolveItemCategory(item, qt) {
       }
 
       document.getElementById('btn-wizi-preset-save').addEventListener('click', function() {
-        var name = prompt('שם הפריסט:');
+        var name = prompt(t('שם הפריסט:'));
         if (!name) return;
         var preset = {
           name: name,
@@ -2230,7 +2230,7 @@ function _resolveItemCategory(item, qt) {
         presets.push(preset);
         localStorage.setItem(WIZI_PRESETS_KEY, JSON.stringify(presets));
         loadWiziPresets();
-        showToast('פריסט "' + name + '" נשמר', 'success');
+        showToast(tFormat('פריסט "{name}" נשמר', { name: name }), 'success');
       });
 
       wiziPresetSelect.addEventListener('change', function() {
@@ -2262,7 +2262,7 @@ function _resolveItemCategory(item, qt) {
         }
 
         wiziPresetDeleteBtn.style.display = '';
-        showToast('פריסט "' + p.name + '" נטען', 'info');
+        showToast(tFormat('פריסט "{name}" נטען', { name: p.name }), 'info');
       });
 
       wiziPresetDeleteBtn.addEventListener('click', function() {
@@ -2274,7 +2274,7 @@ function _resolveItemCategory(item, qt) {
         localStorage.setItem(WIZI_PRESETS_KEY, JSON.stringify(presets));
         loadWiziPresets();
         wiziPresetDeleteBtn.style.display = 'none';
-        showToast('פריסט "' + name + '" נמחק', 'info');
+        showToast(tFormat('פריסט "{name}" נמחק', { name: name }), 'info');
       });
 
       loadWiziPresets();
@@ -2384,14 +2384,14 @@ function _resolveItemCategory(item, qt) {
       export function offerSmartTemplates(newFindings) {
         var plan = planTemplates(newFindings);
         if (!plan.length) return Promise.resolve();
-        return styledConfirm('נמצאו ' + plan.length + ' ממצאים (EAPM / SECR / CSPM / HSPM / EOLM) שאפשר לעדכן לפי התבניות החכמות. התיאור, ההשפעה וההמלצות יוחלפו בנוסח התבנית, והכותרת והפרטים הטכניים יישארו. להחיל?', {
-          icon: '🧩', title: 'החלת תבניות חכמות', confirmText: 'כן', cancelText: 'לא'
+        return styledConfirm(tFormat('נמצאו {n} ממצאים (EAPM / SECR / CSPM / HSPM / EOLM) שאפשר לעדכן לפי התבניות החכמות. התיאור, ההשפעה וההמלצות יוחלפו בנוסח התבנית, והכותרת והפרטים הטכניים יישארו. להחיל?', { n: plan.length }), {
+          icon: '🧩', title: t('החלת תבניות חכמות'), confirmText: t('כן'), cancelText: t('לא')
         }).then(function(yes) {
           if (!yes) return;
           var n = applyPlan(plan);
           renderFindingsTable();
           autoSave();
-          showToast('הוחלו תבניות על ' + n + ' ממצאים', 'success');
+          showToast(tFormat('הוחלו תבניות על {n} ממצאים', { n: n }), 'success');
         });
       }
 
@@ -2408,9 +2408,9 @@ function _resolveItemCategory(item, qt) {
         var container = document.createElement('div');
         container.className = 'ai-progress-container';
         container.innerHTML =
-          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 מייצר סיכומי AI להמלצות</span></div>' +
+          '<div class="ai-progress-header"><span class="ai-spinner"></span><span>🤖 ' + t('מייצר סיכומי AI להמלצות') + '</span></div>' +
           '<div class="ai-progress-track"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>' +
-          '<div class="ai-progress-label"><span id="ai-progress-label">0 / ' + toEnrich.length + '</span><button class="ai-progress-abort" id="ai-progress-abort">ביטול</button></div>';
+          '<div class="ai-progress-label"><span id="ai-progress-label">0 / ' + toEnrich.length + '</span><button class="ai-progress-abort" id="ai-progress-abort">' + t('ביטול') + '</button></div>';
         document.body.appendChild(container);
 
         var fillEl = container.querySelector('#ai-progress-fill');
@@ -2426,14 +2426,14 @@ function _resolveItemCategory(item, qt) {
         function updateProgress() {
           var pct = Math.round((idx / toEnrich.length) * 100);
           fillEl.style.width = pct + '%';
-          labelEl.textContent = idx + ' / ' + toEnrich.length + (enriched ? ' (' + enriched + ' הוספו)' : '');
+          labelEl.textContent = idx + ' / ' + toEnrich.length + (enriched ? ' ' + tFormat('({n} הוספו)', { n: enriched }) : '');
         }
 
         function processNext() {
           if (aborted) {
             container.querySelector('.ai-spinner').style.display = 'none';
-            container.querySelector('.ai-progress-header span:last-child').textContent = '⏹ בוטל';
-            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('.ai-progress-header span:last-child').textContent = t('⏹ בוטל');
+            labelEl.textContent = tFormat('{n} סיכומים נוספו', { n: enriched });
             container.querySelector('#ai-progress-abort').style.display = 'none';
             setTimeout(function() {
               if (container.parentNode) container.parentNode.removeChild(container);
@@ -2445,8 +2445,8 @@ function _resolveItemCategory(item, qt) {
             // Done — show completion briefly then remove
             fillEl.style.width = '100%';
             container.querySelector('.ai-spinner').style.display = 'none';
-            container.querySelector('.ai-progress-header span:last-child').textContent = '✅ סיכומי AI הושלמו';
-            labelEl.textContent = enriched + ' סיכומים נוספו';
+            container.querySelector('.ai-progress-header span:last-child').textContent = t('✅ סיכומי AI הושלמו');
+            labelEl.textContent = tFormat('{n} סיכומים נוספו', { n: enriched });
             container.querySelector('#ai-progress-abort').style.display = 'none';
             setTimeout(function() {
               if (container.parentNode) container.parentNode.removeChild(container);
@@ -2470,10 +2470,10 @@ function _resolveItemCategory(item, qt) {
             // Failed after retries — abort and notify
             fillEl.style.background = 'var(--danger)';
             container.querySelector('.ai-spinner').style.display = 'none';
-            container.querySelector('.ai-progress-header span:last-child').textContent = '❌ שיפור ההמלצות נכשל';
-            labelEl.textContent = err.message || 'שגיאה בלתי צפויה';
+            container.querySelector('.ai-progress-header span:last-child').textContent = t('❌ שיפור ההמלצות נכשל');
+            labelEl.textContent = err.message || t('שגיאה בלתי צפויה');
             var abortBtn = container.querySelector('#ai-progress-abort');
-            abortBtn.textContent = 'אישור';
+            abortBtn.textContent = t('אישור');
             abortBtn.style.background = 'var(--accent)';
             abortBtn.style.color = 'white';
             abortBtn.style.borderColor = 'var(--accent)';
@@ -3156,7 +3156,7 @@ function _resolveItemCategory(item, qt) {
 
         var sub = (subInput.value || '').trim();
         if (!sub) {
-          progressDiv.textContent = 'יש להזין שם Subscription';
+          progressDiv.textContent = t('יש להזין שם Subscription');
           return;
         }
 
@@ -3172,7 +3172,7 @@ function _resolveItemCategory(item, qt) {
 
         // Ordered list of 9 query types with display labels (Hebrew + tag)
         var stages = [
-          { qt: 'issues',                           label: 'Issues (כללי)' },
+          { qt: 'issues',                           label: t('Issues (כללי)') },
           { qt: 'configurationFindings',            label: 'CSPM — Cloud Configuration' },
           { qt: 'vulnerabilityFindings',            label: 'VULN — Vulnerabilities' },
           { qt: 'hostConfigurationRuleAssessments', label: 'HSPM — Host Configuration' },
@@ -3189,7 +3189,7 @@ function _resolveItemCategory(item, qt) {
         if (bulkProg) {
           bulkProg.classList.add('active');
           bulkProgFill.style.width = '0%';
-          bulkProgText.textContent = 'מתחיל ייבוא...';
+          bulkProgText.textContent = t('מתחיל ייבוא...');
         }
 
         var aggregatedResults = {};
@@ -3209,8 +3209,7 @@ function _resolveItemCategory(item, qt) {
           }
           if (bulkProgFill) bulkProgFill.style.width = pct + '%';
           if (bulkProgText) {
-            var prefix = 'שלב ' + displayedStep + '/' + totalStages + ': ';
-            bulkProgText.textContent = prefix + label + ' (' + pct + '%)';
+            bulkProgText.textContent = tFormat('שלב {step}/{total}: {label} ({pct}%)', { step: displayedStep, total: totalStages, label: label, pct: pct });
           }
         }
 
@@ -3218,7 +3217,7 @@ function _resolveItemCategory(item, qt) {
           if (stageIdx >= totalStages) {
             // All stages done → finalize
             if (bulkProgFill) bulkProgFill.style.width = '100%';
-            if (bulkProgText) bulkProgText.textContent = 'הושלם — מציג תוצאות...';
+            if (bulkProgText) bulkProgText.textContent = t('הושלם — מציג תוצאות...');
             var finalData = {
               results: aggregatedResults,
               resolvedSubscription: resolvedSubscription || {},
@@ -3270,8 +3269,8 @@ function _resolveItemCategory(item, qt) {
             body: JSON.stringify(bulkPayload)
           })
           .then(function(resp) {
-            if (resp.status === 501) { progressDiv.textContent = 'Wizi לא מוגדר'; return { _abort: true }; }
-            if (resp.status === 429) { progressDiv.textContent = 'חריגה ממגבלת קצב בקשות'; return { _abort: true }; }
+            if (resp.status === 501) { progressDiv.textContent = t('Wizi לא מוגדר'); return { _abort: true }; }
+            if (resp.status === 429) { progressDiv.textContent = t('חריגה ממגבלת קצב בקשות'); return { _abort: true }; }
             if (!resp.ok) {
               return resp.json().catch(function() { return {}; }).then(function(err) {
                 aggregatedErrors[stage.qt] = err.error || ('HTTP ' + resp.status);
@@ -3299,7 +3298,7 @@ function _resolveItemCategory(item, qt) {
             fetchStage(stageIdx + 1);
           })
           .catch(function(e) {
-            aggregatedErrors[stage.qt] = 'שגיאת רשת';
+            aggregatedErrors[stage.qt] = t('שגיאת רשת');
             setProgress(stageIdx, stage.label, 'done');
             fetchStage(stageIdx + 1);
           });
@@ -3314,7 +3313,7 @@ function _resolveItemCategory(item, qt) {
         var actionsDiv = document.getElementById('bulk-import-actions');
 
         var queryTypeLabels = {
-          'issues': 'Issues (כללי)',
+          'issues': t('Issues (כללי)'),
           'configurationFindings': 'CSPM — Cloud Configuration',
           'vulnerabilityFindings': 'VULN — Vulnerabilities',
           'hostConfigurationRuleAssessments': 'HSPM — Host Configuration',
@@ -3333,7 +3332,7 @@ function _resolveItemCategory(item, qt) {
 
         // Warning toast if subscription not resolved
         if ((!resolved.ids || !resolved.ids.length) && (!resolved.externalIds || !resolved.externalIds.length)) {
-          showToast('לא נמצא Subscription תואם — התוצאות עשויות להיות חלקיות', 'warning');
+          showToast(t('לא נמצא Subscription תואם — התוצאות עשויות להיות חלקיות'), 'warning');
         }
 
         // Show per-query-type errors
@@ -3370,13 +3369,13 @@ function _resolveItemCategory(item, qt) {
 
         // Empty state
         if (totalCount === 0 && errorKeys.length === 0) {
-          progressDiv.innerHTML = 'לא נמצאו ממצאים עבור Subscription זה';
+          progressDiv.innerHTML = t('לא נמצאו ממצאים עבור Subscription זה');
           resultsDiv.innerHTML = '';
           return;
         }
 
         // Progress summary
-        progressHtml += '<div><strong>סה"כ: ' + totalCount + ' ממצאים</strong></div>';
+        progressHtml += '<div><strong>' + tFormat('סה"כ: {n} ממצאים', { n: totalCount }) + '</strong></div>';
         if (breakdownParts.length) {
           progressHtml += '<div>' + breakdownParts.join(' · ') + '</div>';
         }
@@ -3455,7 +3454,7 @@ function _resolveItemCategory(item, qt) {
           var h = '';
           // Pagination controls top - info + page size
           h += '<div class="bulk-pagination-top">';
-          h += '<span class="bulk-pagination-info">' + (start + 1) + '–' + end + ' מתוך ' + nodes.length + '</span>';
+          h += '<span class="bulk-pagination-info">' + tFormat('{start}–{end} מתוך {total}', { start: start + 1, end: end, total: nodes.length }) + '</span>';
           h += '<select class="bulk-page-size" data-qt="' + qt + '">';
           [20, 50, 100, 200].forEach(function(s) {
             h += '<option value="' + s + '"' + (s === pg.pageSize ? ' selected' : '') + '>' + s + '</option>';
@@ -3467,15 +3466,15 @@ function _resolveItemCategory(item, qt) {
           h += '<table class="findings-table" style="width:100%;font-size:12px;"><thead><tr>';
           var allSelected = bulkSelectionState[qt] && bulkSelectionState[qt].size === nodes.length;
           h += '<th style="width:30px;"><input type="checkbox" class="bulk-section-check" data-query-type="' + qt + '"' + (allSelected ? ' checked' : '') + '></th>';
-          h += '<th class="sortable-th" data-sort-col="type" data-qt="' + qt + '">סוג' + sortIndicator('type') + '</th>';
-          h += '<th class="sortable-th" data-sort-col="severity" data-qt="' + qt + '">חומרה' + sortIndicator('severity') + '</th>';
-          h += '<th class="sortable-th" data-sort-col="title" data-qt="' + qt + '">כותרת' + sortIndicator('title') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="type" data-qt="' + qt + '">' + t('סוג') + sortIndicator('type') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="severity" data-qt="' + qt + '">' + t('חומרה') + sortIndicator('severity') + '</th>';
+          h += '<th class="sortable-th" data-sort-col="title" data-qt="' + qt + '">' + t('כותרת') + sortIndicator('title') + '</th>';
           if (qt === 'vulnerabilityFindings' || qt === 'endOfLifeFindings') {
-            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
-            h += '<th class="sortable-th" data-sort-col="resourceType" data-qt="' + qt + '">סוג משאב' + sortIndicator('resourceType') + '</th>';
+            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">' + t('משאב') + sortIndicator('resource') + '</th>';
+            h += '<th class="sortable-th" data-sort-col="resourceType" data-qt="' + qt + '">' + t('סוג משאב') + sortIndicator('resourceType') + '</th>';
           }
           if (qt === 'secretInstances') {
-            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">משאב' + sortIndicator('resource') + '</th>';
+            h += '<th class="sortable-th" data-sort-col="resource" data-qt="' + qt + '">' + t('משאב') + sortIndicator('resource') + '</th>';
           }
           h += '<th class="sortable-th" data-sort-col="subscription" data-qt="' + qt + '">Subscription' + sortIndicator('subscription') + '</th>';
           h += '<th></th>';
@@ -3626,7 +3625,7 @@ function _resolveItemCategory(item, qt) {
           }
         });
         var countEl = document.getElementById('bulk-selected-count');
-        if (countEl) countEl.textContent = checked + ' / ' + total + ' נבחרו';
+        if (countEl) countEl.textContent = tFormat('{checked} / {total} נבחרו', { checked: checked, total: total });
       }
 
       var importFnMap = {
@@ -3682,7 +3681,7 @@ function _resolveItemCategory(item, qt) {
             _bulkExcludedTotal += before - selectedByType[qt].length;
           });
           if (_bulkExcludedTotal > 0) {
-            showToast('סוננו ' + _bulkExcludedTotal + ' ממצאים לפי כללי סינון', 'info');
+            showToast(tFormat('סוננו {n} ממצאים לפי כללי סינון', { n: _bulkExcludedTotal }), 'info');
           }
         }
 
@@ -4491,18 +4490,18 @@ function _resolveItemCategory(item, qt) {
           // "הוסף לקיים" is confirmText (yesBtn) → renders on the RIGHT in RTL (safe default).
           // "דוח חדש" is cancelText (noBtn) → renders on the LEFT in RTL (destructive).
           // Promise resolves true = keep existing, false = start fresh (or dismissed).
-          styledConfirm('ייבוא ממצאים — בחר מצב:', {
+          styledConfirm(t('ייבוא ממצאים — בחר מצב:'), {
             icon: '📋',
-            title: 'ייבוא ממצאים',
-            confirmText: 'הוסף לקיים',
-            cancelText: 'דוח חדש'
+            title: t('ייבוא ממצאים'),
+            confirmText: t('הוסף לקיים'),
+            cancelText: t('דוח חדש')
           }).then(function(keepExisting) {
             // Step 2: If destructive path chosen, require a second danger confirmation.
             var dangerPromise;
             if (!keepExisting) {
               dangerPromise = styledConfirm(
-                'פעולה זו תמחק את כל הממצאים הקיימים (מכל הקטגוריות). להמשיך?',
-                { icon: '⚠️', danger: true, confirmText: 'ביטול', cancelText: 'אישור — מחק הכל' }
+                t('פעולה זו תמחק את כל הממצאים הקיימים (מכל הקטגוריות). להמשיך?'),
+                { icon: '⚠️', danger: true, confirmText: t('ביטול'), cancelText: t('אישור — מחק הכל') }
               );
             } else {
               dangerPromise = Promise.resolve(null); // sentinel: skip clear
@@ -4530,13 +4529,13 @@ function _resolveItemCategory(item, qt) {
 
               var result = importSelectedBulkFindings();
               if (result.imported === 0 && result.skipped === 0 && result.updated === 0) {
-                showToast('לא נבחרו ממצאים לייבוא', 'warning');
+                showToast(t('לא נבחרו ממצאים לייבוא'), 'warning');
                 return;
               }
-              var message = 'יובאו ' + result.imported + ' ממצאים';
-              if (result.consolidated) message += ' (' + result.consolidated + ' משאבים נוספים אוחדו)';
-              if (result.updated) message += ' (' + result.updated + ' ממצאים עודכנו)';
-              if (result.skipped) message += ' (' + result.skipped + ' כפולים דולגו)';
+              var message = tFormat('יובאו {n} ממצאים', { n: result.imported });
+              if (result.consolidated) message += ' ' + tFormat('({n} משאבים נוספים אוחדו)', { n: result.consolidated });
+              if (result.updated) message += ' ' + tFormat('({n} ממצאים עודכנו)', { n: result.updated });
+              if (result.skipped) message += ' ' + tFormat('({n} כפולים דולגו)', { n: result.skipped });
               showToast(message, 'success');
               capResourceLines(state.findings.slice(beforeCount));
               renderFindingsTable();

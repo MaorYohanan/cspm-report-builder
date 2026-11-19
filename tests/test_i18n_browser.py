@@ -335,3 +335,48 @@ def test_dimmed_row_id_cell_contrast_aa(page, theme):
             assert cells[i]["ratio"] >= 4.5, cells[i]
     finally:
         page.evaluate("document.documentElement.removeAttribute('data-theme')")
+
+
+# ── BL-36: placeholders, header title, trend panel, exclude-rules table ──
+
+def test_bl36_placeholders_title_and_trend_panel_live_toggle(page, tmp_path):
+    import json
+    import re
+    _to_he(page)
+    he_reason = page.evaluate("document.getElementById('detail-exception-reason-input').placeholder")
+    he_f_reason = page.evaluate("document.getElementById('f-exception-reason').placeholder")
+    assert re.search(_HEB, he_reason) and re.search(_HEB, he_f_reason)
+
+    page.evaluate(_SEED)
+    page.evaluate("document.getElementById('tab-export').click()")
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(json.dumps({"meta": {}, "findings": [
+        {"id": "F-1", "title": "Finding 1", "severity": "high"},
+        {"id": "OLD-9", "title": "Old one", "severity": "low"}]}), encoding="utf-8")
+    page.set_input_files("#input-import-baseline", str(baseline))
+    page.wait_for_selector("#trend-comparison", state="visible")
+    he_trend = page.inner_text("#trend-comparison")
+    assert "השוואה" in he_trend and "נסגרו: 1" in he_trend
+    assert page.inner_text("#content-title") == "קבצים ודוחות"
+
+    page.click("#btn-lang-toggle")  # he -> en, live
+    page.wait_for_function("document.documentElement.lang === 'en'")
+    # static placeholders carry data-i18n-placeholder; no Hebrew is left in any translated attribute
+    assert "CISO" in page.evaluate("document.getElementById('detail-exception-reason-input').placeholder")
+    leftover = page.evaluate("""() => Array.from(document.querySelectorAll('[data-i18n-placeholder],[data-i18n-aria-label]'))
+        .map(e => (e.getAttribute('placeholder') || '') + (e.getAttribute('aria-label') || '')).filter(s => /[֐-׿]/.test(s))""")
+    assert leftover == []
+    en_trend = page.inner_text("#trend-comparison")
+    assert not re.search(_HEB, en_trend), en_trend
+    assert "Closed: 1" in en_trend and "Severity changed: 1" in en_trend
+    # header title follows the active tab (not reset to the static dashboard text by setLang)
+    assert page.inner_text("#content-title") == "Files & Reports"
+    assert page.inner_text("#sidebar-progress-label").endswith("of 4 steps")
+
+    page.click("#btn-lang-toggle")  # en -> he, live; Hebrew byte-identical after the round trip
+    page.wait_for_function("document.documentElement.lang === 'he'")
+    assert page.inner_text("#trend-comparison") == he_trend
+    assert page.evaluate("document.getElementById('detail-exception-reason-input').placeholder") == he_reason
+    assert page.evaluate("document.getElementById('f-exception-reason').placeholder") == he_f_reason
+    assert page.inner_text("#content-title") == "קבצים ודוחות"
+    assert not page.page_errors, page.page_errors

@@ -1,5 +1,6 @@
 import { showToast } from './core.js';
 import { publishUnmatchedMemory } from './memory-match.js';
+import { t, tFormat, countPhrase, getLang, LANG_CHANGE_EVENT } from './i18n.js';
 
 // ═══════════════════════════════════════════
 // Pipeline Dashboard — pipeline.js
@@ -9,8 +10,12 @@ import { publishUnmatchedMemory } from './memory-match.js';
 //   • Sortable product table with "New Scan" action
 // ═══════════════════════════════════════════
 
-var _FREQ_LABELS = { monthly: 'חודשי', quarterly: 'רבעוני', annual: 'שנתי' };
-var _STATUS_LABELS = { overdue: 'באיחור', due_this_month: 'החודש', upcoming: 'עתידי', no_scans: 'לא נסרק' };
+function _freqLabels() {
+    return { monthly: t('חודשי'), quarterly: t('רבעוני'), annual: t('שנתי') };
+}
+function _statusLabels() {
+    return { overdue: t('באיחור'), due_this_month: t('החודש'), upcoming: t('עתידי'), no_scans: t('לא נסרק') };
+}
 var _STATUS_CLS = {
     overdue: 'pipeline-status-overdue',
     due_this_month: 'pipeline-status-due',
@@ -28,7 +33,7 @@ function _esc(s) {
 
 function _fmtDate(iso) {
     try {
-        return new Date(iso).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return new Date(iso).toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
     } catch (e) { return iso; }
 }
 
@@ -52,6 +57,11 @@ export var PipelinePanel = {
                 self.load();
             });
         }
+
+        // Re-render the dashboard when the UI language changes (only if it has been loaded)
+        document.addEventListener(LANG_CHANGE_EVENT, function() {
+            if (self._data && self._data.length) self.render();
+        });
 
         // Start overdue monitoring
         self._initOverdueMonitoring();
@@ -105,9 +115,7 @@ export var PipelinePanel = {
                 // Only show toast if count INCREASED
                 if (currentOverdueCount > _lastKnownOverdueCount) {
                     var newCount = currentOverdueCount - _lastKnownOverdueCount;
-                    var message = newCount === 1
-                        ? 'מוצר אחד נכנס לסטטוס איחור בסריקה'
-                        : newCount + ' מוצרים נכנסו לסטטוס איחור בסריקה';
+                    var message = countPhrase(newCount, 'מוצר אחד נכנס לסטטוס איחור בסריקה', '{n} מוצרים נכנסו לסטטוס איחור בסריקה');
                     showToast(message, 'warning');
                 }
 
@@ -139,13 +147,13 @@ export var PipelinePanel = {
             var resp = await fetch('/api/pipeline');
             if (!resp.ok) {
                 var b = await resp.json().catch(function() { return {}; });
-                throw new Error(b.error || 'שגיאה');
+                throw new Error(b.error || t('שגיאה'));
             }
             this._data = await resp.json();
             this._filter = 'all';
             this.render();
         } catch (e) {
-            showToast('שגיאה בטעינת לוח הסריקות', 'error');
+            showToast(t('שגיאה בטעינת לוח הסריקות'), 'error');
         }
     },
 
@@ -161,14 +169,16 @@ export var PipelinePanel = {
         var counts = { overdue: 0, due_this_month: 0, upcoming: 0, no_scans: 0 };
         data.forEach(function(p) { if (p.status in counts) counts[p.status]++; });
 
+        var STATUS_LABELS = _statusLabels();
+        var FREQ_LABELS = _freqLabels();
         var html = '<div class="section-body">';
 
         // KPI cards
         html += '<div class="pipeline-kpi-row">';
         ['overdue', 'due_this_month', 'upcoming', 'no_scans'].forEach(function(status) {
             var cls = _STATUS_CLS[status] || '';
-            var label = _STATUS_LABELS[status];
-            html += '<div class="pipeline-kpi-card ' + cls + '" data-kpi-filter="' + status + '" title="סנן: ' + label + '">'
+            var label = STATUS_LABELS[status];
+            html += '<div class="pipeline-kpi-card ' + cls + '" data-kpi-filter="' + status + '" title="' + _esc(tFormat('סנן: {label}', { label: label })) + '">'
                 + '<span class="pipeline-kpi-count">' + counts[status] + '</span>'
                 + '<span class="pipeline-kpi-label">' + label + '</span>'
                 + '</div>';
@@ -177,7 +187,7 @@ export var PipelinePanel = {
 
         // Filter bar
         html += '<div class="pipeline-filter-row">';
-        [['all', 'הכל'], ['overdue', 'באיחור'], ['due_this_month', 'החודש'], ['upcoming', 'עתידי'], ['no_scans', 'לא נסרק']].forEach(function(pair) {
+        [['all', t('הכל')], ['overdue', t('באיחור')], ['due_this_month', t('החודש')], ['upcoming', t('עתידי')], ['no_scans', t('לא נסרק')]].forEach(function(pair) {
             var active = filter === pair[0] ? ' active' : '';
             html += '<button class="pipeline-filter-btn' + active + '" data-pipeline-filter="' + pair[0] + '">' + pair[1] + '</button>';
         });
@@ -185,24 +195,24 @@ export var PipelinePanel = {
 
         // Table or empty state
         if (filtered.length === 0) {
-            html += '<div class="pipeline-empty">אין לקוחות להצגה בסינון הנוכחי</div>';
+            html += '<div class="pipeline-empty">' + t('אין לקוחות להצגה בסינון הנוכחי') + '</div>';
         } else {
             html += '<div class="pipeline-table-wrap"><table class="pipeline-table">';
             html += '<thead><tr>'
-                + '<th>לקוח</th><th>סביבה</th><th>תדירות</th><th>ציון סיכון</th>'
-                + '<th>פרסום אחרון</th><th>מועד הבא</th><th>סטטוס</th><th>פעולות</th>'
+                + '<th>' + t('לקוח') + '</th><th>' + t('סביבה') + '</th><th>' + t('תדירות') + '</th><th>' + t('ציון סיכון') + '</th>'
+                + '<th>' + t('פרסום אחרון') + '</th><th>' + t('מועד הבא') + '</th><th>' + t('סטטוס') + '</th><th>' + t('פעולות') + '</th>'
                 + '</tr></thead>';
             html += '<tbody>';
             filtered.forEach(function(p) {
                 var cls = _STATUS_CLS[p.status] || '';
-                var freq = _FREQ_LABELS[p.scanFrequency] || p.scanFrequency;
+                var freq = FREQ_LABELS[p.scanFrequency] || p.scanFrequency;
                 var lastPub = p.lastPublishedAt ? _fmtDate(p.lastPublishedAt) : '—';
                 var nextDue = p.nextDueAt ? _fmtDate(p.nextDueAt) : '—';
                 var ver = p.lastPublishedVersion ? ' <span class="muted">v' + _esc(p.lastPublishedVersion) + '</span>' : '';
-                var statusLabel = _STATUS_LABELS[p.status] || _esc(p.status);
+                var statusLabel = STATUS_LABELS[p.status] || _esc(p.status);
                 var actionable = (p.status === 'overdue' || p.status === 'due_this_month' || p.status === 'no_scans');
                 var actionBtn = actionable
-                    ? '<button class="btn btn-sm btn-primary pipeline-new-scan-btn" data-product-id="' + _esc(p.id) + '">סריקה חדשה</button>'
+                    ? '<button class="btn btn-sm btn-primary pipeline-new-scan-btn" data-product-id="' + _esc(p.id) + '">' + t('סריקה חדשה') + '</button>'
                     : '';
 
                 var riskScore = p.latestRiskScore;
@@ -265,7 +275,7 @@ export var PipelinePanel = {
 
         var subsHtml = '';
         if (subs.length === 0) {
-            subsHtml = '<p style="margin:0 0 16px;color:var(--text-muted)">אין subscription IDs מוגדרים למוצר זה.</p>';
+            subsHtml = '<p style="margin:0 0 16px;color:var(--text-muted)">' + t('אין subscription IDs מוגדרים למוצר זה.') + '</p>';
         } else {
             subsHtml = '<ul class="pipeline-sub-list">';
             subs.forEach(function(sub, i) {
@@ -280,14 +290,14 @@ export var PipelinePanel = {
         var overlay = document.createElement('div');
         overlay.className = 'pipeline-scan-modal-overlay';
         overlay.innerHTML = '<div class="pipeline-scan-modal" role="dialog" aria-modal="true">'
-            + '<h3>סריקה חדשה — ' + _esc(product.name) + '</h3>'
+            + '<h3>' + _esc(tFormat('סריקה חדשה — {name}', { name: product.name })) + '</h3>'
             + '<div class="pipeline-scan-modal-body">'
             + subsHtml
             + '<div class="pipeline-scan-modal-actions">'
             + (subs.length > 0
-                ? '<button class="btn btn-primary btn-sm pipeline-start-fetch-btn">הפעל Fetch</button>'
+                ? '<button class="btn btn-primary btn-sm pipeline-start-fetch-btn">' + t('הפעל Fetch') + '</button>'
                 : '')
-            + '<button class="btn btn-secondary btn-sm pipeline-cancel-btn">ביטול</button>'
+            + '<button class="btn btn-secondary btn-sm pipeline-cancel-btn">' + t('ביטול') + '</button>'
             + '</div>'
             + '</div>'
             + '</div>';
@@ -322,7 +332,7 @@ export var PipelinePanel = {
         var _showError = function(msg) {
             body.innerHTML = '<p class="pipeline-modal-error">' + _esc(msg) + '</p>'
                 + '<div class="pipeline-scan-modal-actions">'
-                + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">סגור</button>'
+                + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">' + t('סגור') + '</button>'
                 + '</div>';
             body.querySelector('.pipeline-modal-close-btn').addEventListener('click', function() {
                 if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -342,27 +352,27 @@ export var PipelinePanel = {
             var data = await resp.json();
             if (!resp.ok) {
                 if (startBtn) startBtn.disabled = false;
-                _showError(data.message || data.error || 'שגיאה');
+                _showError(data.message || data.error || t('שגיאה'));
                 return;
             }
             // Switch to progress view
-            body.innerHTML = '<p style="margin:0 0 10px">גרסה ' + _esc(data.version) + ' — שולפת ממצאים מ-Wiz...</p>'
+            body.innerHTML = '<p style="margin:0 0 10px">' + _esc(tFormat('גרסה {version} — שולפת ממצאים מ-Wiz...', { version: data.version })) + '</p>'
                 + '<div class="pipeline-progress-bar">'
                 + '<div class="pipeline-progress-bar-fill" id="pipeline-progress-fill" style="width:0%"></div>'
                 + '</div>'
-                + '<p id="pipeline-progress-label" style="font-size:0.8rem;color:var(--text-muted);margin:6px 0 16px">מתחיל...</p>'
+                + '<p id="pipeline-progress-label" style="font-size:0.8rem;color:var(--text-muted);margin:6px 0 16px">' + t('מתחיל...') + '</p>'
                 + '<div class="pipeline-scan-modal-actions">'
-                + '<button class="btn btn-secondary btn-sm pipeline-cancel-poll-btn">סגור ברקע</button>'
+                + '<button class="btn btn-secondary btn-sm pipeline-cancel-poll-btn">' + t('סגור ברקע') + '</button>'
                 + '</div>';
             var stopPolling = self._pollStatus(productId, data.snapshot_id, overlay);
             body.querySelector('.pipeline-cancel-poll-btn').addEventListener('click', function() {
                 stopPolling();
                 if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-                showToast('הסריקה ממשיכה ברקע — רענן את הלשונית לאחר מספר דקות', 'info');
+                showToast(t('הסריקה ממשיכה ברקע — רענן את הלשונית לאחר מספר דקות'), 'info');
             });
         } catch (e) {
             if (startBtn) startBtn.disabled = false;
-            _showError('שגיאת רשת. נסה שוב.');
+            _showError(t('שגיאת רשת. נסה שוב.'));
         }
     },
 
@@ -384,7 +394,7 @@ export var PipelinePanel = {
             if (!body) return;
             body.innerHTML = '<p class="pipeline-modal-error">' + _esc(msg) + '</p>'
                 + '<div class="pipeline-scan-modal-actions">'
-                + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">סגור</button>'
+                + '<button class="btn btn-secondary btn-sm pipeline-modal-close-btn">' + t('סגור') + '</button>'
                 + '</div>';
             body.querySelector('.pipeline-modal-close-btn').addEventListener('click', function() {
                 if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -399,14 +409,14 @@ export var PipelinePanel = {
 
             attempts++;
             if (attempts > MAX_ATTEMPTS) {
-                _stopWithError('הסריקה ארכה זמן רב מדי. בדוק את לוג השרת ונסה שוב.');
+                _stopWithError(t('הסריקה ארכה זמן רב מדי. בדוק את לוג השרת ונסה שוב.'));
                 return;
             }
 
             try {
                 var resp = await fetch('/api/pipeline/' + productId + '/scan-status/' + snapshotId);
                 if (!resp.ok) {
-                    _stopWithError('שגיאת שרת (' + resp.status + '). נסה לרענן את הדף.');
+                    _stopWithError(tFormat('שגיאת שרת ({status}). נסה לרענן את הדף.', { status: resp.status }));
                     return;
                 }
                 var job = await resp.json();
@@ -419,12 +429,12 @@ export var PipelinePanel = {
                     fill.style.width = Math.round(_lastDone / job.total * 100) + '%';
                 }
                 if (label) {
-                    label.textContent = _lastDone + ' מתוך ' + job.total + ' שאילתות הושלמו';
+                    label.textContent = tFormat('{done} מתוך {total} שאילתות הושלמו', { done: _lastDone, total: job.total });
                 }
 
                 if (job.status === 'done') {
                     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-                    showToast('הסריקה הושלמה — ' + (job.findings_count || 0) + ' ממצאים יובאו', 'success');
+                    showToast(tFormat('הסריקה הושלמה — {n} ממצאים יובאו', { n: job.findings_count || 0 }), 'success');
                     // BL-24: remembered exceptions that matched no finding in this scan (always published;
                     // an empty list hides the panel)
                     publishUnmatchedMemory(job.unmatched_memory || [], { type: 'pipeline', productId: productId, snapshotId: snapshotId });
@@ -434,7 +444,7 @@ export var PipelinePanel = {
                     return; // no more ticks
                 }
                 if (job.status === 'error') {
-                    _stopWithError('שגיאה בשליפה: ' + (job.error || 'שגיאה לא ידועה'));
+                    _stopWithError(tFormat('שגיאה בשליפה: {err}', { err: job.error || t('שגיאה לא ידועה') }));
                     return; // no more ticks
                 }
             } catch (e) { /* network hiccup — schedule next tick normally */ }

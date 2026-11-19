@@ -7,7 +7,7 @@
 
 import { escapeHtml, showToast, styledConfirm } from './core.js';
 import { switchToTab } from './findings.js';
-import { t } from './i18n.js';
+import { t, LANG_CHANGE_EVENT } from './i18n.js';
 
 // ── Module-level rule cache ──────────────────────────────────────────────────
 var _rules = [];        // full list, refreshed after every mutation
@@ -149,7 +149,7 @@ export function enableExcludeRule(ruleId) {
       if (res.ok) return _loadRules().then(function() { return res; });
       return res;
     })
-    .catch(function() { return { ok: false, error: 'שגיאת רשת' }; });
+    .catch(function() { return { ok: false, error: t('שגיאת רשת') }; });
 }
 
 // Create a rule from elsewhere in the UI (e.g. the finding "add filter rule" shortcut) and refresh
@@ -172,34 +172,41 @@ export function addExcludeRule(field, operator, pattern) {
       if (res.ok || res.duplicate) return _loadRules().then(function() { return res; });
       return res;
     })
-    .catch(function() { return { ok: false, error: 'שגיאת רשת' }; });
+    .catch(function() { return { ok: false, error: t('שגיאת רשת') }; });
 }
 
 // ── Render the rules table ───────────────────────────────────────────────────
-var _FIELD_LABELS = { title: 'כותרת', category: 'קטגוריה', path: 'נתיב', title_resource: 'כותרת + משאב', title_path: 'כותרת + נתיב' };
-var _OP_LABELS    = { startsWith: 'מתחיל ב-', contains: 'מכיל', regex: 'Regex' };
+// Built per render so a UI language switch is picked up (t() reads the current language)
+function _fieldLabels() {
+  return { title: t('כותרת'), category: t('קטגוריה'), path: t('נתיב'), title_resource: t('כותרת + משאב'), title_path: t('כותרת + נתיב') };
+}
+function _opLabels() {
+  return { startsWith: t('מתחיל ב-'), contains: t('מכיל'), regex: 'Regex' };
+}
 
 function _render() {
   var tbody = _el('exclude-rules-tbody');
   if (!tbody) return;
 
   if (!_rules.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">אין כללי סינון</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:16px;">' + escapeHtml(t('אין כללי סינון')) + '</td></tr>';
     return;
   }
 
+  var fieldLabels = _fieldLabels();
+  var opLabels = _opLabels();
   var html = '';
   _rules.forEach(function(rule) {
     var isActive = !!rule.active;
-    var toggleLabel = isActive ? 'השבת' : 'הפעל';
+    var toggleLabel = isActive ? t('השבת') : t('הפעל');
     var rowClass = (isActive ? '' : 'exclude-rule-inactive') + (rule.id === _editingId ? ' exclude-rule-editing' : '');
     html += '<tr class="' + rowClass + '" data-rule-id="' + rule.id + '">';
     var _tr = parseRulePair(rule);
     html += '<td><code dir="ltr">' + (_tr
       ? escapeHtml(_tr.title) + '</code> <span class="muted">+</span> <code dir="ltr">' + escapeHtml(_tr.second)
       : escapeHtml(rule.pattern)) + '</code></td>';
-    html += '<td>' + escapeHtml(_FIELD_LABELS[rule.field] || rule.field) + '</td>';
-    html += '<td>' + escapeHtml(_OP_LABELS[rule.operator] || rule.operator) + '</td>';
+    html += '<td>' + escapeHtml(fieldLabels[rule.field] || rule.field) + '</td>';
+    html += '<td>' + escapeHtml(opLabels[rule.operator] || rule.operator) + '</td>';
     html += '<td>';
     html +=   '<button class="btn btn-sm exclude-rule-toggle-btn" data-rule-id="' + rule.id + '" data-active="' + isActive + '">';
     html +=     escapeHtml(toggleLabel);
@@ -210,7 +217,7 @@ function _render() {
     html += '</td>';
     html += '<td>';
     html +=   '<button class="btn btn-sm btn-danger exclude-rule-delete-btn" data-rule-id="' + rule.id + '">';
-    html +=     'מחק';
+    html +=     escapeHtml(t('מחק'));
     html +=   '</button>';
     html += '</td>';
     html += '</tr>';
@@ -242,16 +249,16 @@ function _setStatus(msg, isError) {
 // An identical rule already exists: say so, and offer to switch it on if it is disabled.
 function _handleDuplicate(rule) {
   if (rule.active) {
-    _setStatus('כלל זהה כבר קיים', true);
+    _setStatus(t('כלל זהה כבר קיים'), true);
     return;
   }
-  styledConfirm('קיים כלל זהה אך הוא מושבת. להפעיל אותו?', {
-    icon: '♻️', title: 'כלל זהה קיים', confirmText: 'הפעל', cancelText: 'ביטול',
+  styledConfirm(t('קיים כלל זהה אך הוא מושבת. להפעיל אותו?'), {
+    icon: '♻️', title: t('כלל זהה קיים'), confirmText: t('הפעל'), cancelText: t('ביטול'),
   }).then(function(yes) {
     if (!yes) return;
     enableExcludeRule(rule.id).then(function(res) {
-      if (res.ok) showToast('הכלל הופעל', 'success');
-      else _setStatus(res.error || 'שגיאה', true);
+      if (res.ok) showToast(t('הכלל הופעל'), 'success');
+      else _setStatus(res.error || t('שגיאה'), true);
     });
   });
 }
@@ -281,7 +288,7 @@ function _handleEdit(ruleId) {
   if (!Array.prototype.some.call(fieldEl.options, function(o) { return o.value === rule.field; })) {
     var legacy = document.createElement('option');
     legacy.value = rule.field;
-    legacy.textContent = _FIELD_LABELS[rule.field] || rule.field;
+    legacy.textContent = _fieldLabels()[rule.field] || rule.field;
     legacy.setAttribute('data-legacy', '1');
     fieldEl.appendChild(legacy);
   }
@@ -339,14 +346,14 @@ function _handleAdd() {
   var resourceEl = _el('exclude-rule-pattern-resource');
 
   if (!pattern) {
-    _setStatus('יש להזין תבנית', true);
+    _setStatus(t('יש להזין תבנית'), true);
     if (patternEl) patternEl.focus();
     return;
   }
   if (_PAIR_KEYS[field]) {
     var secondPattern = resourceEl ? resourceEl.value.trim() : '';
     if (!secondPattern) {
-      _setStatus(field === 'title_path' ? 'יש להזין תבנית לנתיב' : 'יש להזין תבנית למשאב', true);
+      _setStatus(field === 'title_path' ? t('יש להזין תבנית לנתיב') : t('יש להזין תבנית למשאב'), true);
       if (resourceEl) resourceEl.focus();
       return;
     }
@@ -358,7 +365,7 @@ function _handleAdd() {
   var editingId = _editingId;
   var dup = findDuplicateRule(field, operator, pattern, editingId);
   if (dup) {
-    if (editingId !== null) _setStatus('כלל זהה כבר קיים', true);   // editing: never merge into another rule
+    if (editingId !== null) _setStatus(t('כלל זהה כבר קיים'), true);   // editing: never merge into another rule
     else _handleDuplicate(dup);
     return;
   }
@@ -377,28 +384,28 @@ function _handleAdd() {
     })
     .then(function(res) {
       if (res.status === 409 && res.data && res.data.rule) {
-        if (editingId !== null) _setStatus('כלל זהה כבר קיים', true);
+        if (editingId !== null) _setStatus(t('כלל זהה כבר קיים'), true);
         else _handleDuplicate(res.data.rule);
         return _loadRules();
       }
       if (!res.ok) {
-        _setStatus(res.data.error || 'שגיאה', true);
+        _setStatus(res.data.error || t('שגיאה'), true);
         return;
       }
       if (patternEl) patternEl.value = '';
       if (resourceEl) resourceEl.value = '';
       if (editingId !== null) {
         _exitEditMode();
-        _setStatus('הכלל עודכן בהצלחה');
-        showToast('כלל סינון עודכן', 'success');
+        _setStatus(t('הכלל עודכן בהצלחה'));
+        showToast(t('כלל סינון עודכן'), 'success');
       } else {
-        _setStatus('הכלל נוסף בהצלחה');
-        showToast('כלל סינון נוסף', 'success');
+        _setStatus(t('הכלל נוסף בהצלחה'));
+        showToast(t('כלל סינון נוסף'), 'success');
       }
       return _loadRules();
     })
     .catch(function(e) {
-      _setStatus('שגיאת רשת', true);
+      _setStatus(t('שגיאת רשת'), true);
       console.error('exclude_rules: add failed', e);
     })
     .finally(function() {
@@ -418,24 +425,24 @@ function _handleToggle(ruleId, currentActive) {
     })
     .then(function(res) {
       if (!res.ok) {
-        showToast(res.data.error || 'שגיאה בעדכון', 'error');
+        showToast(res.data.error || t('שגיאה בעדכון'), 'error');
         return;
       }
       return _loadRules();
     })
     .catch(function(e) {
-      showToast('שגיאת רשת', 'error');
+      showToast(t('שגיאת רשת'), 'error');
       console.error('exclude_rules: toggle failed', e);
     });
 }
 
 // ── Delete handler ───────────────────────────────────────────────────────────
 function _handleDelete(ruleId) {
-  styledConfirm('האם למחוק כלל סינון זה?', {
+  styledConfirm(t('האם למחוק כלל סינון זה?'), {
     icon: '🗑️',
-    title: 'מחיקת כלל סינון',
-    confirmText: 'מחק',
-    cancelText: 'ביטול',
+    title: t('מחיקת כלל סינון'),
+    confirmText: t('מחק'),
+    cancelText: t('ביטול'),
   }).then(function(confirmed) {
     if (!confirmed) return;
     _apiFetch(_BASE + '/' + ruleId, { method: 'DELETE' })
@@ -444,15 +451,15 @@ function _handleDelete(ruleId) {
       })
       .then(function(res) {
         if (!res.ok) {
-          showToast(res.data.error || 'שגיאה במחיקה', 'error');
+          showToast(res.data.error || t('שגיאה במחיקה'), 'error');
           return;
         }
-        showToast('הכלל נמחק', 'success');
+        showToast(t('הכלל נמחק'), 'success');
         if (_editingId === ruleId) _exitEditMode();
         return _loadRules();
       })
       .catch(function(e) {
-        showToast('שגיאת רשת', 'error');
+        showToast(t('שגיאת רשת'), 'error');
         console.error('exclude_rules: delete failed', e);
       });
   });
@@ -476,10 +483,12 @@ function _wireEvents() {
   if (fieldSel && resourceInput) {
     var syncResourceInput = function() {
       resourceInput.hidden = !_PAIR_KEYS[fieldSel.value];
-      resourceInput.placeholder = fieldSel.value === 'title_path' ? 'תבנית נתיב...' : 'תבנית משאב...';
+      resourceInput.placeholder = fieldSel.value === 'title_path' ? t('תבנית נתיב...') : t('תבנית משאב...');
     };
     fieldSel.addEventListener('change', syncResourceInput);
     syncResourceInput();
+    // The placeholder is JS-set (and data-i18n-placeholder on the input would be overwritten): re-sync on a language switch
+    document.addEventListener(LANG_CHANGE_EVENT, syncResourceInput);
   }
 
   // Table row buttons — delegated to tbody
@@ -532,6 +541,8 @@ export var ExcludeRulesPanel = {
     }
 
     _wireEvents();
+    // Rules table is built with t(): re-render it when the UI language changes
+    document.addEventListener(LANG_CHANGE_EVENT, _render);
 
     // Pre-load once so getActiveExcludeRules() is ready before first import
     _loadRules();

@@ -214,6 +214,7 @@ DYNAMIC_ALLOWED = {
     ("findings.js", "sev.text"): _state_severity_texts,
     ("ui.js", "sev.text"): _state_severity_texts,
     ("ui.js", "riskVal"): lambda: {"נמוכה", "בינונית", "גבוהה", "קריטית"},  # #report-risk option values
+    ("export.js", "sev.text"): _state_severity_texts,
     ("wizi.js", "sevInfo.text"): _state_severity_texts,
     ("wizi.js", "sevLabel[sev]"): _wizi_sev_label_values,
 }
@@ -378,3 +379,153 @@ def test_caption_severity_and_toast_keys_he_unchanged_en_translated(js_out):
 def test_lang_change_event_fires_only_on_real_change(js_out):
     # first setLang('he') (page load) silent; he->en fires 'en'
     assert js_out["events"] == ["en"]
+
+
+# ── BL-36: translation sweep guards ──
+
+def test_en_keys_have_no_duplicates():
+    """A duplicated key in the en dictionary silently overrides the earlier entry."""
+    text = I18N.read_text(encoding="utf-8")
+    block = text[text.index("  en: {"):text.index("export const LANG_CHANGE_EVENT")]
+    pairs = [(_unescape(m.group(1)), _unescape(m.group(2))) for m in re.finditer(r"^\s+" + _STR + r"\s*:\s*" + _STR, block, re.M)]
+    seen: dict[str, set[str]] = {}
+    for k, v in pairs:
+        seen.setdefault(k, set()).add(v)
+    # An identical repeat is harmless (a key shared by two screens); a different value silently wins by position.
+    conflicting = sorted(k for k, vs in seen.items() if len(vs) > 1)
+    assert not conflicting, f"keys with conflicting en translations: {conflicting}"
+
+
+def test_html_placeholder_and_aria_keys_have_english():
+    """data-i18n-placeholder / data-i18n-aria-label in index.html resolve through setLang() (BL-36)."""
+    keys = _en_keys()
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    used = {
+        htmllib.unescape(k).replace("\n", "\\n")  # the dictionary stores a newline as the two characters \n
+        for k in re.findall(r'data-i18n-(?:placeholder|aria-label)="([^"]+)"', html)
+    }
+    assert used, "index.html lost its data-i18n-placeholder attributes"
+    missing = sorted(k for k in used if HEB.search(k) and k not in keys)
+    assert not missing, f"index.html placeholder/aria-label keys without English translation: {missing}"
+
+
+def test_html_has_no_untranslated_hebrew_placeholder():
+    """Every Hebrew placeholder= / aria-label= in index.html carries its data-i18n-* twin (BL-36).
+
+    A few inputs are re-translated from JS instead (documented here).
+    """
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    js_managed = {"תבנית משאב..."}  # exclude_rules.js syncs it with the field select (resource / path)
+    bad = []
+    for tag in re.findall(r"<(?:input|textarea|button|div|span|a)\b[^>]*>", html):
+        for attr, twin in (("placeholder", "data-i18n-placeholder"), ("aria-label", "data-i18n-aria-label")):
+            m = re.search(r'\s' + attr + r'="([^"]*)"', tag)
+            if m and HEB.search(m.group(1)) and twin not in tag and htmllib.unescape(m.group(1)) not in js_managed:
+                bad.append(htmllib.unescape(m.group(1)))
+    assert not bad, f"index.html Hebrew attribute text without a data-i18n twin: {bad}"
+
+
+def _inside_t_call(text: str, pos: int) -> bool:
+    """True when text[pos] sits in the argument list of t( / tFormat( / countPhrase( (ternary branches included)."""
+    depth, k = 0, pos - 1
+    while k >= 0 and pos - k < 300:
+        ch = text[k]
+        if ch in ")]}":
+            depth += 1
+        elif ch in "([{":
+            if depth == 0:
+                return bool(ch == "(" and re.search(r"(?<![\w.])(?:t|tFormat|countPhrase)$", text[max(0, k - 12):k]))
+            depth -= 1
+        elif ch == ";" and depth == 0:
+            return False
+        k -= 1
+    return False
+
+
+def _hebrew_literals_outside_t(text: str):
+    """Hebrew string literals that are NOT the first argument of t() / tFormat() / countPhrase().
+
+    Comments are skipped. Returns the unescaped literal values.
+    """
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if text.startswith("//", i):
+            j = text.find("\n", i)
+            i = n if j == -1 else j
+            continue
+        if text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            i = n if j == -1 else j + 2
+            continue
+        if c == "/" and re.search(r"[(,=:\[!&|?{};]\s*$", text[max(0, i - 40):i]):
+            # regex literal (may contain quotes): skip to its closing slash on the same line
+            j, in_class = i + 1, False
+            while j < n and text[j] != "\n":
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == "[":
+                    in_class = True
+                elif text[j] == "]":
+                    in_class = False
+                elif text[j] == "/" and not in_class:
+                    break
+                j += 1
+            i = j + 1
+            continue
+        if c in "'\"`":
+            j = _scan_string(text, i)
+            value = text[i + 1:j - 1]
+            if HEB.search(value):
+                if not _inside_t_call(text, i):
+                    out.append(_unescape(value))
+            i = j
+            continue
+        i += 1
+    return out
+
+
+# Hebrew literals that are intentionally NOT routed through t() in the translated modules.
+# Each entry: file -> {literal: reason}
+INTENTIONAL_HEBREW = {
+    "duplicates.js": {
+        "מוזג עם ": "reason text stored in product memory with the deleted finding (data, not UI chrome)",
+    },
+    "exclude_rules.js": {
+        "שמור שינויים": "data-i18n attribute key on the add/save rule button (setLang re-translates from it)",
+        "הוסף כלל": "data-i18n attribute key on the add/save rule button (setLang re-translates from it)",
+    },
+    "exceptions.js": {},
+    "core.js": {},
+}
+
+
+@pytest.mark.parametrize("name", sorted(INTENTIONAL_HEBREW))
+def test_translated_modules_have_no_stray_hebrew_literals(name):
+    text = (SRC / name).read_text(encoding="utf-8")
+    allowed = set(INTENTIONAL_HEBREW[name])
+    stray = sorted({lit for lit in _hebrew_literals_outside_t(text) if lit not in allowed})
+    assert not stray, (
+        f"{name}: Hebrew literals outside t()/tFormat()/countPhrase() - route them through i18n.js "
+        f"or list them in INTENTIONAL_HEBREW with a reason: {stray}"
+    )
+
+
+def test_intentional_hebrew_allowlist_has_no_stale_entries():
+    for name, entries in INTENTIONAL_HEBREW.items():
+        text = (SRC / name).read_text(encoding="utf-8")
+        found = set(_hebrew_literals_outside_t(text))
+        stale = sorted(set(entries) - found)
+        assert not stale, f"{name}: INTENTIONAL_HEBREW entries no longer present in the source: {stale}"
+
+
+def test_set_lang_translates_placeholder_and_aria_label_attributes():
+    """i18n.js setLang() handles data-i18n-placeholder and data-i18n-aria-label (BL-36)."""
+    text = I18N.read_text(encoding="utf-8")
+    assert "data-i18n-placeholder" in text and "data-i18n-aria-label" in text
+
+
+def test_hebrew_literal_guard_self_check():
+    src = "a = 'שלום'; b = t('שלום'); c = t(x ? 'אחד' : 'שניים'); d = tFormat('{n} שלום', { n: 1 }); e = /\"/g; // 'הערה'\nf = 'בוקר';"
+    assert _hebrew_literals_outside_t(src) == ["שלום", "בוקר"]
