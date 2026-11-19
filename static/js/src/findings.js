@@ -390,7 +390,7 @@ let priorityTouched = false;
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             // BL-24: rule_key also clears entries stored under an older title of the same rule
-            body: JSON.stringify({ subscription: sub, title: f.title, rule_key: f._ruleKey || undefined })
+            body: JSON.stringify({ subscription: sub, title: f.title, rule_key: f._ruleKey || undefined, clear_siblings: f._pipelineScan === true ? true : undefined }) // BL-31: pipeline fan-out only
           }).catch(function() {});
         });
       }
@@ -1496,6 +1496,7 @@ let priorityTouched = false;
           if (typeof f._sourceSubscription === 'string' && f._sourceSubscription) {
             loaded._sourceSubscription = f._sourceSubscription;
           }
+          if (f._pipelineScan === true) loaded._pipelineScan = true; // BL-31
           // BL-31: merged pipeline finding -> every contributing subscription (one memory entry each)
           if (Array.isArray(f._sourceSubscriptions) && f._sourceSubscriptions.length) {
             loaded._sourceSubscriptions = f._sourceSubscriptions.filter(function(x) { return typeof x === 'string' && x; });
@@ -2370,6 +2371,7 @@ let priorityTouched = false;
             var prevF = state.findings[state.editingIndex] || {};
             if (prevF._sourceSubscription) newFinding._sourceSubscription = prevF._sourceSubscription;
             if (prevF._sourceSubscriptions) newFinding._sourceSubscriptions = prevF._sourceSubscriptions; // BL-31
+            if (prevF._pipelineScan) newFinding._pipelineScan = true; // BL-31
             if (prevF._ruleKey) newFinding._ruleKey = prevF._ruleKey; // BL-24
             if (prevF._matchedLoosely && newFinding.exception.active) newFinding._matchedLoosely = true; // BL-24
             if (newFinding.exception.active) {
@@ -4229,7 +4231,10 @@ ${draftWatermarkStyle}
           return;
         }
 
-        Promise.all(subscriptions.map(function(sub) {
+        // BL-31: one entry per subscription. allSettled so a partial failure is rolled back (the
+        // entries this call wrote are deleted) instead of leaving a half-saved merged finding.
+        var wrote = [];
+        Promise.allSettled(subscriptions.map(function(sub) {
           return fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -4239,10 +4244,21 @@ ${draftWatermarkStyle}
             return r.json();
           }).then(function(data) {
             if (data.error) throw new Error(data.error);
+            wrote.push(sub);
           });
         }))
-        .then(function() {
-          applyLocally('');
+        .then(function(results) {
+          var failed = results.filter(function(r) { return r.status === 'rejected'; })[0];
+          if (!failed) { applyLocally(''); return; }
+          // Roll back what was written; the finding is NOT marked locally.
+          wrote.forEach(function(sub) {
+            fetch('/api/products/' + encodeURIComponent(product.id) + '/memory/entry', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subscription: sub, title: title })
+            }).catch(function() {});
+          });
+          throw (failed.reason || new Error('error'));
         })
         .catch(function(err) {
           showToast(tFormat('שגיאה בפעולה זמנית: {e}', { e: err.message }), 'error');

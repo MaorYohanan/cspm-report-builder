@@ -105,3 +105,107 @@ def test_export_sanitize_strips_subscription_list_without_mutating():
     res = _node("export-sanitize.js", "{out: m.stripInternalExportFields(d.f), orig: d.f}", {"f": f})
     assert "_sourceSubscription" not in res["out"][0] and "_sourceSubscriptions" not in res["out"][0]
     assert res["orig"] == f
+
+
+# ---------------------------------------------------------------------------
+# QA follow-up: shrinking merged findings, sibling cleanup, collapsed unmatched rows
+# ---------------------------------------------------------------------------
+
+RK = "configurationfindings|r-1"
+
+
+def test_shrunk_merged_finding_leftover_entry_is_not_unmatched(app):
+    """Scan 1 saved sub-a + sub-b; scan 2 returns the finding for sub-b only -> not stale."""
+    _product()
+    for s in (SUB, OTHER):
+        _mem("Merged AB", "excepted", rule_key=RK, sub=s, reason="r")
+    rows, unmatched, risk, _ = _store([_cfg("Merged AB", "R-1", sub=OTHER)], scope=[SUB, OTHER])
+    assert rows[0]["exception"]["active"] is True and risk == 0
+    assert unmatched == []
+
+
+def test_title_only_sibling_of_matched_entry_is_not_unmatched(app):
+    _product()
+    for s in (SUB, OTHER):
+        _mem("Legacy", "excepted", sub=s)
+    _, unmatched, _, _ = _store([_cfg("Legacy", None, sub=OTHER)], scope=[SUB, OTHER])
+    assert unmatched == []
+
+
+def test_vanished_merged_finding_is_one_unmatched_row(app):
+    _product()
+    for s in (SUB, OTHER):
+        _mem("Gone", "excepted", rule_key="configurationfindings|gone", sub=s)
+    _, unmatched, _, _ = _store([], scope=[SUB, OTHER])
+    assert len(unmatched) == 1
+    assert unmatched[0]["subscriptions"] == [SUB, OTHER]
+    assert unmatched[0]["title"] == "gone"
+
+
+def test_unmatched_rows_of_different_findings_or_sources_stay_separate(app):
+    _product()
+    _mem("One", "excepted", rule_key="configurationfindings|one")
+    _mem("Two", "excepted", rule_key="configurationfindings|two")
+    _mem("One", "deleted", rule_key="configurationfindings|one", sub=OTHER)
+    _, unmatched, _, _ = _store([], scope=[SUB, OTHER])
+    assert len(unmatched) == 3
+    assert all("subscriptions" not in u for u in unmatched)
+
+
+def _delete(client, body):
+    return client.delete("/api/products/p1/memory/entry", json=body)
+
+
+def _seed(client, entries):
+    with client.application.app_context():
+        _product()
+        for title, source, rk, sub in entries:
+            _mem(title, source, rule_key=rk, sub=sub)
+
+
+def _left(client):
+    with client.application.app_context():
+        return {(e.subscription, e.source, e.title) for e in ProductMemoryEntry.query.all()}
+
+
+def test_delete_with_clear_siblings_removes_fan_out_entries(client):
+    _seed(client, [
+        ("Merged AB", "excepted", RK, SUB), ("Merged AB", "excepted", RK, OTHER),
+        ("Other", "excepted", "configurationfindings|zzz", SUB),
+        ("Merged AB", "deleted", RK, "third-sub"),
+    ])
+    r = _delete(client, {"subscription": OTHER, "title": "Merged AB", "rule_key": RK,
+                         "clear_siblings": True})
+    assert r.status_code == 200
+    assert _left(client) == {(SUB, "excepted", "other"), ("third-sub", "deleted", "merged ab")}
+
+
+def test_delete_without_flag_leaves_sibling_subscriptions(client):
+    """Browser-import path: different subscriptions are different findings."""
+    _seed(client, [("Merged AB", "excepted", RK, SUB), ("Merged AB", "excepted", RK, OTHER)])
+    _delete(client, {"subscription": OTHER, "title": "Merged AB", "rule_key": RK})
+    assert _left(client) == {(SUB, "excepted", "merged ab")}
+
+
+def test_clear_siblings_requires_strict_boolean(client):
+    _seed(client, [("Merged AB", "excepted", RK, SUB), ("Merged AB", "excepted", RK, OTHER)])
+    _delete(client, {"subscription": OTHER, "title": "Merged AB", "rule_key": RK,
+                     "clear_siblings": "true"})
+    assert _left(client) == {(SUB, "excepted", "merged ab")}
+
+
+def test_clear_siblings_title_fallback_without_rule_key(client):
+    _seed(client, [("Vuln", "excepted", None, SUB), ("Vuln", "excepted", None, OTHER)])
+    _delete(client, {"subscription": SUB, "title": "Vuln", "clear_siblings": True})
+    assert _left(client) == set()
+
+
+def test_clear_siblings_is_inert_when_exact_entry_missing(client):
+    _seed(client, [("Keep", "excepted", RK, SUB)])
+    _delete(client, {"subscription": OTHER, "title": "Keep", "rule_key": RK, "clear_siblings": True})
+    assert _left(client) == {(SUB, "excepted", "keep")}
+
+
+def test_pipeline_findings_carry_marker():
+    assert _transform_finding(_cfg("T", "R-1"), {})["_pipelineScan"] is True
+    assert _aggregate_vulns([_vuln("CVE-1", "sub-a")])["_pipelineScan"] is True

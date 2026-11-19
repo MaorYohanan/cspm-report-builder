@@ -806,6 +806,7 @@ def _transform_finding(f: dict, cat_counters: dict) -> dict:
     contributing = _contributing_subscriptions(f)
     provenance: dict = {}
     if contributing:
+        provenance["_pipelineScan"] = True  # BL-31: lets the editor clear sibling memory entries
         provenance["_sourceSubscription"] = contributing[0]
         if len(contributing) > 1:
             provenance["_sourceSubscriptions"] = contributing
@@ -880,7 +881,9 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
     if subscription_names:
         technical.append(f"Subscriptions: {', '.join(subscription_names)}")
 
-    agg_extra = {"_sourceSubscriptions": list(subscription_names)} if len(subscription_names) > 1 else {}
+    agg_extra = {"_pipelineScan": True} if subscription_names else {}
+    if len(subscription_names) > 1:
+        agg_extra["_sourceSubscriptions"] = list(subscription_names)
     return {
         **agg_extra,
         "id": "VULN-001",

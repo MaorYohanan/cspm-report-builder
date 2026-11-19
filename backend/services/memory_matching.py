@@ -140,21 +140,47 @@ def compute_unmatched(entries: Iterable[Any], matched_ids: set, scope_subs: Iter
     """
     scope = {norm(s) for s in scope_subs if norm(s)}
     failed = {norm(t) for t in (failed_types or []) if norm(t)}
+    entries = sorted(entries, key=lambda x: x.id or 0)
+
+    def finding_key(e) -> str:
+        # One finding = one rule key (rule-keyed entries) or one title (legacy title-only
+        # entries). A merged cross-subscription finding stores one entry per subscription.
+        rk = norm(getattr(e, "rule_key", None))
+        return ("r:" + rk) if rk else ("t:" + norm(e.title))
+
+    # A leftover entry whose sibling (same finding, other subscription) matched is not
+    # stale: the finding is still reported, it just shrank to fewer subscriptions.
+    matched_keys = {finding_key(e) for e in entries if e.id in matched_ids}
+
+    groups: dict = {}
     out = []
-    for e in sorted(entries, key=lambda x: x.id or 0):
+    for e in entries:
         if e.id in matched_ids:
             continue
         if not in_scope(e.subscription, scope):
+            continue
+        if finding_key(e) in matched_keys:
             continue
         if failed:
             rk = norm(getattr(e, "rule_key", None))
             if not rk or rk.split("|", 1)[0] in failed:
                 continue
-        out.append({
-            "subscription": e.subscription,
-            "title": e.title,
-            "source": e.source,
-            "reason": e.reason or "",
-            "ruleKey": getattr(e, "rule_key", None),
-        })
+        # Collapse per-subscription rows of one finding (same source) into one row.
+        gk = (e.source, finding_key(e))
+        row = groups.get(gk)
+        if row is None:
+            row = {
+                "subscription": e.subscription,
+                "title": e.title,
+                "source": e.source,
+                "reason": e.reason or "",
+                "ruleKey": getattr(e, "rule_key", None),
+            }
+            groups[gk] = row
+            out.append(row)
+        else:
+            subs = row.setdefault("subscriptions", [row["subscription"]])
+            if e.subscription not in subs:
+                subs.append(e.subscription)
+                row["subscription"] = ", ".join(subs)
     return out

@@ -228,12 +228,17 @@ export function publishUnmatchedMemory(entries, scope) {
  */
 export function dropMemoryEntry(productId, entry) {
   if (!productId || !entry) return Promise.reject(new Error('productId and entry required'));
-  return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry?reason=stale_dropped', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ subscription: entry.subscription, title: entry.title, rule_key: entry.ruleKey || undefined })
-  }).then(function(r) {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+  // BL-31: a collapsed unmatched row of one merged finding lists every subscription it covers
+  var subs = Array.isArray(entry.subscriptions) && entry.subscriptions.length ? entry.subscriptions : [entry.subscription];
+  return Promise.all(subs.map(function(sub) {
+    return fetch('/api/products/' + encodeURIComponent(productId) + '/memory/entry?reason=stale_dropped', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub, title: entry.title, rule_key: entry.ruleKey || undefined })
+    }).then(function(r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+    });
+  })).then(function() {
     var cur = state.unmatchedMemory || { entries: [], scope: null };
     var remaining = cur.entries.filter(function(e) {
       return !(norm(e.subscription) === norm(entry.subscription) && norm(e.title) === norm(entry.title));
