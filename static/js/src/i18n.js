@@ -222,6 +222,8 @@ const TRANSLATIONS = {
     'קובץ XLSX הורד בהצלחה': 'XLSX file downloaded successfully',
     'שגיאה בייצוא XLSX: {msg}': 'XLSX export error: {msg}',
     'שגיאה בייצוא XLSX': 'Error exporting XLSX',
+    'אין ממצאים לייצוא (ממצאים שאושרו אינם נכללים בקובץ)': 'No findings to export (acknowledged findings are not included in the file)',
+    'הקובץ גדול מדי לייצוא': 'The data is too large to export',
     '💾 הורד תצורה': '💾 Download Config',
     '📂 טען תצורה': '📂 Load Config',
     '📄 ייבוא CSV': '📄 Import CSV',

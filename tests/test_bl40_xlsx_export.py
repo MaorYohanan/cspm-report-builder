@@ -135,16 +135,38 @@ def test_formula_injection_cells_inert(client, evil):
     for coord in ("A2", "D2", "F2", "J2", "L2"):
         c = ws[coord]
         assert c.data_type == "s", coord
-        assert c.value.startswith("'"), (coord, c.value)
+        # no apostrophe added (XML parsing may normalise a leading CR to LF)
+        assert c.value.replace("\n", "\r") == evil, (coord, c.value)
+        assert c.quotePrefix is True, coord
     with zipfile.ZipFile(io.BytesIO(r.data)) as z:
         sheet_xml = z.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        styles_xml = z.read("xl/styles.xml").decode("utf-8")
     assert "<f>" not in sheet_xml and "<f " not in sheet_xml
+    assert 'quotePrefix="1"' in styles_xml
+
+
+def test_plain_cells_have_no_quote_prefix(client):
+    r = _post(client, [_f("hello - world", "high", description="plain")])
+    ws = _sheet(r)
+    assert ws["A2"].value == "hello - world" and not ws["A2"].quotePrefix
+    assert not ws["D2"].quotePrefix
+    with zipfile.ZipFile(io.BytesIO(r.data)) as z:
+        assert 'quotePrefix="1"' not in z.read("xl/styles.xml").decode("utf-8")
 
 
 def test_plain_text_not_prefixed():
     assert sanitize_cell_text("hello - world") == "hello - world"
+    assert sanitize_cell_text("=1+1") == "=1+1"
     assert sanitize_cell_text(None) == ""
     assert sanitize_cell_text(5) == "5"
+
+
+def test_meta_non_string_values_coerced_or_ignored(client):
+    r = _post(client, [_f("a", "low")], meta={"client": 5, "cloud": "Azure", "env": ["a"], "reportDate": {"x": 1}})
+    assert r.status_code == 200
+    assert 'filename="5-Azure.xlsx"' in r.headers["Content-Disposition"]
+    r = _post(client, [_f("a", "low")], meta={"client": 1.5, "env": ["a", "b"], "cloud": None})
+    assert r.status_code == 200
 
 
 def test_illegal_control_chars_stripped_not_500(client):

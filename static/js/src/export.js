@@ -846,7 +846,12 @@ const dateInput       = document.getElementById('report-date');
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
-              throw new Error(err.error || t('שגיאת שרת'));
+              // Server messages are English; show translated text instead.
+              if (resp.status === 400 && err.error === 'No findings to export') {
+                throw new Error(t('אין ממצאים לייצוא (ממצאים שאושרו אינם נכללים בקובץ)'));
+              }
+              if (resp.status === 413) throw new Error(t('הקובץ גדול מדי לייצוא'));
+              throw new Error(t('שגיאת שרת'));
             }
             const blob = await resp.blob();
             const url = URL.createObjectURL(blob);

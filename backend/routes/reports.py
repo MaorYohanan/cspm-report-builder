@@ -253,6 +253,9 @@ def api_export_xlsx():
     meta = data.get("meta")
     if not isinstance(meta, dict):
         meta = {}
+    # Coerce scalar meta values to str; ignore lists/dicts/None (filename building expects str).
+    meta = {k: str(v) for k, v in meta.items()
+            if isinstance(v, (str, int, float, bool))}
 
     try:
         xlsx_bytes = build_findings_xlsx(findings)

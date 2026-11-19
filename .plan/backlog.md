@@ -418,6 +418,11 @@ Features implemented outside the prioritized backlog, added by direct user reque
 **Why:** (User priority) A formatted XLSX table is easier to read and filter than CSV.
 **Effort:** Medium
 **Notes:** Keep the B.18 column set and ordering (Hebrew headers, severity sort, exception columns). Needs a library (e.g. openpyxl server-side, or SheetJS client-side, no build step), Excel table with header styling, filters and RTL sheet view. Decide whether to keep CSV as an option and keep import round-trip.
+**Implementation notes (2026-11-20):**
+- The 13th CSV column (סוג החרגה) is intentionally not in the XLSX: acknowledged findings are dropped, so the remaining value would always be 'exclude'.
+- Array fields (technical, policies, recs) are newline-joined inside one wrapped cell.
+- Formula-like text (starting = + - @ tab CR) is stored as a plain string with the quotePrefix cell style (no apostrophe in the value, no formula element).
+- Needs a human check in desktop Excel: row auto-height for wrapped multi-line cells (openpyxl sets no explicit row heights).
 
 ### BL-41 · Pipeline Product Name Links to Product History (UNSCHEDULED)
 **Why:** (User priority) Jump from a product name in the scan dashboard to its timeline in the Products page.

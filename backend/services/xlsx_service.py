@@ -40,17 +40,21 @@ def sanitize_cell_text(value) -> str:
 
     - None -> ''
     - illegal XML control characters (which openpyxl rejects) are removed
-    - values starting with = + - @ TAB CR get a leading apostrophe (OWASP CSV/formula
-      injection guidance) so Excel never evaluates them
     - truncated to Excel's per-cell character limit
+
+    The text itself is never altered for formula safety: the cell is stored as a
+    string and ``needs_quote_prefix`` cells get the quotePrefix style flag.
     """
     if value is None:
         return ""
     text = value if isinstance(value, str) else str(value)
     text = ILLEGAL_CHARACTERS_RE.sub("", text)
-    if text.startswith(_FORMULA_TRIGGERS):
-        text = "'" + text
     return text[:_MAX_CELL_CHARS]
+
+
+def needs_quote_prefix(text: str) -> bool:
+    """True when text starts with = + - @ TAB CR (formula-injection triggers)."""
+    return text.startswith(_FORMULA_TRIGGERS)
 
 
 def _join(value) -> str:
@@ -105,6 +109,10 @@ def build_findings_xlsx(findings: list) -> bytes:
         for c in row:
             # Force string type: openpyxl would otherwise store '='-leading text as a formula.
             c.data_type = "s"
+            # quotePrefix keeps Excel from treating the text as a formula when edited,
+            # without changing the stored value.
+            if needs_quote_prefix(c.value):
+                c.quotePrefix = True
             c.font = body_font
             c.border = border
             c.alignment = Alignment(vertical="top", wrap_text=True, horizontal="right")
