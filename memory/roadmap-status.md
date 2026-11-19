@@ -556,3 +556,4 @@ VPC MULTIPLE template reworked as a smart template (2026-11-15, uncommitted): ne
 
 
 Smart templates for CSPM / HSPM / EOLM (2026-11-17): ✅ merged to main (local, not pushed) — branch feature/smart-templates-secr-config, includes SECR templates, VPC MULTIPLE template and the import popup offering smart templates. 12 templates in config-fill.js; browser QA passed with notes (placeholders in command examples are intentional, user decision). main.js v=243.
+- BL-35 (base chip contrast, dark theme): 🔍 awaiting merge approval — branch feature/bl-35-chip-contrast, 2026-11-19. Critical 3.44->5.57, low 4.45->5.33, info 4.03->5.70, ID cell 4.03/3.89->5.57/5.37 (dark); light unchanged; PDF unaffected; builder.css v=201.

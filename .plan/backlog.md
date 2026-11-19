@@ -45,7 +45,7 @@ Items are organized into 4 tiers in execution order. Within each tier, the order
 | — | BL-32 | Temporary Label in Exceptions Overview | Low | ✅ **DONE 2026-11-10** — `temporary` flag + "זמני" chip in the Exceptions list |
 | — | BL-33 | Check `app.pid` / App Log Leftovers | Low | ✅ **DONE 2026-11-19** — document + gitignore only; no code/script added |
 | — | BL-34 | Keep Finding Anchors After PDF Card Splitting | Medium | ✅ **DONE 2026-11-10** — splitter keeps the anchor on the first chunk (needs a `qa` PDF geometry check) |
-| — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | **UNSCHEDULED** — critical 3.43, info 4.03, low 4.42 are below 4.5:1; needs PDF/visual check |
+| — | BL-35 | Base Severity Chip Contrast on Dark Theme | Low | ✅ **DONE 2026-11-19** — dark-theme critical/low/info chips and the ID cell lightened to >= 4.5:1 (hue kept); screen UI only, PDF unaffected |
 | — | BL-36 | Translation Sweep for Remaining Hebrew in English Mode | Medium | **UNSCHEDULED** — several modules still show hard-coded Hebrew when the UI is English |
 | — | BL-37 | Server-Side Exclude Rules for Pipeline Scans | Medium | **UNSCHEDULED** — ExcludeRule is applied only in the browser import paths; pipeline scans ignore it |
 | — | BL-38 | Wiz Vulnerability Query Filters (Exploit / Fix+Runtime / High+Critical) | Medium | ✅ **DONE 2026-11-10** — filters always embedded in the browser vuln import; also resource cap (5 + "ועוד N..."), Wiz `Reference:` link and a `path` exclude-rule field |
@@ -336,10 +336,11 @@ _Each BL-XX section below contains the full spec for that item. Read the spec be
 **Effort:** Medium
 **Notes:** Candidate fix: keep the id on the first chunk of each split card. Needs `qa` before/after and the PDF geometry check. Unrelated nits seen in the same pass: heading id `detailed-state.findings` (findings.js ~3689) looks like a typo; section numbering skips 3. Not implemented.
 
-### BL-35 · Base Severity Chip Contrast on Dark Theme (UNSCHEDULED)
+### BL-35 · Base Severity Chip Contrast on Dark Theme (✅ DONE 2026-11-19)
 **Why:** Found during the BL-23 follow-ups contrast pass (2026-11-09): the base severity chips on the dark theme fall below WCAG AA 4.5:1 for text: critical 3.43, info 4.03, low 4.42. The dimmed-row and exception/temporary/acknowledged controls were already fixed; the base chip colours were deliberately left alone.
 **Effort:** Low
-**Notes:** Also covers the non-dimmed ID cell (4.03:1 dark, 3.89:1 on the striped row). Fixing it changes the base chip colours everywhere they appear, so it needs a visual check in both themes and a PDF check (`qa` before/after) in case the chips are shared with print styles. Prove the CSS is live via getComputedStyle before editing. Not implemented.
+**Notes:** Also covers the non-dimmed ID cell (4.03:1 dark, 3.89:1 on the striped row). Fixing it changes the base chip colours everywhere they appear, so it needs a visual check in both themes and a PDF check (`qa` before/after) in case the chips are shared with print styles. Prove the CSS is live via getComputedStyle before editing.
+**Done (2026-11-19, branch feature/bl-35-chip-contrast):** verified live via getComputedStyle (msedge). Dark: critical oklch(0.58 0.22 15) -> (0.72 0.18 15) 3.44 -> 5.57; low (0.62 0.17 155) -> (0.68 0.165 155) 4.45 -> 5.33; info (0.6 0.02 220) -> (0.7 0.02 220) 4.03 -> 5.70; ID cell var(--accent) -> oklch(0.66 0.18 260) 4.03/3.89 (plain/striped) -> 5.57/5.37. Light theme untouched (all >= 4.59). Hues unchanged; critical/low lose a little chroma to stay in sRGB. PDF unaffected: the report builds its own inline stylesheet and never loads builder.css. builder.css v=201. Tests: tests/test_bl35_chip_contrast.py.
 
 ### BL-36 · Translation Sweep for Remaining Hebrew in English Mode (UNSCHEDULED)
 **Why:** After the BL-23 follow-ups i18n work (2026-11-09) the findings table and dashboard are translated, but other modules still show hard-coded Hebrew when the UI language is English.

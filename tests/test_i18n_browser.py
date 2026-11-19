@@ -325,11 +325,13 @@ def test_dimmed_row_id_cell_contrast_aa(page, theme):
         print("DIMMED_ID_CONTRAST", theme, round(dimmed["ratio"], 2), dimmed["color"])
         assert dimmed["opacity"] == 0.65
         assert dimmed["ratio"] >= 4.5, dimmed
-        # non-dimmed rows keep the base accent colour and full opacity
+        # non-dimmed rows: full opacity; light keeps the accent, dark uses the BL-35 lighter tone (>= 4.5:1)
         accent = page.evaluate("""() => { const p = document.createElement('span');
             p.style.color = 'var(--accent)'; document.body.appendChild(p);
             const c = getComputedStyle(p).color; p.remove(); return c; }""")
         for i in (0, 2, 3):
-            assert cells[i]["opacity"] == 1 and cells[i]["color"] == accent, (i, cells[i], accent)
+            expected = accent if theme == "light" else "oklch(0.66 0.18 260)"
+            assert cells[i]["opacity"] == 1 and cells[i]["color"] == expected, (i, cells[i], expected)
+            assert cells[i]["ratio"] >= 4.5, cells[i]
     finally:
         page.evaluate("document.documentElement.removeAttribute('data-theme')")
