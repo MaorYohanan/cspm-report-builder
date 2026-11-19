@@ -323,6 +323,16 @@ playwright install chromium --with-deps
 python app.py
 ```
 
+#### Background runs, `app.pid` and `app.log`
+
+Nothing in the repo creates or reads `app.pid` or `app.log`. If they appear in the project root, a shell launched the app in the background with its output redirected (the app logs JSON to stdout) and wrote the PID by hand. Both are gitignored and safe to delete. A leftover `app.pid` is often stale, so check before trusting it:
+
+```bash
+kill -0 "$(cat app.pid)" 2>/dev/null && echo running || echo "stale - delete app.pid"
+```
+
+Prefer running in the foreground (`python app.py`) or Docker (`docker compose up -d` / `docker compose down`, logs via `docker compose logs`).
+
 Frontend files (`index.html`, `static/`) are volume-mounted in Docker — edit and refresh. For backend changes (anything in `app.py` or `backend/`), rebuild:
 
 ```bash
