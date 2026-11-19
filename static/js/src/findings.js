@@ -12,6 +12,13 @@ import { ProductsPanel } from './products.js';
 import { memorySubscriptionsForSave, memorySubscriptionsForRemove, snapshotMemoryEntries, rollbackMemoryWrites } from './memory-match.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
 
+// Shared batch-delete confirmation (bulk bar button and the actions menu use the same dialog).
+function confirmBatchDelete(count) {
+  return styledConfirm(tFormat('למחוק {n} ממצאים?', { n: count }), {
+    icon: '🗑️', title: t('מחיקת ממצאים'), confirmText: t('מחק'), cancelText: t('ביטול'), danger: true
+  });
+}
+
 const addBtn        = document.getElementById('btn-add-finding');
 const cancelEditBtn = document.getElementById('btn-cancel-edit');
 const genBtn        = document.getElementById('btn-generate');
@@ -225,15 +232,15 @@ let priorityTouched = false;
 
         var content = '';
         if (state.activeDetailTab === 'description') {
-          content = f.description || 'אין תיאור';
+          content = f.description || t('אין תיאור');
         } else if (state.activeDetailTab === 'impact') {
-          content = f.impact || 'אין השפעה מוגדרת';
+          content = f.impact || t('אין השפעה מוגדרת');
         } else if (state.activeDetailTab === 'technical') {
-          content = Array.isArray(f.technical) ? f.technical.join('\n') : (f.technical || 'אין פרטים טכניים');
+          content = Array.isArray(f.technical) ? f.technical.join('\n') : (f.technical || t('אין פרטים טכניים'));
         } else if (state.activeDetailTab === 'recs') {
-          content = Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || 'אין המלצות');
+          content = Array.isArray(f.recs) ? f.recs.join('\n') : (f.recs || t('אין המלצות'));
         } else if (state.activeDetailTab === 'policies') {
-          content = Array.isArray(f.policies) && f.policies.length ? f.policies.join('\n') : 'אין תקנים';
+          content = Array.isArray(f.policies) && f.policies.length ? f.policies.join('\n') : t('אין תקנים');
         } else if (state.activeDetailTab === 'exception') {
           var isExc = !!(f.exception && f.exception.active);
           var reason = (f.exception && f.exception.reason) || '';
@@ -250,19 +257,19 @@ let priorityTouched = false;
           var notes = Array.isArray(f.notes) ? f.notes : (f.notes = []);
           var notesHtml = '<div class="detail-notes-container"><div class="detail-notes-messages" id="detail-notes-messages">';
           if (!notes.length) {
-            notesHtml += '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0;">אין הערות עדיין</div>';
+            notesHtml += '<div style="color:var(--text-muted);font-size:12px;text-align:center;padding:20px 0;">' + escapeHtml(t('אין הערות עדיין')) + '</div>';
           } else {
             notes.forEach(function(n, i) {
               notesHtml += '<div class="detail-note-msg">' +
-                '<span class="note-delete" data-note-idx="' + i + '" title="מחק">✕</span>' +
+                '<span class="note-delete" data-note-idx="' + i + '" title="' + escapeHtml(t('מחק')) + '">✕</span>' +
                 escapeHtml(n.text || '') +
                 '<span class="note-time">' + escapeHtml(n.time || '') + '</span>' +
                 '</div>';
             });
           }
           notesHtml += '</div><div class="detail-notes-input">' +
-            '<input type="text" id="detail-note-input" placeholder="הוסף הערה..." dir="rtl">' +
-            '<button id="btn-add-note">שלח</button>' +
+            '<input type="text" id="detail-note-input" placeholder="' + escapeHtml(t('הוסף הערה...')) + '" dir="rtl">' +
+            '<button id="btn-add-note">' + escapeHtml(t('שלח')) + '</button>' +
             '</div></div>';
           bodyEl.innerHTML = notesHtml;
 
@@ -676,6 +683,24 @@ let priorityTouched = false;
       }
 
       // ── Tab navigation ──
+      // Header title for a tab, in the current UI language (also used on a live language switch)
+      function contentTitleFor(tabId) {
+        var titles = {
+          'tab-dashboard': t('לוח בקרה'),
+          'tab-report-details': t('פרטי דו"ח'),
+          'tab-findings-list': t('ממצאים'),
+          'tab-finding-form': t('הוספת / עריכת ממצא'),
+          'tab-export': t('קבצים ודוחות'),
+          'tab-cloud-manager': t('קבצי שרת'),
+          'tab-wizi': 'Wiz Import',
+          'tab-products': t('מוצרים'),
+          'tab-pipeline': t('לוח סריקות'),
+          'tab-exceptions': t('רשימת חריגות'),
+          'tab-exclude-rules': t('רשימת סינון ממצאים')
+        };
+        return titles[tabId] || '';
+      }
+
       export function switchToTab(tabId) {
         document.querySelectorAll('.sidebar-item').forEach(function(btn) {
           btn.classList.remove('active');
@@ -693,21 +718,8 @@ let priorityTouched = false;
           if (panel) panel.classList.add('active');
         }
         // Update content title
-        var titleMap = {
-          'tab-dashboard': 'לוח בקרה',
-          'tab-report-details': 'פרטי דו"ח',
-          'tab-findings-list': 'ממצאים',
-          'tab-finding-form': 'הוספת / עריכת ממצא',
-          'tab-export': 'קבצים ודוחות',
-          'tab-cloud-manager': 'קבצי שרת',
-          'tab-wizi': 'Wiz Import',
-          'tab-products': 'מוצרים',
-          'tab-pipeline': 'לוח סריקות',
-          'tab-exceptions': 'רשימת חריגות',
-          'tab-exclude-rules': 'רשימת סינון ממצאים'
-        };
         var titleEl = document.getElementById('content-title');
-        if (titleEl && titleMap[tabId]) titleEl.textContent = titleMap[tabId];
+        if (titleEl && contentTitleFor(tabId)) titleEl.textContent = contentTitleFor(tabId);
         if (tabId === 'tab-dashboard') renderDashboard();
         // Keep accordion in sync for programmatic navigation (brand click, "show all", etc.)
         pinSectionForTab(tabId);
@@ -917,9 +929,11 @@ let priorityTouched = false;
           console.warn('Failed to load custom templates:', err);
         });
 
-      function t_filled() { return 'התבנית הופעלה — כל הנתונים הושלמו מהממצא'; }
+      function t_filled() { return t('התבנית הופעלה — כל הנתונים הושלמו מהממצא'); }
       function t_missing(names) {
-        return 'התבנית הופעלה — לא נמצאו נתונים עבור: ' + names.map(function(n) { return '<' + n + '>'; }).join(', ') + ' (יש להשלים ידנית)';
+        return tFormat('התבנית הופעלה — לא נמצאו נתונים עבור: {names} (יש להשלים ידנית)', {
+          names: names.map(function(n) { return '<' + n + '>'; }).join(', ')
+        });
       }
 
       templateSelect.addEventListener('change', function() {
@@ -1310,8 +1324,8 @@ let priorityTouched = false;
           startEditFinding(kbSelectedIdx);
         } else if ((e.key === 'd' || e.key === 'D') && kbSelectedIdx >= 0) {
           e.preventDefault();
-          styledConfirm('למחוק ממצא ' + (state.findings[kbSelectedIdx].id || '') + '?', {
-            icon: '🗑️', title: 'מחיקת ממצא', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+          styledConfirm(tFormat('למחוק ממצא {id}?', { id: state.findings[kbSelectedIdx].id || '' }), {
+            icon: '🗑️', title: t('מחיקת ממצא'), confirmText: t('מחק'), cancelText: t('ביטול'), danger: true
           }).then(function(yes) {
             if (yes) {
               saveToProductMemory(state.findings[kbSelectedIdx], 'deleted', (state.findings[kbSelectedIdx].exception && state.findings[kbSelectedIdx].exception.reason) || '');
@@ -1399,11 +1413,11 @@ let priorityTouched = false;
       // טעינת Snapshot לדו"ח
       export function applySnapshot(snapshot) {
         if (!snapshot || typeof snapshot !== 'object') {
-          alert('קובץ JSON לא תקין.');
+          alert(t('קובץ JSON לא תקין.'));
           return;
         }
         if (!snapshot.meta || !Array.isArray(snapshot.findings)) {
-          alert('קובץ JSON לא תואם לפורמט המחולל.');
+          alert(t('קובץ JSON לא תואם לפורמט המחולל.'));
           return;
         }
 
@@ -1538,9 +1552,9 @@ let priorityTouched = false;
 
             if (d.editingIndex !== null && d.editingIndex >= 0 && d.editingIndex < state.findings.length) {
               state.editingIndex = d.editingIndex;
-              addBtn.textContent = 'עדכן ממצא';
+              addBtn.textContent = t('עדכן ממצא');
               cancelEditBtn.style.display = 'inline-block';
-              editState.textContent = 'מצב: עריכת ממצא #' + (state.editingIndex + 1);
+              editState.textContent = tFormat('מצב: עריכת ממצא #{n}', { n: state.editingIndex + 1 });
             }
           }
         }
@@ -1552,8 +1566,8 @@ let priorityTouched = false;
         state.loadedVersionStatus = snapshot.status || null;
 
         statusMsg.textContent =
-          'נטען דו"ח קיים' +
-          (m.reportDate ? ' (תאריך דו"ח: ' + m.reportDate + ').' : '.');
+          t('נטען דו"ח קיים') +
+          (m.reportDate ? tFormat(' (תאריך דו"ח: {date}).', { date: m.reportDate }) : '.');
 
         // Update saved snapshot hash baseline (BL-30: dirty-state tracking)
         state.lastSavedSnapshotHash = _snapshotHash(snapshot);
@@ -1578,11 +1592,11 @@ let priorityTouched = false;
               if (!state.findings.length) {
                 tableWrapper.innerHTML = '<div class="empty-state">' +
                   '<div class="empty-state-icon">📋</div>' +
-                  '<div class="empty-state-text">אין עדיין ממצאים בדו"ח</div>' +
+                  '<div class="empty-state-text">' + escapeHtml(t('אין עדיין ממצאים בדו"ח')) + '</div>' +
                   '<div class="empty-state-actions">' +
-                    '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'tab-finding-form\').click()">➕ הוסף ממצא ידנית</button>' +
-                    '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'tab-wizi\').click()">🔍 ייבא מ-Wizi</button>' +
-                    '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'btn-import-csv\').click()">📄 ייבא CSV</button>' +
+                    '<button class="btn btn-primary btn-sm" onclick="document.getElementById(\'tab-finding-form\').click()">' + escapeHtml(t('➕ הוסף ממצא ידנית')) + '</button>' +
+                    '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'tab-wizi\').click()">' + escapeHtml(t('🔍 ייבא מ-Wizi')) + '</button>' +
+                    '<button class="btn btn-secondary btn-sm" onclick="document.getElementById(\'btn-import-csv\').click()">' + escapeHtml(t('📄 ייבא CSV')) + '</button>' +
                   '</div>' +
                 '</div>';
                 genBtn.disabled = true;
@@ -1766,7 +1780,7 @@ let priorityTouched = false;
                     input.style.fontSize = '12px';
                     input.style.padding = '4px 8px';
                     input.style.width = '100%';
-                    if (field === 'owner') input.placeholder = 'צוות / בעלים...';
+                    if (field === 'owner') input.placeholder = t('צוות / בעלים...');
                     cell.textContent = '';
                     cell.appendChild(input);
                     input.focus();
@@ -1940,9 +1954,7 @@ let priorityTouched = false;
       document.getElementById('btn-batch-delete').addEventListener('click', function() {
         var indices = getSelectedFindingIndices().sort(function(a, b) { return b - a; });
         if (!indices.length) return;
-        styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
-          icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
-        }).then(function(yes) {
+        confirmBatchDelete(indices.length).then(function(yes) {
           if (!yes) return;
           indices.forEach(function(idx) {
             saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
@@ -2104,7 +2116,7 @@ let priorityTouched = false;
 
       export function resetEditState() {
         state.editingIndex = null;
-        addBtn.textContent = 'הוסף ממצא לרשימה';
+        addBtn.textContent = t('הוסף ממצא לרשימה');
         cancelEditBtn.style.display = 'none';
         editState.textContent = '';
         clearFindingForm();
@@ -2192,9 +2204,9 @@ let priorityTouched = false;
           clearEvidencePreview();
         }
 
-        addBtn.textContent = 'עדכן ממצא';
+        addBtn.textContent = t('עדכן ממצא');
         cancelEditBtn.style.display = 'inline-block';
-        editState.textContent = 'מצב: עריכת ממצא #' + (idx + 1);
+        editState.textContent = tFormat('מצב: עריכת ממצא #{n}', { n: idx + 1 });
 
         // Scroll to form and focus title
         switchToTab('tab-finding-form');
@@ -2249,7 +2261,7 @@ let priorityTouched = false;
         var html = '';
         pendingEvidenceList.forEach(function(dataUrl, idx) {
           html += '<span class="evidence-thumb" style="display:inline-block;position:relative;margin-left:8px;margin-bottom:6px;">' +
-            '<img src="' + dataUrl + '" alt="הוכחה ' + (idx + 1) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);vertical-align:middle;">' +
+            '<img src="' + dataUrl + '" alt="' + escapeHtml(tFormat('הוכחה {n}', { n: idx + 1 })) + '" style="max-width:120px;max-height:80px;border-radius:6px;border:1px solid var(--border);vertical-align:middle;">' +
             '<span class="clear-btn" data-evidence-idx="' + idx + '" style="position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;cursor:pointer;">✕</span>' +
             '</span>';
         });
@@ -2328,7 +2340,7 @@ let priorityTouched = false;
         const owner       = document.getElementById('f-owner').value.trim();
 
         if (!id || !title) {
-          alert('מזהה וכותרת הם שדות חובה.');
+          alert(t('מזהה וכותרת הם שדות חובה.'));
           return;
         }
 
@@ -2474,9 +2486,7 @@ let priorityTouched = false;
             showToast(t('לא נבחרו ממצאים'), 'warning');
             return;
           }
-          styledConfirm('למחוק ' + indices.length + ' ממצאים?', {
-            icon: '🗑️', title: 'מחיקת ממצאים', confirmText: 'מחק', cancelText: 'ביטול', danger: true
-          }).then(function(yes) {
+          confirmBatchDelete(indices.length).then(function(yes) {
             if (!yes) return;
             indices.forEach(function(idx) {
               saveToProductMemory(state.findings[idx], 'deleted', (state.findings[idx].exception && state.findings[idx].exception.reason) || '');
@@ -2494,15 +2504,15 @@ let priorityTouched = false;
       // Clear all state.findings
       document.getElementById('btn-clear-all-findings').addEventListener('click', function() {
         if (!state.findings.length) return;
-        styledConfirm('למחוק את כל ' + state.findings.length + ' הממצאים?', {
-          icon: '🗑️', title: 'מחיקת כל הממצאים', confirmText: 'מחק הכל', cancelText: 'ביטול', danger: true
+        styledConfirm(tFormat('למחוק את כל {n} הממצאים?', { n: state.findings.length }), {
+          icon: '🗑️', title: t('מחיקת כל הממצאים'), confirmText: t('מחק הכל'), cancelText: t('ביטול'), danger: true
         }).then(function(yes) {
           if (!yes) return;
           state.findings.length = 0;
           resetEditState();
           renderFindingsTable();
           prefillId();
-          statusMsg.textContent = 'כל הממצאים נמחקו.';
+          statusMsg.textContent = t('כל הממצאים נמחקו.');
         });
       });
 
@@ -2569,7 +2579,7 @@ let priorityTouched = false;
       // Clear form
       document.getElementById('btn-clear-form').addEventListener('click', function() {
         resetEditState();
-        statusMsg.textContent = 'הטופס נוקה.';
+        statusMsg.textContent = t('הטופס נוקה.');
       });
 
       // Build a dynamic filename from client name, cloud, env stages, and report date
@@ -2613,8 +2623,8 @@ let priorityTouched = false;
       export function showCoverPreview(dataUrl) {
         coverImageDataUrl = dataUrl;
         coverImagePreview.innerHTML =
-          '<img src="' + dataUrl + '" alt="תצוגה מקדימה של תמונת שער" style="max-width:300px;max-height:180px;border-radius:8px;border:1px solid var(--border);">' +
-          '<span class="clear-btn" id="clear-cover-image">✕ חזור לברירת מחדל</span>';
+          '<img src="' + dataUrl + '" alt="' + escapeHtml(t('תצוגה מקדימה של תמונת שער')) + '" style="max-width:300px;max-height:180px;border-radius:8px;border:1px solid var(--border);">' +
+          '<span class="clear-btn" id="clear-cover-image">' + escapeHtml(t('✕ חזור לברירת מחדל')) + '</span>';
         document.getElementById('clear-cover-image').addEventListener('click', function() {
           coverImageDataUrl = defaultCoverImageDataUrl;
           coverImagePreview.innerHTML = '';
@@ -4008,7 +4018,7 @@ ${draftWatermarkStyle}
 
       genBtn.addEventListener('click', function() {
         if (!state.findings.length) {
-          alert('אין ממצאים לייצוא.');
+          alert(t('אין ממצאים לייצוא.'));
           return;
         }
         const severitySortChk = document.getElementById('chk-severity-sort');
@@ -4016,18 +4026,18 @@ ${draftWatermarkStyle}
         const html = buildReportHtml({ isDraft: state.loadedVersionStatus === 'draft', severitySort });
         const win = window.open('', '_blank');
         if (!win) {
-          alert('הדפדפן חסם פתיחת חלון. צריך לאפשר Popups לדף הזה.');
+          alert(t('הדפדפן חסם פתיחת חלון. צריך לאפשר Popups לדף הזה.'));
           return;
         }
         win.document.open();
         win.document.write(html);
         win.document.close();
-        statusMsg.textContent = 'נוצר דו"ח בחלון חדש. אפשר להדפיס ל-PDF.';
+        statusMsg.textContent = t('נוצר דו"ח בחלון חדש. אפשר להדפיס ל-PDF.');
       });
 
       dlBtn.addEventListener('click', function() {
         if (!state.findings.length) {
-          alert('אין ממצאים לייצוא.');
+          alert(t('אין ממצאים לייצוא.'));
           return;
         }
         const severitySortChk = document.getElementById('chk-severity-sort');
@@ -4042,7 +4052,7 @@ ${draftWatermarkStyle}
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        statusMsg.textContent = 'קובץ HTML של הדו"ח ירד למחשב – אפשר לפתוח/לערוך אותו כרצונך.';
+        statusMsg.textContent = t('קובץ HTML של הדו"ח ירד למחשב – אפשר לפתוח/לערוך אותו כרצונך.');
         try { localStorage.setItem('cspm_has_exported', '1'); } catch(e) {}
         updateStepper();
       });
@@ -4061,7 +4071,7 @@ ${draftWatermarkStyle}
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        statusMsg.textContent = 'תצורת הדו"ח יוצאה כקובץ JSON (meta + ממצאים).';
+        statusMsg.textContent = t('תצורת הדו"ח יוצאה כקובץ JSON (meta + ממצאים).');
       });
 
       // ── AI Exception Reason Improver — Add Finding form ──────────────────────
@@ -4074,7 +4084,8 @@ ${draftWatermarkStyle}
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-ai btn-sm';
-        btn.textContent = '✨ שפר ניסוח';
+        btn.textContent = t('✨ שפר ניסוח');
+        btn.setAttribute('data-i18n', '✨ שפר ניסוח'); // a language switch re-translates from this key
         btn.style.marginTop = '6px';
 
         var row = document.createElement('div');
@@ -4093,12 +4104,12 @@ ${draftWatermarkStyle}
           if (!textarea) return;
           var text = textarea.value.trim();
           statusSpan.textContent = '';
-          if (!text) { statusSpan.textContent = 'אין טקסט לשיפור.'; return; }
+          if (!text) { statusSpan.textContent = t('אין טקסט לשיפור.'); return; }
           var modelSelect = document.getElementById('ai-model');
           var model = (modelSelect && modelSelect.value) || '';
 
           btn.disabled = true;
-          btn.textContent = '⏳ משפר...';
+          btn.textContent = t('⏳ משפר...');
 
           fetch('/api/suggest', {
             method: 'POST',
@@ -4119,7 +4130,7 @@ ${draftWatermarkStyle}
           })
           .finally(function() {
             btn.disabled = false;
-            btn.textContent = '✨ שפר ניסוח';
+            btn.textContent = t('✨ שפר ניסוח');
           });
         });
       }
@@ -4134,7 +4145,8 @@ ${draftWatermarkStyle}
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-ai btn-sm';
-        btn.textContent = '✨ שפר ניסוח';
+        btn.textContent = t('✨ שפר ניסוח');
+        btn.setAttribute('data-i18n', '✨ שפר ניסוח'); // a language switch re-translates from this key
         btn.style.marginTop = '6px';
 
         var row = document.createElement('div');
@@ -4159,12 +4171,12 @@ ${draftWatermarkStyle}
           if (!ta) return;
           var text = ta.value.trim();
           statusSpan.textContent = '';
-          if (!text) { statusSpan.textContent = 'אין טקסט לשיפור.'; return; }
+          if (!text) { statusSpan.textContent = t('אין טקסט לשיפור.'); return; }
           var modelSelect = document.getElementById('ai-model');
           var model = (modelSelect && modelSelect.value) || '';
 
           btn.disabled = true;
-          btn.textContent = '⏳ משפר...';
+          btn.textContent = t('⏳ משפר...');
 
           fetch('/api/suggest', {
             method: 'POST',
@@ -4185,7 +4197,7 @@ ${draftWatermarkStyle}
           })
           .finally(function() {
             btn.disabled = false;
-            btn.textContent = '✨ שפר ניסוח';
+            btn.textContent = t('✨ שפר ניסוח');
           });
         });
       }
@@ -4277,6 +4289,15 @@ document.addEventListener(LANG_CHANGE_EVENT, function() {
   var focusInDlg = !!(dlgOpen && dlg.contains(document.activeElement));
   renderFindingsTable();
   renderDashboard(); // recent-findings table uses t() for severity chips and headers
+  // Header title (JS-set per tab, so setLang's data-i18n pass cannot know the right key)
+  var activeTab = document.querySelector('.sidebar-item[aria-selected="true"]');
+  var titleEl = document.getElementById('content-title');
+  if (activeTab && titleEl && contentTitleFor(activeTab.id)) titleEl.textContent = contentTitleFor(activeTab.id);
+  // Add / update button and edit-mode caption while a finding is being edited
+  if (state.editingIndex !== null && state.editingIndex >= 0) {
+    addBtn.textContent = t('עדכן ממצא');
+    editState.textContent = tFormat('מצב: עריכת ממצא #{n}', { n: state.editingIndex + 1 });
+  }
   if (state.selectedFindingIndex !== null && state.findings[state.selectedFindingIndex]) {
     showFindingDetail(state.selectedFindingIndex); // closes the reason dialog; reopened below
   }

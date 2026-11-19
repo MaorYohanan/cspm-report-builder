@@ -8,6 +8,7 @@ import {
   attachExceptionReasonButton_AddForm, attachExceptionReasonButton_DetailPane
 } from './findings.js';
 import { updateStepper } from './ui.js';
+import { t, tFormat, LANG_CHANGE_EVENT } from './i18n.js';
 import { stripInternalExportFields, omitAcknowledgedFindings } from './export-sanitize.js';
 
 const importJsonBtn   = document.getElementById('btn-import-json');
@@ -19,7 +20,7 @@ const dateInput       = document.getElementById('report-date');
       // ── ייצוא ממצאים כ-CSV ──
       document.getElementById('btn-export-csv').addEventListener('click', function() {
         if (!state.findings.length) {
-          showToast('אין ממצאים לייצוא', 'warning');
+          showToast(t('אין ממצאים לייצוא'), 'warning');
           return;
         }
 
@@ -75,8 +76,8 @@ const dateInput       = document.getElementById('report-date');
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        showToast('יוצאו ' + state.findings.length + ' ממצאים ל-CSV', 'success');
-        statusMsg.textContent = 'יוצאו ' + state.findings.length + ' ממצאים לקובץ CSV.';
+        showToast(tFormat('יוצאו {n} ממצאים ל-CSV', { n: state.findings.length }), 'success');
+        statusMsg.textContent = tFormat('יוצאו {n} ממצאים לקובץ CSV.', { n: state.findings.length });
       });
 
       // ── דו"ח חדש — ניקוי הכל ──
@@ -87,8 +88,8 @@ const dateInput       = document.getElementById('report-date');
           document.querySelectorAll('input[name="report-env-stage"]:checked').length > 0;
         
         if (!hasData) { doNewReport(); return; }
-        styledConfirm('האם לנקות את כל הדו"ח ולהתחיל מחדש?<br>כל הנתונים שלא נשמרו יאבדו.', {
-          icon: '🗑️', title: 'דו"ח חדש', confirmText: 'נקה והתחל מחדש', cancelText: 'ביטול', danger: true
+        styledConfirm(t('האם לנקות את כל הדו"ח ולהתחיל מחדש?<br>כל הנתונים שלא נשמרו יאבדו.'), {
+          icon: '🗑️', title: t('דו"ח חדש'), confirmText: t('נקה והתחל מחדש'), cancelText: t('ביטול'), danger: true
         }).then(function(yes) {
           if (yes) doNewReport();
         });
@@ -147,8 +148,8 @@ const dateInput       = document.getElementById('report-date');
         state.bulkImportRunning = false;
 
         switchToTab('tab-report-details');
-        showToast('הדו"ח נוקה — מוכן להתחלה חדשה', 'success');
-        statusMsg.textContent = 'דו"ח חדש — מוכן להתחלה.';
+        showToast(t('הדו"ח נוקה — מוכן להתחלה חדשה'), 'success');
+        statusMsg.textContent = t('דו"ח חדש — מוכן להתחלה.');
       }
 
       // פתיחת דיאלוג טעינת JSON
@@ -168,7 +169,7 @@ const dateInput       = document.getElementById('report-date');
             applySnapshot(snapshot);
           } catch (e) {
             console.error(e);
-            alert('קריאת קובץ JSON נכשלה. ודא שהקובץ נוצר מהמחולל.');
+            alert(t('קריאת קובץ JSON נכשלה. ודא שהקובץ נוצר מהמחולל.'));
           } finally {
             importJsonInput.value = ''; // לנקות לחיצה הבאה
           }
@@ -252,7 +253,7 @@ const dateInput       = document.getElementById('report-date');
         reader.onload = function(ev) {
           try {
             var rows = parseCSV(ev.target.result);
-            if (rows.length < 2) { alert('קובץ CSV ריק או ללא שורות נתונים.'); return; }
+            if (rows.length < 2) { alert(t('קובץ CSV ריק או ללא שורות נתונים.')); return; }
             var headers = rows[0].map(function(h) { return h.toLowerCase().trim(); });
 
             // Detect Wiz cloud configuration format
@@ -360,7 +361,7 @@ const dateInput       = document.getElementById('report-date');
               var colOwner = headers.findIndex(function(h) { return h === 'owner' || h === 'בעלים' || h === 'team' || h === 'צוות'; });
 
               if (colTitle === -1) {
-                alert('לא נמצאה עמודת כותרת (title/name/issue) ב-CSV.');
+                alert(t('לא נמצאה עמודת כותרת (title/name/issue) ב-CSV.'));
                 return;
               }
 
@@ -391,11 +392,11 @@ const dateInput       = document.getElementById('report-date');
             renderFindingsTable();
             prefillId();
             switchToTab('tab-findings-list');
-            statusMsg.textContent = 'יובאו ' + count + ' ממצאים מ-CSV' + (isWiz ? ' (Wiz format)' : '') + '. סה״כ: ' + state.findings.length;
-            showToast('יובאו ' + count + ' ממצאים מ-CSV', 'success');
+            statusMsg.textContent = tFormat('יובאו {n} ממצאים מ-CSV', { n: count }) + (isWiz ? ' (Wiz format)' : '') + '. ' + tFormat('סה״כ: {n}', { n: state.findings.length });
+            showToast(tFormat('יובאו {n} ממצאים מ-CSV', { n: count }), 'success');
           } catch (e) {
             console.error(e);
-            alert('שגיאה בקריאת CSV.');
+            alert(t('שגיאה בקריאת CSV.'));
           } finally {
             importCsvInput.value = '';
           }
@@ -422,15 +423,18 @@ const dateInput       = document.getElementById('report-date');
           try {
             var baseline = JSON.parse(ev.target.result);
             if (!baseline.findings || !Array.isArray(baseline.findings)) {
-              alert('קובץ JSON לא תואם לפורמט המחולל.'); return;
+              alert(t('קובץ JSON לא תואם לפורמט המחולל.')); return;
             }
             _loadedBaseline = baseline;
             showTrendComparison(baseline.findings);
-          } catch(e) { alert('שגיאה בקריאת קובץ JSON.'); }
+          } catch(e) { alert(t('שגיאה בקריאת קובץ JSON.')); }
           finally { baselineInput.value = ''; }
         };
         reader.readAsText(file, 'utf-8');
       });
+
+      // Severity label in the current UI language (state.severityMap texts are the Hebrew keys)
+      function sevText(sev) { return escapeHtml(t(sev.text)); }
 
       function showTrendComparison(baselineFindings) {
         var prevIds = {};
@@ -445,37 +449,37 @@ const dateInput       = document.getElementById('report-date');
         });
 
         var html = '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:8px;">';
-        html += '<h3 style="margin-top:0;">📊 השוואה לדו"ח קודם</h3>';
-        html += '<p class="muted small-text">בסיס: ' + baselineFindings.length + ' ממצאים | נוכחי: ' + state.findings.length + ' ממצאים</p>';
+        html += '<h3 style="margin-top:0;">' + escapeHtml(t('📊 השוואה לדו"ח קודם')) + '</h3>';
+        html += '<p class="muted small-text">' + escapeHtml(tFormat('בסיס: {base} ממצאים | נוכחי: {curr} ממצאים', { base: baselineFindings.length, curr: state.findings.length })) + '</p>';
 
         // Summary chips
         html += '<div style="display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;">';
-        html += '<span class="severity-chip sev-high">חדשים: ' + newFindings.length + '</span>';
-        html += '<span class="severity-chip sev-low">נסגרו: ' + resolvedFindings.length + '</span>';
-        html += '<span class="severity-chip sev-medium">שינוי חומרה: ' + sevChanged.length + '</span>';
+        html += '<span class="severity-chip sev-high">' + escapeHtml(t('חדשים:')) + ' ' + newFindings.length + '</span>';
+        html += '<span class="severity-chip sev-low">' + escapeHtml(t('נסגרו:')) + ' ' + resolvedFindings.length + '</span>';
+        html += '<span class="severity-chip sev-medium">' + escapeHtml(t('שינוי חומרה:')) + ' ' + sevChanged.length + '</span>';
         html += '</div>';
 
         if (newFindings.length) {
-          html += '<h3>ממצאים חדשים</h3><ul class="small-text">';
+          html += '<h3>' + escapeHtml(t('ממצאים חדשים')) + '</h3><ul class="small-text">';
           newFindings.forEach(function(f) {
             var sev = state.severityMap[f.severity] || state.severityMap.medium;
-            html += '<li><span class="severity-chip ' + sev.class + '" style="font-size:10px;padding:1px 6px;">' + sev.text + '</span> ' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</li>';
+            html += '<li><span class="severity-chip ' + sev.class + '" style="font-size:10px;padding:1px 6px;">' + sevText(sev) + '</span> ' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</li>';
           });
           html += '</ul>';
         }
         if (resolvedFindings.length) {
-          html += '<h3>ממצאים שנסגרו</h3><ul class="small-text">';
+          html += '<h3>' + escapeHtml(t('ממצאים שנסגרו')) + '</h3><ul class="small-text">';
           resolvedFindings.forEach(function(f) {
             html += '<li style="text-decoration:line-through;color:var(--text-muted);">' + escapeHtml(f.id) + ' – ' + escapeHtml(f.title) + '</li>';
           });
           html += '</ul>';
         }
         if (sevChanged.length) {
-          html += '<h3>שינויי חומרה</h3><ul class="small-text">';
+          html += '<h3>' + escapeHtml(t('שינויי חומרה')) + '</h3><ul class="small-text">';
           sevChanged.forEach(function(f) {
             var prev = state.severityMap[prevIds[f.id].severity] || state.severityMap.medium;
             var curr = state.severityMap[f.severity] || state.severityMap.medium;
-            html += '<li>' + escapeHtml(f.id) + ': <span class="severity-chip ' + prev.class + '" style="font-size:10px;padding:1px 6px;">' + prev.text + '</span> → <span class="severity-chip ' + curr.class + '" style="font-size:10px;padding:1px 6px;">' + curr.text + '</span></li>';
+            html += '<li>' + escapeHtml(f.id) + ': <span class="severity-chip ' + prev.class + '" style="font-size:10px;padding:1px 6px;">' + sevText(prev) + '</span> → <span class="severity-chip ' + curr.class + '" style="font-size:10px;padding:1px 6px;">' + sevText(curr) + '</span></li>';
           });
           html += '</ul>';
         }
@@ -483,6 +487,11 @@ const dateInput       = document.getElementById('report-date');
         trendContainer.innerHTML = html;
         trendContainer.style.display = 'block';
       }
+
+      // The panel is rendered with t(): rebuild it when the UI language changes
+      document.addEventListener(LANG_CHANGE_EVENT, function() {
+        if (_loadedBaseline && trendContainer.style.display === 'block') showTrendComparison(_loadedBaseline.findings);
+      });
 
       // --- Auto-save to localStorage ---
       const AUTOSAVE_KEY = 'cspm_report_autosave';
@@ -497,7 +506,7 @@ const dateInput       = document.getElementById('report-date');
       }
 
       autosaveIndicator.style.cursor = 'pointer';
-      autosaveIndicator.title = 'לחץ לשמירה ידנית';
+      autosaveIndicator.title = t('לחץ לשמירה ידנית');
       autosaveIndicator.addEventListener('click', function() {
         autoSaveImmediate();
       });
@@ -506,7 +515,7 @@ const dateInput       = document.getElementById('report-date');
         if (autoSaveInProgress) return; // Prevent overlapping saves
         
         autoSaveInProgress = true;
-        showAutosaveStatus('💾 שומר...', true);
+        showAutosaveStatus('💾 ' + t('שומר...'), true);
         
         try {
           const snapshot = buildSnapshot();
@@ -515,11 +524,11 @@ const dateInput       = document.getElementById('report-date');
           var hh = String(now.getHours()).padStart(2, '0');
           var mm = String(now.getMinutes()).padStart(2, '0');
           var ss = String(now.getSeconds()).padStart(2, '0');
-          showAutosaveStatus('💾 נשמר ' + hh + ':' + mm + ':' + ss, false);
+          showAutosaveStatus('💾 ' + t('נשמר') + ' ' + hh + ':' + mm + ':' + ss, false);
         } catch (e) {
           if (e.name === 'QuotaExceededError') {
-            showAutosaveStatus('⚠️ אחסון מלא - ייצא JSON', false);
-            showToast('שגיאה: אחסון מלא. ייצא את הדו"ח כ-JSON.', 'error');
+            showAutosaveStatus('⚠️ ' + t('אחסון מלא - ייצא JSON'), false);
+            showToast(t('שגיאה: אחסון מלא. ייצא את הדו"ח כ-JSON.'), 'error');
           }
           // Ignore other errors (private mode, etc.)
         } finally {
@@ -546,7 +555,7 @@ const dateInput       = document.getElementById('report-date');
             (Array.isArray(snapshot.findings) && snapshot.findings.length > 0) || hasDraft
           )) {
             applySnapshot(snapshot);
-            statusMsg.textContent = 'שוחזר אוטומטית מהשמירה האחרונה.';
+            statusMsg.textContent = t('שוחזר אוטומטית מהשמירה האחרונה.');
             return true;
           }
         } catch (e) { /* corrupt data — ignore */ }
@@ -582,10 +591,10 @@ const dateInput       = document.getElementById('report-date');
         data['report-env-stage'] = [...document.querySelectorAll('input[name="report-env-stage"]:checked')].map(function(cb) { return cb.value; }).join(',');
         try {
           localStorage.setItem(DEFAULTS_KEY, JSON.stringify(data));
-          defaultsStatus.textContent = '✓ ברירת מחדל נשמרה';
+          defaultsStatus.textContent = t('✓ ברירת מחדל נשמרה');
           setTimeout(function() { defaultsStatus.textContent = ''; }, 3000);
         } catch (e) {
-          defaultsStatus.textContent = 'שגיאה בשמירה';
+          defaultsStatus.textContent = t('שגיאה בשמירה');
         }
       }
 
@@ -593,7 +602,7 @@ const dateInput       = document.getElementById('report-date');
         try {
           var raw = localStorage.getItem(DEFAULTS_KEY);
           if (!raw) {
-            defaultsStatus.textContent = 'אין ברירת מחדל שמורה';
+            defaultsStatus.textContent = t('אין ברירת מחדל שמורה');
             setTimeout(function() { defaultsStatus.textContent = ''; }, 3000);
             return false;
           }
@@ -611,7 +620,7 @@ const dateInput       = document.getElementById('report-date');
               cb.checked = stages.includes(cb.value);
             });
           }
-          defaultsStatus.textContent = '✓ ברירת מחדל נטענה';
+          defaultsStatus.textContent = t('✓ ברירת מחדל נטענה');
           setTimeout(function() { defaultsStatus.textContent = ''; }, 3000);
           return true;
         } catch (e) { return false; }
@@ -619,7 +628,7 @@ const dateInput       = document.getElementById('report-date');
 
       function clearDefaults() {
         localStorage.removeItem(DEFAULTS_KEY);
-        defaultsStatus.textContent = '✓ ברירת מחדל נמחקה';
+        defaultsStatus.textContent = t('✓ ברירת מחדל נמחקה');
         setTimeout(function() { defaultsStatus.textContent = ''; }, 3000);
       }
 
@@ -708,8 +717,8 @@ const dateInput       = document.getElementById('report-date');
       // --- Render PDF via server ---
       if (renderPdfBtn) {
         renderPdfBtn.addEventListener('click', async function() {
-          if (!state.findings.length) { showToast('אין ממצאים לייצוא', 'warning'); return; }
-          statusMsg.textContent = 'מייצר PDF בשרת...';
+          if (!state.findings.length) { showToast(t('אין ממצאים לייצוא'), 'warning'); return; }
+          statusMsg.textContent = t('מייצר PDF בשרת...');
           renderPdfBtn.disabled = true;
           renderPdfBtn.classList.add('btn-loading');
           try {
@@ -759,14 +768,14 @@ const dateInput       = document.getElementById('report-date');
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            statusMsg.textContent = 'PDF נוצר והורד בהצלחה.';
-            showToast('PDF נוצר והורד בהצלחה', 'success');
+            statusMsg.textContent = t('PDF נוצר והורד בהצלחה.');
+            showToast(t('PDF נוצר והורד בהצלחה'), 'success');
             try { localStorage.setItem('cspm_has_exported', '1'); } catch(e) {}
             updateStepper();
             refreshOutputsList();
           } catch (e) {
-            statusMsg.textContent = 'שגיאה ביצירת PDF: ' + e.message;
-            showToast('שגיאה ביצירת PDF', 'error');
+            statusMsg.textContent = tFormat('שגיאה ביצירת PDF: {msg}', { msg: e.message });
+            showToast(t('שגיאה ביצירת PDF'), 'error');
           } finally {
             renderPdfBtn.disabled = !state.findings.length;
             renderPdfBtn.classList.remove('btn-loading');
@@ -777,8 +786,8 @@ const dateInput       = document.getElementById('report-date');
       // --- Export interactive HTML via server ---
       if (exportHtmlBtn) {
         exportHtmlBtn.addEventListener('click', async function() {
-          if (!state.findings.length) { showToast('אין ממצאים לייצוא', 'warning'); return; }
-          statusMsg.textContent = 'מייצר HTML אינטראקטיבי...';
+          if (!state.findings.length) { showToast(t('אין ממצאים לייצוא'), 'warning'); return; }
+          statusMsg.textContent = t('מייצר HTML אינטראקטיבי...');
           exportHtmlBtn.disabled = true;
           try {
             const snapshot = buildSnapshot();
@@ -789,7 +798,7 @@ const dateInput       = document.getElementById('report-date');
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
-              throw new Error(err.error || 'שגיאת שרת');
+              throw new Error(err.error || t('שגיאת שרת'));
             }
             const blob = await resp.blob();
             const url = URL.createObjectURL(blob);
@@ -800,11 +809,11 @@ const dateInput       = document.getElementById('report-date');
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            statusMsg.textContent = 'HTML אינטראקטיבי הורד בהצלחה.';
-            showToast('HTML אינטראקטיבי הורד בהצלחה', 'success');
+            statusMsg.textContent = t('HTML אינטראקטיבי הורד בהצלחה.');
+            showToast(t('HTML אינטראקטיבי הורד בהצלחה'), 'success');
           } catch (e) {
-            statusMsg.textContent = 'שגיאה בייצוא HTML: ' + e.message;
-            showToast('שגיאה בייצוא HTML אינטראקטיבי', 'error');
+            statusMsg.textContent = tFormat('שגיאה בייצוא HTML: {msg}', { msg: e.message });
+            showToast(t('שגיאה בייצוא HTML אינטראקטיבי'), 'error');
           } finally {
             exportHtmlBtn.disabled = !state.findings.length;
           }
@@ -814,8 +823,8 @@ const dateInput       = document.getElementById('report-date');
       // --- Export ZIP bundle (PDF + findings JSON) via server ---
       if (exportZipBtn) {
         exportZipBtn.addEventListener('click', async function() {
-          if (!state.findings.length) { showToast('אין ממצאים לייצוא', 'warning'); return; }
-          statusMsg.textContent = 'מייצר חבילת ZIP...';
+          if (!state.findings.length) { showToast(t('אין ממצאים לייצוא'), 'warning'); return; }
+          statusMsg.textContent = t('מייצר חבילת ZIP...');
           exportZipBtn.disabled = true;
           exportZipBtn.classList.add('btn-loading');
           try {
@@ -845,7 +854,7 @@ const dateInput       = document.getElementById('report-date');
             });
             if (!resp.ok) {
               const err = await resp.json().catch(() => ({}));
-              throw new Error(err.error || 'שגיאת שרת');
+              throw new Error(err.error || t('שגיאת שרת'));
             }
             const blob = await resp.blob();
             const url = URL.createObjectURL(blob);
@@ -856,13 +865,13 @@ const dateInput       = document.getElementById('report-date');
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            statusMsg.textContent = 'חבילת ZIP הורדה בהצלחה.';
-            showToast('חבילת ZIP הורדה בהצלחה', 'success');
+            statusMsg.textContent = t('חבילת ZIP הורדה בהצלחה.');
+            showToast(t('חבילת ZIP הורדה בהצלחה'), 'success');
             try { localStorage.setItem('cspm_has_exported', '1'); } catch(e) {}
             updateStepper();
           } catch (e) {
-            statusMsg.textContent = 'שגיאה בייצוא ZIP: ' + e.message;
-            showToast('שגיאה בייצוא ZIP', 'error');
+            statusMsg.textContent = tFormat('שגיאה בייצוא ZIP: {msg}', { msg: e.message });
+            showToast(t('שגיאה בייצוא ZIP'), 'error');
           } finally {
             exportZipBtn.disabled = !state.findings.length;
             exportZipBtn.classList.remove('btn-loading');
@@ -882,10 +891,10 @@ const dateInput       = document.getElementById('report-date');
             });
             if (!resp.ok) throw new Error('Upload failed');
             const result = await resp.json();
-            statusMsg.textContent = 'תצורה נשמרה בשרת (ID: ' + result.id + ')';
+            statusMsg.textContent = tFormat('תצורה נשמרה בשרת (ID: {id})', { id: result.id });
             refreshStatesList();
           } catch (e) {
-            statusMsg.textContent = 'שגיאה בשמירה: ' + e.message;
+            statusMsg.textContent = tFormat('שגיאה בשמירה: {msg}', { msg: e.message });
           }
         });
       }
@@ -901,10 +910,10 @@ const dateInput       = document.getElementById('report-date');
             const resp = await fetch('/api/upload-state', { method: 'POST', body: formData });
             if (!resp.ok) throw new Error('Upload failed');
             const result = await resp.json();
-            statusMsg.textContent = 'קובץ תצורה הועלה (ID: ' + result.id + ')';
+            statusMsg.textContent = tFormat('קובץ תצורה הועלה (ID: {id})', { id: result.id });
             refreshStatesList();
           } catch (e) {
-            statusMsg.textContent = 'שגיאה בהעלאה: ' + e.message;
+            statusMsg.textContent = tFormat('שגיאה בהעלאה: {msg}', { msg: e.message });
           } finally {
             cloudUploadStateInput.value = '';
           }
@@ -920,19 +929,19 @@ const dateInput       = document.getElementById('report-date');
           if (!resp.ok) throw new Error(resp.status);
           const states = await resp.json();
           if (!states.length) {
-            container.innerHTML = '<p class="muted">אין תצורות שמורות.</p>';
+            container.innerHTML = '<p class="muted">' + t('אין תצורות שמורות.') + '</p>';
             return;
           }
-          let html = '<table><caption class="muted small-text">תצורות שמורות בשרת</caption><thead><tr><th>לקוח</th><th>תאריך</th><th>גודל</th><th>פעולות</th></tr></thead><tbody>';
+          let html = '<table><caption class="muted small-text">' + t('תצורות שמורות בשרת') + '</caption><thead><tr><th>' + t('לקוח') + '</th><th>' + t('תאריך') + '</th><th>' + t('גודל') + '</th><th>' + t('פעולות') + '</th></tr></thead><tbody>';
           states.forEach(s => {
             html += '<tr>' +
               '<td>' + escapeHtml(s.client || '—') + '</td>' +
               '<td>' + escapeHtml(s.reportDate || '—') + '</td>' +
               '<td>' + Math.round(s.size / 1024) + ' KB</td>' +
               '<td>' +
-                '<button class="btn btn-secondary btn-sm" data-cloud-action="load" data-cloud-id="' + escapeHtml(s.id) + '">טען</button> ' +
-                '<a class="btn btn-secondary btn-sm" href="/api/download-state/' + encodeURIComponent(s.id) + '" download>הורד</a> ' +
-                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-state" data-cloud-id="' + escapeHtml(s.id) + '">מחק</button>' +
+                '<button class="btn btn-secondary btn-sm" data-cloud-action="load" data-cloud-id="' + escapeHtml(s.id) + '">' + t('טען') + '</button> ' +
+                '<a class="btn btn-secondary btn-sm" href="/api/download-state/' + encodeURIComponent(s.id) + '" download>' + escapeHtml(t('הורד')) + '</a> ' +
+                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-state" data-cloud-id="' + escapeHtml(s.id) + '">' + t('מחק') + '</button>' +
               '</td></tr>';
           });
           html += '</tbody></table>';
@@ -947,7 +956,7 @@ const dateInput       = document.getElementById('report-date');
             });
           });
         } catch (e) {
-          container.innerHTML = '<p class="muted">שגיאה בטעינת רשימה.</p>';
+          container.innerHTML = '<p class="muted">' + t('שגיאה בטעינת רשימה.') + '</p>';
         }
       }
 
@@ -961,18 +970,18 @@ const dateInput       = document.getElementById('report-date');
           const data = await resp.json();
           const files = data.files || [];
           if (!files.length) {
-            container.innerHTML = '<p class="muted">אין קבצי פלט.</p>';
+            container.innerHTML = '<p class="muted">' + t('אין קבצי פלט.') + '</p>';
             return;
           }
-          let html = '<table><caption class="muted small-text">קבצי פלט בשרת</caption><thead><tr><th>שם קובץ</th><th>סוג</th><th>גודל</th><th>פעולות</th></tr></thead><tbody>';
+          let html = '<table><caption class="muted small-text">' + t('קבצי פלט בשרת') + '</caption><thead><tr><th>' + t('שם קובץ') + '</th><th>' + t('סוג') + '</th><th>' + t('גודל') + '</th><th>' + t('פעולות') + '</th></tr></thead><tbody>';
           files.forEach(f => {
             html += '<tr>' +
               '<td>' + escapeHtml(f.filename) + '</td>' +
               '<td>' + escapeHtml(String(f.type).toUpperCase()) + '</td>' +
               '<td>' + Math.round(f.size / 1024) + ' KB</td>' +
               '<td>' +
-                '<a class="btn btn-secondary btn-sm" href="/api/download-output/' + encodeURIComponent(f.filename) + '" download>הורד</a> ' +
-                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-output" data-cloud-id="' + escapeHtml(f.filename) + '">מחק</button>' +
+                '<a class="btn btn-secondary btn-sm" href="/api/download-output/' + encodeURIComponent(f.filename) + '" download>' + escapeHtml(t('הורד')) + '</a> ' +
+                '<button class="btn btn-danger btn-sm" data-cloud-action="delete-output" data-cloud-id="' + escapeHtml(f.filename) + '">' + t('מחק') + '</button>' +
               '</td></tr>';
           });
           html += '</tbody></table>';
@@ -986,9 +995,17 @@ const dateInput       = document.getElementById('report-date');
             });
           });
         } catch (e) {
-          container.innerHTML = '<p class="muted">שגיאה בטעינת רשימה.</p>';
+          container.innerHTML = '<p class="muted">' + t('שגיאה בטעינת רשימה.') + '</p>';
         }
       }
+
+      // Re-render the server file lists when the UI language changes
+      document.addEventListener(LANG_CHANGE_EVENT, function() {
+        var statesEl = document.getElementById('states-list');
+        if (statesEl && statesEl.offsetParent && statesEl.innerHTML.trim()) refreshStatesList();
+        var outputsEl = document.getElementById('outputs-list');
+        if (outputsEl && outputsEl.offsetParent && outputsEl.innerHTML.trim()) refreshOutputsList();
+      });
 
       // Cloud action functions
       window.cloudLoadState = async function(id) {
@@ -997,15 +1014,15 @@ const dateInput       = document.getElementById('report-date');
           if (!resp.ok) throw new Error('Not found');
           const snapshot = await resp.json();
           applySnapshot(snapshot);
-          statusMsg.textContent = 'תצורה נטענה מהשרת.';
+          statusMsg.textContent = t('תצורה נטענה מהשרת.');
         } catch (e) {
-          statusMsg.textContent = 'שגיאה בטעינה: ' + e.message;
+          statusMsg.textContent = tFormat('שגיאה בטעינה: {msg}', { msg: e.message });
         }
       };
 
       window.cloudDeleteState = async function(id) {
-        var yes = await styledConfirm('למחוק תצורה זו?', {
-          icon: '🗑️', title: 'מחיקת תצורה', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+        var yes = await styledConfirm(t('למחוק תצורה זו?'), {
+          icon: '🗑️', title: t('מחיקת תצורה'), confirmText: t('מחק'), cancelText: t('ביטול'), danger: true
         });
         if (!yes) return;
         try {
@@ -1013,13 +1030,13 @@ const dateInput       = document.getElementById('report-date');
           if (!resp.ok) throw new Error(resp.status);
           refreshStatesList();
         } catch (e) {
-          statusMsg.textContent = 'שגיאה במחיקה.';
+          statusMsg.textContent = t('שגיאה במחיקה.');
         }
       };
 
       window.cloudDeleteOutput = async function(filename) {
-        var yes = await styledConfirm('למחוק קובץ זה?', {
-          icon: '🗑️', title: 'מחיקת קובץ', confirmText: 'מחק', cancelText: 'ביטול', danger: true
+        var yes = await styledConfirm(t('למחוק קובץ זה?'), {
+          icon: '🗑️', title: t('מחיקת קובץ'), confirmText: t('מחק'), cancelText: t('ביטול'), danger: true
         });
         if (!yes) return;
         try {
@@ -1027,7 +1044,7 @@ const dateInput       = document.getElementById('report-date');
           if (!resp.ok) throw new Error(resp.status);
           refreshOutputsList();
         } catch (e) {
-          statusMsg.textContent = 'שגיאה במחיקה.';
+          statusMsg.textContent = t('שגיאה במחיקה.');
         }
       };
 
@@ -1106,7 +1123,7 @@ const dateInput       = document.getElementById('report-date');
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-ai btn-sm';
-        btn.textContent = '✨ הפק תקציר מנהלים מבוסס ממצאים';
+        btn.textContent = t('✨ הפק תקציר מנהלים מבוסס ממצאים');
         btn.style.marginTop = '6px';
 
         var row = document.createElement('div');
@@ -1120,7 +1137,7 @@ const dateInput       = document.getElementById('report-date');
         btn.addEventListener('click', function() {
           var findings = state.findings || [];
           if (!findings.length) {
-            showToast('אין ממצאים לסיכום', 'warning');
+            showToast(t('אין ממצאים לסיכום'), 'warning');
             return;
           }
           var model = (aiModelSelect && aiModelSelect.value) || '';
@@ -1128,7 +1145,7 @@ const dateInput       = document.getElementById('report-date');
           var client = clientEl ? clientEl.value.trim() : '';
 
           btn.disabled = true;
-          btn.textContent = '⏳ מפיק תקציר...';
+          btn.textContent = t('⏳ מפיק תקציר...');
 
           fetch('/api/generate-exec-summary', {
             method: 'POST',
@@ -1154,14 +1171,14 @@ const dateInput       = document.getElementById('report-date');
             if (data.error) throw new Error(data.error);
             execSummaryField.value = data.summary || '';
             execSummaryField.dispatchEvent(new Event('input'));
-            showToast('תקציר מנהלים נוצר בהצלחה ✓');
+            showToast(t('תקציר מנהלים נוצר בהצלחה ✓'));
           })
           .catch(function(err) {
-            showToast('שגיאה בהפקת תקציר: ' + err.message, 'error');
+            showToast(tFormat('שגיאה בהפקת תקציר: {msg}', { msg: err.message }), 'error');
           })
           .finally(function() {
             btn.disabled = false;
-            btn.textContent = '✨ הפק תקציר מנהלים מבוסס ממצאים';
+            btn.textContent = t('✨ הפק תקציר מנהלים מבוסס ממצאים');
           });
         });
       }
@@ -1175,7 +1192,7 @@ const dateInput       = document.getElementById('report-date');
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-ai btn-sm';
-        btn.textContent = '✨ הצע נושאים';
+        btn.textContent = t('✨ הצע נושאים');
         btn.style.marginTop = '6px';
 
         var row = document.createElement('div');
@@ -1187,7 +1204,7 @@ const dateInput       = document.getElementById('report-date');
         btn.addEventListener('click', function() {
           var findings = state.findings || [];
           if (!findings.length) {
-            showToast('אין ממצאים להצעת נושאים', 'warning');
+            showToast(t('אין ממצאים להצעת נושאים'), 'warning');
             return;
           }
           var model = (aiModelSelect && aiModelSelect.value) || '';
@@ -1195,7 +1212,7 @@ const dateInput       = document.getElementById('report-date');
           var client = clientEl ? clientEl.value.trim() : '';
 
           btn.disabled = true;
-          btn.textContent = 'מייצר נושאים...';
+          btn.textContent = t('מייצר נושאים...');
 
           fetch('/api/generate-key-topics', {
             method: 'POST',
@@ -1216,14 +1233,14 @@ const dateInput       = document.getElementById('report-date');
             if (data.error) throw new Error(data.error);
             keyTopicsField.value = data.topics || '';
             keyTopicsField.dispatchEvent(new Event('input'));
-            showToast('נושאי מפתח נוצרו בהצלחה ✓');
+            showToast(t('נושאי מפתח נוצרו בהצלחה ✓'));
           })
           .catch(function(err) {
-            showToast('שגיאה בהצעת נושאים: ' + err.message, 'error');
+            showToast(tFormat('שגיאה בהצעת נושאים: {msg}', { msg: err.message }), 'error');
           })
           .finally(function() {
             btn.disabled = false;
-            btn.textContent = '✨ הצע נושאים';
+            btn.textContent = t('✨ הצע נושאים');
           });
         });
       }
@@ -1238,8 +1255,8 @@ const dateInput       = document.getElementById('report-date');
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn btn-ai btn-sm';
-        btn.textContent = '✨ שפר ניסוח';
-        btn.title = 'שלח לבינה מלאכותית לשיפור הניסוח';
+        btn.textContent = t('✨ שפר ניסוח');
+        btn.title = t('שלח לבינה מלאכותית לשיפור הניסוח');
 
         var resultBox = document.createElement('div');
         resultBox.className = 'ai-suggestion-box';
@@ -1251,10 +1268,10 @@ const dateInput       = document.getElementById('report-date');
 
         btn.addEventListener('click', function() {
           var text = el.value.trim();
-          if (!text) { statusMsg.textContent = 'אין טקסט לשיפור.'; return; }
+          if (!text) { statusMsg.textContent = t('אין טקסט לשיפור.'); return; }
 
           btn.disabled = true;
-          btn.textContent = '⏳ מעבד...';
+          btn.textContent = t('⏳ מעבד...');
           resultBox.style.display = 'none';
 
           fetch('/api/suggest', {
@@ -1265,7 +1282,7 @@ const dateInput       = document.getElementById('report-date');
           .then(function(r) { return r.json(); })
           .then(function(data) {
             if (data.error) {
-              statusMsg.textContent = 'שגיאת AI: ' + data.error;
+              statusMsg.textContent = tFormat('שגיאת AI: {err}', { err: data.error });
               return;
             }
             resultBox.style.display = 'block';
@@ -1273,7 +1290,7 @@ const dateInput       = document.getElementById('report-date');
 
             var header = document.createElement('div');
             header.className = 'ai-suggestion-header';
-            header.textContent = 'הצעת שיפור:';
+            header.textContent = t('הצעת שיפור:');
 
             var content = document.createElement('div');
             content.className = 'ai-suggestion-content';
@@ -1285,7 +1302,7 @@ const dateInput       = document.getElementById('report-date');
             var acceptBtn = document.createElement('button');
             acceptBtn.type = 'button';
             acceptBtn.className = 'btn btn-primary btn-sm';
-            acceptBtn.textContent = '✓ קבל';
+            acceptBtn.textContent = t('✓ קבל');
             acceptBtn.addEventListener('click', function() {
               el.value = data.suggestion;
               resultBox.style.display = 'none';
@@ -1294,7 +1311,7 @@ const dateInput       = document.getElementById('report-date');
             var dismissBtn = document.createElement('button');
             dismissBtn.type = 'button';
             dismissBtn.className = 'btn btn-secondary btn-sm';
-            dismissBtn.textContent = '✕ בטל';
+            dismissBtn.textContent = t('✕ בטל');
             dismissBtn.addEventListener('click', function() {
               resultBox.style.display = 'none';
             });
@@ -1306,11 +1323,11 @@ const dateInput       = document.getElementById('report-date');
             resultBox.appendChild(actions);
           })
           .catch(function(e) {
-            statusMsg.textContent = 'שגיאת רשת: ' + e.message;
+            statusMsg.textContent = tFormat('שגיאת רשת: {msg}', { msg: e.message });
           })
           .finally(function() {
             btn.disabled = false;
-            btn.textContent = '✨ שפר ניסוח';
+            btn.textContent = t('✨ שפר ניסוח');
           });
         });
       }

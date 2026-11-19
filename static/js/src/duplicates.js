@@ -1,5 +1,6 @@
 // ── Duplicate Detection Module ──
 import { escapeHtml } from './core.js';
+import { t, tFormat } from './i18n.js';
 import { showToast, styledConfirm } from './core.js';
 import { state } from './state.js';
 import { renderFindingsTable, saveToProductMemory } from './findings.js';
@@ -62,7 +63,7 @@ export function updateDuplicatesButtonState() {
 // ── Open modal and start detection ──
 export async function detectDuplicates(productId) {
   if (!productId) {
-    showToast('לא נבחר מוצר פעיל', 'error');
+    showToast(t('לא נבחר מוצר פעיל'), 'error');
     return;
   }
 
@@ -123,7 +124,7 @@ export async function detectDuplicates(productId) {
     }
   } catch (error) {
     console.error('Error detecting duplicates:', error);
-    showToast('שגיאה בזיהוי כפילויות: ' + error.message, 'error');
+    showToast(t('שגיאה בזיהוי כפילויות: ') + error.message, 'error');
     closeModal();
   }
 }
@@ -132,27 +133,27 @@ export async function detectDuplicates(productId) {
 function showLoadingState() {
   modalBody.innerHTML = '<div class="duplicates-loading">' +
     '<div class="duplicates-spinner"></div>' +
-    '<p>מזהה כפילויות...</p>' +
+    '<p>' + escapeHtml(t('מזהה כפילויות...')) + '</p>' +
     '</div>';
 }
 
 // ── Show confirmation modal for large products ──
 async function showLargeProductConfirmation(data) {
   // Build message with category counts
-  var message = data.message || 'המוצר מכיל מספר רב של ממצאים. האם להמשיך?';
+  var message = data.message || t('המוצר מכיל מספר רב של ממצאים. האם להמשיך?');
 
   if (data.categoriesOverLimit && data.categoriesOverLimit.length > 0) {
-    message += '\n\nקטגוריות שחורגות מהמגבלה:';
+    message += '\n\n' + t('קטגוריות שחורגות מהמגבלה:');
     data.categoriesOverLimit.forEach(function(cat) {
-      message += '\n• ' + cat.category + ': ' + cat.count + ' ממצאים';
+      message += '\n• ' + cat.category + ': ' + tFormat('{n} ממצאים', { n: cat.count });
     });
   }
 
   return await styledConfirm(message, {
     icon: '⚠️',
-    title: 'אישור ניתוח מוצר גדול',
-    confirmText: 'כן, המשך',
-    cancelText: 'ביטול',
+    title: t('אישור ניתוח מוצר גדול'),
+    confirmText: t('כן, המשך'),
+    cancelText: t('ביטול'),
     danger: false
   });
 }
@@ -164,9 +165,9 @@ function showNoDuplicatesState(warnings) {
   modalBody.innerHTML = warningsHtml +
     '<div class="duplicates-empty-state">' +
     '<div class="duplicates-empty-icon">✓</div>' +
-    '<h3>לא נמצאו כפילויות</h3>' +
-    '<p>כל הממצאים במוצר זה ייחודיים (סף דמיון: 85%).</p>' +
-    '<button class="btn btn-secondary" id="duplicates-close-empty">סגור</button>' +
+    '<h3>' + escapeHtml(t('לא נמצאו כפילויות')) + '</h3>' +
+    '<p>' + escapeHtml(t('כל הממצאים במוצר זה ייחודיים (סף דמיון: 85%).')) + '</p>' +
+    '<button class="btn btn-secondary" id="duplicates-close-empty">' + escapeHtml(t('סגור')) + '</button>' +
     '</div>';
 
   var closeBtn = document.getElementById('duplicates-close-empty');
@@ -179,7 +180,7 @@ function showNoDuplicatesState(warnings) {
 function renderPair(index, warnings) {
   if (index >= currentPairs.length) {
     // All pairs processed
-    showToast('כל הכפילויות עובדו בהצלחה', 'success');
+    showToast(t('כל הכפילויות עובדו בהצלחה'), 'success');
     closeModal();
     renderFindingsTable(); // Refresh the findings list
     return;
@@ -195,9 +196,9 @@ function renderPair(index, warnings) {
   var html = warningsHtml +
     '<div class="duplicates-pair-container">' +
     '<div class="duplicates-pair-header">' +
-    '<h3>זוג #' + (index + 1) + ' מתוך ' + currentPairs.length + '</h3>' +
+    '<h3>' + escapeHtml(tFormat('זוג #{i} מתוך {n}', { i: index + 1, n: currentPairs.length })) + '</h3>' +
     '<div class="duplicates-similarity-badge">' +
-    '<span class="duplicates-similarity-label">דמיון:</span> ' +
+    '<span class="duplicates-similarity-label">' + escapeHtml(t('דמיון:')) + '</span> ' +
     '<span class="duplicates-similarity-value">' + Math.round(similarity * 100) + '%</span>' +
     '</div>' +
     '</div>' +
@@ -206,9 +207,9 @@ function renderPair(index, warnings) {
     renderFindingCard(findingB, 'B') +
     '</div>' +
     '<div class="duplicates-actions">' +
-    '<button class="btn btn-primary" data-action="keep" data-side="A">שמור ממצא A</button>' +
-    '<button class="btn btn-secondary" data-action="skip">דלג</button>' +
-    '<button class="btn btn-primary" data-action="keep" data-side="B">שמור ממצא B</button>' +
+    '<button class="btn btn-primary" data-action="keep" data-side="A">' + escapeHtml(t('שמור ממצא A')) + '</button>' +
+    '<button class="btn btn-secondary" data-action="skip">' + escapeHtml(t('דלג')) + '</button>' +
+    '<button class="btn btn-primary" data-action="keep" data-side="B">' + escapeHtml(t('שמור ממצא B')) + '</button>' +
     '</div>' +
     '</div>';
 
@@ -228,7 +229,7 @@ function renderWarnings(warnings) {
   }
 
   var html = '<div class="duplicates-warnings" style="background:#fff3cd;color:#856404;padding:12px;border-radius:6px;margin-bottom:16px;text-align:right;">';
-  html += '<strong>⚠️ אזהרות:</strong>';
+  html += '<strong>' + escapeHtml(t('⚠️ אזהרות:')) + '</strong>';
   html += '<ul style="margin:8px 0 0;padding-right:20px;">';
   warnings.forEach(function(warning) {
     html += '<li>' + escapeHtml(warning) + '</li>';
@@ -245,24 +246,24 @@ function renderFindingCard(finding, label) {
 
   return '<div class="duplicates-finding-card">' +
     '<div class="duplicates-finding-header">' +
-    '<h4>ממצא ' + escapeHtml(label) + '</h4>' +
+    '<h4>' + escapeHtml(tFormat('ממצא {label}', { label: label })) + '</h4>' +
     '<span class="severity-chip ' + severityClass + '">' + escapeHtml(finding.severity) + '</span>' +
     '</div>' +
     '<div class="duplicates-finding-field">' +
-    '<strong>מזהה:</strong> ' + escapeHtml(finding.id) +
+    '<strong>' + escapeHtml(t('מזהה:')) + '</strong> ' + escapeHtml(finding.id) +
     '</div>' +
     '<div class="duplicates-finding-field">' +
-    '<strong>כותרת:</strong> ' + escapeHtml(finding.title || '') +
+    '<strong>' + escapeHtml(t('כותרת:')) + '</strong> ' + escapeHtml(finding.title || '') +
     '</div>' +
     '<div class="duplicates-finding-field">' +
-    '<strong>קטגוריה:</strong> ' + escapeHtml(finding.category || '') +
+    '<strong>' + escapeHtml(t('קטגוריה:')) + '</strong> ' + escapeHtml(finding.category || '') +
     '</div>' +
     '<div class="duplicates-finding-field">' +
-    '<strong>תיאור:</strong> ' + escapeHtml((finding.description || '').substring(0, 150)) +
+    '<strong>' + escapeHtml(t('תיאור:')) + '</strong> ' + escapeHtml((finding.description || '').substring(0, 150)) +
     (finding.description && finding.description.length > 150 ? '...' : '') +
     '</div>' +
     '<div class="duplicates-finding-field">' +
-    '<strong>השפעה:</strong> ' + escapeHtml((finding.impact || '').substring(0, 100)) +
+    '<strong>' + escapeHtml(t('השפעה:')) + '</strong> ' + escapeHtml((finding.impact || '').substring(0, 100)) +
     (finding.impact && finding.impact.length > 100 ? '...' : '') +
     '</div>' +
     '</div>';
@@ -302,7 +303,7 @@ async function handleAction(e) {
     }
 
     // Show toast
-    showToast('ממצא ' + escapeHtml(deleteFinding.id) + ' נמחק, ממצא ' + escapeHtml(keepFinding.id) + ' נשמר', 'success');
+    showToast(tFormat('ממצא {del} נמחק, ממצא {keep} נשמר', { del: escapeHtml(deleteFinding.id), keep: escapeHtml(keepFinding.id) }), 'success');
 
     // Move to next pair
     currentPairIndex++;

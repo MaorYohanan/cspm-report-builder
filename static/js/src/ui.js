@@ -267,7 +267,7 @@ export function updateStepper() {
   var envStageChecked = [...document.querySelectorAll('input[name="report-env-stage"]:checked')];
   var cloudVal = (cloudEl && cloudEl.value.trim()) || '';
   var envVal = envStageChecked.map(function(cb) { return cb.value; }).join(', ');
-  var combinedLabel = [cloudVal, envVal].filter(Boolean).join(' · ') || 'לא הוגדרה סביבה';
+  var combinedLabel = [cloudVal, envVal].filter(Boolean).join(' · ') || t('לא הוגדרה סביבה');
   if (envLabel) envLabel.textContent = combinedLabel;
   // Update progress — 4 steps
   var clientEl = document.getElementById('report-client');
@@ -288,16 +288,16 @@ export function updateStepper() {
   var progressLabel = document.getElementById('sidebar-progress-label');
   if (progressText) progressText.textContent = pct + '%';
   if (progressFill) progressFill.style.width = pct + '%';
-  if (progressLabel) progressLabel.textContent = steps + ' מתוך 4 שלבים';
+  if (progressLabel) progressLabel.textContent = tFormat('{n} מתוך 4 שלבים', { n: steps });
 
   // Update tooltip checklist
   var tooltip = document.getElementById('progress-tooltip');
   if (tooltip) {
     tooltip.innerHTML =
-      '<div class="progress-tooltip-item ' + (hasClient ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasClient ? '✓' : '✗') + '</span> שם לקוח</div>' +
-      '<div class="progress-tooltip-item ' + (hasEnv ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasEnv ? '✓' : '✗') + '</span> סביבת ענן</div>' +
-      '<div class="progress-tooltip-item ' + (hasFindings ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasFindings ? '✓' : '✗') + '</span> ממצאים</div>' +
-      '<div class="progress-tooltip-item ' + (hasExported ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasExported ? '✓' : '✗') + '</span> ייצוא דו"ח</div>';
+      '<div class="progress-tooltip-item ' + (hasClient ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasClient ? '✓' : '✗') + '</span> ' + escapeHtml(t('שם לקוח')) + '</div>' +
+      '<div class="progress-tooltip-item ' + (hasEnv ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasEnv ? '✓' : '✗') + '</span> ' + escapeHtml(t('סביבת ענן')) + '</div>' +
+      '<div class="progress-tooltip-item ' + (hasFindings ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasFindings ? '✓' : '✗') + '</span> ' + escapeHtml(t('ממצאים')) + '</div>' +
+      '<div class="progress-tooltip-item ' + (hasExported ? 'done' : '') + '"><span class="progress-tooltip-icon">' + (hasExported ? '✓' : '✗') + '</span> ' + escapeHtml(t('ייצוא דו"ח')) + '</div>';
   }
 }
 
@@ -662,3 +662,7 @@ export function renderDashboard() {
 
   render(); // state may already hold a result (e.g. a pipeline import that finished before this view mounted)
 })();
+
+// Sidebar env label, progress label and checklist tooltip are built in updateStepper() with t():
+// refresh them on a language switch (setLang's data-i18n pass would otherwise leave stale defaults)
+document.addEventListener(LANG_CHANGE_EVENT, function() { updateStepper(); });

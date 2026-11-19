@@ -59,8 +59,8 @@ export function styledConfirm(message, opts) {
   opts = opts || {};
   var icon = opts.icon || '⚠️';
   var title = opts.title || '';
-  var confirmText = opts.confirmText || 'אישור';
-  var cancelText = opts.cancelText || 'ביטול';
+  var confirmText = opts.confirmText || t('אישור');
+  var cancelText = opts.cancelText || t('ביטול');
   var danger = opts.danger || false;
 
   return new Promise(function(resolve) {

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wizi — CSPM Report Builder</title>
-  <link rel="stylesheet" href="/static/css/builder.css?v=201">
+  <link rel="stylesheet" href="/static/css/builder.css?v=202">
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
 </head>
 <body>
@@ -12,7 +12,7 @@
   <div id="toast-container" aria-live="polite"></div>
 
   <!-- Keyboard shortcuts overlay -->
-  <div id="kbd-overlay" class="kbd-overlay hidden" role="dialog" aria-label="קיצורי מקלדת">
+  <div id="kbd-overlay" class="kbd-overlay hidden" role="dialog" aria-label="קיצורי מקלדת" data-i18n-aria-label="קיצורי מקלדת">
     <div class="kbd-overlay-content">
       <div class="kbd-overlay-header">
         <span>⌨️ <span data-i18n="קיצורי מקלדת">קיצורי מקלדת</span></span>
@@ -54,16 +54,16 @@
     <div class="temp-action-modal-overlay" id="temp-action-modal-overlay"></div>
     <div class="temp-action-modal-dialog">
       <div class="temp-action-modal-header">
-        <h2 id="temp-action-modal-title" class="temp-action-modal-title">פעולה זמנית</h2>
-        <button class="temp-action-modal-close" id="temp-action-modal-close" aria-label="סגור" title="סגור">✕</button>
+        <h2 id="temp-action-modal-title" class="temp-action-modal-title" data-i18n="פעולה זמנית">פעולה זמנית</h2>
+        <button class="temp-action-modal-close" id="temp-action-modal-close" aria-label="סגור" data-i18n-aria-label="סגור" title="סגור">✕</button>
       </div>
       <div class="temp-action-modal-body">
-        <p class="temp-action-modal-description">הממצא יוחרג בדו"ח זה בלבד. בדו"ח הבא הוא יחזור כממצא פעיל, עם תזכורת.</p>
+        <p class="temp-action-modal-description" data-i18n="הממצא יוחרג בדו&quot;ח זה בלבד. בדו&quot;ח הבא הוא יחזור כממצא פעיל, עם תזכורת.">הממצא יוחרג בדו"ח זה בלבד. בדו"ח הבא הוא יחזור כממצא פעיל, עם תזכורת.</p>
         <div class="temp-action-options">
           <button class="temp-action-option" id="temp-action-exception" data-action="temp_excepted">
             <span class="temp-action-icon">⚠</span>
-            <span class="temp-action-label">החרג לפעם הזו</span>
-            <span class="temp-action-desc">הממצא יסומן כמוחרג בדו"ח הנוכחי בלבד</span>
+            <span class="temp-action-label" data-i18n="החרג לפעם הזו">החרג לפעם הזו</span>
+            <span class="temp-action-desc" data-i18n="הממצא יסומן כמוחרג בדו&quot;ח הנוכחי בלבד">הממצא יסומן כמוחרג בדו"ח הנוכחי בלבד</span>
           </button>
         </div>
       </div>
@@ -176,7 +176,7 @@
     <!-- Main content -->
     <main class="main-content" id="main-content">
       <div class="content-header">
-        <h1 class="content-title" id="content-title" data-i18n="לוח בקרה">לוח בקרה</h1>
+        <h1 class="content-title" id="content-title">לוח בקרה</h1>
         <span id="autosave-time" class="muted small-text"></span>
       </div>
 
@@ -255,11 +255,11 @@
           <div class="report-form-grid">
             <div class="form-field">
               <label for="report-client" data-i18n="שם הלקוח">שם הלקוח</label>
-              <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ">
+              <input type="text" id="report-client" placeholder="לדוגמה: משרד XYZ" data-i18n-placeholder="לדוגמה: משרד XYZ">
             </div>
             <div class="form-field">
               <label for="report-subscription-ids">Subscription IDs</label>
-              <textarea id="report-subscription-ids" rows="3" placeholder="הכנס Subscription ID אחד בכל שורה" style="resize:vertical;"></textarea>
+              <textarea id="report-subscription-ids" rows="3" placeholder="הכנס Subscription ID אחד בכל שורה" data-i18n-placeholder="הכנס Subscription ID אחד בכל שורה" style="resize:vertical;"></textarea>
             </div>
             <div class="form-field">
               <label for="report-cloud" data-i18n="ענן">ענן</label>
@@ -276,15 +276,15 @@
             </div>
             <div class="form-field">
               <label for="report-consultant" data-i18n="יועץ / גוף מבצע">יועץ / גוף מבצע</label>
-              <input type="text" id="report-consultant" placeholder="שם היועץ / חברה">
+              <input type="text" id="report-consultant" placeholder="שם היועץ / חברה" data-i18n-placeholder="שם היועץ / חברה">
             </div>
             <div class="form-field">
               <label for="report-team-name" data-i18n="שם הצוות / כותרת">שם הצוות / כותרת</label>
-              <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע">
+              <input type="text" id="report-team-name" placeholder="צוות אבטחת מידע" data-i18n-placeholder="צוות אבטחת מידע">
             </div>
             <div class="form-field">
               <label for="report-org-name" data-i18n="שם הארגון">שם הארגון</label>
-              <input type="text" id="report-org-name" placeholder="החברה שלי">
+              <input type="text" id="report-org-name" placeholder="החברה שלי" data-i18n-placeholder="החברה שלי">
             </div>
             <div class="form-field">
               <label for="report-date" data-i18n="תאריך הדו&quot;ח">תאריך הדו"ח</label>
@@ -341,11 +341,11 @@
           <div class="report-form-grid">
             <div class="form-field form-field-wide">
               <label for="report-exec-summary" data-i18n="תקציר מנהלים">תקציר מנהלים</label>
-              <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
+              <textarea id="report-exec-summary" rows="3" placeholder="מה מצב ה-POSTURE הכללי?" data-i18n-placeholder="מה מצב ה-POSTURE הכללי?"></textarea>
             </div>
             <div class="form-field form-field-wide">
               <label for="report-key-topics" data-i18n="נושאי מפתח">נושאי מפתח</label>
-              <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
+              <textarea id="report-key-topics" rows="3" placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..." data-i18n-placeholder="IAM והרשאות יתר...&#10;חשיפה לאינטרנט..."></textarea>
             </div>
           </div>
         </details>
@@ -355,11 +355,11 @@
           <div class="report-form-grid">
             <div class="form-field">
               <label for="report-footer-text" data-i18n="טקסט תחתית">טקסט תחתית</label>
-              <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד">
+              <input type="text" id="report-footer-text" placeholder="סודי – לשימוש פנימי בלבד" data-i18n-placeholder="סודי – לשימוש פנימי בלבד">
             </div>
             <div class="form-field">
               <label for="report-cover-note" data-i18n="הערת שער">הערת שער</label>
-              <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו...">
+              <input type="text" id="report-cover-note" placeholder="ממצאי CSPM כפי שאותרו..." data-i18n-placeholder="ממצאי CSPM כפי שאותרו...">
             </div>
             <div class="form-field">
               <label for="report-lang" data-i18n="שפה">שפה</label>
@@ -370,7 +370,7 @@
             </div>
             <div class="form-field">
               <label for="report-cover-image" data-i18n="תמונת שער">תמונת שער</label>
-              <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער">
+              <input type="file" id="report-cover-image" accept="image/*" aria-label="העלאת תמונת שער" data-i18n-aria-label="העלאת תמונת שער">
               <div id="cover-image-preview" class="evidence-preview"></div>
             </div>
             <div class="form-field" id="ai-model-row" style="display:none;">
@@ -413,7 +413,7 @@
         <div class="row">
           <div class="col">
             <label for="f-title" data-i18n="כותרת ממצא *">כותרת ממצא *</label>
-            <input type="text" id="f-title" placeholder="Bucket ציבורי עם נתונים רגישים" required aria-required="true">
+            <input type="text" id="f-title" placeholder="Bucket ציבורי עם נתונים רגישים" data-i18n-placeholder="Bucket ציבורי עם נתונים רגישים" required aria-required="true">
           </div>
           <div class="col" style="max-width:140px;">
             <label for="f-severity" data-i18n="חומרה">חומרה</label>
@@ -429,17 +429,17 @@
         <div class="row">
           <div class="col">
             <label for="f-description" data-i18n="תיאור">תיאור</label>
-            <textarea id="f-description" rows="2" placeholder="מה זוהה בפועל?"></textarea>
+            <textarea id="f-description" rows="2" placeholder="מה זוהה בפועל?" data-i18n-placeholder="מה זוהה בפועל?"></textarea>
           </div>
           <div class="col">
             <label for="f-impact" data-i18n="השפעה / סיכון">השפעה / סיכון</label>
-            <textarea id="f-impact" rows="2" placeholder="משמעות עסקית / רגולטורית?"></textarea>
+            <textarea id="f-impact" rows="2" placeholder="משמעות עסקית / רגולטורית?" data-i18n-placeholder="משמעות עסקית / רגולטורית?"></textarea>
           </div>
         </div>
         <div class="row">
           <div class="col">
             <label for="f-technical" data-i18n="פרטים טכניים">פרטים טכניים</label>
-            <textarea id="f-technical" rows="2" placeholder="ענן: ...&#10;שירות: ..."></textarea>
+            <textarea id="f-technical" rows="2" placeholder="ענן: ...&#10;שירות: ..." data-i18n-placeholder="ענן: ...&#10;שירות: ..."></textarea>
           </div>
           <div class="col">
             <label for="f-policies" data-i18n="מדיניות / תקנים">מדיניות / תקנים</label>
@@ -449,11 +449,11 @@
         <div class="row">
           <div class="col">
             <label for="f-recs" data-i18n="המלצות">המלצות</label>
-            <textarea id="f-recs" rows="2" placeholder="לבטל גישה ציבורית...&#10;להפעיל הצפנה..."></textarea>
+            <textarea id="f-recs" rows="2" placeholder="לבטל גישה ציבורית...&#10;להפעיל הצפנה..." data-i18n-placeholder="לבטל גישה ציבורית...&#10;להפעיל הצפנה..."></textarea>
           </div>
           <div class="col">
             <label for="f-owner" data-i18n="בעלים / צוות אחראי">בעלים / צוות אחראי</label>
-            <input type="text" id="f-owner" placeholder="שם הצוות / בעל האחריות">
+            <input type="text" id="f-owner" placeholder="שם הצוות / בעל האחריות" data-i18n-placeholder="שם הצוות / בעל האחריות">
           </div>
         </div>
         <div class="row">
@@ -469,13 +469,13 @@
               <option value="custom" data-i18n="אחר (טקסט חופשי)">אחר (טקסט חופשי)</option>
             </select>
             <div class="priority-custom-wrapper collapsed" id="priority-custom-wrapper" style="margin-top:6px;">
-              <input type="text" id="f-priority-custom" placeholder="טקסט חופשי...">
+              <input type="text" id="f-priority-custom" placeholder="טקסט חופשי..." data-i18n-placeholder="טקסט חופשי...">
             </div>
           </div>
           <div class="col">
             <label for="f-evidence" data-i18n="הוכחה (תמונה)">הוכחה (תמונה)</label>
-            <div id="evidence-drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="גרור תמונה לכאן או לחץ לבחירה">
-              <input type="file" id="f-evidence" accept="image/*" aria-label="העלאת תמונת הוכחה">
+            <div id="evidence-drop-zone" class="drop-zone" tabindex="0" role="button" aria-label="גרור תמונה לכאן או לחץ לבחירה" data-i18n-aria-label="גרור תמונה לכאן או לחץ לבחירה">
+              <input type="file" id="f-evidence" accept="image/*" aria-label="העלאת תמונת הוכחה" data-i18n-aria-label="העלאת תמונת הוכחה">
               <p class="drop-zone-text"><span data-i18n="גרור / לחץ / ">גרור / לחץ / </span><strong>Ctrl+V</strong></p>
               <div id="evidence-preview" class="evidence-preview"></div>
             </div>
@@ -497,7 +497,7 @@
           </label>
           <div id="f-exception-reason-wrap" style="display:none;margin-top:8px;">
             <label for="f-exception-reason" data-i18n="סיבת ההחרגה (אופציונלי)">סיבת ההחרגה (אופציונלי)</label>
-            <textarea id="f-exception-reason" rows="2" placeholder="לדוגמה: אושר ע״י CISO ב-01/01/2025 — גישה ציבורית נדרשת לאתר סטטי"></textarea>
+            <textarea id="f-exception-reason" rows="2" placeholder="לדוגמה: אושר ע״י CISO ב-01/01/2025 — גישה ציבורית נדרשת לאתר סטטי" data-i18n-placeholder="לדוגמה: אושר ע״י CISO ב-01/01/2025 — גישה ציבורית נדרשת לאתר סטטי"></textarea>
           </div>
         </div>
       </div>
@@ -509,7 +509,7 @@
         <!-- List Pane -->
         <div class="findings-list-pane">
           <div class="findings-list-toolbar">
-            <input type="text" id="findings-search" placeholder="🔍 חיפוש..." class="filter-input" style="margin-bottom:8px;">
+            <input type="text" id="findings-search" placeholder="🔍 חיפוש..." data-i18n-placeholder="🔍 חיפוש..." class="filter-input" style="margin-bottom:8px;">
             <div class="findings-filter-bar">
               <select id="findings-filter-category" class="filter-select">
                 <option value="" data-i18n="כל הקטגוריות">כל הקטגוריות</option>
@@ -551,7 +551,7 @@
           <div id="batch-actions">
             <span id="batch-count"></span>
             <select id="batch-severity" class="filter-select">
-              <option value="">חומרה</option>
+              <option value="" data-i18n="חומרה">חומרה</option>
               <option value="critical">Critical</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
@@ -559,14 +559,14 @@
               <option value="info">Info</option>
             </select>
             <select id="batch-priority" class="filter-select">
-              <option value="">עדיפות</option>
-              <option value="מיידי (0–7 ימים)">מיידי</option>
-              <option value="גבוהה (עד 30 ימים)">גבוהה</option>
-              <option value="בינונית (30–60 ימים)">בינונית</option>
-              <option value="נמוכה (60–120 ימים)">נמוכה</option>
+              <option value="" data-i18n="עדיפות">עדיפות</option>
+              <option value="מיידי (0–7 ימים)" data-i18n="מיידי">מיידי</option>
+              <option value="גבוהה (עד 30 ימים)" data-i18n="גבוהה">גבוהה</option>
+              <option value="בינונית (30–60 ימים)" data-i18n="בינונית">בינונית</option>
+              <option value="נמוכה (60–120 ימים)" data-i18n="נמוכה">נמוכה</option>
             </select>
             <select id="batch-category" class="filter-select">
-              <option value="">קטגוריה</option>
+              <option value="" data-i18n="קטגוריה">קטגוריה</option>
               <option value="CSPM">CSPM</option>
               <option value="KSPM">KSPM</option>
               <option value="DSPM">DSPM</option>
@@ -577,7 +577,7 @@
               <option value="SECR">SECR</option>
               <option value="EOLM">EOLM</option>
             </select>
-            <input type="text" id="batch-owner" placeholder="בעלים" class="filter-input" style="max-width:140px;">
+            <input type="text" id="batch-owner" placeholder="בעלים" data-i18n-placeholder="בעלים" class="filter-input" style="max-width:140px;">
             <button id="btn-batch-ai-enrich" style="display:none;"></button>
             <button id="btn-batch-delete" style="display:none;"></button>
           </div>
@@ -627,7 +627,7 @@
             <div class="detail-severity-bar" id="detail-severity-bar"></div>
             <div class="findings-detail-header" id="findings-detail-header"></div>
             <div class="detail-position" id="detail-position"></div>
-            <div class="findings-detail-tabs" role="tablist" aria-label="פרטי ממצא">
+            <div class="findings-detail-tabs" role="tablist" aria-label="פרטי ממצא" data-i18n-aria-label="פרטי ממצא">
               <button class="findings-detail-tab active" role="tab" aria-selected="true" id="detail-tab-description" aria-controls="findings-detail-body" tabindex="0" data-detail-tab="description" data-i18n="תיאור">תיאור</button>
               <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-impact" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="impact" data-i18n="השפעה">השפעה</button>
               <button class="findings-detail-tab" role="tab" aria-selected="false" id="detail-tab-technical" aria-controls="findings-detail-body" tabindex="-1" data-detail-tab="technical" data-i18n="טכני">טכני</button>
@@ -642,7 +642,7 @@
             <div id="detail-exception-dialog" class="detail-exception-dialog" style="display:none;">
               <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:4px;" data-i18n="סיבת ההחרגה (אופציונלי)">סיבת ההחרגה (אופציונלי)</label>
               <textarea id="detail-exception-reason-input" rows="2"
-                placeholder="לדוג׳: אושר על ידי CISO, סיכון מקובל..."
+                placeholder="לדוג׳: אושר על ידי CISO, סיכון מקובל..." data-i18n-placeholder="לדוג׳: אושר על ידי CISO, סיכון מקובל..."
                 style="width:100%;resize:vertical;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-input);color:var(--text);font-family:inherit;box-sizing:border-box;"></textarea>
               <div style="display:flex;gap:8px;margin-top:6px;justify-content:flex-end;">
                 <button class="btn btn-secondary btn-sm" id="btn-exception-cancel" data-i18n="ביטול">ביטול</button>
@@ -716,9 +716,9 @@
             </div>
           </div>
         </div>
-        <input type="file" id="input-import-json" accept="application/json" style="display:none;" aria-label="בחירת קובץ תצורה">
-        <input type="file" id="input-import-csv" accept=".csv,text/csv" style="display:none;" aria-label="בחירת CSV">
-        <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת JSON להשוואה">
+        <input type="file" id="input-import-json" accept="application/json" style="display:none;" aria-label="בחירת קובץ תצורה" data-i18n-aria-label="בחירת קובץ תצורה">
+        <input type="file" id="input-import-csv" accept=".csv,text/csv" style="display:none;" aria-label="בחירת CSV" data-i18n-aria-label="בחירת CSV">
+        <input type="file" id="input-import-baseline" accept="application/json" style="display:none;" aria-label="בחירת JSON להשוואה" data-i18n-aria-label="בחירת JSON להשוואה">
         <span id="status-msg" class="muted small-text" role="status" aria-live="polite" style="display:block;margin-top:12px;"></span>
         <div id="trend-comparison" style="display:none;margin-top:14px;"></div>
       </div>
@@ -731,7 +731,7 @@
         <div id="outputs-list" class="small-text"><p class="muted" data-i18n="טוען...">טוען...</p></div>
         <div style="margin-top:8px;">
           <label for="cloud-upload-state" data-i18n="העלאת תצורה (JSON)">העלאת תצורה (JSON)</label>
-          <input type="file" id="cloud-upload-state" accept="application/json" aria-label="העלאת קובץ תצורה לשרת">
+          <input type="file" id="cloud-upload-state" accept="application/json" aria-label="העלאת קובץ תצורה לשרת" data-i18n-aria-label="העלאת קובץ תצורה לשרת">
         </div>
       </div>
     </section>
@@ -754,7 +754,7 @@
             <div class="row" style="align-items:end;">
               <div class="col">
                 <div class="autocomplete-wrapper">
-                  <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
+                  <input type="text" id="bulk-import-sub" placeholder="הזן שם Subscription..." data-i18n-placeholder="הזן שם Subscription..." dir="ltr" autocomplete="off">
                   <input type="hidden" id="bulk-import-sub-id">
                   <div class="autocomplete-list" id="bulk-import-sub-list"></div>
                 </div>
@@ -785,11 +785,11 @@
             <label for="wizi-find-id" data-i18n="🔎 שליפה לפי מזהה ממצא או Rule ID">🔎 שליפה לפי מזהה ממצא או Rule ID</label>
             <div class="row" style="align-items:end;">
               <div class="col">
-                <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
+                <input type="text" id="wizi-find-id" placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." data-i18n-placeholder="Control ID / Short ID / UUID (למשל: wc-id-493, EC2-005, UUID)..." dir="ltr">
               </div>
               <div class="col">
                 <label for="wizi-find-id-sub" class="muted small-text" style="margin-bottom:4px;" data-i18n="סינון לפי Subscription / פרויקט (אופציונלי)">סינון לפי Subscription / פרויקט (אופציונלי)</label>
-                <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
+                <input type="text" id="wizi-find-id-sub" placeholder="למשל: AWS-Dev-M-Cgov-Campusil" data-i18n-placeholder="למשל: AWS-Dev-M-Cgov-Campusil" dir="ltr">
               </div>
               <div class="col" style="max-width:140px;">
                 <button class="btn btn-primary btn-sm" id="btn-wizi-find-by-id" data-i18n="שלוף וייבא">שלוף וייבא</button>
@@ -821,14 +821,14 @@
           <div class="col">
             <label for="wizi-project" data-i18n="פרויקט / Subscription">פרויקט / Subscription</label>
             <div class="autocomplete-wrapper">
-              <input type="text" id="wizi-project" placeholder="הקלד שם subscription לסינון..." autocomplete="off">
+              <input type="text" id="wizi-project" placeholder="הקלד שם subscription לסינון..." data-i18n-placeholder="הקלד שם subscription לסינון..." autocomplete="off">
               <input type="hidden" id="wizi-project-id">
               <div class="autocomplete-list" id="wizi-project-list"></div>
             </div>
           </div>
           <div class="col">
             <label for="wizi-subscription" data-i18n="פרויקט / Subscription בטקסט חופשי">פרויקט / Subscription בטקסט חופשי</label>
-            <input type="text" id="wizi-subscription" placeholder="הזן שם subscription...">
+            <input type="text" id="wizi-subscription" placeholder="הזן שם subscription..." data-i18n-placeholder="הזן שם subscription...">
             <input type="hidden" id="wizi-subscription-id">
           </div>
         </div>
@@ -920,7 +920,7 @@
         <h2 data-i18n="רשימת חריגות">רשימת חריגות</h2>
 
         <div class="exceptions-filter-bar">
-          <input type="text" id="exceptions-search" placeholder="חיפוש לפי מוצר או ממצא...">
+          <input type="text" id="exceptions-search" placeholder="חיפוש לפי מוצר או ממצא..." data-i18n-placeholder="חיפוש לפי מוצר או ממצא...">
           <select id="exceptions-filter-severity">
             <option value="" data-i18n="כל החומרות">כל החומרות</option>
             <option value="critical">Critical</option>
@@ -972,7 +972,7 @@
             <option value="contains" data-i18n="מכיל">מכיל</option>
             <option value="regex" data-i18n="ביטוי רגולרי">ביטוי רגולרי</option>
           </select>
-          <input type="text" id="exclude-rule-pattern" placeholder="תבנית (כותרת)..." maxlength="500" dir="ltr" />
+          <input type="text" id="exclude-rule-pattern" placeholder="תבנית (כותרת)..." data-i18n-placeholder="תבנית (כותרת)..." maxlength="500" dir="ltr" />
           <input type="text" id="exclude-rule-pattern-resource" placeholder="תבנית משאב..." maxlength="500" dir="ltr" hidden />
           <label class="exclude-rule-active-label">
             <input type="checkbox" id="exclude-rule-active" checked />
@@ -1022,6 +1022,6 @@
     </div>
   </div>
 
-  <script type="module" src="/static/js/src/main.js?v=250"></script>
+  <script type="module" src="/static/js/src/main.js?v=252"></script>
 </body>
 </html>

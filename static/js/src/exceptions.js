@@ -28,7 +28,7 @@ function renderRows(data) {
     if (!tbody) return;
 
     if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="exceptions-no-published">אין חריגות להצגה</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="exceptions-no-published">' + _esc(t('אין חריגות להצגה')) + '</td></tr>';
         return;
     }
 
@@ -36,7 +36,7 @@ function renderRows(data) {
     data.forEach(function(item) {
         if (item.publishedAt === null) {
             html += '<tr>'
-                + '<td colspan="6" class="exceptions-no-published">אין גרסה מפורסמת — '
+                + '<td colspan="6" class="exceptions-no-published">' + _esc(t('אין גרסה מפורסמת — '))
                 + _esc(item.productName)
                 + '</td>'
                 + '</tr>';
@@ -102,14 +102,14 @@ async function load() {
         var resp = await fetch('/api/exceptions');
         if (!resp.ok) {
             var b = await resp.json().catch(function() { return {}; });
-            throw new Error(b.error || 'שגיאה');
+            throw new Error(b.error || t('שגיאה'));
         }
         _data = await resp.json();
         renderRows(_data);
     } catch (e) {
         var tbody = document.getElementById('exceptions-tbody');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="6" class="exceptions-no-published">שגיאה בטעינת הנתונים</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="exceptions-no-published">' + _esc(t('שגיאה בטעינת הנתונים')) + '</td></tr>';
         }
         // Reset so a retry is possible on next tab activation
         _loaded = false;

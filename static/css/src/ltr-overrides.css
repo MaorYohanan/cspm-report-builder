@@ -185,3 +185,10 @@
   margin-left: 0;
   margin-right: 4px;
 }
+
+/* ── Number-first progress lines: .app-layout forces direction: rtl, which reorders
+   "3 of 4 steps" / "5 findings | 1 critical" in English. Restore LTR for these lines only. ── */
+[dir="ltr"] .sidebar-progress-label,
+[dir="ltr"] #dashboard-risk-summary {
+  direction: ltr;
+}
