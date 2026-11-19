@@ -10,6 +10,7 @@ import { t, tFormat, countPhrase, LANG_CHANGE_EVENT } from './i18n.js';
 import { enrichFindingsWithAiSummaries } from './wizi.js';
 import { ProductsPanel } from './products.js';
 import { memorySubscriptionsForSave, memorySubscriptionsForRemove, snapshotMemoryEntries, rollbackMemoryWrites } from './memory-match.js';
+import { defaultPriorityForSeverity, followSeverityChange } from './priority-defaults.js';
 import { detectDuplicates, updateDuplicatesButtonState } from './duplicates.js';
 
 // Shared batch-delete confirmation (bulk bar button and the actions menu use the same dialog).
@@ -975,6 +976,7 @@ let priorityTouched = false;
           if (impactEl) impactEl.value = built.fields.impact;
           if (recsEl) recsEl.value = built.fields.recs;
           if (severityEl && state.editingIndex === null) severityEl.value = t.severity || 'high';
+          applyPriorityDefaultFromSeverity(); // BL-39: programmatic severity set fires no 'change'
           this.value = '';
           if (built.missing.length) {
             showToast(t_missing(built.missing), 'warning');
@@ -989,6 +991,7 @@ let priorityTouched = false;
         prefillId();
         if (titleEl) titleEl.value = t.title || '';
         if (severityEl) severityEl.value = t.severity || 'medium';
+        applyPriorityDefaultFromSeverity(); // BL-39
         if (descEl) descEl.value = t.description || '';
         if (impactEl) impactEl.value = t.impact || '';
         if (recsEl) recsEl.value = t.recs || '';
@@ -1257,18 +1260,16 @@ let priorityTouched = false;
       updatePriorityCustomVisibility();
 
       // --- Severity → priority auto-default ---
-      const severityMap = {
-        critical: 'מיידי (0–7 ימים)',
-        high: 'גבוהה (עד 30 ימים)',
-        medium: 'בינונית (30–60 ימים)',
-        low: 'נמוכה (60–120 ימים)'
-      };
-      document.getElementById('f-severity').addEventListener('change', function() {
+      // BL-39: the map lives in priority-defaults.js (shared by every creation path).
+      // Fills the form's priority from the severity field only while it is empty and untouched.
+      // Also called by the template dropdown, which sets #f-severity without firing 'change'.
+      function applyPriorityDefaultFromSeverity() {
         if (!priorityTouched && prioritySelect.value === '') {
-          const mapped = severityMap[this.value];
+          const mapped = defaultPriorityForSeverity(document.getElementById('f-severity').value);
           if (mapped) prioritySelect.value = mapped;
         }
-      });
+      }
+      document.getElementById('f-severity').addEventListener('change', applyPriorityDefaultFromSeverity);
 
       // Exception checkbox toggle
       (function() {
@@ -1886,7 +1887,14 @@ let priorityTouched = false;
         var newSev = this.value;
         if (!newSev) return;
         var indices = getSelectedFindingIndices();
-        indices.forEach(function(idx) { if (state.findings[idx]) state.findings[idx].severity = newSev; });
+        indices.forEach(function(idx) {
+          var f = state.findings[idx];
+          if (!f) return;
+          var oldSev = f.severity;
+          f.severity = newSev;
+          // BL-39: priority follows only if empty or still the OLD severity's default
+          followSeverityChange(f, oldSev);
+        });
         this.value = '';
         renderFindingsTable();
         autoSave();

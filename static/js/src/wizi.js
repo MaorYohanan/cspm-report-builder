@@ -7,6 +7,7 @@ import { t, tFormat, carryForwardMessage } from './i18n.js';
 import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules, getWiziItemPaths } from './exclude_rules.js';
 import { capResourceLines, capResourceLine, getFullResources } from './resource-cap.js';
+import { fillPriorityDefaults } from './priority-defaults.js';
 import { buildWizReference } from './wiz-reference.js';
 import { planTemplates, applyPlan } from './apply-templates.js';
 import { buildRuleKey, memoryEntriesToList, applyMemoryToFindings, computeUnmatchedEntries, publishUnmatchedMemory } from './memory-match.js';
@@ -1187,6 +1188,7 @@ function _resolveItemCategory(item, qt) {
           });
           attachWizRef(state.findings[state.findings.length - 1], 'vulnerabilityFindings', selected);
 
+          fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
           capResourceLines(state.findings.slice(beforeCount));
           renderFindingsTable();
           prefillId();
@@ -1252,6 +1254,7 @@ function _resolveItemCategory(item, qt) {
             notes: []
           });
 
+          fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
           capResourceLines(state.findings.slice(beforeCount));
           renderFindingsTable();
           prefillId();
@@ -1583,6 +1586,7 @@ function _resolveItemCategory(item, qt) {
           }
         });
 
+        fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
         capResourceLines(state.findings.slice(beforeCount));
         renderFindingsTable();
         prefillId();
@@ -1646,7 +1650,9 @@ function _resolveItemCategory(item, qt) {
             malwareFindings: importMalwareFinding
           };
           var fn = importers[qt] || importIssueFinding;
+          var priBefore = state.findings.length;
           fn(nodes[0]);
+          fillPriorityDefaults(state.findings.slice(priBefore)); // BL-39
           renderFindingsTable();
           prefillId();
           autoSave();
@@ -1723,7 +1729,9 @@ function _resolveItemCategory(item, qt) {
               softwareSupplyChainFindings: importSscFinding
             };
             var fn = importers[qt] || importIssueFinding;
+            var priBefore = state.findings.length;
             fn(node);
+            fillPriorityDefaults(state.findings.slice(priBefore)); // BL-39
             renderFindingsTable();
             prefillId();
             autoSave();
@@ -4537,6 +4545,7 @@ function _resolveItemCategory(item, qt) {
               if (result.updated) message += ' ' + tFormat('({n} ממצאים עודכנו)', { n: result.updated });
               if (result.skipped) message += ' ' + tFormat('({n} כפולים דולגו)', { n: result.skipped });
               showToast(message, 'success');
+              fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
               capResourceLines(state.findings.slice(beforeCount));
               renderFindingsTable();
               updateStepper();
