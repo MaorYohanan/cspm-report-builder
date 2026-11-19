@@ -485,8 +485,19 @@ BL-24 (Carry-forward hardening): ✅ merged to main — branch feature/bl-24-car
 - BL-13, BL-14, BL-18 ⏸️ deferred by user — do not start; open questions recorded in .plan/backlog.md (webhook destination; scan-result notification channel; draft-only auto-scan).
 - BL-16 (Full Audit Log): ✅ merged to main and pushed — branch feature/bl-16-audit-log, 2026-11-19. Append-only AuditEvent (Alembic d16a1c4e8b52 + e17b2d5f9a63 adds source_ip/user_agent), audit_service.record_event (never raises, sanitises), admin-only GET /api/admin/audit-log + Audit Log tab (he/en, filters incl. product/IP). Logs publish, deletes, exceptions (incl. temporary_consumed), exclude rules, role change, backup/restore. Finding delete logged only for Wiz-sourced findings (documented). Draft saves deliberately not logged. Actor is 'anonymous' until login exists. 582 tests passed. User DB backed up (instance/backups/pre-bl16*) and migrated to e17b2d5f9a63. Known: stale-drop rows store lowercased title (needs DB change to fix); i18n.js has no ?v=.
 
-- BL-31..BL-43 remaining (31,33,35,36,37,39,40,41,42,43): 🔄 in progress — user delegated 2026-11-19, done sequentially one branch each; BL-31 implemented on branch bl-33-pid-log-leftovers together with the BL-33 docs (awaiting merge approval, 2026-11-19).
-- BL-33 (app.pid/app.log leftovers): 🔍 awaiting merge approval — branch bl-33-pid-log-leftovers, 2026-11-19. Decision: document + gitignore only (README section with stale-PID check); no script/code. QA pending.
+
+## Backlog batch BL-31..BL-43 (2026-11-19/20): ✅ all merged to main (pushed 2026-11-20)
+- BL-31 pipeline product memory: findings carry `_sourceSubscription(s)` + `_pipelineScan`; one memory entry per subscription; `clear_siblings` removal; collapsed unmatched rows; temp-exception rollback restores prior entries. Residual: pre-change snapshots lack the marker.
+- BL-33 app.pid/app.log: documented in README + .gitignore (no code creates them).
+- BL-35 dark-theme chip + ID cell contrast now AA (critical 5.57, low 5.33, info 5.70, ID 5.57/5.37); PDF unaffected; builder.css v=203 total.
+- BL-36 translation sweep: ~430 en strings, live-switch re-render, guard tests; left Hebrew by design: PDF/report, Wiz data, CSV headers, admin.js.
+- BL-37 server-side ExcludeRule in pipeline scans (exclude_matching.py): parse-tree regex validator (max 3 wide repeats anchored / 2 unanchored), same validator on save + load, 1024-char text cap, excluded nodes dropped, memory-aware unmatched report, scan status has excluded_by_rules / skipped_rules / rules_load_failed. Known gap: a rule that excludes all vulns leaves the aggregate VULN memory entry 'unmatched'.
+- BL-39 priority default from severity on all creation paths (shared priority-defaults.js + backend mirror); never overwrites a manual priority.
+- BL-40 XLSX export (POST /api/export/xlsx, openpyxl pinned in requirements.txt: DOCKER IMAGE MUST BE REBUILT); 12 B.18 columns, quotePrefix formula safety. Needs a human check of row heights / RTL in desktop Excel.
+- BL-41 pipeline product name opens its timeline; BL-42 return to findings after edit save/cancel.
+- BL-43 interactive HTML export: category filter chips with counts + severity sort.
+- Tests: 822 passed. Cache-busters: main.js v=256, builder.css v=203.
+- BL-13/14/18 remain deferred (open questions in .plan/backlog.md); BL-15 removed.
 
 ## Next session — where to resume (written 2026-11-08)
 
@@ -556,5 +567,3 @@ VPC MULTIPLE template reworked as a smart template (2026-11-15, uncommitted): ne
 
 
 Smart templates for CSPM / HSPM / EOLM (2026-11-17): ✅ merged to main (local, not pushed) — branch feature/smart-templates-secr-config, includes SECR templates, VPC MULTIPLE template and the import popup offering smart templates. 12 templates in config-fill.js; browser QA passed with notes (placeholders in command examples are intentional, user decision). main.js v=243.
-- BL-35 (base chip contrast, dark theme): 🔍 awaiting merge approval — branch feature/bl-35-chip-contrast, 2026-11-19. Critical 3.44->5.57, low 4.45->5.33, info 4.03->5.70, ID cell 4.03/3.89->5.57/5.37 (dark); light unchanged; PDF unaffected; builder.css v=201.
-- BL-36 (translation sweep): 🔍 awaiting merge approval — branch feature/bl-36-translation-sweep, 2026-11-19, not merged, not pushed. Hebrew-keyed t()/tFormat() pattern; ~420 new en entries in i18n.js; index.html placeholders via data-i18n-placeholder / data-i18n-aria-label; live switch for trend panel, header title, exclude-rules table, pipeline, products, exceptions, stepper. 644 tests passed (628 before). main.js v=251. Leftovers listed in .plan/backlog.md BL-36.
