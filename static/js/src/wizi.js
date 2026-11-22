@@ -8,6 +8,7 @@ import { ProductsPanel } from './products.js';
 import { getActiveExcludeRules, isExcludedByRules, getWiziItemPaths } from './exclude_rules.js';
 import { capResourceLines, capResourceLine, getFullResources } from './resource-cap.js';
 import { fillPriorityDefaults } from './priority-defaults.js';
+import { snapshotFindings, newFindingsSince } from './new-findings.js';
 import { buildWizReference } from './wiz-reference.js';
 import { planTemplates, applyPlan } from './apply-templates.js';
 import { buildRuleKey, memoryEntriesToList, applyMemoryToFindings, computeUnmatchedEntries, publishUnmatchedMemory } from './memory-match.js';
@@ -1110,7 +1111,7 @@ function _resolveItemCategory(item, qt) {
       });
 
       wiziImportBtn.addEventListener('click', function() {
-        var beforeCount = state.findings.length;
+        var beforeSet = snapshotFindings(state.findings); // BL-39: object identity, not positions (SECR merge splices)
         var subscription = wiziProjectInput.value.trim() || wiziSubInput.value.trim() || '';
         var selected = [];
         document.querySelectorAll('.wizi-check:checked').forEach(function(cb) {
@@ -1188,14 +1189,14 @@ function _resolveItemCategory(item, qt) {
           });
           attachWizRef(state.findings[state.findings.length - 1], 'vulnerabilityFindings', selected);
 
-          fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
-          capResourceLines(state.findings.slice(beforeCount));
+          fillPriorityDefaults(newFindingsSince(beforeSet, state.findings)); // BL-39: new findings only; merged/updated ones keep their priority
+          capResourceLines(newFindingsSince(beforeSet, state.findings));
           renderFindingsTable();
           prefillId();
           autoSave();
           switchToTab('tab-findings-list');
           showToast(tFormat('יובאו {n} פגיעויות כממצא מאוחד', { n: selected.length }), 'success');
-          stampAndApplyMemory(beforeCount, subscription);
+          stampAndApplyMemory(beforeSet, subscription);
           return;
         }
 
@@ -1254,14 +1255,14 @@ function _resolveItemCategory(item, qt) {
             notes: []
           });
 
-          fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
-          capResourceLines(state.findings.slice(beforeCount));
+          fillPriorityDefaults(newFindingsSince(beforeSet, state.findings)); // BL-39: new findings only; merged/updated ones keep their priority
+          capResourceLines(newFindingsSince(beforeSet, state.findings));
           renderFindingsTable();
           prefillId();
           autoSave();
           switchToTab('tab-findings-list');
           showToast(tFormat('יובאו {n} ממצאות EOL כממצא מאוחד', { n: selected.length }), 'success');
-          stampAndApplyMemory(beforeCount, subscription);
+          stampAndApplyMemory(beforeSet, subscription);
           return;
         }
 
@@ -1586,8 +1587,8 @@ function _resolveItemCategory(item, qt) {
           }
         });
 
-        fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
-        capResourceLines(state.findings.slice(beforeCount));
+        fillPriorityDefaults(newFindingsSince(beforeSet, state.findings)); // BL-39: new findings only; merged/updated ones keep their priority
+        capResourceLines(newFindingsSince(beforeSet, state.findings));
         renderFindingsTable();
         prefillId();
         autoSave();
@@ -1599,7 +1600,7 @@ function _resolveItemCategory(item, qt) {
         showToast(msg, 'success');
 
         // Stamp source subscription and apply product memory
-        var newFindings = stampAndApplyMemory(beforeCount, subscription);
+        var newFindings = stampAndApplyMemory(beforeSet, subscription);
 
         // Smart EAPM / SECR templates for the newly imported findings (the AI improver stays on the findings page)
         offerSmartTemplates(newFindings);
@@ -1650,9 +1651,9 @@ function _resolveItemCategory(item, qt) {
             malwareFindings: importMalwareFinding
           };
           var fn = importers[qt] || importIssueFinding;
-          var priBefore = state.findings.length;
+          var priBeforeSet = snapshotFindings(state.findings);
           fn(nodes[0]);
-          fillPriorityDefaults(state.findings.slice(priBefore)); // BL-39
+          fillPriorityDefaults(newFindingsSince(priBeforeSet, state.findings)); // BL-39
           renderFindingsTable();
           prefillId();
           autoSave();
@@ -1729,9 +1730,9 @@ function _resolveItemCategory(item, qt) {
               softwareSupplyChainFindings: importSscFinding
             };
             var fn = importers[qt] || importIssueFinding;
-            var priBefore = state.findings.length;
+            var priBeforeSet = snapshotFindings(state.findings);
             fn(node);
-            fillPriorityDefaults(state.findings.slice(priBefore)); // BL-39
+            fillPriorityDefaults(newFindingsSince(priBeforeSet, state.findings)); // BL-39
             renderFindingsTable();
             prefillId();
             autoSave();
@@ -4357,8 +4358,8 @@ function _resolveItemCategory(item, qt) {
 
       // BL-24: stamp the source subscription on the freshly imported findings, then apply memory.
       // Used by the single-query import path (including its early-return aggregate branches).
-      function stampAndApplyMemory(beforeCount, subscription) {
-        var newFindings = state.findings.slice(beforeCount);
+      function stampAndApplyMemory(beforeSet, subscription) {
+        var newFindings = newFindingsSince(beforeSet, state.findings);
         if (subscription) {
           newFindings.forEach(function(f) {
             if (!f._sourceSubscription) f._sourceSubscription = subscription;
@@ -4525,14 +4526,14 @@ function _resolveItemCategory(item, qt) {
               // or if the danger confirmation was cancelled.
               if (!keepExisting && !dangerOk) return;
 
-              var beforeCount;
+              var beforeSet;
               if (!keepExisting && dangerOk) {
                 // Start fresh: clear all findings before import.
                 state.findings = [];
-                beforeCount = 0;
+                beforeSet = snapshotFindings([]);
               } else {
                 // Keep existing: append to current findings.
-                beforeCount = state.findings.length;
+                beforeSet = snapshotFindings(state.findings);
               }
 
               var result = importSelectedBulkFindings();
@@ -4545,8 +4546,8 @@ function _resolveItemCategory(item, qt) {
               if (result.updated) message += ' ' + tFormat('({n} ממצאים עודכנו)', { n: result.updated });
               if (result.skipped) message += ' ' + tFormat('({n} כפולים דולגו)', { n: result.skipped });
               showToast(message, 'success');
-              fillPriorityDefaults(state.findings.slice(beforeCount)); // BL-39: new findings only; merged/updated ones keep their priority
-              capResourceLines(state.findings.slice(beforeCount));
+              fillPriorityDefaults(newFindingsSince(beforeSet, state.findings)); // BL-39: new findings only; merged/updated ones keep their priority
+              capResourceLines(newFindingsSince(beforeSet, state.findings));
               renderFindingsTable();
               updateStepper();
               prefillId();
@@ -4554,7 +4555,7 @@ function _resolveItemCategory(item, qt) {
               switchToTab('tab-findings-list');
 
               // Stamp source subscription and apply product memory to newly imported findings only.
-              var newFindings = state.findings.slice(beforeCount);
+              var newFindings = newFindingsSince(beforeSet, state.findings);
               if (bulkSubscription) {
                 newFindings.forEach(function(f) {
                   if (!f._sourceSubscription) f._sourceSubscription = bulkSubscription;

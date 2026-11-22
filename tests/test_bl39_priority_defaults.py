@@ -145,3 +145,42 @@ def test_single_source_of_truth_wiring():
     findings_src = findings
     assert findings_src.count("applyPriorityDefaultFromSeverity()") >= 2  # both template branches
     assert "followSeverityChange(f, oldSev)" in findings_src
+
+
+@needs_node
+def test_new_findings_tracking_survives_splice_shrinking_the_array():
+    """SECR merge splices the list mid-import; slice(beforeCount) would skip new findings."""
+    mod = (JS / "new-findings.js").as_uri()
+    script = (
+        f"import * as m from {json.dumps(mod)};"
+        "import * as p from " + json.dumps((JS / "priority-defaults.js").as_uri()) + ";"
+        "const mk = (t) => ({title: t, severity: 'high', priority: ''});"
+        "let list = [mk('old0'), mk('old1'), mk('old2')];"
+        "const oldKept = list[2]; oldKept.priority = 'למעקב';"
+        "const before = list.length; const snap = m.snapshotFindings(list);"
+        "list.splice(0, 2);"                       # duplicate merge removes two existing findings
+        "list.push(mk('n1'), mk('n2'), mk('n3'));"
+        "const positional = list.slice(before).map(f => f.title);"
+        "const fresh = m.newFindingsSince(snap, list);"
+        "p.fillPriorityDefaults(fresh);"
+        "console.log(JSON.stringify({positional, fresh: fresh.map(f => f.title),"
+        " pri: list.map(f => f.priority), start: m.newFindingsSince(m.snapshotFindings([]), list).length}));"
+    )
+    out = subprocess.run(["node", "--input-type=module", "-e", script],
+                         capture_output=True, text=True, check=True, timeout=30)
+    res = json.loads(out.stdout)
+    assert res["positional"] == ["n3"]               # the old approach skips the first two new findings
+    assert res["fresh"] == ["n1", "n2", "n3"]
+    assert res["pri"] == ["למעקב", HIGH, HIGH, HIGH]    # existing keeps its priority, all new are filled
+    assert res["start"] == 4                            # start-fresh: empty snapshot -> everything is new
+
+
+def test_wizi_import_paths_track_objects_not_positions():
+    wizi = (JS / "wizi.js").read_text(encoding="utf-8")
+    assert "from './new-findings.js'" in wizi
+    assert "beforeCount" not in wizi and "priBefore " not in wizi
+    assert "slice(beforeSet" not in wizi and ".slice(priBefore" not in wizi
+    # single query (1 snapshot, 3 flows) + bulk (2 branches) + 2 find-by-id
+    assert wizi.count("snapshotFindings(") >= 5
+    assert wizi.count("capResourceLines(newFindingsSince(") == 4
+    assert wizi.count("fillPriorityDefaults(newFindingsSince(") == 6
