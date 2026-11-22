@@ -262,8 +262,12 @@ def test_edit_save_returns_to_list_via_keyboard_shortcut(page):
 def test_edit_cancel_and_save_return_via_detail_button_and_actions_menu(page):
     _prepare_list(page)
     rows = page.locator("#findings-table-wrapper tbody tr").count()
-    page.click("#findings-table-wrapper tbody tr:nth-child(12) td:nth-child(3)")
+    # dispatch_event, not click(): Playwright's click scrolls the row into view and can reset the list's
+    # scrollTop (observed 0 / 262 ~50% of runs, with no app-side scroll or re-render), which is a test
+    # artifact that would mask the scroll-restore behaviour under test.
+    page.locator("#findings-table-wrapper tbody tr:nth-child(12) td:nth-child(3)").dispatch_event("click")
     page.wait_for_selector("#findings-detail-content", state="visible")
+    assert page.evaluate(_SCROLL) == 150
     page.evaluate("document.getElementById('btn-detail-edit').click()")
     page.wait_for_selector("#tab-finding-form.active")
     page.click("#btn-cancel-edit")
