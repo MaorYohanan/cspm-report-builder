@@ -22,7 +22,7 @@ from backend.services.exclude_matching import (
     load_active_matcher, map_category_from_entity as _map_category_from_entity,
 )
 from backend.services.priority_defaults import default_priority_for_severity
-from backend.services.memory_matching import MemoryIndex, compute_unmatched, rule_key_for
+from backend.services.memory_matching import MemoryIndex, compute_unmatched, norm, rule_key_for
 from backend.graphql.queries import QUERY_TYPE_MAP
 from backend.services.wiz_service import WizService, build_bulk_filter
 
@@ -825,6 +825,9 @@ def _fetch_qtype(wiz, qtype: str, sub_name: str, sub_ids: list, sub_ext_ids: lis
     return qtype, nodes
 
 
+VULN_AGG_TITLE = "Multiple vulnerabilities with high and above severity"
+
+
 def _aggregate_vulns(vuln_nodes: list) -> dict:
     """Combine all vulnerability findings into a single summary finding.
 
@@ -873,7 +876,7 @@ def _aggregate_vulns(vuln_nodes: list) -> dict:
         **agg_extra,
         "id": "VULN-001",
         "category": "VULN",
-        "title": "Multiple vulnerabilities with high and above severity",
+        "title": VULN_AGG_TITLE,
         "severity": highest_sev,
         "description": f"נמצאו {total} פגיעויות ברמת חומרה גבוהה ומעלה",
         "impact": f"פגיעויות מרובות ברמת חומרה גבוהה ומעלה — {crit_count} קריטיות, {high_count} גבוהות",
@@ -1020,10 +1023,24 @@ def _store_findings_with_memory(snapshot_id: int, product_id: str, findings_to_s
 
     if unmatched_out is not None:
         seen_ids = set(matched_ids)
+        vuln_subs: set = set()
         for probe in rule_excluded or []:
             seen_ids.update(
                 e.id for e in index.resolve(probe["title"], probe["rule_key"], probe["subs"]).matched
             )
+            if probe.get("vuln"):
+                vuln_subs.update(norm(s) for s in probe["subs"] if norm(s))
+        if vuln_subs:
+            # BL-37: excluded vulnerability nodes would have fed the aggregate VULN-001 finding
+            # (stored under the title + comma-joined subscriptions). When rules drop every node
+            # the aggregate never exists, so its entries count as seen here (never applied).
+            agg_title = norm(VULN_AGG_TITLE)
+            for e in all_entries:
+                if norm(e.title) != agg_title:
+                    continue
+                parts = [p.strip() for p in norm(e.subscription).split(",") if p.strip()]
+                if any(p in vuln_subs for p in parts):
+                    seen_ids.add(e.id)
         unmatched_out.extend(compute_unmatched(
             all_entries, seen_ids, scope_subs or [], failed_types,
         ))
@@ -1048,7 +1065,8 @@ def _excluded_probe(node: dict, sub_name: str) -> dict:
     except Exception:  # noqa: BLE001 - best-effort; falls back to rule key matching only
         title = ""
     return {"title": title, "rule_key": rule_key_for(node),
-            "subs": [sub_name, node.get("_sourceSubscription") or ""]}
+            "subs": [sub_name, node.get("_sourceSubscription") or ""],
+            "vuln": node.get("queryType") == "vulnerabilityFindings"}
 
 
 def _run_wiz_fetch(app, snapshot_id: int, selected_subs: list) -> None:

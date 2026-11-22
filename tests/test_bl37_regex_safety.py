@@ -223,3 +223,34 @@ def test_scan_status_endpoint_exposes_rule_fields(app, monkeypatch):
     body = client.get(f"/api/pipeline/p1/scan-status/{snap.id}").get_json()
     assert body["status"] == "done"
     assert body["excluded_by_rules"] == 0 and body["rules_load_failed"] is False and body["skipped_rules"] == []
+
+
+# ── Product Memory: aggregate VULN-001 when rules drop its vulnerability nodes ──
+
+def _vn(name, asset="host"):
+    return {"id": f"v-{name}", "name": name, "severity": "HIGH", "vulnerableAsset": {"name": asset}}
+
+
+def test_all_vulns_rule_excluded_aggregate_memory_not_unmatched(app, monkeypatch):
+    _mem(pl.VULN_AGG_TITLE, source="excepted")
+    _mem(pl.VULN_AGG_TITLE, source="temp_excepted", sub=SUB + ", other-sub")
+    _rule("category", "startsWith", "vuln")
+    snap, rows = _scan(app, {"vulnerabilityFindings": [_vn("CVE-1"), _vn("CVE-2")]}, monkeypatch)
+    assert rows == [] and _unmatched(snap) == []
+    # never applied or consumed by an exclusion
+    assert ProductMemoryEntry.query.count() == 2
+    assert ProductMemoryEntry.query.filter_by(source="temp_excepted").count() == 1
+
+
+def test_some_vulns_excluded_aggregate_matches_as_before(app, monkeypatch):
+    _mem(pl.VULN_AGG_TITLE, source="excepted", reason="accepted")
+    _rule("title_resource", "startsWith", json.dumps({"title": "cve-1", "resource": "gone"}))
+    snap, rows = _scan(app, {"vulnerabilityFindings": [_vn("CVE-1", "gone-host"), _vn("CVE-2")]}, monkeypatch)
+    assert len(rows) == 1 and rows[0]["exception"] == {"active": True, "reason": "accepted"}
+    assert _unmatched(snap) == []
+
+
+def test_vuln_memory_without_rule_or_vulns_is_still_unmatched(app, monkeypatch):
+    _mem(pl.VULN_AGG_TITLE, source="excepted")
+    snap, rows = _scan(app, {"vulnerabilityFindings": []}, monkeypatch)
+    assert rows == [] and [u["title"] for u in _unmatched(snap)] == [pl.VULN_AGG_TITLE.lower()]
