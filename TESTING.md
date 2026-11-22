@@ -31,11 +31,22 @@ tests/
 
 ## Running Tests
 
-```bash
-python -m pytest tests/ -v
-```
+The suite is ~830 tests / ~195s in full. Most of that is 31 real-browser tests (~90s) and ~360 tests that shell out to `node` (~1-2s each on Windows). Tests are auto-tagged in `tests/conftest.py`: `browser` (uses Playwright) and `node` (spawns node).
 
-Run after any change to `backend/routes/products.py` or `backend/routes/wiz.py`.
+| When | Command | ~Time |
+|------|---------|-------|
+| While iterating (default) | `python scripts/run_tests.py` — runs only tests related to files changed vs HEAD | seconds |
+| One feature | `python -m pytest tests/test_products.py -q` | seconds |
+| Fast tier, no browser | `python -m pytest` (browser tests are deselected by default) | ~95s |
+| Skip node tests too | `python -m pytest -m "not node"` | ~25s |
+| UI / JS / template change | `python scripts/run_tests.py` (auto-adds browser tests) or `python -m pytest -m browser` | ~90s |
+| Before merge to main | `python scripts/run_tests.py --all` | ~195s |
+
+`run_tests.py` links a changed file to tests that mention its path or module name; changes to models, database, conftest or pytest.ini run the whole non-browser suite; docs-only changes run nothing. Use `--base main` to diff a branch against main, `--list` to preview the selection.
+
+Browser tests need ports 8765/8766 free and Microsoft Edge; they skip themselves otherwise.
+
+Optional speed-up: `pip install pytest-xdist` then add `-n 4` for the non-browser tests (not installed by default; do not combine with `-m browser` since those files share ports).
 
 ---
 

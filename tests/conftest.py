@@ -8,6 +8,20 @@ from backend.database import db as _db
 from backend.routes.products import products_bp
 
 
+def pytest_collection_modifyitems(items):
+    """Auto-tag tests by what they need, so `-m` can select tiers without editing every file."""
+    cache: dict[str, str] = {}
+    for item in items:
+        path = str(item.fspath)
+        src = cache.get(path)
+        if src is None:
+            src = cache[path] = open(path, encoding="utf-8").read()
+        if "sync_playwright" in src:
+            item.add_marker(pytest.mark.browser)
+        elif '"node"' in src:
+            item.add_marker(pytest.mark.node)
+
+
 @pytest.fixture
 def app():
     """Flask application with an isolated in-memory SQLite database."""
