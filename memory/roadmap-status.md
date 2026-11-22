@@ -493,7 +493,7 @@ BL-24 (Carry-forward hardening): ✅ merged to main — branch feature/bl-24-car
 - BL-36 translation sweep: ~430 en strings, live-switch re-render, guard tests; left Hebrew by design: PDF/report, Wiz data, CSV headers, admin.js.
 - BL-37 server-side ExcludeRule in pipeline scans (exclude_matching.py): parse-tree regex validator (max 3 wide repeats anchored / 2 unanchored), same validator on save + load, 1024-char text cap, excluded nodes dropped, memory-aware unmatched report, scan status has excluded_by_rules / skipped_rules / rules_load_failed. (Gap fixed 2026-11-22: aggregate VULN memory entries count as seen when their vulnerabilities are rule-excluded.)
 - BL-39 priority default from severity on all creation paths (shared priority-defaults.js + backend mirror); never overwrites a manual priority.
-- BL-40 XLSX export (POST /api/export/xlsx, openpyxl pinned in requirements.txt: DOCKER IMAGE MUST BE REBUILT); 12 B.18 columns, quotePrefix formula safety. Needs a human check of row heights / RTL in desktop Excel.
+- BL-40 XLSX export (POST /api/export/xlsx, openpyxl pinned in requirements.txt: DOCKER IMAGE MUST BE REBUILT); 12 B.18 columns, quotePrefix formula safety. Human-checked in desktop Excel by the user 2026-11-22: all good.
 - BL-41 pipeline product name opens its timeline; BL-42 return to findings after edit save/cancel.
 - BL-43 interactive HTML export: category filter chips with counts + severity sort.
 - Follow-up fix 2026-11-22 (branch fix/bl-37-39-known-gaps): BL-37 aggregate-VULN unmatched warning; BL-39 new-findings tracked by object identity (new-findings.js) instead of slice(beforeCount); BL-42 browser test flake fixed (test artifact: Playwright click scrolled the list). BL-31 residual gap deliberately ignored by user.
