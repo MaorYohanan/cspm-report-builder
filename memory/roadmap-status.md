@@ -491,12 +491,13 @@ BL-24 (Carry-forward hardening): ✅ merged to main — branch feature/bl-24-car
 - BL-33 app.pid/app.log: documented in README + .gitignore (no code creates them).
 - BL-35 dark-theme chip + ID cell contrast now AA (critical 5.57, low 5.33, info 5.70, ID 5.57/5.37); PDF unaffected; builder.css v=203 total.
 - BL-36 translation sweep: ~430 en strings, live-switch re-render, guard tests; left Hebrew by design: PDF/report, Wiz data, CSV headers, admin.js.
-- BL-37 server-side ExcludeRule in pipeline scans (exclude_matching.py): parse-tree regex validator (max 3 wide repeats anchored / 2 unanchored), same validator on save + load, 1024-char text cap, excluded nodes dropped, memory-aware unmatched report, scan status has excluded_by_rules / skipped_rules / rules_load_failed. Known gap: a rule that excludes all vulns leaves the aggregate VULN memory entry 'unmatched'.
+- BL-37 server-side ExcludeRule in pipeline scans (exclude_matching.py): parse-tree regex validator (max 3 wide repeats anchored / 2 unanchored), same validator on save + load, 1024-char text cap, excluded nodes dropped, memory-aware unmatched report, scan status has excluded_by_rules / skipped_rules / rules_load_failed. (Gap fixed 2026-11-22: aggregate VULN memory entries count as seen when their vulnerabilities are rule-excluded.)
 - BL-39 priority default from severity on all creation paths (shared priority-defaults.js + backend mirror); never overwrites a manual priority.
 - BL-40 XLSX export (POST /api/export/xlsx, openpyxl pinned in requirements.txt: DOCKER IMAGE MUST BE REBUILT); 12 B.18 columns, quotePrefix formula safety. Needs a human check of row heights / RTL in desktop Excel.
 - BL-41 pipeline product name opens its timeline; BL-42 return to findings after edit save/cancel.
 - BL-43 interactive HTML export: category filter chips with counts + severity sort.
-- Tests: 822 passed. Cache-busters: main.js v=256, builder.css v=203.
+- Follow-up fix 2026-11-22 (branch fix/bl-37-39-known-gaps): BL-37 aggregate-VULN unmatched warning; BL-39 new-findings tracked by object identity (new-findings.js) instead of slice(beforeCount); BL-42 browser test flake fixed (test artifact: Playwright click scrolled the list). BL-31 residual gap deliberately ignored by user.
+- Tests: 829 passed. Cache-busters: main.js v=257, builder.css v=203.
 - BL-13/14/18 remain deferred (open questions in .plan/backlog.md); BL-15 removed.
 
 ## Next session — where to resume (written 2026-11-08)
